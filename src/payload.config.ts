@@ -1,7 +1,7 @@
 // storage-adapter-import-placeholder
 import { sqliteAdapter } from '@payloadcms/db-sqlite'
 
-import sharp from 'sharp' // sharp-import
+import sharp from 'sharp'
 import path from 'path'
 import { buildConfig, PayloadRequest } from 'payload'
 import { fileURLToPath } from 'url'
@@ -16,6 +16,7 @@ import { Header } from './Header/config'
 import { plugins } from './plugins'
 import { defaultLexical } from '@/fields/defaultLexical'
 import { getServerSideURL } from './utilities/getURL'
+import { s3Storage } from '@payloadcms/storage-s3'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -62,6 +63,7 @@ export default buildConfig({
   db: sqliteAdapter({
     client: {
       url: process.env.DATABASE_URI || '',
+      // authToken: process.env.DATABASE_AUTH_TOKEN,
     },
   }),
   collections: [Pages, Posts, Media, Categories, Users],
@@ -69,7 +71,21 @@ export default buildConfig({
   globals: [Header, Footer],
   plugins: [
     ...plugins,
-    // storage-adapter-placeholder
+    s3Storage({
+      collections: {
+        media: true,
+      },
+      bucket: process.env.R2_BUCKET || '',
+      config: {
+        endpoint: process.env.R2_ENDPOINT || '',
+        credentials: {
+          accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
+          secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || '',
+        },
+        region: 'auto',
+        forcePathStyle: true,
+      },
+    }),
   ],
   secret: process.env.PAYLOAD_SECRET,
   sharp,
