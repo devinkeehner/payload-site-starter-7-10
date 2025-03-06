@@ -11,9 +11,9 @@ import {
 
 import { authenticated } from '../../lib/access/authenticated'
 import { authenticatedOrPublished } from '../../lib/access/authenticatedOrPublished'
-import { BannerConfig } from '@/components/blocks/banner'
-import { CodeBlockConfig } from '@/components/blocks/code'
-import { MediaBlockConfig } from '@/components/blocks/media-block'
+import { BannerConfig } from '@/components/blocks/banner/config'
+import { CodeBlockConfig } from '@/components/blocks/code/config'
+import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { populateAuthors } from './hooks/populateAuthors'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
