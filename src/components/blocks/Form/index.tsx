@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import type { SerializedEditorState } from '@payloadcms/richtext-lexical/lexical'
 
 import { fields } from './fields'
-import { getClientSideURL } from '@/utilities/getURL'
+import { getClientSideURL } from '@/lib/utilities/getURL'
 
 import type { Block } from 'payload'
 
