@@ -5,7 +5,7 @@ import type { Page } from '@/payload-types'
 import { ArchiveBlock } from '@/components/blocks/archive-block'
 import { CallToActionBlock } from '@/components/blocks/call-to-action'
 import { ContentBlock } from '@/components/blocks/content'
-import { FormBlock } from '@/components/blocks/form'
+import { FormBlock } from '@/components/blocks/form-block'
 import { MediaBlock } from '@/components/blocks/media-block'
 import { BannerBlock } from '@/components/blocks/banner'
 
