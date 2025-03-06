@@ -9,7 +9,6 @@ import { AdminBar } from '@/components/site/admin-bar'
 import { Footer } from '@/components/site/footer'
 import { Header } from '@/components/site/header'
 import { Providers } from '@/providers'
-import { InitTheme } from '@/providers/theme/InitTheme'
 import { mergeOpenGraph } from '@/lib/utilities/mergeOpenGraph'
 import { draftMode } from 'next/headers'
 
@@ -22,7 +21,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html className={cn(GeistSans.variable, GeistMono.variable)} lang="en" suppressHydrationWarning>
       <head>
-        <InitTheme />
         <link href="/favicon.ico" rel="icon" sizes="32x32" />
         <link href="/favicon.svg" rel="icon" type="image/svg+xml" />
       </head>
@@ -48,6 +46,6 @@ export const metadata: Metadata = {
   openGraph: mergeOpenGraph(),
   twitter: {
     card: 'summary_large_image',
-    creator: '@payloadcms',
+    creator: '@bridgertower',
   },
 }

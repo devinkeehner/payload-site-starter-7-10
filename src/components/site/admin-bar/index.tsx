@@ -12,7 +12,7 @@ import './index.scss'
 
 import { getClientSideURL } from '@/lib/utilities/getURL'
 
-const baseClass = 'admin-bar'
+const baseClass = 'admin-bar fixed bottom-0 left-0 right-0 z-50'
 
 const collectionLabels = {
   pages: {
@@ -48,7 +48,7 @@ export const AdminBar: React.FC<{
 
   return (
     <div
-      className={cn(baseClass, 'py-2 bg-black text-white', {
+      className={cn(baseClass, 'py-2 bg-black text-white', 'flex items-center', {
         block: show,
         hidden: !show,
       })}

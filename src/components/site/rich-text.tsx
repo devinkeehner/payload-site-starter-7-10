@@ -76,7 +76,7 @@ export default function RichText(props: Props) {
       className={cn(
         'payload-richtext',
         {
-          'max-w-3xl': enableGutter,
+          'max-w-prose': enableGutter,
           'space-y-4': enableSpacing,
           ds: enableProse,
         },

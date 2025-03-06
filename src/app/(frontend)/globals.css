@@ -1,7 +1,6 @@
 @import 'tailwindcss';
 
 @plugin 'tailwindcss-animate';
-@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -269,7 +268,7 @@
   }
   .ds pre code {
     @apply bg-transparent p-0;
-  } 
+  }
   */
 
   /* Tables */

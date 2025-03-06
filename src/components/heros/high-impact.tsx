@@ -1,4 +1,4 @@
-import { Section, Container } from '@/components/craft'
+import { Section, Container } from '@/components/layout'
 import { CMSLink } from '@/components/site/link'
 import { Media } from '@/components/site/media'
 
