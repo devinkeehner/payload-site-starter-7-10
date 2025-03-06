@@ -5,6 +5,8 @@ import React from 'react'
 import type { Header as HeaderType } from '@/payload-types'
 
 import { CMSLink } from '@/components/site/link'
+import { Button } from '@/components/ui/button'
+import { Github } from 'lucide-react'
 import Link from 'next/link'
 import { SearchIcon } from 'lucide-react'
 
@@ -20,6 +22,11 @@ export const HeaderNav = ({ data }: { data: HeaderType }) => {
         <span className="sr-only">Search</span>
         <SearchIcon className="w-5 text-primary" />
       </Link>
+      <Button asChild size="icon">
+        <Link target="_blank" rel="noopener" href="https://github.com/brijr/payload-site-starter">
+          <Github size={18} aria-label="GitHub" />
+        </Link>
+      </Button>
     </nav>
   )
 }
