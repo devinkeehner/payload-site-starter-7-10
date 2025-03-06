@@ -2,7 +2,7 @@ import type { CollectionConfig } from 'payload'
 
 import { anyone } from '@/lib/access/anyone'
 import { authenticated } from '@/lib/access/authenticated'
-import { slugField } from '@/collections/@fields/slug'
+import { slugField } from '@/collections/_fields/slug'
 
 export const Categories: CollectionConfig = {
   slug: 'categories',
