@@ -13,7 +13,7 @@ import {
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
 
-import { linkGroup } from '../fields/linkGroup'
+import { linkGroup } from '../../collections/_fields/linkGroup'
 
 export const CallToActionConfig: Block = {
   slug: 'cta',

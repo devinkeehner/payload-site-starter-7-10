@@ -1,4 +1,5 @@
 'use client'
+
 import type { FormFieldBlock, Form as FormType } from '@payloadcms/plugin-form-builder/types'
 
 import { useRouter } from 'next/navigation'
@@ -10,58 +11,6 @@ import type { SerializedEditorState } from '@payloadcms/richtext-lexical/lexical
 
 import { fields } from './fields'
 import { getClientSideURL } from '@/lib/utilities/getURL'
-
-import type { Block } from 'payload'
-
-import {
-  FixedToolbarFeature,
-  HeadingFeature,
-  InlineToolbarFeature,
-  lexicalEditor,
-} from '@payloadcms/richtext-lexical'
-
-export const FormBlockConfig: Block = {
-  slug: 'formBlock',
-  interfaceName: 'FormBlock',
-  fields: [
-    {
-      name: 'form',
-      type: 'relationship',
-      relationTo: 'forms',
-      required: true,
-    },
-    {
-      name: 'enableIntro',
-      type: 'checkbox',
-      label: 'Enable Intro Content',
-    },
-    {
-      name: 'introContent',
-      type: 'richText',
-      admin: {
-        condition: (_, { enableIntro }) => Boolean(enableIntro),
-      },
-      editor: lexicalEditor({
-        features: ({ rootFeatures }) => {
-          return [
-            ...rootFeatures,
-            HeadingFeature({ enabledHeadingSizes: ['h1', 'h2', 'h3', 'h4'] }),
-            FixedToolbarFeature(),
-            InlineToolbarFeature(),
-          ]
-        },
-      }),
-      label: 'Intro Content',
-    },
-  ],
-  graphQL: {
-    singularName: 'FormBlock',
-  },
-  labels: {
-    plural: 'Form Blocks',
-    singular: 'Form Block',
-  },
-}
 
 export type FormBlockType = {
   blockName?: string

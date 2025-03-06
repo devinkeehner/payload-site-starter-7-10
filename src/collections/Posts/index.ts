@@ -25,7 +25,7 @@ import {
   OverviewField,
   PreviewField,
 } from '@payloadcms/plugin-seo/fields'
-import { slugField } from '@/components/fields/slug'
+import { slugField } from '@/collections/_fields/slug'
 
 export const Posts: CollectionConfig<'posts'> = {
   slug: 'posts',
