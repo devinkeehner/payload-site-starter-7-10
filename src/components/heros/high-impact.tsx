@@ -1,4 +1,4 @@
-import { Section, Container, Prose } from '@/components/craft'
+import { Section, Container } from '@/components/craft'
 import { CMSLink } from '@/components/site/link'
 import { Media } from '@/components/site/media'
 
@@ -10,7 +10,7 @@ export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
   return (
     <Section>
       <Container>
-        {richText && <RichText data={richText} enableProse />}
+        {richText && <RichText data={richText} />}
         {Array.isArray(links) && links.length > 0 && (
           <div className="flex gap-2">
             {links.map(({ link }, i) => (

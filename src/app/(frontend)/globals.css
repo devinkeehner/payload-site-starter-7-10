@@ -123,3 +123,215 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ---------- brijr/ds ---------- */
+
+@layer components {
+  /* Base Design System */
+  .ds {
+    @apply font-sans antialiased text-base leading-7;
+  }
+
+  /* Typography */
+  .ds h1,
+  .ds h2,
+  .ds h3,
+  .ds h4,
+  .ds h5,
+  .ds h6 {
+    @apply tracking-tight text-balance;
+  }
+
+  .ds h1 {
+    @apply text-4xl sm:text-5xl font-semibold;
+  }
+  .ds h2 {
+    @apply text-3xl sm:text-4xl font-medium;
+  }
+  .ds h3 {
+    @apply text-2xl sm:text-3xl font-medium;
+  }
+  .ds h4 {
+    @apply text-xl sm:text-2xl;
+  }
+  .ds h5 {
+    @apply text-lg sm:text-xl;
+  }
+  .ds h6 {
+    @apply text-base sm:text-lg;
+  }
+
+  .ds p {
+    @apply text-pretty;
+  }
+  .ds strong {
+    @apply font-semibold;
+  }
+  .ds em {
+    @apply italic;
+  }
+  .ds del {
+    @apply line-through;
+  }
+  .ds small {
+    @apply text-sm sm:text-base font-medium leading-snug;
+  }
+  .ds sub,
+  .ds sup {
+    @apply text-sm align-baseline;
+  }
+
+  /* Links */
+  .ds a:not(h1 a, h2 a, h3 a, h4 a, h5 a, h6 a) {
+    @apply text-blue-600 dark:text-blue-300 transition-all no-underline hover:underline underline-offset-2 decoration-blue-500/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/50;
+  }
+
+  /* Lists */
+  .ds ul {
+    @apply pl-0 list-none space-y-2;
+  }
+  .ds ul li {
+    @apply relative pl-6;
+  }
+  .ds ul li::before {
+    @apply absolute left-1 top-[0.6875em] h-1.5 w-1.5 rounded-full bg-foreground/80;
+    content: '';
+  }
+
+  .ds ol {
+    @apply list-decimal pl-6 space-y-2;
+  }
+  .ds ol ol {
+    @apply list-[lower-alpha];
+  }
+  .ds ol ol ol {
+    @apply list-[lower-roman];
+  }
+
+  /* Base list item styling */
+  .ds li {
+    @apply pl-2 marker:text-foreground/80;
+  }
+  .ds li ul,
+  .ds li ol {
+    @apply mt-2 mb-0;
+  }
+  .ds ul ul li::before {
+    @apply bg-foreground/60;
+  }
+  .ds ul ul ul li::before {
+    @apply bg-foreground/40;
+  }
+
+  /* Code Blocks */
+  .ds code:not(pre code) {
+    @apply rounded border bg-muted/50 px-1 py-px font-mono text-sm font-medium;
+  }
+
+  /* Title Code Blocks */
+  .ds h1 code:not(pre code),
+  .ds h2 code:not(pre code),
+  .ds h3 code:not(pre code),
+  .ds h4 code:not(pre code),
+  .ds h5 code:not(pre code),
+  .ds h6 code:not(pre code) {
+    @apply text-inherit tracking-tight;
+  }
+
+  /* Specific heading code block sizes */
+  .ds h1 code:not(pre code) {
+    @apply text-4xl sm:text-5xl;
+  }
+
+  .ds h2 code:not(pre code) {
+    @apply text-3xl sm:text-4xl;
+  }
+
+  .ds h3 code:not(pre code) {
+    @apply text-2xl sm:text-3xl;
+  }
+
+  .ds h4 code:not(pre code) {
+    @apply text-xl sm:text-2xl;
+  }
+
+  .ds h5 code:not(pre code) {
+    @apply text-lg sm:text-xl;
+  }
+
+  .ds h6 code:not(pre code) {
+    @apply text-base sm:text-lg;
+  }
+
+  /*
+  .ds pre {
+    @apply overflow-x-auto rounded-lg border bg-muted/50 p-4 my-4;
+  }
+  .ds pre code {
+    @apply bg-transparent p-0;
+  } 
+  */
+
+  /* Tables */
+  .ds table {
+    @apply w-full my-4 overflow-hidden rounded-lg border;
+  }
+  .ds thead {
+    @apply bg-muted/50;
+  }
+  .ds tr {
+    @apply border-b even:bg-muted/20;
+  }
+  .ds th {
+    @apply px-4 py-3 text-left font-semibold border-r;
+  }
+  .ds td {
+    @apply px-4 py-2 border-r;
+  }
+
+  /* Media */
+  .ds img,
+  .ds video {
+    @apply rounded-lg border my-4 max-w-full h-auto;
+  }
+  .ds figure {
+    @apply my-4;
+  }
+  .ds figcaption {
+    @apply text-sm !mb-6 text-muted-foreground;
+  }
+
+  /* Block Elements */
+  .ds blockquote {
+    @apply border-l-4 border-border !pl-4 py-2 my-4 text-muted-foreground bg-muted/30;
+  }
+  .ds hr,
+  .ds p:has(> hr) {
+    @apply !my-8 border-t-2 border-border/50;
+  }
+  .ds details {
+    @apply rounded-lg border px-4 py-2 my-4;
+  }
+  .ds summary {
+    @apply cursor-pointer font-semibold focus-visible:outline-none;
+  }
+
+  /* Interactive Elements */
+  .ds kbd {
+    @apply rounded-md border bg-muted px-1.5 py-0.5 text-sm font-mono shadow-sm align-middle;
+  }
+
+  /* Spacing System */
+  .spaced > * + * {
+    @apply mt-3;
+  }
+
+  .spaced h1:not(:first-child),
+  .spaced h2:not(:first-child),
+  .spaced h3:not(:first-child),
+  .spaced h4:not(:first-child),
+  .spaced h5:not(:first-child),
+  .spaced h6:not(:first-child) {
+    @apply mt-8 sm:mt-16 mb-6;
+  }
+}
