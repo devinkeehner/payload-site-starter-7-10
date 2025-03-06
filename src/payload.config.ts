@@ -14,7 +14,7 @@ import { Users } from './collections/Users'
 import { Footer } from './components/site/footer/config'
 import { Header } from './components/site/header/config'
 import { plugins } from '@/lib/plugins'
-import { defaultLexical } from '@/fields/defaultLexical'
+import { defaultLexical } from '@/collections/fields/defaultLexical'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
 const filename = fileURLToPath(import.meta.url)
@@ -77,7 +77,7 @@ export default buildConfig({
       },
     }),
   ],
-  secret: process.env.PAYLOAD_SECRET,
+  secret: process.env.PAYLOAD_SECRET || '',
   sharp,
   typescript: {
     outputFile: path.resolve(dirname, 'payload-types.ts'),
