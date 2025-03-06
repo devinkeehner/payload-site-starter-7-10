@@ -16,13 +16,12 @@ export async function Footer() {
 
   return (
     <footer>
-      <Section>
-        <Container className="grid grid-cols-[auto_1fr] gap-6">
+      <Section className="border-t">
+        <Container className="flex items-center justify-between gap-6">
           <Link className="text-2xl font-semibold tracking-tight leading-0" href="/">
             Payload Site Starter
           </Link>
-
-          <div className="flex flex-col-reverse items-start md:flex-row gap-4 md:items-center">
+          <div className="flex">
             <ThemeSelector />
             <nav className="flex flex-col md:flex-row gap-4">
               {navItems.map(({ link }, i) => {
