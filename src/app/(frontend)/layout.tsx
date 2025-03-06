@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 import { cn } from '@/lib/utils'
-import { GeistMono } from 'geist/font/mono'
-import { GeistSans } from 'geist/font/sans'
+import { GeistSans as PrimaryFont } from 'geist/font/sans'
+import { GeistMono as SecondaryFont } from 'geist/font/mono'
 import React from 'react'
 
 import { AdminBar } from '@/components/site/admin-bar'
@@ -16,21 +16,21 @@ import './globals.css'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { isEnabled } = await draftMode()
+  // const { isEnabled } = await draftMode()
 
   return (
-    <html className={cn(GeistSans.variable, GeistMono.variable)} lang="en" suppressHydrationWarning>
-      <head>
-        <link href="/favicon.ico" rel="icon" sizes="32x32" />
-        <link href="/favicon.svg" rel="icon" type="image/svg+xml" />
-      </head>
+    <html
+      className={cn(PrimaryFont.variable, SecondaryFont.variable)}
+      lang="en"
+      suppressHydrationWarning
+    >
       <body>
         <Providers>
-          <AdminBar
+          {/* <AdminBar
             adminBarProps={{
               preview: isEnabled,
             }}
-          />
+          /> */}
 
           <Header />
           {children}
