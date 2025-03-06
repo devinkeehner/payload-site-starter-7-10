@@ -9,7 +9,7 @@ import { AdminBar } from '@/components/site/admin-bar'
 import { Footer } from '@/components/site/footer'
 import { Header } from '@/components/site/header'
 import { Providers } from '@/providers'
-import { InitTheme } from '@/providers/Theme/InitTheme'
+import { InitTheme } from '@/providers/theme/InitTheme'
 import { mergeOpenGraph } from '@/utilities/mergeOpenGraph'
 import { draftMode } from 'next/headers'
 
