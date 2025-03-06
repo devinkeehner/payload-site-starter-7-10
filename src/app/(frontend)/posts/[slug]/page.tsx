@@ -10,10 +10,10 @@ import RichText from '@/components/RichText'
 
 import type { Post } from '@/payload-types'
 
-import { PostHero } from '@/heros/PostHero'
-import { generateMeta } from '@/utilities/generateMeta'
+import { PostHero } from '@/components/heros/post-hero'
+import { generateMeta } from '@/lib/utilities/generateMeta'
 import PageClient from './page.client'
-import { LivePreviewListener } from '@/components/LivePreviewListener'
+import { LivePreviewListener } from '@/components/site/live-preview-listener'
 
 export async function generateStaticParams() {
   const payload = await getPayload({ config: configPromise })
