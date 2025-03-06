@@ -11,15 +11,15 @@ import {
   RichText as ConvertRichText,
 } from '@payloadcms/richtext-lexical/react'
 
-import { CodeBlock, CodeBlockProps } from '@/components/blocks/code'
+import { CodeBlock, CodeBlockProps } from '@/components/blocks/code-block'
 
 import type {
   BannerBlock as BannerBlockProps,
   CallToActionBlock as CTABlockProps,
   MediaBlock as MediaBlockProps,
 } from '@/payload-types'
-import { BannerBlock } from '@/components/blocks/banner'
-import { CallToActionBlock } from '@/components/blocks/call-to-action'
+import { BannerBlock } from '@/components/blocks/banner-block'
+import { CallToActionBlock } from '@/components/blocks/cta-block'
 import { cn } from '@/lib/utils'
 
 type NodeTypes =

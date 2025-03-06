@@ -3,11 +3,11 @@ import React, { Fragment } from 'react'
 import type { Page } from '@/payload-types'
 
 import { ArchiveBlock } from '@/components/blocks/archive-block'
-import { CallToActionBlock } from '@/components/blocks/call-to-action'
-import { ContentBlock } from '@/components/blocks/content'
+import { CallToActionBlock } from '@/components/blocks/cta-block'
+import { ContentBlock } from '@/components/blocks/content-block'
 import { FormBlock } from '@/components/blocks/form-block'
 import { MediaBlock } from '@/components/blocks/media-block'
-import { BannerBlock } from '@/components/blocks/banner'
+import { BannerBlock } from '@/components/blocks/banner-block'
 
 const blockComponents = {
   archive: ArchiveBlock,

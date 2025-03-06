@@ -11,8 +11,8 @@ import {
 
 import { authenticated } from '../../lib/access/authenticated'
 import { authenticatedOrPublished } from '../../lib/access/authenticatedOrPublished'
-import { BannerConfig } from '@/components/blocks/banner/config'
-import { CodeBlockConfig } from '@/components/blocks/code/config'
+import { BannerConfig } from '@/components/blocks/banner-block/config'
+import { CodeBlockConfig } from '@/components/blocks/code-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { populateAuthors } from './hooks/populateAuthors'
