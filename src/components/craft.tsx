@@ -16,6 +16,7 @@ export interface BaseProps {
   className?: string
   id?: string
   style?: React.CSSProperties
+  isProse?: boolean
 }
 
 // HTML props interface for dangerouslySetInnerHTML
@@ -176,14 +177,32 @@ export const Main = ({ children, className, id, style }: BaseProps) => (
   </main>
 )
 
-export const Section = ({ children, className, id, style }: BaseProps) => (
-  <section className={cn(styles.layout.section, className)} id={id} style={style}>
+export const Section = ({ children, className, id, style, isProse = false }: BaseProps) => (
+  <section
+    className={cn(
+      styles.layout.section,
+      isProse && baseTypographyStyles,
+      isProse && styles.layout.spacing,
+      className,
+    )}
+    id={id}
+    style={style}
+  >
     {children}
   </section>
 )
 
-export const Container = ({ children, className, id, style }: BaseProps) => (
-  <div className={cn(styles.layout.container, className)} id={id} style={style}>
+export const Container = ({ children, className, id, style, isProse = false }: BaseProps) => (
+  <div
+    className={cn(
+      styles.layout.container,
+      isProse && baseTypographyStyles,
+      isProse && styles.layout.spacing,
+      className,
+    )}
+    id={id}
+    style={style}
+  >
     {children}
   </div>
 )

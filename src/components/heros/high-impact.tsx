@@ -1,4 +1,4 @@
-import { Section, Container } from '@/components/craft'
+import { Section, Container, Prose } from '@/components/craft'
 import { CMSLink } from '@/components/site/link'
 import { Media } from '@/components/site/media'
 
@@ -10,15 +10,13 @@ export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
   return (
     <Section>
       <Container>
-        {richText && <RichText className="mb-6" data={richText} enableGutter={false} />}
+        {richText && <RichText data={richText} enableProse />}
         {Array.isArray(links) && links.length > 0 && (
-          <ul className="flex md:justify-center gap-4">
+          <div className="flex gap-2">
             {links.map(({ link }, i) => (
-              <li key={i}>
-                <CMSLink {...link} />
-              </li>
+              <CMSLink key={i} {...link} />
             ))}
-          </ul>
+          </div>
         )}
         {media && typeof media === 'object' && <Media priority resource={media} />}
       </Container>
