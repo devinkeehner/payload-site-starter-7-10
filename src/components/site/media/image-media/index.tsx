@@ -8,10 +8,16 @@ import React from 'react'
 
 import type { Props as MediaProps } from '../types'
 
-import { cssVariables } from '@/cssVariables'
 import { getClientSideURL } from '@/lib/utilities/getURL'
 
-const { breakpoints } = cssVariables
+const breakpoints = {
+  '3xl': 1920,
+  '2xl': 1536,
+  xl: 1280,
+  lg: 1024,
+  md: 768,
+  sm: 640,
+}
 
 // A base64 encoded image to use as a placeholder while the image is loading
 const placeholderBlur =
