@@ -4,12 +4,11 @@ import { cn } from '@/lib/utils'
 import { GeistSans as PrimaryFont } from 'geist/font/sans'
 import { GeistMono as SecondaryFont } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/react'
-import React from 'react'
+import { ThemeProvider } from 'next-themes'
 
 // import { AdminBar } from '@/components/site/admin-bar'
 import { Footer } from '@/components/site/footer'
 import { Header } from '@/components/site/header'
-// import { Providers } from '@/providers'
 import { mergeOpenGraph } from '@/lib/utilities/mergeOpenGraph'
 // import { draftMode } from 'next/headers'
 
@@ -31,10 +30,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               preview: isEnabled,
             }}
           /> */}
-
-        <Header />
-        {children}
-        <Footer />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Header />
+          {children}
+          <Footer />
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>

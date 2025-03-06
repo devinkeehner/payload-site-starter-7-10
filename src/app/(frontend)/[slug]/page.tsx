@@ -9,7 +9,6 @@ import React, { cache } from 'react'
 import { RenderBlocks } from '@/components/blocks/render-blocks'
 import { RenderHero } from '@/components/heros/render-hero'
 import { generateMeta } from '@/lib/utilities/generateMeta'
-import PageClient from './page.client'
 import { LivePreviewListener } from '@/components/site/live-preview-listener'
 
 export async function generateStaticParams() {
@@ -58,16 +57,14 @@ export default async function Page({ params: paramsPromise }: Args) {
   const { hero, layout } = page
 
   return (
-    <article>
-      <PageClient />
-      {/* Allows redirects for valid pages too */}
+    <>
       <PayloadRedirects disableNotFound url={url} />
 
       {draft && <LivePreviewListener />}
 
       <RenderHero {...hero} />
       <RenderBlocks blocks={layout} />
-    </article>
+    </>
   )
 }
 

@@ -1,11 +1,11 @@
 import { Section, Container } from '@/components/layout'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { CMSLink } from '@/components/site/link'
+
 import Link from 'next/link'
 import React from 'react'
 
 import { getCachedGlobal } from '@/lib/utilities/getGlobals'
-
-import { ThemeSelector } from '@/providers/theme/ThemeSelector'
-import { CMSLink } from '@/components/site/link'
 
 import type { Footer } from '@/payload-types'
 
@@ -22,7 +22,7 @@ export async function Footer() {
             Payload Site Starter
           </Link>
           <div className="flex">
-            <ThemeSelector />
+            <ThemeToggle />
             <nav className="flex flex-col md:flex-row gap-4">
               {navItems.map(({ link }, i) => {
                 return <CMSLink className="text-white" key={i} {...link} />
