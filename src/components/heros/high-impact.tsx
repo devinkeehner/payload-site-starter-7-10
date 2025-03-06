@@ -8,8 +8,8 @@ import type { Page } from '@/payload-types'
 
 export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
   return (
-    <Section>
-      <Container>
+    <Section className="overflow-hidden bg-accent/30 border-b">
+      <Container className="space-y-6 sm:space-y-12">
         {richText && <RichText data={richText} />}
         {Array.isArray(links) && links.length > 0 && (
           <div className="flex gap-2">
@@ -18,7 +18,9 @@ export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
             ))}
           </div>
         )}
-        {media && typeof media === 'object' && <Media priority resource={media} />}
+        {media && typeof media === 'object' && (
+          <Media imgClassName="rounded-md border -mb-24" priority resource={media} />
+        )}
       </Container>
     </Section>
   )

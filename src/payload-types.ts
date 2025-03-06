@@ -189,6 +189,26 @@ export interface Page {
         }[]
       | null;
     media?: (number | null) | Media;
+    callToAction?: string | null;
+    callToActionUrl: {
+      type?: ('reference' | 'custom') | null;
+      newTab?: boolean | null;
+      reference?:
+        | ({
+            relationTo: 'pages';
+            value: number | Page;
+          } | null)
+        | ({
+            relationTo: 'posts';
+            value: number | Post;
+          } | null);
+      url?: string | null;
+      label: string;
+      /**
+       * Choose how the link should be rendered.
+       */
+      appearance?: ('default' | 'outline') | null;
+    };
   };
   layout: (CallToActionBlock | ContentBlock | MediaBlock | ArchiveBlock | FormBlock | BannerBlock)[];
   meta?: {
@@ -1031,6 +1051,17 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
             };
         media?: T;
+        callToAction?: T;
+        callToActionUrl?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+              appearance?: T;
+            };
       };
   layout?:
     | T

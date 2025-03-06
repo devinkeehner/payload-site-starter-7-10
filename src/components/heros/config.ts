@@ -8,6 +8,7 @@ import {
 } from '@payloadcms/richtext-lexical'
 
 import { linkGroup } from '@/collections/fields/linkGroup'
+import { link } from '@/collections/fields/link'
 
 export const HeroConfig: Field = {
   name: 'hero',
@@ -67,6 +68,13 @@ export const HeroConfig: Field = {
       relationTo: 'media',
       required: true,
     },
+    {
+      name: 'callToAction',
+      type: 'text',
+    },
+    link({
+      overrides: { name: 'callToActionUrl' },
+    }),
   ],
   label: false,
 }

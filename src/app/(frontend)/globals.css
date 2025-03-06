@@ -161,7 +161,7 @@
   }
 
   .ds p {
-    @apply text-pretty;
+    @apply text-pretty text-base;
   }
   .ds strong {
     @apply font-semibold;
