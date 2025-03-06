@@ -7,8 +7,8 @@ import { Checkbox as CheckboxUi } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import React from 'react'
 
-import { Error } from '../Error'
-import { Width } from '../Width'
+import { Error } from '../error'
+import { Width } from '../width'
 
 export const Checkbox: React.FC<
   CheckboxField & {

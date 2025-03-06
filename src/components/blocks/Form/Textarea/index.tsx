@@ -5,8 +5,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea as TextAreaComponent } from '@/components/ui/textarea'
 import React from 'react'
 
-import { Error } from '../Error'
-import { Width } from '../Width'
+import { Error } from '../error'
+import { Width } from '../width'
 
 export const Textarea: React.FC<
   TextField & {

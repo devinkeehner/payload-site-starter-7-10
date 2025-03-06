@@ -2,11 +2,26 @@ import type { StaticImageData } from 'next/image'
 
 import { cn } from '@/utilities/ui'
 import React from 'react'
-import RichText from '@/components/RichText'
+import RichText from '@/components/site/rich-text'
 
 import type { MediaBlock as MediaBlockProps } from '@/payload-types'
 
-import { Media } from '../../components/media'
+import { Media } from '@/components/site/media'
+
+import type { Block } from 'payload'
+
+export const MediaBlockConfig: Block = {
+  slug: 'mediaBlock',
+  interfaceName: 'MediaBlock',
+  fields: [
+    {
+      name: 'media',
+      type: 'upload',
+      relationTo: 'media',
+      required: true,
+    },
+  ],
+}
 
 type Props = MediaBlockProps & {
   breakout?: boolean

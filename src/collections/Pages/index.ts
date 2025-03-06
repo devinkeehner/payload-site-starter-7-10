@@ -2,13 +2,14 @@ import type { CollectionConfig } from 'payload'
 
 import { authenticated } from '../../access/authenticated'
 import { authenticatedOrPublished } from '../../access/authenticatedOrPublished'
-import { Archive } from '../../blocks/ArchiveBlock/config'
-import { CallToAction } from '../../blocks/CallToAction/config'
-import { Content } from '../../blocks/Content/config'
-import { FormBlock } from '../../blocks/Form/config'
-import { MediaBlock } from '../../blocks/MediaBlock/config'
-import { hero } from '@/heros/config'
-import { slugField } from '@/fields/slug'
+import { BannerConfig } from '@/components/blocks/banner'
+import { ArchiveConfig } from '@/components/blocks/archive-block'
+import { CallToActionConfig } from '@/components/blocks/call-to-action'
+import { ContentConfig } from '@/components/blocks/content'
+import { FormBlockConfig } from '@/components/blocks/form'
+import { MediaBlockConfig } from '@/components/blocks/media-block'
+import { HeroConfig } from '@/components/heros/config'
+import { slugField } from '@/components/fields/slug'
 import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 import { generatePreviewPath } from '../../utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePage } from './hooks/revalidatePage'
@@ -29,9 +30,6 @@ export const Pages: CollectionConfig<'pages'> = {
     read: authenticatedOrPublished,
     update: authenticated,
   },
-  // This config controls what's populated by default when a page is referenced
-  // https://payloadcms.com/docs/queries/select#defaultpopulate-collection-config-property
-  // Type safe if the collection slug generic is passed to `CollectionConfig` - `CollectionConfig<'pages'>
   defaultPopulate: {
     title: true,
     slug: true,
@@ -67,7 +65,7 @@ export const Pages: CollectionConfig<'pages'> = {
       type: 'tabs',
       tabs: [
         {
-          fields: [hero],
+          fields: [HeroConfig],
           label: 'Hero',
         },
         {
@@ -75,7 +73,14 @@ export const Pages: CollectionConfig<'pages'> = {
             {
               name: 'layout',
               type: 'blocks',
-              blocks: [CallToAction, Content, MediaBlock, Archive, FormBlock],
+              blocks: [
+                CallToActionConfig,
+                ContentConfig,
+                MediaBlockConfig,
+                ArchiveConfig,
+                FormBlockConfig,
+                BannerConfig,
+              ],
               required: true,
               admin: {
                 initCollapsed: true,
@@ -102,10 +107,7 @@ export const Pages: CollectionConfig<'pages'> = {
 
             MetaDescriptionField({}),
             PreviewField({
-              // if the `generateUrl` function is configured
               hasGenerateFn: true,
-
-              // field paths to match the target field for data
               titlePath: 'meta.title',
               descriptionPath: 'meta.description',
             }),
