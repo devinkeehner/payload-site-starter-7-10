@@ -1,16 +1,27 @@
 import { Section, Container } from '@/components/layout'
 import { CMSLink } from '@/components/site/link'
 import { Media } from '@/components/site/media'
+import { Badge } from '@/components/ui/badge'
 
 import RichText from '@/components/site/rich-text'
+import Link from 'next/link'
 
 import type { Page } from '@/payload-types'
 
-export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
+export const HighImpactHero = ({ links, media, richText, callToAction }: Page['hero']) => {
   return (
     <Section className="overflow-hidden bg-accent/30 border-b">
-      <Container className="space-y-6 sm:space-y-12">
+      <Container className="space-y-6 sm:space-y-12 !text-center">
+        {callToAction && (
+          <Badge variant="outline" asChild>
+            <Link href={callToAction.url || '#'} target="_blank" rel="noopener noreferrer">
+              {callToAction.label}
+            </Link>
+          </Badge>
+        )}
+
         {richText && <RichText data={richText} />}
+
         {Array.isArray(links) && links.length > 0 && (
           <div className="flex gap-2">
             {links.map(({ link }, i) => (
@@ -18,8 +29,21 @@ export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
             ))}
           </div>
         )}
+
         {media && typeof media === 'object' && (
-          <Media imgClassName="rounded-lg border" priority resource={media} />
+          <div>
+            <Media
+              className="-mx-4 md:-mx-8 2xl:-mx-16"
+              imgClassName=""
+              priority
+              resource={media}
+            />
+            {media?.caption && (
+              <div className="mt-3">
+                <RichText data={media.caption} enableGutter={false} />
+              </div>
+            )}
+          </div>
         )}
       </Container>
     </Section>

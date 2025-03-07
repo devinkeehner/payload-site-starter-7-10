@@ -1,19 +1,29 @@
-import React from 'react'
+import { Section, Container } from '@/components/layout'
+import { CMSLink } from '@/components/site/link'
+import { Badge } from '@/components/ui/badge'
+import { Media } from '@/components/site/media'
+
+import RichText from '@/components/site/rich-text'
+import Link from 'next/link'
 
 import type { Page } from '@/payload-types'
 
-import { CMSLink } from '@/components/site/link'
-import { Media } from '@/components/site/media'
-import RichText from '@/components/site/rich-text'
-
-export const MediumImpactHero: React.FC<Page['hero']> = ({ links, media, richText }) => {
+export const MediumImpactHero = ({ links, media, richText, callToAction }: Page['hero']) => {
   return (
-    <div className="">
-      <div className="container mb-8">
-        {richText && <RichText className="mb-6" data={richText} enableGutter={false} />}
+    <Section className="border-b">
+      <Container className="relative space-y-6 sm:space-y-8">
+        {callToAction && (
+          <Badge variant="outline" asChild>
+            <Link href={callToAction.url || '#'} target="_blank" rel="noopener noreferrer">
+              {callToAction.label}
+            </Link>
+          </Badge>
+        )}
+
+        {richText && <RichText data={richText} enableGutter={false} />}
 
         {Array.isArray(links) && links.length > 0 && (
-          <ul className="flex gap-4">
+          <ul className="flex gap-2">
             {links.map(({ link }, i) => {
               return (
                 <li key={i}>
@@ -23,8 +33,7 @@ export const MediumImpactHero: React.FC<Page['hero']> = ({ links, media, richTex
             })}
           </ul>
         )}
-      </div>
-      <div className="container ">
+
         {media && typeof media === 'object' && (
           <div>
             <Media
@@ -40,7 +49,7 @@ export const MediumImpactHero: React.FC<Page['hero']> = ({ links, media, richTex
             )}
           </div>
         )}
-      </div>
-    </div>
+      </Container>
+    </Section>
   )
 }

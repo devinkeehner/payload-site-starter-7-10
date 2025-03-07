@@ -189,8 +189,7 @@ export interface Page {
         }[]
       | null;
     media?: (number | null) | Media;
-    callToAction?: string | null;
-    callToActionUrl: {
+    callToAction: {
       type?: ('reference' | 'custom') | null;
       newTab?: boolean | null;
       reference?:
@@ -1051,8 +1050,7 @@ export interface PagesSelect<T extends boolean = true> {
               id?: T;
             };
         media?: T;
-        callToAction?: T;
-        callToActionUrl?:
+        callToAction?:
           | T
           | {
               type?: T;

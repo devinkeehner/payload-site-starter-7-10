@@ -68,12 +68,8 @@ export const HeroConfig: Field = {
       relationTo: 'media',
       required: true,
     },
-    {
-      name: 'callToAction',
-      type: 'text',
-    },
     link({
-      overrides: { name: 'callToActionUrl' },
+      overrides: { name: 'callToAction' },
     }),
   ],
   label: false,
