@@ -10,7 +10,7 @@ import type { Page } from '@/payload-types'
 
 export const MediumImpactHero = ({ links, media, richText, callToAction }: Page['hero']) => {
   return (
-    <Section className="border-b">
+    <Section className="border-b bg-accent/30">
       <Container className="relative space-y-6 sm:space-y-8">
         {callToAction && (
           <Badge variant="outline" asChild>
