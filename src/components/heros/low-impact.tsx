@@ -9,18 +9,10 @@ import RichText from '@/components/site/rich-text'
 
 import type { Page } from '@/payload-types'
 
-export const LowImpactHero = ({ richText, links, callToAction }: Page['hero']) => {
+export const LowImpactHero = ({ richText, links }: Page['hero']) => {
   return (
     <Section className="bg-accent/30 border-b">
       <Container className="space-y-3 sm:space-y-6">
-        {callToAction && (
-          <Badge variant="outline" asChild>
-            <Link href={callToAction.url || '#'} target="_blank" rel="noopener noreferrer">
-              {callToAction.label}
-            </Link>
-          </Badge>
-        )}
-
         {richText && <RichText data={richText} enableGutter={false} />}
 
         {Array.isArray(links) && links.length > 0 && (
