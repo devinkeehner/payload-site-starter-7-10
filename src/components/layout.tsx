@@ -1,8 +1,8 @@
 import { cn } from '@/lib/utils'
 
 type LayoutProps = {
-  children: React.ReactNode
   className?: string
+  children?: React.ReactNode
   id?: string
   style?: React.CSSProperties
   dangerouslySetInnerHTML?: { __html: string }
