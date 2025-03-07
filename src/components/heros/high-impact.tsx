@@ -23,7 +23,7 @@ export const HighImpactHero = ({ links, media, richText, callToAction }: Page['h
         {richText && <RichText data={richText} />}
 
         {Array.isArray(links) && links.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 justify-center">
             {links.map(({ link }, i) => (
               <CMSLink key={i} {...link} />
             ))}
