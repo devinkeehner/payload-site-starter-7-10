@@ -17,10 +17,15 @@ export async function Footer() {
   return (
     <footer>
       <Section className="border-t">
-        <Container className="flex items-center justify-between gap-6">
-          <Link className="text-2xl font-semibold tracking-tight leading-0" href="/">
-            Payload Site Starter
-          </Link>
+        <Container className="flex items-start justify-between gap-6">
+          <div className="space-y-2">
+            <Link className="text-2xl font-semibold tracking-tight leading-0" href="/">
+              Payload Site Starter
+            </Link>
+            <p className="text-muted-foreground">
+              Opinionated starter for building websites with Payload and Next.js
+            </p>
+          </div>
           <div className="flex">
             <ThemeToggle />
             <nav className="flex flex-col md:flex-row gap-4">
