@@ -1,5 +1,6 @@
 import type { Post, ArchiveBlock as ArchiveBlockProps } from '@/payload-types'
 
+import { Section, Container } from '@/components/layout'
 import { CollectionArchive } from '@/components/site/collection-archive'
 import { getPayload } from 'payload'
 import React from 'react'
@@ -52,13 +53,19 @@ export const ArchiveBlock: React.FC<
   }
 
   return (
-    <div className="my-16" id={`block-${id}`}>
-      {introContent && (
-        <div className="container mb-16">
-          <RichText className="ms-0 max-w-[48rem]" data={introContent} enableGutter={false} />
-        </div>
-      )}
-      <CollectionArchive posts={posts} />
-    </div>
+    <Section id={`block-${id}`}>
+      <Container>
+        {introContent && (
+          <div className="max-w-prose">
+            <RichText data={introContent} enableGutter={false} />
+          </div>
+        )}
+        {posts.length > 0 ? (
+          <CollectionArchive posts={posts} />
+        ) : (
+          <div className="p-6 mt-4 bg-accent border">There are no posts to show.</div>
+        )}
+      </Container>
+    </Section>
   )
 }
