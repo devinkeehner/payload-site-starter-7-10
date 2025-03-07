@@ -2,9 +2,7 @@ import React from 'react'
 
 import { Container, Section } from '@/components/layout'
 import { CMSLink } from '@/components/site/link'
-import { Badge } from '@/components/ui/badge'
 
-import Link from 'next/link'
 import RichText from '@/components/site/rich-text'
 
 import type { Page } from '@/payload-types'
