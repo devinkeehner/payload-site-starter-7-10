@@ -291,7 +291,7 @@
   /* Media */
   .ds img,
   .ds video {
-    @apply rounded-lg border my-4 max-w-full h-auto;
+    @apply border my-4 max-w-full h-auto;
   }
   .ds figure {
     @apply my-4;
