@@ -13,7 +13,7 @@ export const HighImpactHero = ({ links, media, richText, callToAction }: Page['h
     <Section className="bg-accent/30 border-b">
       <Container className="space-y-6 sm:space-y-12 !text-center">
         {callToAction && (
-          <Badge variant="outline" asChild>
+          <Badge variant={callToAction.appearance || 'secondary'} asChild>
             <Link href={callToAction.url || '#'} target="_blank" rel="noopener noreferrer">
               {callToAction.label}
             </Link>
