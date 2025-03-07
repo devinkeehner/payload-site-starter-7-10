@@ -19,7 +19,7 @@ export const HighImpactHero = ({ links, media, richText }: Page['hero']) => {
           </div>
         )}
         {media && typeof media === 'object' && (
-          <Media imgClassName="rounded-lg border -mb-24" priority resource={media} />
+          <Media imgClassName="rounded-lg border" priority resource={media} />
         )}
       </Container>
     </Section>

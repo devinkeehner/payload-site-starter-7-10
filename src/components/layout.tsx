@@ -9,7 +9,7 @@ type LayoutProps = {
 }
 
 export const Section = ({ children, className, id, style }: LayoutProps) => (
-  <section className={cn('py-3 sm:py-6', className)} id={id} style={style}>
+  <section className={cn('py-6 sm:py-8', className)} id={id} style={style}>
     {children}
   </section>
 )
