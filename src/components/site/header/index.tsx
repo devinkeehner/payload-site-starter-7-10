@@ -11,10 +11,10 @@ export async function Header() {
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/90 backdrop-blur-md">
-      <Section className="py-0 lg:py-0">
-        <Container className="flex justify-between items-center">
-          <Link className="text-lg sm:text-2xl font-semibold tracking-tight leading-0" href="/">
-            Payload Site Starter
+      <Section className="py-0 sm:py-0">
+        <Container className="flex justify-between items-center py-2 sm:py-3">
+          <Link className="text-lg sm:text-xl font-semibold tracking-tight leading-0" href="/">
+            ✴︎ Payload Site Starter
           </Link>
           <HeaderNav data={headerData} />
         </Container>
