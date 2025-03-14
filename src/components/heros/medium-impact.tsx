@@ -22,6 +22,17 @@ export const MediumImpactHero = ({ links, media, richText, callToAction }: Page[
 
         {richText && <RichText data={richText} enableGutter={false} />}
 
+        {media && typeof media === 'object' && (
+          <div>
+            <Media imgClassName="object-cover h-[500px]" priority resource={media} />
+            {media?.caption && (
+              <div className="mt-3">
+                <RichText data={media.caption} enableGutter={false} />
+              </div>
+            )}
+          </div>
+        )}
+
         {Array.isArray(links) && links.length > 0 && (
           <ul className="flex gap-2">
             {links.map(({ link }, i) => {
@@ -32,22 +43,6 @@ export const MediumImpactHero = ({ links, media, richText, callToAction }: Page[
               )
             })}
           </ul>
-        )}
-
-        {media && typeof media === 'object' && (
-          <div>
-            <Media
-              className="-mx-4 md:-mx-8 2xl:-mx-16"
-              imgClassName=""
-              priority
-              resource={media}
-            />
-            {media?.caption && (
-              <div className="mt-3">
-                <RichText data={media.caption} enableGutter={false} />
-              </div>
-            )}
-          </div>
         )}
       </Container>
     </Section>
