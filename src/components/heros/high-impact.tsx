@@ -34,7 +34,7 @@ export const HighImpactHero = ({ links, media, richText, callToAction }: Page['h
           <div>
             <Media
               className="-mx-4 md:-mx-8 2xl:-mx-16"
-              imgClassName=""
+              imgClassName="object-cover h-[600px]"
               priority
               resource={media}
             />
