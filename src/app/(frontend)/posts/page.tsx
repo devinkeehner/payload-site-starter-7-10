@@ -28,29 +28,29 @@ export default async function Page() {
   })
 
   return (
-    <Section>
-      <Container>
-        <div className="ds">
-          <h1>Posts</h1>
-        </div>
-        <PageRange
-          collection="posts"
-          currentPage={posts.page}
-          limit={12}
-          totalDocs={posts.totalDocs}
-        />
-      </Container>
+    <>
+      <Section>
+        <Container>
+          <h1 className="text-3xl mb-4">Posts</h1>
+          <PageRange
+            collection="posts"
+            currentPage={posts.page}
+            limit={12}
+            totalDocs={posts.totalDocs}
+          />
+        </Container>
+      </Section>
 
-      <Container>
-        <CollectionArchive posts={posts.docs} />
-      </Container>
+      <CollectionArchive posts={posts.docs} />
 
-      <Container>
-        {posts.totalPages > 1 && posts.page && (
-          <Pagination page={posts.page} totalPages={posts.totalPages} />
-        )}
-      </Container>
-    </Section>
+      <Section>
+        <Container>
+          {posts.totalPages > 1 && posts.page && (
+            <Pagination page={posts.page} totalPages={posts.totalPages} />
+          )}
+        </Container>
+      </Section>
+    </>
   )
 }
 
