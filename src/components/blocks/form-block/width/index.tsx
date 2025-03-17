@@ -1,13 +1,16 @@
-import * as React from 'react'
+import React from 'react'
 
 export const Width: React.FC<{
   children: React.ReactNode
-  className?: string
-  width?: number | string
-}> = ({ children, className, width }) => {
-  return (
-    <div className={className} style={{ maxWidth: width ? `${width}%` : undefined }}>
-      {children}
-    </div>
-  )
+  width?: number
+}> = ({ children, width }) => {
+  if (width) {
+    return (
+      <div className="w-full" style={{ maxWidth: `${width}%` }}>
+        {children}
+      </div>
+    )
+  }
+
+  return <div className="w-full">{children}</div>
 }

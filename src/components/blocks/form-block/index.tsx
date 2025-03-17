@@ -4,7 +4,7 @@ import { Section, Container } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 
 import { useForm, FormProvider } from 'react-hook-form'
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { getClientSideURL } from '@/lib/utilities/getURL'
 import { useRouter } from 'next/navigation'
 import { fields } from './fields'
@@ -22,11 +22,7 @@ export type FormBlockType = {
   introContent?: SerializedEditorState
 }
 
-export const FormBlock: React.FC<
-  {
-    id?: string
-  } & FormBlockType
-> = (props) => {
+export function FormBlock(props: { id?: string } & FormBlockType) {
   const {
     enableIntro,
     form: formFromProps,
@@ -34,8 +30,10 @@ export const FormBlock: React.FC<
     introContent,
   } = props
 
+  const [isMounted, setIsMounted] = useState(false)
   const formMethods = useForm({
     defaultValues: formFromProps.fields,
+    mode: 'onTouched',
   })
   const {
     control,
@@ -48,6 +46,10 @@ export const FormBlock: React.FC<
   const [hasSubmitted, setHasSubmitted] = useState<boolean>()
   const [error, setError] = useState<{ message: string; status?: string } | undefined>()
   const router = useRouter()
+
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
 
   const onSubmit = useCallback(
     (data: FormFieldBlock[]) => {
@@ -83,12 +85,12 @@ export const FormBlock: React.FC<
 
           if (req.status >= 400) {
             setIsLoading(false)
-
             setError({
-              message: res.errors?.[0]?.message || 'Internal Server Error',
+              message:
+                res.errors?.[0]?.message ||
+                'There was an error submitting the form. Please try again.',
               status: res.status,
             })
-
             return
           }
 
@@ -97,16 +99,18 @@ export const FormBlock: React.FC<
 
           if (confirmationType === 'redirect' && redirect) {
             const { url } = redirect
-
-            const redirectUrl = url
-
-            if (redirectUrl) router.push(redirectUrl)
+            if (url) {
+              // Add a small delay before redirect to show success state
+              setTimeout(() => {
+                router.push(url)
+              }, 1000)
+            }
           }
         } catch (err) {
           console.warn(err)
           setIsLoading(false)
           setError({
-            message: 'Something went wrong.',
+            message: 'Unable to submit form. Please check your connection and try again.',
           })
         }
       }
@@ -116,22 +120,21 @@ export const FormBlock: React.FC<
     [router, formID, redirect, confirmationType],
   )
 
+  if (!isMounted) {
+    return null
+  }
+
   return (
     <Section>
       <Container>
         {enableIntro && introContent && !hasSubmitted && (
           <RichText className="mb-8 lg:mb-12" data={introContent} enableGutter={false} />
         )}
-        <div className="p-4 lg:p-6 border border-border rounded-[0.8rem]">
+        <div className="p-6 lg:p-8 border rounded-sm bg-card">
           <FormProvider {...formMethods}>
-            {!isLoading && hasSubmitted && confirmationType === 'message' && (
-              <RichText data={confirmationMessage} />
-            )}
-            {isLoading && !hasSubmitted && <p>Loading, please wait...</p>}
-            {error && <div>{`${error.status || '500'}: ${error.message || ''}`}</div>}
             {!hasSubmitted && (
-              <form id={formID} onSubmit={handleSubmit(onSubmit)}>
-                <div className="mb-4 last:mb-0">
+              <form id={formID} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid gap-6">
                   {formFromProps &&
                     formFromProps.fields &&
                     formFromProps.fields?.map((field, index) => {
@@ -139,7 +142,7 @@ export const FormBlock: React.FC<
                       const Field: React.FC<any> = fields?.[field.blockType as keyof typeof fields]
                       if (Field) {
                         return (
-                          <div className="mb-6 last:mb-0" key={index}>
+                          <div key={index}>
                             <Field
                               form={formFromProps}
                               {...field}
@@ -154,10 +157,32 @@ export const FormBlock: React.FC<
                       return null
                     })}
                 </div>
-                <Button form={formID} type="submit" variant="default">
-                  {submitButtonLabel}
+                <Button
+                  form={formID}
+                  type="submit"
+                  variant="default"
+                  className="w-full sm:w-auto"
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Submitting...' : submitButtonLabel}
                 </Button>
               </form>
+            )}
+            {!isLoading && hasSubmitted && confirmationType === 'message' && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+                <RichText data={confirmationMessage} />
+              </div>
+            )}
+            {isLoading && !hasSubmitted && (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-3 text-muted-foreground">Submitting form...</span>
+              </div>
+            )}
+            {error && (
+              <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-700">{error.message}</p>
+              </div>
             )}
           </FormProvider>
         </div>

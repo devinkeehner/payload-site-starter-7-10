@@ -362,3 +362,7 @@
     @apply mt-8 sm:mt-16 mb-6;
   }
 }
+
+.required {
+  @apply text-red-500;
+}
