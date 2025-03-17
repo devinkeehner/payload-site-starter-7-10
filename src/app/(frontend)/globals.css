@@ -118,6 +118,7 @@
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -126,6 +127,7 @@
 /* ---------- brijr/ds ---------- */
 
 @layer components {
+
   /* Base Design System */
   .ds {
     @apply font-sans antialiased text-base leading-7;
@@ -142,20 +144,25 @@
   }
 
   .ds h1 {
-    @apply text-4xl sm:text-5xl font-semibold;
+    @apply text-4xl sm:text-5xl font-medium;
   }
+
   .ds h2 {
     @apply text-3xl sm:text-4xl font-medium;
   }
+
   .ds h3 {
     @apply text-2xl sm:text-3xl font-medium;
   }
+
   .ds h4 {
     @apply text-xl sm:text-2xl;
   }
+
   .ds h5 {
     @apply text-lg sm:text-xl;
   }
+
   .ds h6 {
     @apply text-base sm:text-lg;
   }
@@ -163,18 +170,23 @@
   .ds p {
     @apply text-pretty text-base;
   }
+
   .ds strong {
     @apply font-semibold;
   }
+
   .ds em {
     @apply italic;
   }
+
   .ds del {
     @apply line-through;
   }
+
   .ds small {
     @apply text-sm sm:text-base font-medium leading-snug;
   }
+
   .ds sub,
   .ds sup {
     @apply text-sm align-baseline;
@@ -189,9 +201,11 @@
   .ds ul {
     @apply pl-0 list-none space-y-2;
   }
+
   .ds ul li {
     @apply relative pl-6;
   }
+
   .ds ul li::before {
     @apply absolute left-1 top-[0.6875em] h-1.5 w-1.5 rounded-full bg-foreground/80;
     content: '';
@@ -200,9 +214,11 @@
   .ds ol {
     @apply list-decimal pl-6 space-y-2;
   }
+
   .ds ol ol {
     @apply list-[lower-alpha];
   }
+
   .ds ol ol ol {
     @apply list-[lower-roman];
   }
@@ -211,13 +227,16 @@
   .ds li {
     @apply pl-2 marker:text-foreground/80;
   }
+
   .ds li ul,
   .ds li ol {
     @apply mt-2 mb-0;
   }
+
   .ds ul ul li::before {
     @apply bg-foreground/60;
   }
+
   .ds ul ul ul li::before {
     @apply bg-foreground/40;
   }
@@ -275,15 +294,19 @@
   .ds table {
     @apply w-full my-4 overflow-hidden rounded-lg border;
   }
+
   .ds thead {
     @apply bg-muted/50;
   }
+
   .ds tr {
     @apply border-b even:bg-muted/20;
   }
+
   .ds th {
     @apply px-4 py-3 text-left font-semibold border-r;
   }
+
   .ds td {
     @apply px-4 py-2 border-r;
   }
@@ -293,9 +316,11 @@
   .ds video {
     @apply border my-4 max-w-full h-auto;
   }
+
   .ds figure {
     @apply my-4;
   }
+
   .ds figcaption {
     @apply text-sm !mb-6 text-muted-foreground;
   }
@@ -304,13 +329,16 @@
   .ds blockquote {
     @apply border-l-4 border-border !pl-4 py-2 my-4 text-muted-foreground bg-muted/30;
   }
+
   .ds hr,
   .ds p:has(> hr) {
     @apply !my-8 border-t-2 border-border/50;
   }
+
   .ds details {
     @apply rounded-lg border px-4 py-2 my-4;
   }
+
   .ds summary {
     @apply cursor-pointer font-semibold focus-visible:outline-none;
   }
@@ -321,7 +349,7 @@
   }
 
   /* Spacing System */
-  .spaced > * + * {
+  .spaced>*+* {
     @apply mt-3;
   }
 

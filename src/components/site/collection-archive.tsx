@@ -1,6 +1,3 @@
-import { cn } from '@/lib/utils'
-import React from 'react'
-
 import { Card, CardPostData } from '@/components/site/card'
 
 export type Props = {
