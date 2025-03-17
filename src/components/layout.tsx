@@ -15,7 +15,7 @@ export const Section = ({ children, className, id, style }: LayoutProps) => (
 )
 
 export const Container = ({ children, className, id, style }: LayoutProps) => (
-  <div className={cn('max-w-6xl mx-auto p-3 sm:p-6', className)} id={id} style={style}>
+  <div className={cn('max-w-5xl mx-auto p-3 sm:p-6', className)} id={id} style={style}>
     {children}
   </div>
 )
