@@ -1,15 +1,13 @@
 import { formatDateTime } from '@/lib/utilities/formatDateTime'
-import React from 'react'
-
-import type { Post } from '@/payload-types'
 
 import { Media } from '@/components/site/media'
 import { formatAuthors } from '@/lib/utilities/formatAuthors'
 import { Container, Section } from '../layout'
+import { Fragment } from 'react'
 
-export const PostHero: React.FC<{
-  post: Post
-}> = ({ post }) => {
+import type { Post } from '@/payload-types'
+
+export async function PostHero({ post }: { post: Post }) {
   const { categories, heroImage, populatedAuthors, publishedAt, title } = post
 
   // Handle potentially undefined populatedAuthors by providing a default empty array
@@ -21,7 +19,7 @@ export const PostHero: React.FC<{
 
   return (
     <Section className="relative -mt-[10.4rem] flex items-end border-b">
-      <Container className="container z-10 relative lg:grid lg:grid-cols-[1fr_48rem_1fr] text-white pb-8">
+      <Container className="z-10 relative lg:grid lg:grid-cols-[1fr_48rem_1fr] text-white pb-8">
         <div className="col-start-1 col-span-1 md:col-start-2 md:col-span-2">
           {/* Categories */}
           {categoriesArray.length > 0 && (
@@ -33,10 +31,10 @@ export const PostHero: React.FC<{
                 const isLast = index === categoriesArray.length - 1
 
                 return (
-                  <React.Fragment key={index}>
+                  <Fragment key={index}>
                     {titleToUse}
-                    {!isLast && <React.Fragment>, &nbsp;</React.Fragment>}
-                  </React.Fragment>
+                    {!isLast && <Fragment>, &nbsp;</Fragment>}
+                  </Fragment>
                 )
               })}
             </div>
