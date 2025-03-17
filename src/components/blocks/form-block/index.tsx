@@ -1,16 +1,18 @@
 'use client'
 
-import type { FormFieldBlock, Form as FormType } from '@payloadcms/plugin-form-builder/types'
-
-import { useRouter } from 'next/navigation'
-import React, { useCallback, useState } from 'react'
-import { useForm, FormProvider } from 'react-hook-form'
-import RichText from '@/components/site/rich-text'
+import { Section, Container } from '@/components/layout'
 import { Button } from '@/components/ui/button'
-import type { SerializedEditorState } from '@payloadcms/richtext-lexical/lexical'
 
-import { fields } from './fields'
+import { useForm, FormProvider } from 'react-hook-form'
+import { useCallback, useState } from 'react'
 import { getClientSideURL } from '@/lib/utilities/getURL'
+import { useRouter } from 'next/navigation'
+import { fields } from './fields'
+
+import RichText from '@/components/site/rich-text'
+
+import type { FormFieldBlock, Form as FormType } from '@payloadcms/plugin-form-builder/types'
+import type { SerializedEditorState } from '@payloadcms/richtext-lexical/lexical'
 
 export type FormBlockType = {
   blockName?: string
@@ -115,50 +117,51 @@ export const FormBlock: React.FC<
   )
 
   return (
-    <div className="container lg:max-w-[48rem]">
-      {enableIntro && introContent && !hasSubmitted && (
-        <RichText className="mb-8 lg:mb-12" data={introContent} enableGutter={false} />
-      )}
-      <div className="p-4 lg:p-6 border border-border rounded-[0.8rem]">
-        <FormProvider {...formMethods}>
-          {!isLoading && hasSubmitted && confirmationType === 'message' && (
-            <RichText data={confirmationMessage} />
-          )}
-          {isLoading && !hasSubmitted && <p>Loading, please wait...</p>}
-          {error && <div>{`${error.status || '500'}: ${error.message || ''}`}</div>}
-          {!hasSubmitted && (
-            <form id={formID} onSubmit={handleSubmit(onSubmit)}>
-              <div className="mb-4 last:mb-0">
-                {formFromProps &&
-                  formFromProps.fields &&
-                  formFromProps.fields?.map((field, index) => {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const Field: React.FC<any> = fields?.[field.blockType as keyof typeof fields]
-                    if (Field) {
-                      return (
-                        <div className="mb-6 last:mb-0" key={index}>
-                          <Field
-                            form={formFromProps}
-                            {...field}
-                            {...formMethods}
-                            control={control}
-                            errors={errors}
-                            register={register}
-                          />
-                        </div>
-                      )
-                    }
-                    return null
-                  })}
-              </div>
-
-              <Button form={formID} type="submit" variant="default">
-                {submitButtonLabel}
-              </Button>
-            </form>
-          )}
-        </FormProvider>
-      </div>
-    </div>
+    <Section>
+      <Container>
+        {enableIntro && introContent && !hasSubmitted && (
+          <RichText className="mb-8 lg:mb-12" data={introContent} enableGutter={false} />
+        )}
+        <div className="p-4 lg:p-6 border border-border rounded-[0.8rem]">
+          <FormProvider {...formMethods}>
+            {!isLoading && hasSubmitted && confirmationType === 'message' && (
+              <RichText data={confirmationMessage} />
+            )}
+            {isLoading && !hasSubmitted && <p>Loading, please wait...</p>}
+            {error && <div>{`${error.status || '500'}: ${error.message || ''}`}</div>}
+            {!hasSubmitted && (
+              <form id={formID} onSubmit={handleSubmit(onSubmit)}>
+                <div className="mb-4 last:mb-0">
+                  {formFromProps &&
+                    formFromProps.fields &&
+                    formFromProps.fields?.map((field, index) => {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const Field: React.FC<any> = fields?.[field.blockType as keyof typeof fields]
+                      if (Field) {
+                        return (
+                          <div className="mb-6 last:mb-0" key={index}>
+                            <Field
+                              form={formFromProps}
+                              {...field}
+                              {...formMethods}
+                              control={control}
+                              errors={errors}
+                              register={register}
+                            />
+                          </div>
+                        )
+                      }
+                      return null
+                    })}
+                </div>
+                <Button form={formID} type="submit" variant="default">
+                  {submitButtonLabel}
+                </Button>
+              </form>
+            )}
+          </FormProvider>
+        </div>
+      </Container>
+    </Section>
   )
 }
