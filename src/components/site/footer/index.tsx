@@ -16,10 +16,10 @@ export async function Footer() {
 
   return (
     <footer>
-      <Section className="border-t">
+      <Section className="border-t bg-accent/30">
         <Container className="flex items-start justify-between gap-6">
-          <div className="space-y-2">
-            <Link className="text-2xl font-semibold tracking-tight leading-0" href="/">
+          <div className="grid gap-2">
+            <Link className="text-2xl font-semibold tracking-tight" href="/">
               Payload Site Starter
             </Link>
             <p className="text-muted-foreground">
