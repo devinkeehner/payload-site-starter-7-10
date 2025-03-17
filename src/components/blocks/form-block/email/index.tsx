@@ -25,22 +25,26 @@ export const Email: React.FC<
   return (
     <Width width={width}>
       <div className="relative">
-        <Label htmlFor={name}>
+        <Label htmlFor={name} className="text-sm font-medium">
           {label}
           {required && (
-            <span className="required">
+            <span className="text-red-500 ml-0.5">
               * <span className="sr-only">(required)</span>
             </span>
           )}
         </Label>
-        <div className="relative">
+        <div className="relative mt-1">
           <Input
             defaultValue={defaultValue}
             id={name}
             type="email"
             placeholder="Enter your email"
             autoComplete="email"
-            className={errors[name] ? 'border-red-500' : ''}
+            className={`transition-colors duration-200 ${
+              errors[name]
+                ? 'border-red-500 focus-visible:ring-red-500 focus-visible:ring-1'
+                : 'focus-visible:ring-primary'
+            }`}
             {...register(name, {
               required,
               pattern: emailPattern,

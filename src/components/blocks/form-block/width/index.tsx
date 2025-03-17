@@ -7,10 +7,10 @@ export const Width: React.FC<{
   if (width) {
     return (
       <div className="w-full" style={{ maxWidth: `${width}%` }}>
-        {children}
+        <div className="space-y-2">{children}</div>
       </div>
     )
   }
 
-  return <div className="w-full">{children}</div>
+  return <div className="w-full space-y-2">{children}</div>
 }

@@ -130,11 +130,11 @@ export function FormBlock(props: { id?: string } & FormBlockType) {
         {enableIntro && introContent && !hasSubmitted && (
           <RichText className="mb-8 lg:mb-12" data={introContent} enableGutter={false} />
         )}
-        <div className="p-6 lg:p-8 border rounded-sm bg-card">
+        <div className="p-6 lg:p-8 border rounded-lg bg-card shadow-sm">
           <FormProvider {...formMethods}>
             {!hasSubmitted && (
-              <form id={formID} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                <div className="grid gap-6">
+              <form id={formID} onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+                <div className="grid gap-8">
                   {formFromProps &&
                     formFromProps.fields &&
                     formFromProps.fields?.map((field, index) => {
@@ -142,7 +142,7 @@ export function FormBlock(props: { id?: string } & FormBlockType) {
                       const Field: React.FC<any> = fields?.[field.blockType as keyof typeof fields]
                       if (Field) {
                         return (
-                          <div key={index}>
+                          <div key={index} className="animate-in fade-in-50">
                             <Field
                               form={formFromProps}
                               {...field}
@@ -157,30 +157,32 @@ export function FormBlock(props: { id?: string } & FormBlockType) {
                       return null
                     })}
                 </div>
-                <Button
-                  form={formID}
-                  type="submit"
-                  variant="default"
-                  className="w-full sm:w-auto"
-                  disabled={isLoading}
-                >
-                  {isLoading ? 'Submitting...' : submitButtonLabel}
-                </Button>
+                <div className="flex justify-start">
+                  <Button
+                    form={formID}
+                    type="submit"
+                    variant="default"
+                    className="min-w-[120px]"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? 'Submitting...' : submitButtonLabel}
+                  </Button>
+                </div>
               </form>
             )}
             {!isLoading && hasSubmitted && confirmationType === 'message' && (
-              <div className="p-4 bg-green-50 border border-green-200 rounded-md">
+              <div className="p-4 bg-green-50 border border-green-200 rounded-md animate-in fade-in-50">
                 <RichText data={confirmationMessage} />
               </div>
             )}
             {isLoading && !hasSubmitted && (
-              <div className="flex items-center justify-center p-8">
+              <div className="flex items-center justify-center p-8 animate-in fade-in-50">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                 <span className="ml-3 text-muted-foreground">Submitting form...</span>
               </div>
             )}
             {error && (
-              <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-md">
+              <div className="p-4 mb-6 bg-red-50 border border-red-200 rounded-md animate-in fade-in-50">
                 <p className="text-red-700">{error.message}</p>
               </div>
             )}
