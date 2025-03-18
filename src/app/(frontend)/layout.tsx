@@ -6,17 +6,26 @@ import { GeistMono as SecondaryFont } from 'geist/font/mono'
 import { Analytics } from '@vercel/analytics/react'
 import { ThemeProvider } from 'next-themes'
 
-// import { AdminBar } from '@/components/site/admin-bar'
+import { AdminBar } from '@/components/site/admin-bar'
 import { Footer } from '@/components/site/footer'
 import { Header } from '@/components/site/header'
 import { mergeOpenGraph } from '@/lib/utilities/mergeOpenGraph'
-// import { draftMode } from 'next/headers'
+import { draftMode } from 'next/headers'
 
 import './globals.css'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
+export const metadata: Metadata = {
+  metadataBase: new URL(getServerSideURL()),
+  openGraph: mergeOpenGraph(),
+  twitter: {
+    card: 'summary_large_image',
+    creator: '@bridgertower',
+  },
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // const { isEnabled } = await draftMode()
+  const { isEnabled } = await draftMode()
 
   return (
     <html
@@ -25,11 +34,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body>
-        {/* <AdminBar
-            adminBarProps={{
-              preview: isEnabled,
-            }}
-          /> */}
+        <AdminBar
+          adminBarProps={{
+            preview: isEnabled,
+          }}
+        />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -44,13 +53,4 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </body>
     </html>
   )
-}
-
-export const metadata: Metadata = {
-  metadataBase: new URL(getServerSideURL()),
-  openGraph: mergeOpenGraph(),
-  twitter: {
-    card: 'summary_large_image',
-    creator: '@bridgertower',
-  },
 }
