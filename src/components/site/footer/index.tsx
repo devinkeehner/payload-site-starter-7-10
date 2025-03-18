@@ -6,6 +6,7 @@ import Link from 'next/link'
 import React from 'react'
 
 import { getCachedGlobal } from '@/lib/utilities/getGlobals'
+import { config } from '@/site.config'
 
 import type { Footer } from '@/payload-types'
 
@@ -20,11 +21,9 @@ export async function Footer() {
         <Container className="flex items-start justify-between gap-6">
           <div className="grid gap-2">
             <Link className="text-2xl font-semibold tracking-tight" href="/">
-              Payload Site Starter
+              {config.name}
             </Link>
-            <p className="text-muted-foreground">
-              Opinionated starter for building websites with Payload and Next.js
-            </p>
+            <p className="text-muted-foreground">{config.description}</p>
           </div>
           <div className="flex">
             <ThemeToggle />

@@ -1,8 +1,10 @@
 import { Section, Container } from '@/components/layout'
 import { HeaderNav } from './nav'
+
 import Link from 'next/link'
 
 import { getCachedGlobal } from '@/lib/utilities/getGlobals'
+import { config } from '@/site.config'
 
 import type { Header } from '@/payload-types'
 
@@ -14,7 +16,7 @@ export async function Header() {
       <Section className="py-0 sm:py-0">
         <Container className="flex justify-between items-center py-2 sm:py-3">
           <Link className="text-lg sm:text-xl font-semibold tracking-tight leading-0" href="/">
-            ✴︎ Payload Site Starter
+            {config.name}
           </Link>
           <HeaderNav data={headerData} />
         </Container>
