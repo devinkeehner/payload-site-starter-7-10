@@ -130,7 +130,7 @@ export function FormBlock(props: { id?: string } & FormBlockType) {
         {enableIntro && introContent && !hasSubmitted && (
           <RichText className="mb-8 lg:mb-12" data={introContent} enableGutter={false} />
         )}
-        <div className="p-6 lg:p-8 border rounded-lg bg-card shadow-sm">
+        <div className="p-6 lg:p-8 border rounded-sm bg-card">
           <FormProvider {...formMethods}>
             {!hasSubmitted && (
               <form id={formID} onSubmit={handleSubmit(onSubmit)} className="space-y-8">
