@@ -10,12 +10,13 @@ import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
 import { FixedToolbarFeature, HeadingFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 import { searchFields } from '@/lib/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/lib/search/beforeSync'
+import { config } from '@/site.config'
 
 import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
 const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
-  return doc?.title ? `${doc.title} | Payload Website Template` : 'Payload Website Template'
+  return doc?.title ? `${doc.title} | ${config.name}` : config.name
 }
 
 const generateURL: GenerateURL<Post | Page> = ({ doc }) => {
