@@ -6,12 +6,19 @@ import { getPayload } from 'payload'
 import React from 'react'
 import { Search } from '@/lib/search/Component'
 import { CardPostData } from '@/components/site/card'
+import { config } from '@/site.config'
+export function generateMetadata(): Metadata {
+  return {
+    title: `Search ${config.name}`,
+  }
+}
 
 type Args = {
   searchParams: Promise<{
     q: string
   }>
 }
+
 export default async function Page({ searchParams: searchParamsPromise }: Args) {
   const { q: query } = await searchParamsPromise
   const payload = await getPayload({ config: configPromise })
@@ -77,10 +84,4 @@ export default async function Page({ searchParams: searchParamsPromise }: Args) 
       )}
     </div>
   )
-}
-
-export function generateMetadata(): Metadata {
-  return {
-    title: `Payload Website Template Search`,
-  }
 }

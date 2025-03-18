@@ -3,6 +3,7 @@ import { CollectionArchive } from '@/components/site/collection-archive'
 import { PageRange } from '@/components/site/page-range'
 import { Pagination } from '@/components/site/pagination'
 import { getPayload } from 'payload'
+import { config } from '@/site.config'
 
 import configPromise from '@payload-config'
 
@@ -10,6 +11,12 @@ import type { Metadata } from 'next/types'
 
 export const dynamic = 'force-static'
 export const revalidate = 600
+
+export function generateMetadata(): Metadata {
+  return {
+    title: `${config.name} Posts`,
+  }
+}
 
 export default async function Page() {
   const payload = await getPayload({ config: configPromise })
@@ -52,10 +59,4 @@ export default async function Page() {
       </Section>
     </>
   )
-}
-
-export function generateMetadata(): Metadata {
-  return {
-    title: `Payload Website Template Posts`,
-  }
 }
