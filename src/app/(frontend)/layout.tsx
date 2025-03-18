@@ -34,11 +34,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body>
-        <AdminBar
-          adminBarProps={{
-            preview: isEnabled,
-          }}
-        />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
@@ -48,6 +43,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Header />
           {children}
           <Footer />
+          <AdminBar
+            adminBarProps={{
+              preview: isEnabled,
+            }}
+          />
         </ThemeProvider>
         <Analytics />
       </body>
