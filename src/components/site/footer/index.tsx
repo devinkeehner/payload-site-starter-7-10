@@ -3,7 +3,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { CMSLink } from '@/components/site/link'
 
 import Link from 'next/link'
-import React from 'react'
+import Image from 'next/image'
 
 import { getCachedGlobal } from '@/lib/utilities/getGlobals'
 import { config } from '@/site.config'
@@ -20,8 +20,14 @@ export async function Footer() {
       <Section className="border-t bg-accent/30">
         <Container className="flex items-start justify-between gap-6">
           <div className="grid gap-2">
-            <Link className="text-2xl font-semibold tracking-tight" href="/">
-              {config.name}
+            <Link href="/">
+              <Image
+                src={config.logo.path}
+                alt={config.name}
+                width={config.logo.width}
+                height={config.logo.height}
+              />
+              <span className="sr-only">{config.name}</span>
             </Link>
             <p className="text-muted-foreground">{config.description}</p>
           </div>
