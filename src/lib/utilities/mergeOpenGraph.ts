@@ -1,15 +1,9 @@
 import type { Metadata } from 'next'
-import { getServerSideURL } from './getURL'
 import { config } from '@/site.config'
 
 const defaultOpenGraph: Metadata['openGraph'] = {
   type: 'website',
   description: config.description,
-  images: [
-    {
-      url: `${getServerSideURL()}/website-template-OG.webp`,
-    },
-  ],
   siteName: config.name,
   title: config.name,
 }
