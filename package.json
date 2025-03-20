@@ -29,7 +29,7 @@
     "@payloadcms/plugin-search": "latest",
     "@payloadcms/plugin-seo": "latest",
     "@payloadcms/richtext-lexical": "latest",
-    "@payloadcms/storage-s3": "^3.28.1",
+    "@payloadcms/storage-s3": "^3.29.0",
     "@payloadcms/ui": "latest",
     "@radix-ui/react-checkbox": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "^2.1.6",
