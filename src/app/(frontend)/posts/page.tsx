@@ -4,6 +4,7 @@ import { PageRange } from '@/components/site/page-range'
 import { Pagination } from '@/components/site/pagination'
 import { getPayload } from 'payload'
 import { config } from '@/site.config'
+import { notFound } from 'next/navigation'
 
 import configPromise from '@payload-config'
 
@@ -33,6 +34,10 @@ export default async function Page() {
       meta: true,
     },
   })
+
+  if (!posts) {
+    return notFound()
+  }
 
   return (
     <>
