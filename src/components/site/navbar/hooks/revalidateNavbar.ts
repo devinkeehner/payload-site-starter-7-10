@@ -1,13 +1,13 @@
-import type { GlobalAfterChangeHook } from 'payload'
+// import type { CollectionAfterChangeHook } from 'payload/types'
 
-import { revalidateTag } from 'next/cache'
+// import { revalidateTag } from 'next/cache'
 
-export const revalidateNavbar: GlobalAfterChangeHook = ({ doc, req: { payload, context } }) => {
-  if (!context.disableRevalidate) {
-    payload.logger.info(`Revalidating navbar`)
+// export const revalidateNavbar: CollectionAfterChangeHook = async ({ doc, req: { payload, context } }) => {
+//   if (!context.disableRevalidate) {
+//     payload.logger.info(`Revalidating navbar`)
 
-    revalidateTag('global_navbar')
-  }
+//     revalidateTag('navbar')
+//   }
 
-  return doc
-}
+//   return doc
+// }

@@ -12,10 +12,12 @@ import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Posts } from './collections/Posts'
 import { Users } from './collections/Users'
-import { Footer } from './components/site/footer/config'
-import { Header } from './components/site/header/config'
+
+
 import { Navbar } from './components/site/navbar/config'
 import { plugins } from '@/lib/plugins'
+import CustomDashboard from './components/admin/CustomDashboard'
+import { CONTENT_COLLECTIONS } from './components/admin/collectionGroups'
 import { defaultLexical } from '@/collections/fields/defaultLexical'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
@@ -24,6 +26,13 @@ const dirname = path.dirname(filename)
 
 export default buildConfig({
   admin: {
+    components: {
+      views: {
+        Dashboard: {
+          Component: CustomDashboard,
+        },
+      },
+    },
     importMap: {
       baseDir: path.resolve(dirname),
     },
@@ -56,9 +65,9 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
   }),
-  collections: [Pages, Posts, Media, Categories, Users],
+  collections: [Navbar, Categories, Media, Posts, Pages, Users],
   cors: [getServerSideURL()].filter(Boolean),
-  globals: [Header, Navbar, Footer],
+  globals: [],
   plugins: [
     ...plugins,
     s3Storage({
