@@ -14,6 +14,7 @@ import { Posts } from './collections/Posts'
 import { Users } from './collections/Users'
 import { Footer } from './components/site/footer/config'
 import { Header } from './components/site/header/config'
+import { Navbar } from './components/site/navbar/config'
 import { plugins } from '@/lib/plugins'
 import { defaultLexical } from '@/collections/fields/defaultLexical'
 import { getServerSideURL } from '@/lib/utilities/getURL'
@@ -57,7 +58,7 @@ export default buildConfig({
   }),
   collections: [Pages, Posts, Media, Categories, Users],
   cors: [getServerSideURL()].filter(Boolean),
-  globals: [Header, Footer],
+  globals: [Header, Navbar, Footer],
   plugins: [
     ...plugins,
     s3Storage({
