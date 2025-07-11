@@ -16,7 +16,7 @@ import { Users } from './collections/Users'
 
 import { Navbar } from './components/site/navbar/config'
 import { plugins } from '@/lib/plugins'
-import CustomDashboard from './components/admin/CustomDashboard'
+
 import { CONTENT_COLLECTIONS } from './components/admin/collectionGroups'
 import { defaultLexical } from '@/collections/fields/defaultLexical'
 import { getServerSideURL } from '@/lib/utilities/getURL'
@@ -28,9 +28,7 @@ export default buildConfig({
   admin: {
     components: {
       views: {
-        Dashboard: {
-          Component: CustomDashboard,
-        },
+        Dashboard: './components/admin/CustomDashboard',
       },
     },
     importMap: {
