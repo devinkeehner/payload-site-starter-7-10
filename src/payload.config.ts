@@ -7,6 +7,7 @@ import { buildConfig, PayloadRequest } from 'payload'
 import { fileURLToPath } from 'url'
 import { s3Storage } from '@payloadcms/storage-s3'
 
+import { Tenants } from './collections/Tenants'
 import { Categories } from './collections/Categories'
 import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
@@ -15,6 +16,8 @@ import { Users } from './collections/Users'
 
 
 import { Navbar } from './components/site/navbar/config'
+import { Header } from './components/site/header/config'
+import { Footer } from './components/site/footer/config'
 import { plugins } from '@/lib/plugins'
 
 import { CONTENT_COLLECTIONS } from './components/admin/collectionGroups'
@@ -63,9 +66,9 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
   }),
-  collections: [Navbar, Categories, Media, Posts, Pages, Users],
+  collections: [Tenants, Navbar, Categories, Media, Posts, Pages, Users],
   cors: [getServerSideURL()].filter(Boolean),
-  globals: [],
+  globals: [Header, Footer],
   plugins: [
     ...plugins,
     s3Storage({

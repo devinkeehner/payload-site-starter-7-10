@@ -1,3 +1,4 @@
+import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { payloadCloudPlugin } from '@payloadcms/payload-cloud'
 import { formBuilderPlugin } from '@payloadcms/plugin-form-builder'
 import { nestedDocsPlugin } from '@payloadcms/plugin-nested-docs'
@@ -26,6 +27,21 @@ const generateURL: GenerateURL<Post | Page> = ({ doc }) => {
 }
 
 export const plugins: Plugin[] = [
+  // Multi-tenant must run first so other plugins respect tenant scoping
+  multiTenantPlugin({
+    tenantsSlug: 'tenants',     // identify the Tenants collection
+    authCollection: 'users',
+    rootAccessRole: 'super',   // collection with auth tokens
+    // disable tenant-based access constraints for admins
+    useTenantsCollectionAccess: false,
+    useTenantsListFilter: false,
+    useUsersTenantFilter: false,
+    // allow super users to see all tenants
+    userHasAccessToAllTenants: (user) => user.roles?.includes('super'),
+    collections: {
+      navbars: { isGlobal: true },
+    },
+  }),
   redirectsPlugin({
     collections: ['pages', 'posts'],
     overrides: {

@@ -67,6 +67,7 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    tenants: Tenant;
     navbars: Navbar;
     categories: Category;
     media: Media;
@@ -84,6 +85,7 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
+    tenants: TenantsSelect<false> | TenantsSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
@@ -102,8 +104,14 @@ export interface Config {
   db: {
     defaultIDType: string;
   };
-  globals: {};
-  globalsSelect: {};
+  globals: {
+    header: Header;
+    footer: Footer;
+  };
+  globalsSelect: {
+    header: HeaderSelect<false> | HeaderSelect<true>;
+    footer: FooterSelect<false> | FooterSelect<true>;
+  };
   locale: null;
   user: User & {
     collection: 'users';
@@ -139,10 +147,22 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants".
+ */
+export interface Tenant {
+  id: string;
+  name: string;
+  slug: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "navbars".
  */
 export interface Navbar {
   id: string;
+  tenant?: (string | null) | Tenant;
   name: string;
   navItems?:
     | {
@@ -462,6 +482,14 @@ export interface Category {
 export interface User {
   id: string;
   name?: string | null;
+  tenant?: (string | null) | Tenant;
+  roles?: 'super'[] | null;
+  tenants?:
+    | {
+        tenant: string | Tenant;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -1013,6 +1041,10 @@ export interface PayloadLockedDocument {
   id: string;
   document?:
     | ({
+        relationTo: 'tenants';
+        value: string | Tenant;
+      } | null)
+    | ({
         relationTo: 'navbars';
         value: string | Navbar;
       } | null)
@@ -1100,9 +1132,20 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants_select".
+ */
+export interface TenantsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "navbars_select".
  */
 export interface NavbarsSelect<T extends boolean = true> {
+  tenant?: T;
   name?: T;
   navItems?:
     | T
@@ -1458,6 +1501,14 @@ export interface BannerBlockSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
+  tenant?: T;
+  roles?: T;
+  tenants?:
+    | T
+    | {
+        tenant?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
   email?: T;
@@ -1721,6 +1772,110 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
   batch?: T;
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "header".
+ */
+export interface Header {
+  id: string;
+  navItems?:
+    | {
+        link: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'pages';
+                value: string | Page;
+              } | null)
+            | ({
+                relationTo: 'posts';
+                value: string | Post;
+              } | null);
+          url?: string | null;
+          label: string;
+        };
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "footer".
+ */
+export interface Footer {
+  id: string;
+  navItems?:
+    | {
+        link: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'pages';
+                value: string | Page;
+              } | null)
+            | ({
+                relationTo: 'posts';
+                value: string | Post;
+              } | null);
+          url?: string | null;
+          label: string;
+        };
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "header_select".
+ */
+export interface HeaderSelect<T extends boolean = true> {
+  navItems?:
+    | T
+    | {
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "footer_select".
+ */
+export interface FooterSelect<T extends boolean = true> {
+  navItems?:
+    | T
+    | {
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

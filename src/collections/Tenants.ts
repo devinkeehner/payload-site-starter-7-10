@@ -12,9 +12,9 @@ export const Tenants: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: () => false,
-    update: () => false,
-    delete: () => false,
+    create: () => true,  // allow admin to add new tenants
+    update: () => true,  // allow editing tenant metadata later
+    delete: () => false, // still prevent accidental deletion
   },
   fields: [
     {
