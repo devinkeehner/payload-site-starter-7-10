@@ -12,9 +12,9 @@ export const Tenants: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: () => true,  // allow admin to add new tenants
-    update: () => true,  // allow editing tenant metadata later
-    delete: () => false, // still prevent accidental deletion
+    create: ({ req }) => !!req.user?.roles?.includes('super'),
+    update: ({ req }) => !!req.user?.roles?.includes('super'),
+    delete: ({ req }) => !!req.user?.roles?.includes('super'), // only super admins can delete
   },
   fields: [
     {
@@ -26,6 +26,13 @@ export const Tenants: CollectionConfig = {
       name: 'slug',
       type: 'text',
       required: true,
+    },
+    {
+      name: 'archived',
+      label: 'Archived',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar' },
     },
     // add more tenant-level metadata here (e.g., domain, theme)
   ],

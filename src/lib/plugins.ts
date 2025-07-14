@@ -35,7 +35,7 @@ export const plugins: Plugin[] = [
     // disable tenant-based access constraints for admins
     useTenantsCollectionAccess: false,
     useTenantsListFilter: false,
-    useUsersTenantFilter: false,
+    useUsersTenantFilter: true,
     // allow super users to see all tenants
     userHasAccessToAllTenants: (user) => user.roles?.includes('super'),
     collections: {

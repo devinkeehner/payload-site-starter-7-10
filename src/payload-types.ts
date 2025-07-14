@@ -153,6 +153,7 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  archived?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -356,6 +357,7 @@ export interface Post {
         name?: string | null;
       }[]
     | null;
+  overrideTenant?: (string | null) | Tenant;
   slug?: string | null;
   slugLock?: boolean | null;
   updatedAt: string;
@@ -482,7 +484,6 @@ export interface Category {
 export interface User {
   id: string;
   name?: string | null;
-  tenant?: (string | null) | Tenant;
   roles?: 'super'[] | null;
   tenants?:
     | {
@@ -1137,6 +1138,7 @@ export interface PayloadMigration {
 export interface TenantsSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
+  archived?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1333,6 +1335,7 @@ export interface PostsSelect<T extends boolean = true> {
         id?: T;
         name?: T;
       };
+  overrideTenant?: T;
   slug?: T;
   slugLock?: T;
   updatedAt?: T;
@@ -1501,7 +1504,6 @@ export interface BannerBlockSelect<T extends boolean = true> {
  */
 export interface UsersSelect<T extends boolean = true> {
   name?: T;
-  tenant?: T;
   roles?: T;
   tenants?:
     | T

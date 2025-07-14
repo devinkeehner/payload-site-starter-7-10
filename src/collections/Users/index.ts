@@ -22,13 +22,7 @@ export const Users: CollectionConfig = {
       name: 'name',
       type: 'text',
     },
-    {
-      name: 'tenant',
-      type: 'relationship',
-      relationTo: 'tenants',
-      required: false,
-      admin: { position: 'sidebar' },
-    },
+
     {
       name: 'roles',
       type: 'select',

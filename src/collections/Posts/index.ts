@@ -215,6 +215,20 @@ export const Posts: CollectionConfig<'posts'> = {
         },
       ],
     },
+    {
+      name: 'overrideTenant',
+      label: 'Tenant Override',
+      type: 'relationship',
+      relationTo: 'tenants',
+      admin: {
+        position: 'sidebar',
+        condition: () => true, // always visible, can restrict to admin if needed
+      },
+      access: {
+        read: ({ req }) => !!(req.user && req.user.roles?.includes('super')),
+        update: ({ req }) => !!(req.user && req.user.roles?.includes('super')),
+      },
+    },
     ...slugField(),
   ],
   hooks: {
