@@ -13,6 +13,9 @@ import { Media } from './collections/Media'
 import { Pages } from './collections/Pages'
 import { Posts } from './collections/Posts'
 import { Users } from './collections/Users'
+import { Authors } from './collections/Authors'
+import { Tags } from './collections/Tags'
+import { WordpressPosts } from './collections/WordpressPosts'
 
 
 import { Navbar } from './components/site/navbar/config'
@@ -66,7 +69,7 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
   }),
-  collections: [Tenants, Navbar, Categories, Media, Posts, Pages, Users],
+  collections: [Tenants, Navbar, Categories, Media, Posts, WordpressPosts, Authors, Tags, Pages, Users],
   cors: [getServerSideURL()].filter(Boolean),
   globals: [Header, Footer],
   plugins: [

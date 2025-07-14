@@ -33,7 +33,7 @@ export const plugins: Plugin[] = [
     authCollection: 'users',
     rootAccessRole: 'super',   // collection with auth tokens
     // disable tenant-based access constraints for admins
-    useTenantsCollectionAccess: false,
+    useTenantsCollectionAccess: true,
     useTenantsListFilter: true,
     useUsersTenantFilter: true,
     debug: true,
