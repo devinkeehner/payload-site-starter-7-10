@@ -34,12 +34,14 @@ export const plugins: Plugin[] = [
     rootAccessRole: 'super',   // collection with auth tokens
     // disable tenant-based access constraints for admins
     useTenantsCollectionAccess: false,
-    useTenantsListFilter: false,
+    useTenantsListFilter: true,
     useUsersTenantFilter: true,
+    debug: true,
     // allow super users to see all tenants
     userHasAccessToAllTenants: (user) => user.roles?.includes('super'),
     collections: {
       navbars: { isGlobal: true },
+      posts: {},
     },
   }),
   redirectsPlugin({
