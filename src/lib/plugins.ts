@@ -30,8 +30,6 @@ export const plugins: Plugin[] = [
   // Multi-tenant must run first so other plugins respect tenant scoping
   multiTenantPlugin({
     tenantsSlug: 'tenants',     // identify the Tenants collection
-    authCollection: 'users',
-    rootAccessRole: 'super',   // collection with auth tokens
     // disable tenant-based access constraints for admins
     useTenantsCollectionAccess: true,
     useTenantsListFilter: true,
