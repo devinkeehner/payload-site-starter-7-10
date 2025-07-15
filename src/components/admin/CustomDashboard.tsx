@@ -8,7 +8,11 @@ const GROUPS: Record<string, { slug: string; label: string }[]> = {
     { slug: 'media', label: 'Media' },
     { slug: 'categories', label: 'Categories' },
   ],
-  Site: [{ slug: 'navbars', label: 'Navbars' }],
+  Site: [
+    { slug: 'navbars', label: 'Navbars' },
+    { slug: 'standard-media', label: 'Images and Videos' },
+    { slug: 'rep-info', label: 'Rep Info' },
+  ],
   Admin: [
     { slug: 'users', label: 'Users' },
     { slug: 'tenants', label: 'Tenants' },

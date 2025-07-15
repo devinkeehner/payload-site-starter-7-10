@@ -19,8 +19,11 @@ import { WordpressPosts } from './collections/WordpressPosts'
 
 
 import { Navbar } from './components/site/navbar/config'
+import { StandardMedia } from './collections/StandardMedia'
+import { RepInfo } from './collections/RepInfo'
 import { Header } from './components/site/header/config'
 import { Footer } from './components/site/footer/config'
+import CustomDashboard from './components/admin/CustomDashboard'
 import { plugins } from '@/lib/plugins'
 
 import { CONTENT_COLLECTIONS } from './components/admin/collectionGroups'
@@ -30,16 +33,12 @@ import { getServerSideURL } from '@/lib/utilities/getURL'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
-import CustomDashboard from './components/admin/CustomDashboard';
 
 export default buildConfig({
   admin: {
     components: {
       views: {
-        Dashboard: {
-          Component: CustomDashboard as any,
-          path: '/',
-        },
+        Dashboard: CustomDashboard,
       },
     },
     importMap: {
@@ -84,6 +83,8 @@ export default buildConfig({
     Categories,
     // Site
     Navbar,
+    StandardMedia,
+    RepInfo,
     // Admin
     Users,
     Tenants,

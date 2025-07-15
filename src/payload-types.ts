@@ -73,6 +73,8 @@ export interface Config {
     media: Media;
     categories: Category;
     navbars: Navbar;
+    'standard-media': StandardMedia;
+    'rep-info': RepInfo;
     users: User;
     tenants: Tenant;
     authors: Author;
@@ -94,6 +96,8 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     categories: CategoriesSelect<false> | CategoriesSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
+    'standard-media': StandardMediaSelect<false> | StandardMediaSelect<true>;
+    'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     authors: AuthorsSelect<false> | AuthorsSelect<true>;
@@ -927,6 +931,46 @@ export interface Navbar {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "standard-media".
+ */
+export interface StandardMedia {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  /**
+   * Internal label only — not shown on the website.
+   */
+  title: string;
+  bannerImage: string | Media;
+  bannerVideo?: (string | null) | Media;
+  introVideo?: (string | null) | Media;
+  mobileHeadshot: string | Media;
+  defaultFeaturedImage: string | Media;
+  districtImage?: (string | null) | Media;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rep-info".
+ */
+export interface RepInfo {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  officeTitle: string;
+  name: string;
+  districtNumber: number;
+  towns?:
+    | {
+        town: string;
+        id?: string | null;
+      }[]
+    | null;
+  form?: (string | null) | Form;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
@@ -1120,6 +1164,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'navbars';
         value: string | Navbar;
+      } | null)
+    | ({
+        relationTo: 'standard-media';
+        value: string | StandardMedia;
+      } | null)
+    | ({
+        relationTo: 'rep-info';
+        value: string | RepInfo;
       } | null)
     | ({
         relationTo: 'users';
@@ -1572,6 +1624,41 @@ export interface NavbarsSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "standard-media_select".
+ */
+export interface StandardMediaSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  bannerImage?: T;
+  bannerVideo?: T;
+  introVideo?: T;
+  mobileHeadshot?: T;
+  defaultFeaturedImage?: T;
+  districtImage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rep-info_select".
+ */
+export interface RepInfoSelect<T extends boolean = true> {
+  tenant?: T;
+  officeTitle?: T;
+  name?: T;
+  districtNumber?: T;
+  towns?:
+    | T
+    | {
+        town?: T;
+        id?: T;
+      };
+  form?: T;
   updatedAt?: T;
   createdAt?: T;
 }

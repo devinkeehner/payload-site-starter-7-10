@@ -41,6 +41,8 @@ export const plugins: Plugin[] = [
       navbars: { isGlobal: true },
       posts: {},
       'wordpress-posts': {},
+      'standard-media': { isGlobal: true },
+      'rep-info': { isGlobal: true },
     },
   }),
   redirectsPlugin({
