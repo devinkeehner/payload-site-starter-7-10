@@ -1,7 +1,7 @@
 import React from 'react';
 import { CONTENT_COLLECTIONS } from './collectionGroups';
 
-const CustomDashboard = ({ path }: { path: string }) => (
+const CustomDashboard = ({ path }: { path?: string }) => (
   <div style={{ padding: '2rem' }}>
     <h2>Content</h2>
     <ul>
