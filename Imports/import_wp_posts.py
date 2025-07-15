@@ -2,12 +2,28 @@ import requests
 import xml.etree.ElementTree as ET
 from urllib.parse import urlparse
 
-# --- CONFIG ---
-PAYLOAD_URL = 'http://localhost:3000'  # Change if not correct
-ADMIN_EMAIL = 'Devin.keehner@gmail.com'
-ADMIN_PASSWORD = 'Babylon42!'
-XML_FILE = 'Imports/staterepresentativevincentcandelora.WordPress.2025-07-14.xml'
-TENANT_SLUG = 'hall'  # Change if needed
+# --- CONFIG (can be overridden via CLI) ---
+DEFAULT_PAYLOAD_URL = 'http://localhost:3000'
+DEFAULT_ADMIN_EMAIL = 'admin@example.com'
+DEFAULT_ADMIN_PASSWORD = 'password'
+DEFAULT_XML_FILE = 'Imports/staterepresentativevincentcandelora.WordPress.2025-07-14.xml'
+DEFAULT_TENANT_SLUG = 'hall'  # e.g. candelora
+
+import argparse
+
+parser = argparse.ArgumentParser(description='Import WordPress posts into Payload CMS')
+parser.add_argument('--url', default=DEFAULT_PAYLOAD_URL, help='Base URL of the Payload instance')
+parser.add_argument('--email', default=DEFAULT_ADMIN_EMAIL, help='Admin email for JWT auth')
+parser.add_argument('--password', default=DEFAULT_ADMIN_PASSWORD, help='Admin password for JWT auth')
+parser.add_argument('--xml', default=DEFAULT_XML_FILE, help='Path to the WordPress WXR export')
+parser.add_argument('--tenant', default=DEFAULT_TENANT_SLUG, help='Tenant slug to assign posts to')
+args = parser.parse_args()
+
+PAYLOAD_URL = args.url.rstrip('/')
+ADMIN_EMAIL = args.email
+ADMIN_PASSWORD = args.password
+XML_FILE = args.xml
+TENANT_SLUG = args.tenant
 
 # --- AUTH ---
 def get_jwt():
@@ -97,10 +113,10 @@ def import_posts(jwt, tenant_id):
         }
         resp = requests.post(f'{PAYLOAD_URL}/api/wordpress-posts', json=data, headers={'Authorization': f'JWT {jwt}'})
         if resp.status_code == 201:
-            print(f'✔ Imported: {title}')
+            print(f'Imported: {title}')
             imported += 1
         else:
-            print(f'✖ Failed: {title} ({resp.status_code}) {resp.text}')
+            print(f'Failed: {title} ({resp.status_code}) {resp.text}')
     print(f'\nDone! Imported {imported} posts.')
 
 if __name__ == '__main__':
