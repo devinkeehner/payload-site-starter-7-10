@@ -3,6 +3,7 @@ import type { CollectionConfig } from 'payload'
 export const Tags: CollectionConfig<'tags'> = {
   slug: 'tags',
   admin: {
+    hidden: true,
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'slug'],

@@ -4,7 +4,7 @@ import { link } from '@/collections/fields/link'
 import { revalidateHeader } from './hooks/revalidateHeader'
 
 export const Header: GlobalConfig = {
-  admin: { group: 'Site' },
+  admin: { group: 'Site', hidden: true },
   slug: 'header',
   access: {
     read: () => true,

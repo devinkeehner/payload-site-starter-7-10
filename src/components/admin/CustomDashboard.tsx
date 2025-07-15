@@ -1,19 +1,38 @@
 import React from 'react';
-import { CONTENT_COLLECTIONS } from './collectionGroups';
+// Dashboard groups mirror sidebar order
+const GROUPS: Record<string, { slug: string; label: string }[]> = {
+  Content: [
+    { slug: 'posts', label: 'Posts' },
+    { slug: 'pages', label: 'Pages' },
+    { slug: 'wordpress-posts', label: 'Wordpress Posts' },
+    { slug: 'media', label: 'Media' },
+    { slug: 'categories', label: 'Categories' },
+  ],
+  Site: [{ slug: 'navbars', label: 'Navbars' }],
+  Admin: [
+    { slug: 'users', label: 'Users' },
+    { slug: 'tenants', label: 'Tenants' },
+  ],
+  Misc: [
+    { slug: 'authors', label: 'Authors' },
+    { slug: 'tags', label: 'Tags' },
+  ],
+};
 
-// The Payload Admin passes a variety of props to custom views. Accept a flexible
-// props object so that our component is compatible with the PayloadComponent type.
-const CustomDashboard = ({ path }: { path?: string; [key: string]: unknown }) => (
+const CustomDashboard = () => (
   <div style={{ padding: '2rem' }}>
-    <h2>Content</h2>
-    <ul>
-      {CONTENT_COLLECTIONS.map(({ slug, label }) => (
-        <li key={slug}>
-          <a href={`/admin/collections/${slug}`}>{label}</a>
-        </li>
-      ))}
-    </ul>
-    {/* Add more groups here if you like */}
+    {Object.entries(GROUPS).map(([group, links]) => (
+      <section key={group} style={{ marginBottom: '2rem' }}>
+        <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{group}</h2>
+        <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem' }}>
+          {links.map(({ slug, label }) => (
+            <li key={slug}>
+              <a href={`/admin/collections/${slug}`}>{label}</a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
   </div>
 );
 

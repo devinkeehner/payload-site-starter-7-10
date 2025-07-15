@@ -74,7 +74,23 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
   }),
-  collections: [Tenants, Navbar, Categories, Media, Posts, WordpressPosts, Authors, Tags, Pages, Users],
+  // Reordered to control sidebar group order (Content, Site, Admin, Misc)
+  collections: [
+    // Content
+    Posts,
+    Pages,
+    WordpressPosts,
+    Media,
+    Categories,
+    // Site
+    Navbar,
+    // Admin
+    Users,
+    Tenants,
+    // Misc (hidden)
+    Authors,
+    Tags,
+  ],
   cors: [getServerSideURL()].filter(Boolean),
   globals: [Header, Footer],
   plugins: [
