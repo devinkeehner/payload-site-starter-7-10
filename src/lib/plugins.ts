@@ -40,6 +40,7 @@ export const plugins: Plugin[] = [
     collections: {
       navbars: { isGlobal: true },
       posts: {},
+      'wordpress-posts': {},
     },
   }),
   redirectsPlugin({
