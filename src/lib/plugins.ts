@@ -38,7 +38,7 @@ export const plugins: Plugin[] = [
     useUsersTenantFilter: true,
     debug: true,
     // allow super users to see all tenants
-    userHasAccessToAllTenants: (user) => user.roles?.includes('super'),
+    userHasAccessToAllTenants: (user) => !!user.roles?.includes('super'),
     collections: {
       navbars: { isGlobal: true },
       posts: {},
