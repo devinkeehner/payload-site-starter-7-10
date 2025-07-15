@@ -30,11 +30,13 @@ import { getServerSideURL } from '@/lib/utilities/getURL'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+import CustomDashboard from './components/admin/CustomDashboard';
+
 export default buildConfig({
   admin: {
     components: {
       views: {
-        Dashboard: './components/admin/CustomDashboard',
+        Dashboard: CustomDashboard,
       },
     },
     importMap: {
