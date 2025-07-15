@@ -1,7 +1,9 @@
 import React from 'react';
 import { CONTENT_COLLECTIONS } from './collectionGroups';
 
-const CustomDashboard = ({ path }: { path?: string }) => (
+// The Payload Admin passes a variety of props to custom views. Accept a flexible
+// props object so that our component is compatible with the PayloadComponent type.
+const CustomDashboard = ({ path }: { path?: string; [key: string]: unknown }) => (
   <div style={{ padding: '2rem' }}>
     <h2>Content</h2>
     <ul>

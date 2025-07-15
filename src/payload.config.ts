@@ -36,7 +36,10 @@ export default buildConfig({
   admin: {
     components: {
       views: {
-        Dashboard: CustomDashboard,
+        Dashboard: {
+          Component: CustomDashboard as any,
+          path: '/',
+        },
       },
     },
     importMap: {
