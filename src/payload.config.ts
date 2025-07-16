@@ -97,7 +97,7 @@ export default buildConfig({
     Authors,
     Tags,
   ],
-  cors: [getServerSideURL()].filter(Boolean),
+  cors: '*',
   globals: [Header, Footer],
   plugins: [
     ...plugins,
