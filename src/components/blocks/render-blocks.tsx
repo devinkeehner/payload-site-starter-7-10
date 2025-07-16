@@ -6,6 +6,7 @@ import { ContentBlock } from '@/components/blocks/content-block'
 import { FormBlock } from '@/components/blocks/form-block'
 import { MediaBlock } from '@/components/blocks/media-block'
 import { BannerBlock } from '@/components/blocks/banner-block'
+import { RichTextBlock } from '@/components/blocks/richtext-block' 
 
 const blockComponents = {
   archive: ArchiveBlock,
@@ -14,6 +15,7 @@ const blockComponents = {
   formBlock: FormBlock,
   mediaBlock: MediaBlock,
   banner: BannerBlock,
+  richTextBlock: RichTextBlock,
 }
 
 export const RenderBlocks: React.FC<{
