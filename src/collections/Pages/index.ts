@@ -6,6 +6,7 @@ import { BannerConfig } from '@/components/blocks/banner-block/config'
 import { ArchiveConfig } from '@/components/blocks/archive-block/config'
 import { CallToActionConfig } from '@/components/blocks/cta-block/config'
 import { ContentConfig } from '@/components/blocks/content-block/config'
+import { RichTextBlockConfig } from '@/components/blocks/richtext-block/config'
 import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { HeroConfig } from '@/components/heros/config'
@@ -78,6 +79,7 @@ export const Pages: CollectionConfig<'pages'> = {
                 CallToActionConfig,
                 ContentConfig,
                 MediaBlockConfig,
+                RichTextBlockConfig,
                 ArchiveConfig,
                 FormBlockConfig,
                 BannerConfig,

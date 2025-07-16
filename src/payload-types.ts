@@ -75,6 +75,7 @@ export interface Config {
     navbars: Navbar;
     'standard-media': StandardMedia;
     'rep-info': RepInfo;
+    'site-seo': SiteSeo;
     users: User;
     tenants: Tenant;
     authors: Author;
@@ -98,6 +99,7 @@ export interface Config {
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
     'standard-media': StandardMediaSelect<false> | StandardMediaSelect<true>;
     'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
+    'site-seo': SiteSeoSelect<false> | SiteSeoSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     authors: AuthorsSelect<false> | AuthorsSelect<true>;
@@ -430,7 +432,7 @@ export interface Page {
       appearance?: ('default' | 'outline') | null;
     };
   };
-  layout: (CallToActionBlock | ContentBlock | MediaBlock | ArchiveBlock | FormBlock | BannerBlock)[];
+  layout: (CallToActionBlock | ContentBlock | MediaBlock | RichTextBlock | ArchiveBlock | FormBlock | BannerBlock)[];
   meta?: {
     title?: string | null;
     /**
@@ -553,6 +555,30 @@ export interface MediaBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'mediaBlock';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextBlock".
+ */
+export interface RichTextBlock {
+  richText: {
+    root: {
+      type: string;
+      children: {
+        type: string;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'richTextBlock';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -970,6 +996,36 @@ export interface RepInfo {
   createdAt: string;
 }
 /**
+ * SEO metadata for the tenant home page
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-seo".
+ */
+export interface SiteSeo {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  /**
+   * 50–60 characters recommended
+   */
+  title: string;
+  /**
+   * 100–150 characters recommended
+   */
+  description: string;
+  metaImage?: (string | null) | Media;
+  /**
+   * Comma-separated keywords
+   */
+  tags?:
+    | {
+        tag: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
@@ -1174,6 +1230,10 @@ export interface PayloadLockedDocument {
         value: string | RepInfo;
       } | null)
     | ({
+        relationTo: 'site-seo';
+        value: string | SiteSeo;
+      } | null)
+    | ({
         relationTo: 'users';
         value: string | User;
       } | null)
@@ -1328,6 +1388,7 @@ export interface PagesSelect<T extends boolean = true> {
         cta?: T | CallToActionBlockSelect<T>;
         content?: T | ContentBlockSelect<T>;
         mediaBlock?: T | MediaBlockSelect<T>;
+        richTextBlock?: T | RichTextBlockSelect<T>;
         archive?: T | ArchiveBlockSelect<T>;
         formBlock?: T | FormBlockSelect<T>;
         banner?: T | BannerBlockSelect<T>;
@@ -1402,6 +1463,15 @@ export interface ContentBlockSelect<T extends boolean = true> {
  */
 export interface MediaBlockSelect<T extends boolean = true> {
   media?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "RichTextBlock_select".
+ */
+export interface RichTextBlockSelect<T extends boolean = true> {
+  richText?: T;
   id?: T;
   blockName?: T;
 }
@@ -1659,6 +1729,24 @@ export interface RepInfoSelect<T extends boolean = true> {
         id?: T;
       };
   form?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "site-seo_select".
+ */
+export interface SiteSeoSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  description?: T;
+  metaImage?: T;
+  tags?:
+    | T
+    | {
+        tag?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

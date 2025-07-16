@@ -21,6 +21,7 @@ import { WordpressPosts } from './collections/WordpressPosts'
 import { Navbar } from './components/site/navbar/config'
 import { StandardMedia } from './collections/StandardMedia'
 import { RepInfo } from './collections/RepInfo'
+import { SiteSEO } from './collections/SiteSEO'
 import { Header } from './components/site/header/config'
 import { Footer } from './components/site/footer/config'
 import CustomDashboard from './components/admin/CustomDashboard'
@@ -38,7 +39,10 @@ export default buildConfig({
   admin: {
     components: {
       views: {
-        Dashboard: CustomDashboard,
+        Dashboard: {
+          Component: './components/admin/CustomDashboard',
+          path: '/',
+        } as any,
       },
     },
     importMap: {
@@ -85,6 +89,7 @@ export default buildConfig({
     Navbar,
     StandardMedia,
     RepInfo,
+    SiteSEO,
     // Admin
     Users,
     Tenants,

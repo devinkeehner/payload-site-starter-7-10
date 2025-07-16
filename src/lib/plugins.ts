@@ -43,6 +43,7 @@ export const plugins: Plugin[] = [
       'wordpress-posts': {},
       'standard-media': { isGlobal: true },
       'rep-info': { isGlobal: true },
+      'site-seo': { isGlobal: true },
     },
   }),
   redirectsPlugin({
