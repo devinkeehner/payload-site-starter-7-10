@@ -44,6 +44,8 @@ export const plugins: Plugin[] = [
       'standard-media': { isGlobal: true },
       'rep-info': { isGlobal: true },
       'site-seo': { isGlobal: true },
+      forms: {},
+      'form-submissions': {},
     },
   }),
   redirectsPlugin({
@@ -117,42 +119,8 @@ export const plugins: Plugin[] = [
           return { tenant: { equals: user.tenants?.[0] } };
         },
       },
-      hooks: {
-        beforeChange: [
-          ({ req, data }) => {
-            // If a tenant is selected in the UI, use that.
-            // Otherwise, for non-super-admins, assign their first tenant.
-            const tenantFromReq = (req as unknown as { tenant?: { id: string } }).tenant;
-            if (tenantFromReq) {
-              data.tenant = tenantFromReq.id;
-            } else if (req.user && !req.user.roles?.includes('super')) {
-              data.tenant = data.tenant || req.user.tenants?.[0];
-            }
-            return data;
-          },
-        ],
-      },
       fields: ({ defaultFields }) => {
-        const tenantField: any = {
-          name: 'tenant',
-          type: 'relationship',
-          relationTo: 'tenants',
-          required: true,
-          admin: {
-            position: 'sidebar',
-            readOnly: true,
-            hidden: true,
-          },
-          filterOptions: ({ user }: { user: User }) => {
-            if (!user) return { id: { equals: 'null' } };
-            if (user.roles?.includes('super')) return {};
-            return { id: { equals: user.tenants?.[0] } };
-          },
-        };
-
-        const allFields = [...defaultFields, tenantField];
-
-        return allFields.map((field) => {
+        return defaultFields.map((field) => {
           if ('name' in field && field.name === 'confirmationMessage') {
             return {
               ...field,
