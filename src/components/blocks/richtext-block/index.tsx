@@ -1,10 +1,9 @@
-import React from 'react';
+import React from 'react'
+import { convertLexicalToHTML } from '@payloadcms/richtext-lexical/html'
 export const RichTextBlock: React.FC<{ richText: any }> = ({ richText }) => {
-  // You may want to use your own rich text renderer here
-  return (
-    <div className="richtext-block">
-      {/* Replace with your preferred rich text renderer if needed */}
-      {richText}
-    </div>
-  );
+  if (!richText) return null
+
+  const html = typeof richText === 'string' ? richText : convertLexicalToHTML(richText)
+
+  return <div className="prose" dangerouslySetInnerHTML={{ __html: html }} />
 };

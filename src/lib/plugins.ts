@@ -13,7 +13,7 @@ import { searchFields } from '@/lib/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/lib/search/beforeSync'
 import { config } from '@/site.config'
 
-import { Page, Post } from '@/payload-types'
+import { Page, Post, User } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
 const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
@@ -83,9 +83,76 @@ export const plugins: Plugin[] = [
     },
     formOverrides: {
       slug: 'forms',
-      admin: { group: 'Content' },
+      admin: {
+        group: 'Content',
+        defaultColumns: ['title', 'tenant', 'updatedAt'],
+      },
+      access: {
+        read: ({ req }) => {
+          const { user, payload } = req;
+          if (!user) return false;
+
+          // Super admins can see all, but we can also filter by the tenant in the query
+          if (user.roles?.includes('super')) {
+            return true;
+          }
+
+          // Non-super-admins are restricted to their own tenant(s)
+          return { tenant: { in: user.tenants } };
+        },
+        // Other access controls remain the same for now
+        create: ({ req: { user } }) => {
+          if (!user) return false;
+          if (user.roles?.includes('super')) return true;
+          return !!user.tenants?.[0];
+        },
+        update: ({ req: { user } }) => {
+          if (!user) return false;
+          if (user.roles?.includes('super')) return true;
+          return { tenant: { equals: user.tenants?.[0] } };
+        },
+        delete: ({ req: { user } }) => {
+          if (!user) return false;
+          if (user.roles?.includes('super')) return true;
+          return { tenant: { equals: user.tenants?.[0] } };
+        },
+      },
+      hooks: {
+        beforeChange: [
+          ({ req, data }) => {
+            // If a tenant is selected in the UI, use that.
+            // Otherwise, for non-super-admins, assign their first tenant.
+            const tenantFromReq = (req as unknown as { tenant?: { id: string } }).tenant;
+            if (tenantFromReq) {
+              data.tenant = tenantFromReq.id;
+            } else if (req.user && !req.user.roles?.includes('super')) {
+              data.tenant = data.tenant || req.user.tenants?.[0];
+            }
+            return data;
+          },
+        ],
+      },
       fields: ({ defaultFields }) => {
-        return defaultFields.map((field) => {
+        const tenantField: any = {
+          name: 'tenant',
+          type: 'relationship',
+          relationTo: 'tenants',
+          required: true,
+          admin: {
+            position: 'sidebar',
+            readOnly: true,
+            hidden: true,
+          },
+          filterOptions: ({ user }: { user: User }) => {
+            if (!user) return { id: { equals: 'null' } };
+            if (user.roles?.includes('super')) return {};
+            return { id: { equals: user.tenants?.[0] } };
+          },
+        };
+
+        const allFields = [...defaultFields, tenantField];
+
+        return allFields.map((field) => {
           if ('name' in field && field.name === 'confirmationMessage') {
             return {
               ...field,
@@ -95,13 +162,13 @@ export const plugins: Plugin[] = [
                     ...rootFeatures,
                     FixedToolbarFeature(),
                     HeadingFeature({ enabledHeadingSizes: ['h1', 'h2', 'h3', 'h4'] }),
-                  ]
+                  ];
                 },
               }),
-            }
+            };
           }
-          return field
-        })
+          return field;
+        });
       },
     },
     formSubmissionOverrides: {
