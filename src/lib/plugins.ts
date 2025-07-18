@@ -133,26 +133,7 @@ export const plugins: Plugin[] = [
         ],
       },
       fields: ({ defaultFields }) => {
-        const tenantField: any = {
-          name: 'tenant',
-          type: 'relationship',
-          relationTo: 'tenants',
-          required: true,
-          admin: {
-            position: 'sidebar',
-            readOnly: true,
-            hidden: true,
-          },
-          filterOptions: ({ user }: { user: User }) => {
-            if (!user) return { id: { equals: 'null' } };
-            if (user.roles?.includes('super')) return {};
-            return { id: { equals: user.tenants?.[0] } };
-          },
-        };
-
-        const allFields = [...defaultFields, tenantField];
-
-        return allFields.map((field) => {
+        return defaultFields.map((field) => {
           if ('name' in field && field.name === 'confirmationMessage') {
             return {
               ...field,
