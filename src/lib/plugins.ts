@@ -119,6 +119,19 @@ export const plugins: Plugin[] = [
           return { tenant: { equals: user.tenants?.[0] } };
         },
       },
+      hooks: {
+        beforeChange: [
+          ({ req, data }) => {
+            const tenantFromReq = (req as { tenant?: { id: string } }).tenant;
+            if (tenantFromReq) {
+              data.tenant = tenantFromReq.id;
+            } else if (req.user && !req.user.roles?.includes('super')) {
+              data.tenant = data.tenant || req.user.tenants?.[0];
+            }
+            return data;
+          },
+        ],
+      },
       fields: ({ defaultFields }) => {
         return defaultFields.map((field) => {
           if ('name' in field && field.name === 'confirmationMessage') {
