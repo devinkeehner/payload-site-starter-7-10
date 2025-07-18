@@ -646,6 +646,7 @@ export interface FormBlock {
  */
 export interface Form {
   id: string;
+  tenant?: (string | null) | Tenant;
   title: string;
   fields?:
     | (
@@ -811,7 +812,6 @@ export interface Form {
         id?: string | null;
       }[]
     | null;
-  tenant: string | Tenant;
   updatedAt: string;
   createdAt: string;
 }
@@ -1058,6 +1058,7 @@ export interface Redirect {
  */
 export interface FormSubmission {
   id: string;
+  tenant?: (string | null) | Tenant;
   form: string | Form;
   submissionData?:
     | {
@@ -1833,6 +1834,7 @@ export interface RedirectsSelect<T extends boolean = true> {
  * via the `definition` "forms_select".
  */
 export interface FormsSelect<T extends boolean = true> {
+  tenant?: T;
   title?: T;
   fields?:
     | T
@@ -1958,7 +1960,6 @@ export interface FormsSelect<T extends boolean = true> {
         message?: T;
         id?: T;
       };
-  tenant?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1967,6 +1968,7 @@ export interface FormsSelect<T extends boolean = true> {
  * via the `definition` "form-submissions_select".
  */
 export interface FormSubmissionsSelect<T extends boolean = true> {
+  tenant?: T;
   form?: T;
   submissionData?:
     | T
