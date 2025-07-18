@@ -44,6 +44,8 @@ export const plugins: Plugin[] = [
       'standard-media': { isGlobal: true },
       'rep-info': { isGlobal: true },
       'site-seo': { isGlobal: true },
+      forms: {},
+      'form-submissions': {},
     },
   }),
   redirectsPlugin({
@@ -120,9 +122,7 @@ export const plugins: Plugin[] = [
       hooks: {
         beforeChange: [
           ({ req, data }) => {
-            // If a tenant is selected in the UI, use that.
-            // Otherwise, for non-super-admins, assign their first tenant.
-            const tenantFromReq = (req as unknown as { tenant?: { id: string } }).tenant;
+            const tenantFromReq = (req as { tenant?: { id: string } }).tenant;
             if (tenantFromReq) {
               data.tenant = tenantFromReq.id;
             } else if (req.user && !req.user.roles?.includes('super')) {
