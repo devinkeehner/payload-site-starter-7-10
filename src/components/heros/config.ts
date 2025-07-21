@@ -37,7 +37,7 @@ export const HeroConfig: Field = {
           value: 'lowImpact',
         },
       ],
-      required: true,
+      required: false,
     },
     {
       name: 'richText',
@@ -66,7 +66,7 @@ export const HeroConfig: Field = {
         condition: (_, { type } = {}) => ['highImpact', 'mediumImpact'].includes(type),
       },
       relationTo: 'media',
-      required: true,
+      required: false,
     },
     link({
       overrides: { name: 'callToAction' },

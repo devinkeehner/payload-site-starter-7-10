@@ -370,8 +370,8 @@ export interface User {
 export interface Page {
   id: string;
   title: string;
-  hero: {
-    type: 'none' | 'highImpact' | 'mediumImpact' | 'lowImpact';
+  hero?: {
+    type?: ('none' | 'highImpact' | 'mediumImpact' | 'lowImpact') | null;
     richText?: {
       root: {
         type: string;
@@ -389,7 +389,7 @@ export interface Page {
     } | null;
     links?:
       | {
-          link: {
+          link?: {
             type?: ('reference' | 'custom') | null;
             newTab?: boolean | null;
             reference?:
@@ -402,7 +402,7 @@ export interface Page {
                   value: string | Post;
                 } | null);
             url?: string | null;
-            label: string;
+            label?: string | null;
             /**
              * Choose how the link should be rendered.
              */
@@ -412,7 +412,7 @@ export interface Page {
         }[]
       | null;
     media?: (string | null) | Media;
-    callToAction: {
+    callToAction?: {
       type?: ('reference' | 'custom') | null;
       newTab?: boolean | null;
       reference?:
@@ -425,7 +425,7 @@ export interface Page {
             value: string | Post;
           } | null);
       url?: string | null;
-      label: string;
+      label?: string | null;
       /**
        * Choose how the link should be rendered.
        */
@@ -470,7 +470,7 @@ export interface CallToActionBlock {
   } | null;
   links?:
     | {
-        link: {
+        link?: {
           type?: ('reference' | 'custom') | null;
           newTab?: boolean | null;
           reference?:
@@ -483,7 +483,7 @@ export interface CallToActionBlock {
                 value: string | Post;
               } | null);
           url?: string | null;
-          label: string;
+          label?: string | null;
           /**
            * Choose how the link should be rendered.
            */
@@ -533,7 +533,7 @@ export interface ContentBlock {
                 value: string | Post;
               } | null);
           url?: string | null;
-          label: string;
+          label?: string | null;
           /**
            * Choose how the link should be rendered.
            */
@@ -892,7 +892,7 @@ export interface Navbar {
   name: string;
   navItems?:
     | {
-        link: {
+        link?: {
           type?: ('reference' | 'custom') | null;
           newTab?: boolean | null;
           reference?:
@@ -905,12 +905,12 @@ export interface Navbar {
                 value: string | Post;
               } | null);
           url?: string | null;
-          label: string;
+          label?: string | null;
         };
         newTab?: boolean | null;
         subNav?:
           | {
-              link: {
+              link?: {
                 type?: ('reference' | 'custom') | null;
                 newTab?: boolean | null;
                 reference?:
@@ -923,12 +923,12 @@ export interface Navbar {
                       value: string | Post;
                     } | null);
                 url?: string | null;
-                label: string;
+                label?: string | null;
               };
               newTab?: boolean | null;
               subSubNav?:
                 | {
-                    link: {
+                    link?: {
                       type?: ('reference' | 'custom') | null;
                       newTab?: boolean | null;
                       reference?:
@@ -941,7 +941,7 @@ export interface Navbar {
                             value: string | Post;
                           } | null);
                       url?: string | null;
-                      label: string;
+                      label?: string | null;
                     };
                     newTab?: boolean | null;
                     id?: string | null;
@@ -2077,7 +2077,7 @@ export interface Header {
   id: string;
   navItems?:
     | {
-        link: {
+        link?: {
           type?: ('reference' | 'custom') | null;
           newTab?: boolean | null;
           reference?:
@@ -2090,7 +2090,7 @@ export interface Header {
                 value: string | Post;
               } | null);
           url?: string | null;
-          label: string;
+          label?: string | null;
         };
         id?: string | null;
       }[]
@@ -2106,7 +2106,7 @@ export interface Footer {
   id: string;
   navItems?:
     | {
-        link: {
+        link?: {
           type?: ('reference' | 'custom') | null;
           newTab?: boolean | null;
           reference?:
@@ -2119,7 +2119,7 @@ export interface Footer {
                 value: string | Post;
               } | null);
           url?: string | null;
-          label: string;
+          label?: string | null;
         };
         id?: string | null;
       }[]
