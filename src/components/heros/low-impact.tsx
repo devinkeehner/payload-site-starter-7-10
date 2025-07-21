@@ -7,7 +7,8 @@ import RichText from '@/components/site/rich-text'
 
 import type { Page } from '@/payload-types'
 
-export const LowImpactHero = ({ richText, links }: Page['hero']) => {
+type HeroProps = NonNullable<Page['hero']>
+export const LowImpactHero = ({ richText, links }: HeroProps) => {
   return (
     <Section className="bg-accent/30 border-b">
       <Container className="space-y-3 sm:space-y-6">
