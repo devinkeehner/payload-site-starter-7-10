@@ -62,6 +62,9 @@ export const plugins: Plugin[] = [
     fields: {
       payment: false,
     },
+    formOverrides: {
+      admin: { group: 'Content' },
+    },
     formSubmissionOverrides: {
       admin: { group: 'Content' },
     },

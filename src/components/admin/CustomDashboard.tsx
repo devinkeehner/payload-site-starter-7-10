@@ -1,13 +1,8 @@
 import React from 'react';
+import { CONTENT_COLLECTIONS } from './collectionGroups';
 // Dashboard groups mirror sidebar order
 const GROUPS: Record<string, { slug: string; label: string }[]> = {
-  Content: [
-    { slug: 'posts', label: 'Posts' },
-    { slug: 'pages', label: 'Pages' },
-    { slug: 'wordpress-posts', label: 'Wordpress Posts' },
-    { slug: 'media', label: 'Media' },
-    { slug: 'categories', label: 'Categories' },
-  ],
+  Content: CONTENT_COLLECTIONS,
   Site: [
     { slug: 'navbars', label: 'Navbars' },
     { slug: 'standard-media', label: 'Images and Videos' },
