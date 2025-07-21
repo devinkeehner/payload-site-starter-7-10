@@ -369,6 +369,7 @@ export interface User {
  */
 export interface Page {
   id: string;
+  tenant?: (string | null) | Tenant;
   title: string;
   hero?: {
     type?: ('none' | 'highImpact' | 'mediumImpact' | 'lowImpact') | null;
@@ -1351,6 +1352,7 @@ export interface PostsSelect<T extends boolean = true> {
  * via the `definition` "pages_select".
  */
 export interface PagesSelect<T extends boolean = true> {
+  tenant?: T;
   title?: T;
   hero?:
     | T
