@@ -8,7 +8,8 @@ import Link from 'next/link'
 
 import type { Page } from '@/payload-types'
 
-export const MediumImpactHero = ({ links, media, richText, callToAction }: Page['hero']) => {
+type HeroProps = NonNullable<Page['hero']>
+export const MediumImpactHero = ({ links, media, richText, callToAction }: HeroProps) => {
   return (
     <Section className="border-b bg-accent/30">
       <Container className="space-y-6 sm:space-y-8">
