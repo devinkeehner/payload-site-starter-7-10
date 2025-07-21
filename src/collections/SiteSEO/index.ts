@@ -20,8 +20,8 @@ export const SiteSEO: CollectionConfig = {
       // enforce singleton per tenant: block creating additional docs
       if (operation === 'create') {
         // @ts-ignore
-        const tenant = data?._tenant || req.user?.tenant
-        return req.payload.find({ collection: 'site-seo', where: { _tenant: { equals: tenant } } }).then((existing) => {
+        const tenant = data?.tenant || req.tenant?.id || req.user?.tenants?.[0]
+        return req.payload.find({ collection: 'site-seo', where: { tenant: { equals: tenant } } }).then((existing) => {
           if (existing.docs.length > 0) {
             throw new Error('Site SEO document already exists for this tenant')
           }
