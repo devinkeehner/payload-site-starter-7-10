@@ -7,5 +7,6 @@ import React from 'react'
 
 export const LivePreviewListener: React.FC = () => {
   const router = useRouter()
-  return <PayloadLivePreview refresh={router.refresh} serverURL={getClientSideURL()} />
+  const serverURL = process.env.NEXT_PUBLIC_PAYLOAD_URL || getClientSideURL()
+  return <PayloadLivePreview refresh={router.refresh} serverURL={serverURL} />
 }
