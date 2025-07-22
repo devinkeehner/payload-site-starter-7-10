@@ -5,6 +5,7 @@ import { CallToActionBlock } from '@/components/blocks/cta-block'
 import { ContentBlock } from '@/components/blocks/content-block'
 import { FormBlock } from '@/components/blocks/form-block'
 import { MediaBlock } from '@/components/blocks/media-block'
+import { MediaGalleryBlock } from '@/components/blocks/media-gallery-block'
 import { BannerBlock } from '@/components/blocks/banner-block'
 import { RichTextBlock } from '@/components/blocks/richtext-block' 
 
@@ -16,6 +17,7 @@ const blockComponents = {
   mediaBlock: MediaBlock,
   banner: BannerBlock,
   richTextBlock: RichTextBlock,
+  mediaGallery: MediaGalleryBlock,
 }
 
 export const RenderBlocks: React.FC<{
