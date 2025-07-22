@@ -433,7 +433,16 @@ export interface Page {
       appearance?: ('default' | 'outline') | null;
     };
   };
-  layout: (CallToActionBlock | ContentBlock | MediaBlock | RichTextBlock | ArchiveBlock | FormBlock | BannerBlock)[];
+  layout: (
+    | CallToActionBlock
+    | ContentBlock
+    | MediaBlock
+    | MediaGalleryBlock
+    | RichTextBlock
+    | ArchiveBlock
+    | FormBlock
+    | BannerBlock
+  )[];
   meta?: {
     title?: string | null;
     /**
@@ -556,6 +565,22 @@ export interface MediaBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'mediaBlock';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MediaGalleryBlock".
+ */
+export interface MediaGalleryBlock {
+  images?:
+    | {
+        media: string | Media;
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'mediaGallery';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1392,6 +1417,7 @@ export interface PagesSelect<T extends boolean = true> {
         cta?: T | CallToActionBlockSelect<T>;
         content?: T | ContentBlockSelect<T>;
         mediaBlock?: T | MediaBlockSelect<T>;
+        mediaGallery?: T | MediaGalleryBlockSelect<T>;
         richTextBlock?: T | RichTextBlockSelect<T>;
         archive?: T | ArchiveBlockSelect<T>;
         formBlock?: T | FormBlockSelect<T>;
@@ -1467,6 +1493,21 @@ export interface ContentBlockSelect<T extends boolean = true> {
  */
 export interface MediaBlockSelect<T extends boolean = true> {
   media?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MediaGalleryBlock_select".
+ */
+export interface MediaGalleryBlockSelect<T extends boolean = true> {
+  images?:
+    | T
+    | {
+        media?: T;
+        caption?: T;
+        id?: T;
+      };
   id?: T;
   blockName?: T;
 }

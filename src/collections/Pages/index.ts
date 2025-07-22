@@ -9,6 +9,7 @@ import { ContentConfig } from '@/components/blocks/content-block/config'
 import { RichTextBlockConfig } from '@/components/blocks/richtext-block/config'
 import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
+import { MediaGalleryBlockConfig } from '@/components/blocks/media-gallery-block/config'
 import { HeroConfig } from '@/components/heros/config'
 import { slugField } from '@/collections/fields/slug'
 import { populatePublishedAt } from '@/lib/hooks/populatePublishedAt'
@@ -79,6 +80,7 @@ export const Pages: CollectionConfig<'pages'> = {
                 CallToActionConfig,
                 ContentConfig,
                 MediaBlockConfig,
+                MediaGalleryBlockConfig,
                 RichTextBlockConfig,
                 ArchiveConfig,
                 FormBlockConfig,
