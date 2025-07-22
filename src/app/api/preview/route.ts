@@ -11,7 +11,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Enable draft mode by setting cookies
-  draftMode().enable()
+    const { enable } = await draftMode()
+  enable()
 
   // Redirect to the provided path (default to /)
   const path = req.nextUrl.searchParams.get('path') || '/'
