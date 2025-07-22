@@ -8,7 +8,9 @@ import { HighImpactHero } from '@/components/heros/high-impact'
 import { LowImpactHero } from '@/components/heros/low-impact'
 import { MediumImpactHero } from '@/components/heros/medium-impact'
 
-const heroes: Record<NonNullable<Page['hero']>['type'], React.FC<HeroProps>> = {
+type HeroType = Exclude<NonNullable<Page['hero']>['type'], 'none' | null | undefined>
+
+const heroes: Record<HeroType, React.FC<HeroProps>> = {
   highImpact: HighImpactHero,
   lowImpact: LowImpactHero,
   mediumImpact: MediumImpactHero,
