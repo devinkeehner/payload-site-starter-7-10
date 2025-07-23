@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   const path = req.nextUrl.searchParams.get('path') || '/'
   const redirectURL = new URL(path, req.nextUrl.origin)
 
-  // Attach Payload access token so the front-end can fetch drafts from the API
-  const token = process.env.PAYLOAD_ACCESS_TOKEN || ''
+  // Attach Payload preview JWT so the front-end can fetch drafts from the API
+  const token = process.env.PAYLOAD_PREVIEW_JWT || ''
   const res = NextResponse.redirect(redirectURL)
   if (token) {
     res.cookies.set('payload-token', token, {

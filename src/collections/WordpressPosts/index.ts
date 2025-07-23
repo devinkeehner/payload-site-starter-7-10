@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 
 // Collection for legacy WordPress posts. These documents are tenant-enabled by the
 // multi-tenant plugin, so a hidden `tenant` field will be injected automatically.
@@ -9,6 +10,12 @@ export const WordpressPosts: CollectionConfig<'wordpress-posts'> = {
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'slug', 'status', 'publishedAt', 'updatedAt'],
+    preview: (data, { req }) =>
+      generatePreviewPath({
+        slug: typeof data?.slug === 'string' ? data.slug : '',
+        collection: 'wordpress-posts',
+        req,
+      }),
   },
   access: {
     read: () => true,

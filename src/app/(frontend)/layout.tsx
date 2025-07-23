@@ -9,6 +9,7 @@ import { ThemeProvider } from 'next-themes'
 import { AdminBar } from '@/components/site/admin-bar'
 import { Footer } from '@/components/site/footer'
 import { Header } from '@/components/site/header'
+import { LivePreviewListener } from '@/components/site/live-preview-listener'
 import { mergeOpenGraph } from '@/lib/utilities/mergeOpenGraph'
 import { draftMode } from 'next/headers'
 
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body>
+        <LivePreviewListener />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
