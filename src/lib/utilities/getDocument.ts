@@ -3,15 +3,19 @@ import type { Config } from 'src/payload-types'
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 import { unstable_cache } from 'next/cache'
+import { draftMode } from 'next/headers'
 
 type Collection = keyof Config['collections']
 
 async function getDocument(collection: Collection, slug: string, depth = 0) {
   const payload = await getPayload({ config: configPromise })
+  const { isEnabled: draft } = await draftMode()
 
   const page = await payload.find({
     collection,
     depth,
+    draft,
+    overrideAccess: draft,
     where: {
       slug: {
         equals: slug,
