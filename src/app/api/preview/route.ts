@@ -1,7 +1,12 @@
 import { draftMode } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 
-// GET /api/preview?secret=...&path=/slug
+const collectionPrefixMap = {
+  posts: '/posts',
+  pages: '',
+}
+
+// GET /api/preview?secret=...&slug=...&collection=pages
 export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret') || ''
   const expected = process.env.PREVIEW_SECRET || ''
@@ -15,7 +20,14 @@ export async function GET(req: NextRequest) {
   enable()
 
   // Redirect to the provided path (default to /)
-  const path = req.nextUrl.searchParams.get('path') || '/'
+  const slug = req.nextUrl.searchParams.get('slug') || ''
+  const collection = req.nextUrl.searchParams.get('collection') || ''
+  let path = req.nextUrl.searchParams.get('path') || '/'
+
+  if (slug && collection && collection in collectionPrefixMap) {
+    path = `${collectionPrefixMap[collection as keyof typeof collectionPrefixMap]}/${slug}`
+  }
+
   const redirectURL = new URL(path, req.nextUrl.origin)
 
   // Attach Payload preview JWT so the front-end can fetch drafts from the API
