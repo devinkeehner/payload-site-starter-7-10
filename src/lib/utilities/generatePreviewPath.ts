@@ -17,10 +17,10 @@ export const generatePreviewPath = ({ collection, slug }: Props) => {
     slug,
     collection,
     path: `${collectionPrefixMap[collection]}/${slug}`,
-    previewSecret: process.env.PREVIEW_SECRET || '',
+    secret: process.env.PREVIEW_SECRET || '',
   })
 
   const baseURL = getServerSideURL()
 
-  return `${baseURL}/next/preview?${encodedParams.toString()}`
+  return `${baseURL}/api/preview?${encodedParams.toString()}`
 }
