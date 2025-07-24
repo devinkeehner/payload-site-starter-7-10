@@ -96,6 +96,7 @@ export const plugins: Plugin[] = [
       posts: {},
       'wordpress-posts': {},
       pages: {},
+      media: {},
       'standard-media': { isGlobal: true },
       'rep-info': { isGlobal: true },
       'site-seo': { isGlobal: true },
