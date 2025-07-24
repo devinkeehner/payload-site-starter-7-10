@@ -86,8 +86,8 @@ export const plugins: Plugin[] = [
     // disable tenant-based access constraints for admins
     useTenantsCollectionAccess: true,
     useTenantsListFilter: true,
-    // enable tenant scoping for users so normal users can switch tenants
-    useUsersTenantFilter: true,
+    // Temporarily disable tenant scoping for users
+    useUsersTenantFilter: false,
     debug: true,
     // allow super users to see all tenants
     userHasAccessToAllTenants: (user) => !!user.roles?.includes('super'),
