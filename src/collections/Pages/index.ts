@@ -14,7 +14,6 @@ import { HeroConfig } from '@/components/heros/config'
 import { slugField } from '@/collections/fields/slug'
 import { populatePublishedAt } from '@/lib/hooks/populatePublishedAt'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
-import { generatePreviewAPIUrl } from '@/lib/utilities/generatePreviewAPIUrl'
 import { revalidateDelete, revalidatePage } from './hooks/revalidatePage'
 
 import {
@@ -41,10 +40,11 @@ export const Pages: CollectionConfig<'pages'> = {
     group: 'Content',
     defaultColumns: ['title', 'slug', 'updatedAt'],
     livePreview: {
-      url: ({ data }) => {
-        const path = generatePreviewAPIUrl({
+      url: ({ data, req }) => {
+        const path = generatePreviewPath({
           slug: typeof data?.slug === 'string' ? data.slug : '',
           collection: 'pages',
+          req,
         })
 
         return path
