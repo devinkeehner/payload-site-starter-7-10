@@ -17,8 +17,7 @@ export const Tenants: CollectionConfig = {
         return true
       }
 
-      const rawReferer = (req.headers as any)?.referer as string | string[] | undefined
-      const referer = (Array.isArray(rawReferer) ? rawReferer[0] : rawReferer ?? '') as string
+      const referer = (req.headers as Record<string, string> | undefined)?.referer || ''
       if (referer.includes('/admin/collections/users')) {
         // allow users to see all tenants when editing a user profile
         return true
@@ -55,3 +54,5 @@ export const Tenants: CollectionConfig = {
     // add more tenant-level metadata here (e.g., domain, theme)
   ],
 }
+
+export default Tenants;
