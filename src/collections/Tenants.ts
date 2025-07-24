@@ -55,5 +55,3 @@ export const Tenants: CollectionConfig = {
     // add more tenant-level metadata here (e.g., domain, theme)
   ],
 }
-
-export default Tenants;
