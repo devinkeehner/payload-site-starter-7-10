@@ -224,6 +224,7 @@ export interface Tenant {
  */
 export interface Media {
   id: string;
+  tenant?: (string | null) | Tenant;
   alt?: string | null;
   caption?: {
     root: {
@@ -347,6 +348,9 @@ export interface User {
     | null;
   updatedAt: string;
   createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
   email: string;
   resetPasswordToken?: string | null;
   resetPasswordExpiration?: string | null;
@@ -1019,6 +1023,10 @@ export interface RepInfo {
       }[]
     | null;
   form?: (string | null) | Form;
+  facebook?: string | null;
+  youtube?: string | null;
+  instagram?: string | null;
+  x?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1579,6 +1587,7 @@ export interface WordpressPostsSelect<T extends boolean = true> {
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
+  tenant?: T;
   alt?: T;
   caption?: T;
   updatedAt?: T;
@@ -1774,6 +1783,10 @@ export interface RepInfoSelect<T extends boolean = true> {
         id?: T;
       };
   form?: T;
+  facebook?: T;
+  youtube?: T;
+  instagram?: T;
+  x?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1810,6 +1823,9 @@ export interface UsersSelect<T extends boolean = true> {
       };
   updatedAt?: T;
   createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
   email?: T;
   resetPasswordToken?: T;
   resetPasswordExpiration?: T;

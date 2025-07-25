@@ -53,5 +53,29 @@ export const RepInfo: CollectionConfig = {
       relationTo: 'forms',
       required: false,
     },
+    {
+      name: 'facebook',
+      label: 'Facebook',
+      type: 'text',
+      required: false,
+    },
+    {
+      name: 'youtube',
+      label: 'YouTube',
+      type: 'text',
+      required: false,
+    },
+    {
+      name: 'instagram',
+      label: 'Instagram',
+      type: 'text',
+      required: false,
+    },
+    {
+      name: 'x',
+      label: 'X',
+      type: 'text',
+      required: false,
+    },
   ],
 }
