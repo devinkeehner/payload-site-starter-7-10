@@ -12,17 +12,47 @@ import { Header } from '@/components/site/header'
 import { LivePreviewListener } from '@/components/site/live-preview-listener'
 import { mergeOpenGraph } from '@/lib/utilities/mergeOpenGraph'
 import { draftMode } from 'next/headers'
+import { getSiteSEO } from '@/lib/utilities/getSiteSEO'
 
 import './globals.css'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
-export const metadata: Metadata = {
-  metadataBase: new URL(getServerSideURL()),
-  openGraph: mergeOpenGraph(),
-  twitter: {
-    card: 'summary_large_image',
-    creator: '@bridgertower',
-  },
+export async function generateMetadata(): Promise<Metadata> {
+  const tenantSlug = process.env.NEXT_PUBLIC_TENANT_SLUG || 'candelora'
+  try {
+    const seo = await getSiteSEO(tenantSlug)
+
+    if (seo) {
+      return {
+        metadataBase: new URL(getServerSideURL()),
+        title: seo.title,
+        description: seo.description,
+        openGraph: mergeOpenGraph({
+          title: seo.title,
+          description: seo.description,
+          images:
+            typeof seo.metaImage === 'object' && seo.metaImage?.url
+              ? [seo.metaImage.url]
+              : undefined,
+        }),
+        twitter: {
+          card: 'summary_large_image',
+          creator: '@bridgertower',
+        },
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load site SEO', e)
+  }
+
+  return {
+    metadataBase: new URL(getServerSideURL()),
+    openGraph: mergeOpenGraph(),
+    twitter: {
+      card: 'summary_large_image',
+      creator: '@bridgertower',
+    },
+  }
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
