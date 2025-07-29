@@ -101,26 +101,28 @@ export default buildConfig({
   globals: [Header, Footer],
   plugins: [
     ...plugins,
-    // Inline plugin to reposition forms collections after the last
-    // "Site Settings" collection so that the admin sidebar and
-    // dashboard groups appear in the correct order.
+    // Inline plugin to reposition form builder collections directly after the
+    // final "Site Settings" collection. This ensures that both the admin
+    // sidebar and dashboard display groups in the desired order.
     (config) => {
-      const forms = config.collections?.find(c => c.slug === 'forms')
-      const submissions = config.collections?.find(c => c.slug === 'form-submissions')
+      const collections = Array.isArray(config.collections)
+        ? [...config.collections]
+        : []
 
-      // Remove the collections that formBuilderPlugin automatically
-      // appends to the end of the array
-      config.collections = config.collections?.filter(
-        c => !['forms', 'form-submissions'].includes(c.slug),
+      const forms = collections.find((c) => c.slug === 'forms')
+      const submissions = collections.find((c) => c.slug === 'form-submissions')
+
+      const filtered = collections.filter(
+        (c) => !['forms', 'form-submissions'].includes(c.slug),
       )
 
-      // Insert them directly after the final Site Settings collection
-      const siteIndex = config.collections?.findIndex(c => c.slug === 'site-seo') ?? -1
+      const siteIndex = filtered.findIndex((c) => c.slug === 'site-seo')
 
-      if (siteIndex > -1 && forms && submissions) {
-        config.collections.splice(siteIndex + 1, 0, forms, submissions)
+      if (siteIndex !== -1 && forms && submissions) {
+        filtered.splice(siteIndex + 1, 0, forms, submissions)
       }
 
+      config.collections = filtered
       return config
     },
     s3Storage({
