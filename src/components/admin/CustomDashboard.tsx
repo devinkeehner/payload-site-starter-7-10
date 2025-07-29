@@ -9,7 +9,7 @@ const GROUPS: Record<string, { slug: string; label: string }[]> = {
     { slug: 'standard-media', label: 'Standard Photos' },
     { slug: 'site-seo', label: 'Site SEO' },
   ],
-  'Forms and Surveys': [
+  'Forms & Submissions': [
     { slug: 'forms', label: 'Forms' },
     { slug: 'form-submissions', label: 'Form Submissions' },
   ],
@@ -17,10 +17,6 @@ const GROUPS: Record<string, { slug: string; label: string }[]> = {
     { slug: 'categories', label: 'Categories' },
     { slug: 'users', label: 'Users' },
     { slug: 'tenants', label: 'Tenants' },
-  ],
-  'Forms and Surveys': [
-    { slug: 'forms', label: 'Forms' },
-    { slug: 'form-submissions', label: 'Form Submissions' },
   ],
   Misc: [
     { slug: 'authors', label: 'Authors' },
