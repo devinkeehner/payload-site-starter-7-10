@@ -101,6 +101,28 @@ export default buildConfig({
   globals: [Header, Footer],
   plugins: [
     ...plugins,
+    // Inline plugin to reposition forms collections after the last
+    // "Site Settings" collection so that the admin sidebar and
+    // dashboard groups appear in the correct order.
+    (config) => {
+      const forms = config.collections?.find(c => c.slug === 'forms')
+      const submissions = config.collections?.find(c => c.slug === 'form-submissions')
+
+      // Remove the collections that formBuilderPlugin automatically
+      // appends to the end of the array
+      config.collections = config.collections?.filter(
+        c => !['forms', 'form-submissions'].includes(c.slug),
+      )
+
+      // Insert them directly after the final Site Settings collection
+      const siteIndex = config.collections?.findIndex(c => c.slug === 'site-seo') ?? -1
+
+      if (siteIndex > -1 && forms && submissions) {
+        config.collections.splice(siteIndex + 1, 0, forms, submissions)
+      }
+
+      return config
+    },
     s3Storage({
       collections: {
         media: true,
