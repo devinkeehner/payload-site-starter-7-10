@@ -13,7 +13,7 @@ export const Categories: CollectionConfig = {
     update: authenticated,
   },
   admin: {
-    group: 'Content',
+    group: 'Admin',
     useAsTitle: 'title',
   },
   fields: [

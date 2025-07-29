@@ -63,10 +63,10 @@ export const plugins: Plugin[] = [
       payment: false,
     },
     formOverrides: {
-      admin: { group: 'Content' },
+      admin: { group: 'Forms and Surveys' },
     },
     formSubmissionOverrides: {
-      admin: { group: 'Content' },
+      admin: { group: 'Forms and Surveys' },
     },
   }),
   searchPlugin({

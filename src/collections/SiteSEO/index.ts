@@ -7,7 +7,7 @@ export const SiteSEO: CollectionConfig = {
   },
   slug: 'site-seo',
   admin: {
-    group: 'Site',
+    group: 'Site Settings',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
     description: 'SEO metadata for the tenant home page',
