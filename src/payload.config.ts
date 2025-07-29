@@ -77,7 +77,7 @@ export default buildConfig({
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
   }),
-  // Reordered to control sidebar group order (Content, Site Settings, Forms and Surveys, Admin, Misc)
+  // Reordered to control sidebar group order (Content, Site Settings, Forms & Submissions, Admin, Misc)
   collections: [
     // Content
     Posts,
