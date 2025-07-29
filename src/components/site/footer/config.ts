@@ -4,7 +4,7 @@ import { link } from '@/collections/fields/link'
 import { revalidateFooter } from './hooks/revalidateFooter'
 
 export const Footer: GlobalConfig = {
-  admin: { group: 'Site', hidden: true },
+  admin: { group: 'Site Settings', hidden: true },
   slug: 'footer',
   access: {
     read: () => true,

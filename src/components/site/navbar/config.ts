@@ -8,7 +8,7 @@ export const Navbar: CollectionConfig = {
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'updatedAt'],
-    group: 'Site',
+    group: 'Site Settings',
   },
   access: {
     read: () => true,
