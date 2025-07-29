@@ -2,12 +2,12 @@ import type { CollectionConfig } from 'payload'
 
 export const StandardMedia: CollectionConfig = {
   labels: {
-    singular: 'Images and Videos',
-    plural: 'Images and Videos',
+    singular: 'Standard Photos',
+    plural: 'Standard Photos',
   },
   slug: 'standard-media',
   admin: {
-    group: 'Site',
+    group: 'Site Settings',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
   },

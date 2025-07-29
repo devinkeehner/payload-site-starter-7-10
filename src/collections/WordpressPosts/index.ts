@@ -5,6 +5,10 @@ import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 // multi-tenant plugin, so a hidden `tenant` field will be injected automatically.
 // All imported posts will initially belong to the Candelora tenant via the import script.
 export const WordpressPosts: CollectionConfig<'wordpress-posts'> = {
+  labels: {
+    singular: 'Wordpress Archive',
+    plural: 'Wordpress Archive',
+  },
   slug: 'wordpress-posts',
   admin: {
     group: 'Content',
