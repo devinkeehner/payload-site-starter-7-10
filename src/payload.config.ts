@@ -17,7 +17,6 @@ import { Authors } from './collections/Authors'
 import { Tags } from './collections/Tags'
 import { WordpressPosts } from './collections/WordpressPosts'
 
-
 import { Navbar } from './components/site/navbar/config'
 import { StandardMedia } from './collections/StandardMedia'
 import { RepInfo } from './collections/RepInfo'
@@ -33,7 +32,6 @@ import { getServerSideURL } from '@/lib/utilities/getURL'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
-
 
 export default buildConfig({
   admin: {
@@ -84,13 +82,13 @@ export default buildConfig({
     Pages,
     WordpressPosts,
     Media,
-    Categories,
     // Site
     RepInfo,
     Navbar,
     StandardMedia,
     SiteSEO,
     // Admin
+    Categories,
     Users,
     Tenants,
     // Misc (hidden)
