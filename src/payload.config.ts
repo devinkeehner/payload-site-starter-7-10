@@ -1,4 +1,5 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb';
+import { formBuilderPlugin } from '@payloadcms/plugin-form-builder';
 import sharp from 'sharp';
 import path from 'path';
 import { buildConfig, PayloadRequest } from 'payload';
@@ -23,9 +24,9 @@ import { RepInfo } from './collections/RepInfo';
 import { SiteSEO } from './collections/SiteSEO';
 import { Header } from './components/site/header/config';
 import { Footer } from './components/site/footer/config';
-import CustomDashboard from './components/admin/CustomDashboard';
 
-// Local utilities and plugin list
+// Misc imports
+import CustomDashboard from './components/admin/CustomDashboard';
 import { plugins } from '@/lib/plugins';
 import { CONTENT_COLLECTIONS } from './components/admin/collectionGroups';
 import { defaultLexical } from '@/collections/fields/defaultLexical';
@@ -50,37 +51,22 @@ export default buildConfig({
     user: Users.slug,
     livePreview: {
       breakpoints: [
-        {
-          label: 'Mobile',
-          name: 'mobile',
-          width: 375,
-          height: 667,
-        },
-        {
-          label: 'Tablet',
-          name: 'tablet',
-          width: 768,
-          height: 1024,
-        },
-        {
-          label: 'Desktop',
-          name: 'desktop',
-          width: 1440,
-          height: 900,
-        },
+        { label: 'Mobile', name: 'mobile', width: 375, height: 667 },
+        { label: 'Tablet', name: 'tablet', width: 768, height: 1024 },
+        { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
       ],
     },
   },
 
-  // This config helps us configure global or default features that the other editors can inherit
+  // Default editor configuration (Lexical)
   editor: defaultLexical,
 
+  // Database configuration
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
   }),
 
-  // Define collections in the desired group order: Content, Site Settings, Admin, Misc.
-  // (Forms and Form Submissions will be repositioned by the inline plugin below.)
+  // Define collections in the desired order; forms will be inserted later.
   collections: [
     // Content
     Posts,
@@ -96,7 +82,7 @@ export default buildConfig({
     Categories,
     Users,
     Tenants,
-    // Misc (hidden)
+    // Misc
     Authors,
     Tags,
   ],
@@ -109,41 +95,41 @@ export default buildConfig({
     // Spread any additional plugins you’ve defined elsewhere
     ...plugins,
 
-    // Inline plugin to reposition the form and form-submissions collections.
-    // It moves them immediately after the last "Site Settings" collection (`site-seo`).
+    // Register the Form Builder plugin and assign the form collections to “Forms & Submissions”.
+    formBuilderPlugin({
+      formOverrides: {
+        admin: { group: 'Forms & Submissions' },
+      },
+      formSubmissionOverrides: {
+        admin: { group: 'Forms & Submissions' },
+      },
+    }),
+
+    // Inline plugin to reposition the form collections right after the last Site Settings collection.
     (config) => {
-      // Create a safe, mutable copy of the collections array
-      const allCollections = Array.isArray(config.collections)
-        ? [...config.collections]
-        : [];
+      const all = Array.isArray(config.collections) ? [...config.collections] : [];
 
-      // Locate the auto‑generated form collections
-      const forms = allCollections.find((c) => c.slug === 'forms');
-      const submissions = allCollections.find((c) => c.slug === 'form-submissions');
+      const forms = all.find((c) => c.slug === 'forms');
+      const submissions = all.find((c) => c.slug === 'form-submissions');
 
-      // Remove the form collections from the copy
-      const filtered = allCollections.filter(
+      const filtered = all.filter(
         (c) => !['forms', 'form-submissions'].includes(c.slug),
       );
 
-      // Find the index of the last “Site Settings” collection (assumes slug 'site-seo')
+      // Adjust 'site-seo' if your SiteSEO collection uses a different slug.
       const siteIndex = filtered.findIndex((c) => c.slug === 'site-seo');
 
-      // Insert the form collections after the site settings section
       if (siteIndex !== -1 && forms && submissions) {
         filtered.splice(siteIndex + 1, 0, forms, submissions);
       }
 
-      // Assign the reordered array back to the config
       config.collections = filtered;
       return config;
     },
 
     // S3 storage plugin for media uploads
     s3Storage({
-      collections: {
-        media: true,
-      },
+      collections: { media: true },
       bucket: process.env.R2_BUCKET || '',
       config: {
         endpoint: process.env.R2_ENDPOINT || '',
@@ -168,12 +154,10 @@ export default buildConfig({
   jobs: {
     access: {
       run: ({ req }: { req: PayloadRequest }): boolean => {
-        // Allow logged-in users to execute this endpoint (default)
+        // Allow logged-in users by default
         if (req.user) return true;
 
-        // If there is no logged in user, then check
-        // for the Vercel Cron secret to be present as an
-        // Authorization header:
+        // Allow Vercel cron jobs via a secret token
         const authHeader = req.headers.get('authorization');
         return authHeader === `Bearer ${process.env.CRON_SECRET}`;
       },
@@ -181,3 +165,4 @@ export default buildConfig({
     tasks: [],
   },
 });
+
