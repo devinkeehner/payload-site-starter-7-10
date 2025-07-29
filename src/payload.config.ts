@@ -86,9 +86,9 @@ export default buildConfig({
     Media,
     Categories,
     // Site
+    RepInfo,
     Navbar,
     StandardMedia,
-    RepInfo,
     SiteSEO,
     // Admin
     Users,
