@@ -7,7 +7,7 @@ export const RepInfo: CollectionConfig = {
   },
   slug: 'rep-info',
   admin: {
-    group: 'Site',
+    group: 'Site Settings',
     useAsTitle: 'name',
     defaultColumns: ['name', 'districtNumber', 'updatedAt'],
   },

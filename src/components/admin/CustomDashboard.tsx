@@ -3,15 +3,20 @@ import { CONTENT_COLLECTIONS } from './collectionGroups';
 // Dashboard groups mirror sidebar order
 const GROUPS: Record<string, { slug: string; label: string }[]> = {
   Content: CONTENT_COLLECTIONS,
-  Site: [
-    { slug: 'navbars', label: 'Navbars' },
-    { slug: 'standard-media', label: 'Images and Videos' },
+  'Site Settings': [
     { slug: 'rep-info', label: 'Rep Info' },
+    { slug: 'navbars', label: 'Navbars' },
+    { slug: 'standard-media', label: 'Standard Photos' },
     { slug: 'site-seo', label: 'Site SEO' },
   ],
   Admin: [
+    { slug: 'categories', label: 'Categories' },
     { slug: 'users', label: 'Users' },
     { slug: 'tenants', label: 'Tenants' },
+  ],
+  'Forms and Surveys': [
+    { slug: 'forms', label: 'Forms' },
+    { slug: 'form-submissions', label: 'Form Submissions' },
   ],
   Misc: [
     { slug: 'authors', label: 'Authors' },
