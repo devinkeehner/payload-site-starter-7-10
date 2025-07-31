@@ -16,6 +16,7 @@ import { Users } from './collections/Users';
 import { Authors } from './collections/Authors';
 import { Tags } from './collections/Tags';
 import { WordpressPosts } from './collections/WordpressPosts';
+import { mergeAndSort } from './lib/unifiedFeed.js';
 
 // Site settings and other component imports
 import { Navbar } from './components/site/navbar/config';
@@ -168,5 +169,43 @@ export default buildConfig({
     },
     tasks: [],
   },
+  endpoints: [
+    {
+      path: '/api/unified-feed',
+      method: 'get',
+      handler: async (req) => {
+        const limit = Number((req.query?.limit as string) || 10)
+        const page = Number((req.query?.page as string) || 1)
+        const tenant = req.query?.tenant as string
+
+        if (!tenant) {
+          return Response.json({ error: 'tenant query param is required' }, { status: 400 })
+        }
+
+        const options: any = {
+          depth: req.query.depth,
+          select: req.query.select,
+          where: req.query.where ? JSON.parse(req.query.where as string) : undefined,
+          sort: req.query.sort,
+          tenant,
+          limit: 0,
+        }
+
+        const [posts, wpPosts] = await Promise.all([
+          req.payload.find({ collection: 'posts', ...options }),
+          req.payload.find({ collection: 'wordpress-posts', ...options }),
+        ])
+
+        const merged = mergeAndSort(posts.docs, wpPosts.docs)
+
+        const total = merged.length
+        const totalPages = Math.ceil(total / limit)
+        const start = (page - 1) * limit
+        const paginated = merged.slice(start, start + limit)
+
+        return Response.json({ data: paginated, total, page, totalPages })
+      },
+    },
+  ],
 });
 
