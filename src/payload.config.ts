@@ -44,10 +44,6 @@ export default buildConfig({
           path: '/',
         } as any,
       },
-      graphics: {
-        Logo: './components/payload/Logo#default',
-        Icon: './components/payload/Icon#default',
-      },
     },
     importMap: {
       baseDir: path.resolve(dirname),
