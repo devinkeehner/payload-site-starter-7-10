@@ -99,6 +99,41 @@ export default buildConfig({
     formBuilderPlugin({
       fields: {
         radio: true,
+        'checkbox-group': {
+          slug: 'checkbox-group',
+          fields: [
+            {
+              type: 'row',
+              fields: [
+                { name: 'name', type: 'text', label: 'Name (lowercase, no special characters)', required: true, admin: { width: '50%' } },
+                { name: 'label', type: 'text', label: 'Label', localized: true, admin: { width: '50%' } },
+              ],
+            },
+            {
+              type: 'row',
+              fields: [
+                { name: 'width', type: 'number', label: 'Field Width (percentage)', admin: { width: '50%' } },
+              ],
+            },
+            {
+              name: 'options',
+              type: 'array',
+              label: 'Checkbox Options',
+              labels: { singular: 'Option', plural: 'Options' },
+              fields: [
+                {
+                  type: 'row',
+                  fields: [
+                    { name: 'label', type: 'text', label: 'Label', localized: true, required: true, admin: { width: '50%' } },
+                    { name: 'value', type: 'text', label: 'Value', required: true, admin: { width: '50%' } },
+                  ],
+                },
+              ],
+            },
+            { name: 'required', type: 'checkbox', label: 'Required' },
+          ],
+          labels: { singular: 'Checkbox Group', plural: 'Checkbox Groups' },
+        },
       },
       formOverrides: {
         admin: { group: 'Forms & Submissions' },

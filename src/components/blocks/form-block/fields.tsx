@@ -4,6 +4,7 @@ import { Email } from './email'
 import { Message } from './message'
 import { Number } from './number'
 import { Radio } from './radio'
+import { CheckboxGroup } from './checkbox-group'
 import { Select } from './select'
 import { State } from './state'
 import { Text } from './text'
@@ -16,6 +17,7 @@ export const fields = {
   message: Message,
   number: Number,
   radio: Radio,
+  'checkbox-group': CheckboxGroup,
   select: Select,
   state: State,
   text: Text,
