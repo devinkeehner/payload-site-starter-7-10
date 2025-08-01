@@ -133,6 +133,7 @@ export default buildConfig({
             { name: 'required', type: 'checkbox', label: 'Required' },
           ],
           labels: { singular: 'Checkbox Group', plural: 'Checkbox Groups' },
+21z5xa-codex/add-multiple-choice-radio-button-field
         } as any,
       },
       formOverrides: {
