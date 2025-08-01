@@ -97,6 +97,9 @@ export default buildConfig({
 
     // Register the Form Builder plugin and assign the form collections to “Forms & Submissions”.
     formBuilderPlugin({
+      fields: {
+        radio: true,
+      },
       formOverrides: {
         admin: { group: 'Forms & Submissions' },
       },
