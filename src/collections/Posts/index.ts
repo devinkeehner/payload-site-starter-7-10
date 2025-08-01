@@ -39,6 +39,9 @@ export const Posts: CollectionConfig<'posts'> = {
     title: true,
     slug: true,
     categories: true,
+    articleType: true,
+    tags: true,
+    keyTakeaways: true,
     meta: {
       image: true,
       description: true,
@@ -104,6 +107,7 @@ export const Posts: CollectionConfig<'posts'> = {
           label: 'Content',
         },
         {
+          label: 'Meta & SEO',
           fields: [
             {
               name: 'relatedPosts',
@@ -130,34 +134,59 @@ export const Posts: CollectionConfig<'posts'> = {
               hasMany: true,
               relationTo: 'categories',
             },
-          ],
-          label: 'Meta',
-        },
-        {
-          name: 'meta',
-          label: 'SEO',
-          fields: [
-            OverviewField({
-              titlePath: 'meta.title',
-              descriptionPath: 'meta.description',
-              imagePath: 'meta.image',
-            }),
-            MetaTitleField({
-              hasGenerateFn: true,
-            }),
-            MetaImageField({
-              relationTo: 'media',
-            }),
-
-            MetaDescriptionField({}),
-            PreviewField({
-              // if the `generateUrl` function is configured
-              hasGenerateFn: true,
-
-              // field paths to match the target field for data
-              titlePath: 'meta.title',
-              descriptionPath: 'meta.description',
-            }),
+            {
+              name: 'tags',
+              type: 'relationship',
+              relationTo: 'tags',
+              hasMany: true,
+              admin: {
+                position: 'sidebar',
+              },
+            },
+            {
+              name: 'articleType',
+              type: 'relationship',
+              relationTo: 'article-types',
+              admin: {
+                position: 'sidebar',
+              },
+            },
+            {
+              name: 'keyTakeaways',
+              label: 'Key Takeaways / TL;DR',
+              type: 'array',
+              fields: [
+                {
+                  name: 'point',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'meta',
+              label: 'SEO',
+              type: 'group',
+              fields: [
+                OverviewField({
+                  titlePath: 'meta.title',
+                  descriptionPath: 'meta.description',
+                  imagePath: 'meta.image',
+                }),
+                MetaTitleField({
+                  hasGenerateFn: true,
+                }),
+                MetaImageField({
+                  relationTo: 'media',
+                }),
+                MetaDescriptionField({}),
+                PreviewField({
+                  hasGenerateFn: true,
+                  titlePath: 'meta.title',
+                  descriptionPath: 'meta.description',
+                }),
+              ],
+            },
           ],
         },
       ],

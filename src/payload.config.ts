@@ -16,6 +16,7 @@ import { Posts } from './collections/Posts';
 import { Users } from './collections/Users';
 import { Authors } from './collections/Authors';
 import { Tags } from './collections/Tags';
+import { ArticleTypes } from './collections/ArticleTypes';
 import { WordpressPosts } from './collections/WordpressPosts';
 
 // Site settings and other component imports
@@ -87,6 +88,7 @@ export default buildConfig({
     SiteSEO,
     // Admin
     Categories,
+    ArticleTypes,
     Users,
     Tenants,
     // Misc
