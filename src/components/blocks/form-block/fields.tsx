@@ -3,6 +3,7 @@ import { Country } from './country'
 import { Email } from './email'
 import { Message } from './message'
 import { Number } from './number'
+import { Radio } from './radio'
 import { Select } from './select'
 import { State } from './state'
 import { Text } from './text'
@@ -14,6 +15,7 @@ export const fields = {
   email: Email,
   message: Message,
   number: Number,
+  radio: Radio,
   select: Select,
   state: State,
   text: Text,
