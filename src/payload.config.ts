@@ -1,5 +1,6 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb';
 import { formBuilderPlugin } from '@payloadcms/plugin-form-builder';
+import { resendAdapter } from '@payloadcms/email-resend';
 import sharp from 'sharp';
 import path from 'path';
 import { buildConfig, PayloadRequest } from 'payload';
@@ -64,6 +65,12 @@ export default buildConfig({
   // Database configuration
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
+  }),
+
+  email: resendAdapter({
+    defaultFromAddress: process.env.RESEND_FROM_EMAIL || '',
+    defaultFromName: process.env.RESEND_FROM_NAME || '',
+    apiKey: process.env.RESEND_API_KEY || '',
   }),
 
   // Define collections in the desired order; forms will be inserted later.
@@ -141,6 +148,7 @@ export default buildConfig({
       formSubmissionOverrides: {
         admin: { group: 'Forms & Submissions' },
       },
+      defaultToEmail: process.env.RESEND_FROM_EMAIL,
     }),
 
     // Inline plugin to reposition the form collections right after the last Site Settings collection.
