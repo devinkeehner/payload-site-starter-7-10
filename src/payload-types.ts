@@ -71,18 +71,18 @@ export interface Config {
     pages: Page;
     'wordpress-posts': WordpressPost;
     media: Media;
-    'rep-info': RepInfo;
+    categories: Category;
     navbars: Navbar;
     'standard-media': StandardMedia;
+    'rep-info': RepInfo;
     'site-seo': SiteSeo;
-    forms: Form;
-    'form-submissions': FormSubmission;
-    categories: Category;
     users: User;
     tenants: Tenant;
     authors: Author;
     tags: Tag;
     redirects: Redirect;
+    forms: Form;
+    'form-submissions': FormSubmission;
     search: Search;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
@@ -95,18 +95,18 @@ export interface Config {
     pages: PagesSelect<false> | PagesSelect<true>;
     'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
-    'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
+    categories: CategoriesSelect<false> | CategoriesSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
     'standard-media': StandardMediaSelect<false> | StandardMediaSelect<true>;
+    'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
     'site-seo': SiteSeoSelect<false> | SiteSeoSelect<true>;
-    forms: FormsSelect<false> | FormsSelect<true>;
-    'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
-    categories: CategoriesSelect<false> | CategoriesSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     authors: AuthorsSelect<false> | AuthorsSelect<true>;
     tags: TagsSelect<false> | TagsSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
+    forms: FormsSelect<false> | FormsSelect<true>;
+    'form-submissions': FormSubmissionsSelect<false> | FormSubmissionsSelect<true>;
     search: SearchSelect<false> | SearchSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -183,14 +183,6 @@ export interface Post {
   };
   relatedPosts?: (string | Post)[] | null;
   categories?: (string | Category)[] | null;
-  tags?: (string | Tag)[] | null;
-  articleType?: ('Article' | 'NewsArticle' | 'BlogPosting') | null;
-  keyTakeaways?:
-    | {
-        summary: string;
-        id?: string | null;
-      }[]
-    | null;
   meta?: {
     title?: string | null;
     /**
@@ -337,17 +329,6 @@ export interface Category {
         id?: string | null;
       }[]
     | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags".
- */
-export interface Tag {
-  id: string;
-  slug: string;
-  title: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -804,39 +785,6 @@ export interface Form {
             blockName?: string | null;
             blockType: 'textarea';
           }
-        | {
-            name: string;
-            label?: string | null;
-            width?: number | null;
-            defaultValue?: string | null;
-            options?:
-              | {
-                  label: string;
-                  value: string;
-                  id?: string | null;
-                }[]
-              | null;
-            required?: boolean | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'radio';
-          }
-        | {
-            name: string;
-            label?: string | null;
-            width?: number | null;
-            options?:
-              | {
-                  label: string;
-                  value: string;
-                  id?: string | null;
-                }[]
-              | null;
-            required?: boolean | null;
-            id?: string | null;
-            blockName?: string | null;
-            blockType: 'checkbox-group';
-          }
       )[]
     | null;
   submitButtonLabel?: string | null;
@@ -944,36 +892,23 @@ export interface WordpressPost {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags".
+ */
+export interface Tag {
+  id: string;
+  slug: string;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "authors".
  */
 export interface Author {
   id: string;
   login: string;
   name?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "rep-info".
- */
-export interface RepInfo {
-  id: string;
-  tenant?: (string | null) | Tenant;
-  officeTitle: string;
-  name: string;
-  districtNumber: number;
-  towns?:
-    | {
-        town: string;
-        id?: string | null;
-      }[]
-    | null;
-  form?: (string | null) | Form;
-  facebook?: string | null;
-  youtube?: string | null;
-  instagram?: string | null;
-  x?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1072,6 +1007,30 @@ export interface StandardMedia {
   createdAt: string;
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rep-info".
+ */
+export interface RepInfo {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  officeTitle: string;
+  name: string;
+  districtNumber: number;
+  towns?:
+    | {
+        town: string;
+        id?: string | null;
+      }[]
+    | null;
+  form?: (string | null) | Form;
+  facebook?: string | null;
+  youtube?: string | null;
+  instagram?: string | null;
+  x?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * SEO metadata for the tenant home page
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1103,24 +1062,6 @@ export interface SiteSeo {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "form-submissions".
- */
-export interface FormSubmission {
-  id: string;
-  tenant?: (string | null) | Tenant;
-  form: string | Form;
-  submissionData?:
-    | {
-        field: string;
-        value: string;
-        id?: string | null;
-      }[]
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
 export interface Redirect {
@@ -1142,6 +1083,24 @@ export interface Redirect {
         } | null);
     url?: string | null;
   };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "form-submissions".
+ */
+export interface FormSubmission {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  form: string | Form;
+  submissionData?:
+    | {
+        field: string;
+        value: string;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1291,8 +1250,8 @@ export interface PayloadLockedDocument {
         value: string | Media;
       } | null)
     | ({
-        relationTo: 'rep-info';
-        value: string | RepInfo;
+        relationTo: 'categories';
+        value: string | Category;
       } | null)
     | ({
         relationTo: 'navbars';
@@ -1303,20 +1262,12 @@ export interface PayloadLockedDocument {
         value: string | StandardMedia;
       } | null)
     | ({
+        relationTo: 'rep-info';
+        value: string | RepInfo;
+      } | null)
+    | ({
         relationTo: 'site-seo';
         value: string | SiteSeo;
-      } | null)
-    | ({
-        relationTo: 'forms';
-        value: string | Form;
-      } | null)
-    | ({
-        relationTo: 'form-submissions';
-        value: string | FormSubmission;
-      } | null)
-    | ({
-        relationTo: 'categories';
-        value: string | Category;
       } | null)
     | ({
         relationTo: 'users';
@@ -1337,6 +1288,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'redirects';
         value: string | Redirect;
+      } | null)
+    | ({
+        relationTo: 'forms';
+        value: string | Form;
+      } | null)
+    | ({
+        relationTo: 'form-submissions';
+        value: string | FormSubmission;
       } | null)
     | ({
         relationTo: 'search';
@@ -1399,14 +1358,6 @@ export interface PostsSelect<T extends boolean = true> {
   content?: T;
   relatedPosts?: T;
   categories?: T;
-  tags?: T;
-  articleType?: T;
-  keyTakeaways?:
-    | T
-    | {
-        summary?: T;
-        id?: T;
-      };
   meta?:
     | T
     | {
@@ -1727,24 +1678,21 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "rep-info_select".
+ * via the `definition` "categories_select".
  */
-export interface RepInfoSelect<T extends boolean = true> {
-  tenant?: T;
-  officeTitle?: T;
-  name?: T;
-  districtNumber?: T;
-  towns?:
+export interface CategoriesSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  slugLock?: T;
+  parent?: T;
+  breadcrumbs?:
     | T
     | {
-        town?: T;
+        doc?: T;
+        url?: T;
+        label?: T;
         id?: T;
       };
-  form?: T;
-  facebook?: T;
-  youtube?: T;
-  instagram?: T;
-  x?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1821,6 +1769,29 @@ export interface StandardMediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "rep-info_select".
+ */
+export interface RepInfoSelect<T extends boolean = true> {
+  tenant?: T;
+  officeTitle?: T;
+  name?: T;
+  districtNumber?: T;
+  towns?:
+    | T
+    | {
+        town?: T;
+        id?: T;
+      };
+  form?: T;
+  facebook?: T;
+  youtube?: T;
+  instagram?: T;
+  x?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "site-seo_select".
  */
 export interface SiteSeoSelect<T extends boolean = true> {
@@ -1833,6 +1804,86 @@ export interface SiteSeoSelect<T extends boolean = true> {
     | {
         tag?: T;
         id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users_select".
+ */
+export interface UsersSelect<T extends boolean = true> {
+  name?: T;
+  roles?: T;
+  tenants?:
+    | T
+    | {
+        tenant?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
+  sessions?:
+    | T
+    | {
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tenants_select".
+ */
+export interface TenantsSelect<T extends boolean = true> {
+  name?: T;
+  slug?: T;
+  archived?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "authors_select".
+ */
+export interface AuthorsSelect<T extends boolean = true> {
+  login?: T;
+  name?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags_select".
+ */
+export interface TagsSelect<T extends boolean = true> {
+  slug?: T;
+  title?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "redirects_select".
+ */
+export interface RedirectsSelect<T extends boolean = true> {
+  from?: T;
+  to?:
+    | T
+    | {
+        type?: T;
+        reference?: T;
+        url?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -1947,41 +1998,6 @@ export interface FormsSelect<T extends boolean = true> {
               id?: T;
               blockName?: T;
             };
-        radio?:
-          | T
-          | {
-              name?: T;
-              label?: T;
-              width?: T;
-              defaultValue?: T;
-              options?:
-                | T
-                | {
-                    label?: T;
-                    value?: T;
-                    id?: T;
-                  };
-              required?: T;
-              id?: T;
-              blockName?: T;
-            };
-        'checkbox-group'?:
-          | T
-          | {
-              name?: T;
-              label?: T;
-              width?: T;
-              options?:
-                | T
-                | {
-                    label?: T;
-                    value?: T;
-                    id?: T;
-                  };
-              required?: T;
-              id?: T;
-              blockName?: T;
-            };
       };
   submitButtonLabel?: T;
   confirmationType?: T;
@@ -2019,106 +2035,6 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
         field?: T;
         value?: T;
         id?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "categories_select".
- */
-export interface CategoriesSelect<T extends boolean = true> {
-  title?: T;
-  slug?: T;
-  slugLock?: T;
-  parent?: T;
-  breadcrumbs?:
-    | T
-    | {
-        doc?: T;
-        url?: T;
-        label?: T;
-        id?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users_select".
- */
-export interface UsersSelect<T extends boolean = true> {
-  name?: T;
-  roles?: T;
-  tenants?:
-    | T
-    | {
-        tenant?: T;
-        id?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-  enableAPIKey?: T;
-  apiKey?: T;
-  apiKeyIndex?: T;
-  email?: T;
-  resetPasswordToken?: T;
-  resetPasswordExpiration?: T;
-  salt?: T;
-  hash?: T;
-  loginAttempts?: T;
-  lockUntil?: T;
-  sessions?:
-    | T
-    | {
-        id?: T;
-        createdAt?: T;
-        expiresAt?: T;
-      };
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tenants_select".
- */
-export interface TenantsSelect<T extends boolean = true> {
-  name?: T;
-  slug?: T;
-  archived?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "authors_select".
- */
-export interface AuthorsSelect<T extends boolean = true> {
-  login?: T;
-  name?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags_select".
- */
-export interface TagsSelect<T extends boolean = true> {
-  slug?: T;
-  title?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "redirects_select".
- */
-export interface RedirectsSelect<T extends boolean = true> {
-  from?: T;
-  to?:
-    | T
-    | {
-        type?: T;
-        reference?: T;
-        url?: T;
       };
   updatedAt?: T;
   createdAt?: T;
