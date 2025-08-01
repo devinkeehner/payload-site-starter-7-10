@@ -104,6 +104,7 @@ export const plugins: Plugin[] = [
     formSubmissionOverrides: {
       admin: { group: 'Forms & Submissions' },
     },
+    defaultToEmail: process.env.RESEND_FROM_EMAIL || '',
   }),
   searchPlugin({
     collections: ['posts'],
