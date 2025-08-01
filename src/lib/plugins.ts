@@ -61,6 +61,7 @@ export const plugins: Plugin[] = [
   formBuilderPlugin({
     fields: {
       payment: false,
+      radio: true,
     },
     formOverrides: {
       admin: { group: 'Forms & Submissions' },
