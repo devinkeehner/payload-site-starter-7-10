@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+    "tasks": {
+      "defaultBuildTask": "pnpm: build"
+    },
+    "npm.packageManager": "pnpm"
+  }
+}
