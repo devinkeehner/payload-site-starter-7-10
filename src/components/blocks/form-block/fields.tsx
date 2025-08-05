@@ -9,7 +9,6 @@ import { Select } from './select'
 import { State } from './state'
 import { Text } from './text'
 import { Textarea } from './textarea'
-import { ImageSelect } from './image-select'
 
 export const fields = {
   checkbox: Checkbox,
@@ -19,7 +18,6 @@ export const fields = {
   number: Number,
   radio: Radio,
   'checkbox-group': CheckboxGroup,
-  'image-select': ImageSelect,
   select: Select,
   state: State,
   text: Text,
