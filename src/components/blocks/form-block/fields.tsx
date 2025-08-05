@@ -5,6 +5,7 @@ import { Message } from './message'
 import { Number } from './number'
 import { Radio } from './radio'
 import { CheckboxGroup } from './checkbox-group'
+import { ImageSelect } from './image-select'
 import { Select } from './select'
 import { State } from './state'
 import { Text } from './text'
@@ -18,6 +19,7 @@ export const fields = {
   number: Number,
   radio: Radio,
   'checkbox-group': CheckboxGroup,
+  'image-select': ImageSelect,
   select: Select,
   state: State,
   text: Text,
