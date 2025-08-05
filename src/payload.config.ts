@@ -198,7 +198,12 @@ export default buildConfig({
                       type: 'upload',
                       relationTo: 'media',
                       label: 'Image',
-                      admin: { width: '33%' },
+                      admin: {
+                        width: '33%',
+                        components: {
+                          Field: '@payloadcms/ui/fields/Upload',
+                        },
+                      },
                     },
                   ],
                 },
