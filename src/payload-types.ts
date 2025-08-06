@@ -851,6 +851,24 @@ export interface Form {
             blockName?: string | null;
             blockType: 'checkbox-group';
           }
+        | {
+            name: string;
+            label?: string | null;
+            width?: number | null;
+            allowMultiple?: boolean | null;
+            options?:
+              | {
+                  label: string;
+                  value: string;
+                  image?: (string | null) | Media;
+                  id?: string | null;
+                }[]
+              | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'image-select';
+          }
       )[]
     | null;
   submitButtonLabel?: string | null;
@@ -1994,6 +2012,25 @@ export interface FormsSelect<T extends boolean = true> {
                 | {
                     label?: T;
                     value?: T;
+                    id?: T;
+                  };
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'image-select'?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              allowMultiple?: T;
+              options?:
+                | T
+                | {
+                    label?: T;
+                    value?: T;
+                    image?: T;
                     id?: T;
                   };
               required?: T;
