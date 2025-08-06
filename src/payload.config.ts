@@ -102,7 +102,6 @@ export default buildConfig({
   plugins: [
     // Spread any additional plugins you’ve defined elsewhere
     ...plugins,
-
     // Inline plugin to reposition the form collections right after the last Site Settings collection.
     (config) => {
       const all = Array.isArray(config.collections) ? [...config.collections] : [];
