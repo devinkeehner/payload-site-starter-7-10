@@ -167,9 +167,6 @@ export const plugins: Plugin[] = [
                     label: 'Image',
                     admin: {
                       width: '33%',
-                      components: {
-                        Field: '@payloadcms/ui/fields/Upload',
-                      },
                     },
                   },
                 ],
