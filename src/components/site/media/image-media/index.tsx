@@ -8,6 +8,7 @@ import React from 'react'
 
 import type { Props as MediaProps } from '../types'
 
+import { getClientSideURL } from '@/lib/utilities/getURL'
 
 const breakpoints = {
   '3xl': 1920,
@@ -48,9 +49,7 @@ export const ImageMedia: React.FC<MediaProps> = (props) => {
 
     const cacheTag = resource.updatedAt
 
-    if (url) {
-      src = `${url}?${cacheTag}`
-    }
+    src = `${getClientSideURL()}${url}?${cacheTag}`
   }
 
   const loading = loadingFromProps || (!priority ? 'lazy' : undefined)
