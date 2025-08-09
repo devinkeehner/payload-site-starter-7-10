@@ -1,9 +1,9 @@
 import type { CollectionConfig } from 'payload'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 
-// Collection for legacy WordPress posts. These documents are tenant-enabled by the
+// Collection for legacy WordPress posts. These documents are site-enabled by the
 // multi-tenant plugin, so a hidden `tenant` field will be injected automatically.
-// All imported posts will initially belong to the Candelora tenant via the import script.
+// All imported posts will initially belong to the Candelora site via the import script.
 export const WordpressPosts: CollectionConfig<'wordpress-posts'> = {
   labels: {
     singular: 'Wordpress Archive',

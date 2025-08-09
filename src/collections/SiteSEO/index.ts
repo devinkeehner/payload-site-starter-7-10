@@ -10,20 +10,20 @@ export const SiteSEO: CollectionConfig = {
     group: 'Site Settings',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
-    description: 'SEO metadata for the tenant home page',
+    description: 'SEO metadata for the site home page',
   },
   access: {
     read: () => true,
   },
   hooks: {
     beforeChange: [({ req, operation, originalDoc, data }) => {
-      // enforce singleton per tenant: block creating additional docs
+      // enforce singleton per site: block creating additional docs
       if (operation === 'create') {
         // @ts-ignore
         const tenant = data?.tenant || req.tenant?.id || req.user?.tenants?.[0]
         return req.payload.find({ collection: 'site-seo', where: { tenant: { equals: tenant } } }).then((existing) => {
           if (existing.docs.length > 0) {
-            throw new Error('Site SEO document already exists for this tenant')
+            throw new Error('Site SEO document already exists for this site')
           }
           return data
         })
@@ -58,18 +58,10 @@ export const SiteSEO: CollectionConfig = {
     },
     {
       name: 'tags',
-      type: 'array',
       label: 'Tags',
-      admin: {
-        description: 'Comma-separated keywords',
-      },
-      fields: [
-        {
-          name: 'tag',
-          type: 'text',
-          required: true,
-        },
-      ],
+      type: 'relationship',
+      relationTo: 'tags',
+      hasMany: true,
     },
   ],
 }

@@ -16,7 +16,7 @@ const GROUPS: Record<string, { slug: string; label: string }[]> = {
   Admin: [
     { slug: 'categories', label: 'Categories' },
     { slug: 'users', label: 'Users' },
-    { slug: 'tenants', label: 'Tenants' },
+    { slug: 'tenants', label: 'Sites' },
   ],
   Misc: [
     { slug: 'authors', label: 'Authors' },
