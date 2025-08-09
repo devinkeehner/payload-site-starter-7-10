@@ -128,7 +128,7 @@ export default buildConfig({
     s3Storage({
       collections: { media: true },
       bucket: process.env.R2_BUCKET || '',
-      clientUploads: true,
+      clientUploads: false,
       config: {
         endpoint: process.env.R2_ENDPOINT || '',
         credentials: {
@@ -163,4 +163,3 @@ export default buildConfig({
     tasks: [],
   },
 });
-
