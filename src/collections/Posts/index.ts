@@ -15,14 +15,12 @@ import { BannerConfig } from '@/components/blocks/banner-block/config'
 import { CodeBlockConfig } from '@/components/blocks/code-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
-import { populateAuthors } from './hooks/populateAuthors'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 
 import {
   MetaDescriptionField,
   MetaImageField,
   MetaTitleField,
-  OverviewField,
   PreviewField,
 } from '@payloadcms/plugin-seo/fields'
 import { slugField } from '@/collections/fields/slug'
@@ -110,51 +108,32 @@ export const Posts: CollectionConfig<'posts'> = {
           label: 'Meta & SEO',
           fields: [
             {
-              name: 'relatedPosts',
-              type: 'relationship',
-              admin: {
-                position: 'sidebar',
-              },
-              filterOptions: ({ id }) => {
-                return {
-                  id: {
-                    not_in: [id],
-                  },
-                }
-              },
-              hasMany: true,
-              relationTo: 'posts',
+              name: 'meta',
+              label: 'SEO',
+              type: 'group',
+              fields: [
+                MetaTitleField({ hasGenerateFn: true, overrides: { required: true } }),
+                MetaImageField({ relationTo: 'media', overrides: { required: true } }),
+                MetaDescriptionField({ overrides: { required: true } }),
+                PreviewField({
+                  hasGenerateFn: true,
+                  titlePath: 'meta.title',
+                  descriptionPath: 'meta.description',
+                }),
+              ],
             },
             {
               name: 'categories',
               type: 'relationship',
-              admin: {
-                position: 'sidebar',
-              },
-              hasMany: true,
               relationTo: 'categories',
-            },
-            {
-              name: 'tags',
-              type: 'relationship',
-              relationTo: 'tags',
               hasMany: true,
-              admin: {
-                position: 'sidebar',
-              },
-            },
-            {
-              name: 'articleType',
-              type: 'relationship',
-              relationTo: 'article-types',
-              admin: {
-                position: 'sidebar',
-              },
+              required: true,
             },
             {
               name: 'keyTakeaways',
               label: 'Key Takeaways / TL;DR',
               type: 'array',
+              required: true,
               fields: [
                 {
                   name: 'point',
@@ -164,28 +143,27 @@ export const Posts: CollectionConfig<'posts'> = {
               ],
             },
             {
-              name: 'meta',
-              label: 'SEO',
-              type: 'group',
-              fields: [
-                OverviewField({
-                  titlePath: 'meta.title',
-                  descriptionPath: 'meta.description',
-                  imagePath: 'meta.image',
-                }),
-                MetaTitleField({
-                  hasGenerateFn: true,
-                }),
-                MetaImageField({
-                  relationTo: 'media',
-                }),
-                MetaDescriptionField({}),
-                PreviewField({
-                  hasGenerateFn: true,
-                  titlePath: 'meta.title',
-                  descriptionPath: 'meta.description',
-                }),
-              ],
+              name: 'articleType',
+              type: 'relationship',
+              relationTo: 'article-types',
+              required: true,
+            },
+            {
+              name: 'tags',
+              type: 'relationship',
+              relationTo: 'tags',
+              hasMany: true,
+            },
+            {
+              name: 'relatedPosts',
+              type: 'relationship',
+              relationTo: 'posts',
+              hasMany: true,
+              filterOptions: ({ id }) => ({
+                id: {
+                  not_in: [id],
+                },
+              }),
             },
           ],
         },
@@ -211,58 +189,11 @@ export const Posts: CollectionConfig<'posts'> = {
         ],
       },
     },
-    {
-      name: 'authors',
-      type: 'relationship',
-      admin: {
-        position: 'sidebar',
-      },
-      hasMany: true,
-      relationTo: 'users',
-    },
-    // This field is only used to populate the user data via the `populateAuthors` hook
-    // This is because the `user` collection has access control locked to protect user privacy
-    // GraphQL will also not return mutated user data that differs from the underlying schema
-    {
-      name: 'populatedAuthors',
-      type: 'array',
-      access: {
-        update: () => false,
-      },
-      admin: {
-        disabled: true,
-        readOnly: true,
-      },
-      fields: [
-        {
-          name: 'id',
-          type: 'text',
-        },
-        {
-          name: 'name',
-          type: 'text',
-        },
-      ],
-    },
-    {
-      name: 'overrideTenant',
-      label: 'Tenant Override',
-      type: 'relationship',
-      relationTo: 'tenants',
-      admin: {
-        position: 'sidebar',
-        condition: () => true, // always visible, can restrict to admin if needed
-      },
-      access: {
-        read: ({ req }) => !!(req.user && req.user.roles?.includes('super')),
-        update: ({ req }) => !!(req.user && req.user.roles?.includes('super')),
-      },
-    },
+    // Author fields removed
     ...slugField(),
   ],
   hooks: {
     afterChange: [revalidatePost],
-    afterRead: [populateAuthors],
     afterDelete: [revalidateDelete],
   },
   versions: {

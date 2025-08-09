@@ -29,10 +29,12 @@ export const Media: CollectionConfig = {
     {
       name: 'alt',
       type: 'text',
+      required: true,
     },
     {
       name: 'caption',
       type: 'richText',
+      required: true,
       editor: lexicalEditor({
         features: ({ rootFeatures }) => {
           return [...rootFeatures, FixedToolbarFeature(), InlineToolbarFeature()]

@@ -73,7 +73,7 @@ export const RepInfo: CollectionConfig = {
     },
     {
       name: 'x',
-      label: 'X',
+      label: 'X.com',
       type: 'text',
       required: false,
     },
