@@ -126,12 +126,7 @@ export default buildConfig({
 
     // S3 storage plugin for media uploads
     s3Storage({
-      collections: {
-        media: {
-          disablePayloadAccessControl: true,
-          generateFileURL: ({ filename }) => `https://media.cthousegop.com/${filename}`,
-        },
-      },
+      collections: { media: true },
       bucket: process.env.R2_BUCKET || '',
       clientUploads: true,
       config: {
