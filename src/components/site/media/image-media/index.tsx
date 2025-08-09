@@ -49,7 +49,11 @@ export const ImageMedia: React.FC<MediaProps> = (props) => {
 
     const cacheTag = resource.updatedAt
 
-    src = `${getClientSideURL()}${url}?${cacheTag}`
+    // If the stored media URL is absolute (e.g., from S3/R2), use it as-is.
+    // Otherwise, prefix with the client-side base URL for local/relative URLs.
+    const isAbsolute = typeof url === 'string' && /^https?:\/\//.test(url)
+    const base = isAbsolute ? (url as string) : `${getClientSideURL()}${url}`
+    src = `${base}?${cacheTag}`
   }
 
   const loading = loadingFromProps || (!priority ? 'lazy' : undefined)
