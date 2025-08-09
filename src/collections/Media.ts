@@ -79,6 +79,5 @@ export const Media: CollectionConfig = {
         crop: 'center',
       },
     ],
-    pasteURL: false,
   },
 }
