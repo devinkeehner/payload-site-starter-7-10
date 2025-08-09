@@ -4,13 +4,22 @@ import { cn } from '@/lib/utils'
 import useClickableCard from '@/lib/utilities/useClickableCard'
 import Link from 'next/link'
 import React, { Fragment } from 'react'
-
-import type { Post } from '@/payload-types'
+// Use a lightweight data shape for cards so various sources (posts, search index)
+// can supply minimal fields without strict Payload types
 
 import { Media } from '@/components/site/media'
 import { Badge } from '../ui/badge'
 
-export type CardPostData = Pick<Post, 'slug' | 'categories' | 'meta' | 'title'>
+export type CardPostData = {
+  slug?: string | null
+  title?: string | null
+  categories?: Array<{ title?: string | null } | string> | null
+  meta?: {
+    title?: string | null
+    description?: string | null
+    image?: unknown | null
+  } | null
+}
 
 type CardProps = {
   alignItems?: 'center'
@@ -53,7 +62,7 @@ export function Card({
           <Media
             className="h-48 overflow-hidden"
             imgClassName="w-full h-full object-cover"
-            resource={metaImage}
+            resource={metaImage as any}
           />
         ) : (
           <div className="h-48 flex items-center justify-center bg-muted border-b">No image</div>

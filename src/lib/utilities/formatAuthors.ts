@@ -1,4 +1,5 @@
-import { Post } from '@/payload-types'
+// Minimal author type for formatting names without relying on Post schema
+export type SimpleAuthor = { name?: string | null }
 
 /**
  * Formats an array of populatedAuthors from Posts into a prettified string.
@@ -10,9 +11,7 @@ import { Post } from '@/payload-types'
  * [Author1, Author2, Author3] becomes 'Author1, Author2, and Author3'
  *
  */
-export const formatAuthors = (
-  authors: NonNullable<NonNullable<Post['populatedAuthors']>[number]>[],
-) => {
+export const formatAuthors = (authors: SimpleAuthor[]) => {
   // Ensure we don't have any authors without a name
   const authorNames = authors.map((author) => author.name).filter(Boolean)
 
