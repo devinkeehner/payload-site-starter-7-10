@@ -183,33 +183,23 @@ export interface Post {
     };
     [k: string]: unknown;
   };
-  relatedPosts?: (string | Post)[] | null;
-  categories?: (string | Category)[] | null;
-  tags?: (string | Tag)[] | null;
-  articleType?: (string | null) | ArticleType;
-  keyTakeaways?:
-    | {
-        point: string;
-        id?: string | null;
-      }[]
-    | null;
-  meta?: {
-    title?: string | null;
+  meta: {
+    title: string;
     /**
      * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
-    image?: (string | null) | Media;
-    description?: string | null;
+    image: string | Media;
+    description: string;
   };
+  categories: (string | Category)[];
+  keyTakeaways: {
+    point: string;
+    id?: string | null;
+  }[];
+  articleType: string | ArticleType;
+  tags?: (string | Tag)[] | null;
+  relatedPosts?: (string | Post)[] | null;
   publishedAt?: string | null;
-  authors?: (string | User)[] | null;
-  populatedAuthors?:
-    | {
-        id?: string | null;
-        name?: string | null;
-      }[]
-    | null;
-  overrideTenant?: (string | null) | Tenant;
   slug?: string | null;
   slugLock?: boolean | null;
   updatedAt: string;
@@ -235,8 +225,8 @@ export interface Tenant {
 export interface Media {
   id: string;
   tenant?: (string | null) | Tenant;
-  alt?: string | null;
-  caption?: {
+  alt: string;
+  caption: {
     root: {
       type: string;
       children: {
@@ -250,7 +240,7 @@ export interface Media {
       version: number;
     };
     [k: string]: unknown;
-  } | null;
+  };
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -344,17 +334,6 @@ export interface Category {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags".
- */
-export interface Tag {
-  id: string;
-  slug: string;
-  title: string;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "article-types".
  */
 export interface ArticleType {
@@ -367,38 +346,14 @@ export interface ArticleType {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
+ * via the `definition` "tags".
  */
-export interface User {
+export interface Tag {
   id: string;
-  name?: string | null;
-  roles?: 'super'[] | null;
-  tenants?:
-    | {
-        tenant: string | Tenant;
-        id?: string | null;
-      }[]
-    | null;
+  slug: string;
+  title: string;
   updatedAt: string;
   createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1104,7 +1059,7 @@ export interface StandardMedia {
   createdAt: string;
 }
 /**
- * SEO metadata for the tenant home page
+ * SEO metadata for the site home page
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "site-seo".
@@ -1121,15 +1076,7 @@ export interface SiteSeo {
    */
   description: string;
   metaImage?: (string | null) | Media;
-  /**
-   * Comma-separated keywords
-   */
-  tags?:
-    | {
-        tag: string;
-        id?: string | null;
-      }[]
-    | null;
+  tags?: (string | Tag)[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1150,6 +1097,41 @@ export interface FormSubmission {
     | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: string;
+  name?: string | null;
+  roles?: 'super'[] | null;
+  tenants?:
+    | {
+        tenant: string | Tenant;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1433,16 +1415,6 @@ export interface PostsSelect<T extends boolean = true> {
   title?: T;
   heroImage?: T;
   content?: T;
-  relatedPosts?: T;
-  categories?: T;
-  tags?: T;
-  articleType?: T;
-  keyTakeaways?:
-    | T
-    | {
-        point?: T;
-        id?: T;
-      };
   meta?:
     | T
     | {
@@ -1450,15 +1422,17 @@ export interface PostsSelect<T extends boolean = true> {
         image?: T;
         description?: T;
       };
-  publishedAt?: T;
-  authors?: T;
-  populatedAuthors?:
+  categories?: T;
+  keyTakeaways?:
     | T
     | {
+        point?: T;
         id?: T;
-        name?: T;
       };
-  overrideTenant?: T;
+  articleType?: T;
+  tags?: T;
+  relatedPosts?: T;
+  publishedAt?: T;
   slug?: T;
   slugLock?: T;
   updatedAt?: T;
@@ -1864,12 +1838,7 @@ export interface SiteSeoSelect<T extends boolean = true> {
   title?: T;
   description?: T;
   metaImage?: T;
-  tags?:
-    | T
-    | {
-        tag?: T;
-        id?: T;
-      };
+  tags?: T;
   updatedAt?: T;
   createdAt?: T;
 }
