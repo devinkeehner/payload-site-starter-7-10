@@ -3,8 +3,8 @@ import type { CollectionConfig } from 'payload'
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
   labels: {
-    singular: 'Tenant',
-    plural: 'Tenants',
+    singular: 'Site',
+    plural: 'Sites',
   },
   admin: {
     useAsTitle: 'name',
@@ -34,7 +34,7 @@ export const Tenants: CollectionConfig = {
       defaultValue: false,
       admin: { position: 'sidebar' },
     },
-    // add more tenant-level metadata here (e.g., domain, theme)
+    // add more site-level metadata here (e.g., domain, theme)
   ],
 }
 

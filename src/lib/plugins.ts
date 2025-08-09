@@ -5,15 +5,14 @@ import { nestedDocsPlugin } from '@payloadcms/plugin-nested-docs'
 import { redirectsPlugin } from '@payloadcms/plugin-redirects'
 import { seoPlugin } from '@payloadcms/plugin-seo'
 import { searchPlugin } from '@payloadcms/plugin-search'
-import { Plugin } from 'payload'
+import { Plugin, type Field } from 'payload'
 import { revalidateRedirects } from '@/lib/hooks/revalidateRedirects'
 import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
-import { FixedToolbarFeature, HeadingFeature, lexicalEditor } from '@payloadcms/richtext-lexical'
 import { searchFields } from '@/lib/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/lib/search/beforeSync'
 import { config } from '@/site.config'
 
-import { Page, Post, User } from '@/payload-types'
+import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 
 const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
@@ -199,7 +198,8 @@ export const plugins: Plugin[] = [
   payloadCloudPlugin(),
   // Multi-tenant must run first so other plugins respect tenant scoping
   multiTenantPlugin({
-    tenantsSlug: 'tenants',     // identify the Tenants collection
+    tenantsSlug: 'tenants', // identify the Tenants collection
+    tenantSelectorLabel: 'Select Site',
     // disable tenant-based access constraints for admins
     useTenantsCollectionAccess: true,
     useTenantsListFilter: true,
@@ -221,4 +221,22 @@ export const plugins: Plugin[] = [
       'form-submissions': {},
     },
   }),
+  // Rename tenant field labels to use "Site" terminology
+  (config) => {
+    config.collections?.forEach((collection) => {
+      const traverse = (fields: Field[]): void => {
+        fields.forEach((field) => {
+          if ('name' in field && field.name === 'tenant') field.label = 'Site'
+          if ('name' in field && field.name === 'tenants') field.label = 'Sites'
+          if ('fields' in field && Array.isArray(field.fields)) {
+            traverse(field.fields as Field[])
+          }
+        })
+      }
+      if (Array.isArray(collection.fields)) {
+        traverse(collection.fields as Field[])
+      }
+    })
+    return config
+  },
 ]
