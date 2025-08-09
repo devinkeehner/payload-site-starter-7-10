@@ -1,18 +1,13 @@
 import { formatDateTime } from '@/lib/utilities/formatDateTime'
 
 import { Media } from '@/components/site/media'
-import { formatAuthors } from '@/lib/utilities/formatAuthors'
 import { Container, Section } from '../layout'
 import { Fragment } from 'react'
 
 import type { Post } from '@/payload-types'
 
 export async function PostHero({ post }: { post: Post }) {
-  const { categories, heroImage, populatedAuthors, publishedAt, title } = post
-
-  // Handle potentially undefined populatedAuthors by providing a default empty array
-  const formattedAuthors = formatAuthors(populatedAuthors || [])
-  const hasAuthors = populatedAuthors && populatedAuthors.length > 0 && formattedAuthors !== ''
+  const { categories, heroImage, publishedAt, title } = post
 
   // Ensure categories is an array before using it
   const categoriesArray = Array.isArray(categories) ? categories : []
@@ -43,15 +38,8 @@ export async function PostHero({ post }: { post: Post }) {
           {/* Title */}
           <h1 className="mb-6 text-3xl md:text-5xl lg:text-6xl">{title}</h1>
 
-          {/* Author and Date */}
+          {/* Date */}
           <div className="flex flex-col md:flex-row gap-4 md:gap-16">
-            {hasAuthors && (
-              <div className="flex flex-col gap-1">
-                <p className="text-sm">Author</p>
-                <p>{formattedAuthors}</p>
-              </div>
-            )}
-
             {publishedAt && (
               <div className="flex flex-col gap-1">
                 <p className="text-sm">Date Published</p>
