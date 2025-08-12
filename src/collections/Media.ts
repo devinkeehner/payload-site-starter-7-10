@@ -42,6 +42,31 @@ export const Media: CollectionConfig = {
       }),
     },
   ],
+  hooks: {
+    afterRead: [
+      ({ doc }) => {
+        const base = process.env.R2_PUBLIC_BASE_URL || ''
+
+        const setAbsUrl = (file: any) => {
+          if (!file) return
+          const filename = file?.filename || String(file?.url || '').split('/').pop()
+          if (filename) {
+            file.url = base ? `${base}/${filename}` : filename
+          }
+        }
+
+        // Top-level file
+        setAbsUrl(doc)
+
+        // Generated sizes
+        if (doc?.sizes && typeof doc.sizes === 'object') {
+          Object.values(doc.sizes).forEach((size: any) => setAbsUrl(size))
+        }
+
+        return doc
+      },
+    ],
+  },
   upload: {
     staticDir: path.resolve(dirname, '../../public/media'),
     adminThumbnail: 'thumbnail',
