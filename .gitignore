@@ -1,15 +1,27 @@
-build
-dist / media
-node_modules
+# Build artifacts / deps
+build/
+dist/
+node_modules/
+
+# OS junk
 .DS_Store
-.env
-.next
-.vercel
+
+# Next.js / Vercel
+.next/
+.vercel/
 
 # Payload default media upload directory
 public/media/
 
+# Public outputs you don't want to track
 public/robots.txt
 public/sitemap*.xml
+
+# Environment files (keep only the template)
+.env
+.env.*
+.env.local
+!.env.example
+
 .env*
 .env*
