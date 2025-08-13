@@ -239,6 +239,223 @@ export const Posts: CollectionConfig<'posts'> = {
         }
       }) as any,
     },
+    {
+      path: '/:id/share',
+      method: 'post',
+      handler: (async (req: any, res: any) => {
+        const send = (status: number, body: any) => {
+          if (res?.status && typeof res.status === 'function') {
+            return res.status(status).json(body)
+          }
+          return new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+        try {
+          if (!req.user) return send(401, { error: 'Unauthorized' })
+          // Resolve ID from params or URL
+          let id: string | undefined
+          try {
+            id = (req as any)?.params?.id || (req as any)?.routeParams?.id || (req as any)?.query?.id
+            if (!id) {
+              const url: string = (req as any)?.originalUrl || (req as any)?.url || ''
+              const match = url.match(/\/api\/posts\/([^\/]+)\/share/)
+              if (match?.[1]) id = match[1]
+            }
+          } catch {}
+          if (!id) return send(400, { error: 'Missing post id' })
+          // Robustly parse body across adapters (Express vs Next)
+          let raw: any = (req as any)?.body
+          // If body is a string or Buffer, try to parse JSON
+          if (raw && typeof raw === 'string') {
+            try { raw = JSON.parse(raw) } catch { /* keep as-is */ }
+          } else if (raw && typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
+            try { raw = JSON.parse(raw.toString('utf-8')) } catch { raw = {} }
+          }
+          // Heuristic: Next.js Request body may be a ReadableStream, or body may be present but not parsed
+          const looksLikeReadableStream = !!raw && typeof raw === 'object' && (typeof raw.getReader === 'function' || typeof raw.tee === 'function')
+          const rawMissingKeys = !raw || typeof raw !== 'object' || (!('tenantIDs' in raw) && !('tenantIds' in raw) && !('tenant_ids' in raw) && !('tenants' in raw) && !('sourceTenantID' in raw) && !('sourceTenantId' in raw))
+          if (looksLikeReadableStream || rawMissingKeys) {
+            try {
+              if (typeof (req as any)?.json === 'function') {
+                const parsed = await (req as any).json()
+                if (parsed && typeof parsed === 'object') raw = parsed
+              } else if (typeof (req as any)?.text === 'function') {
+                const txt = await (req as any).text()
+                raw = txt ? JSON.parse(txt) : raw || {}
+              }
+            } catch {
+              // keep best-effort raw
+            }
+          }
+          // Extract tenantIDs from body or query in multiple shapes
+          const extractIDs = (val: any): string[] => {
+            if (!val) return []
+            if (Array.isArray(val)) return val.map((v) => (typeof v === 'string' ? v : v?.id || v?.value)).filter(Boolean)
+            if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean)
+            if (typeof val === 'object') {
+              // Support bracket syntax: tenantIDs[0]=idA&tenantIDs[1]=idB
+              const keys = Object.keys(val).filter((k) => k.startsWith('tenantIDs['))
+              if (keys.length) return keys.map((k) => val[k]).filter(Boolean)
+            }
+            return []
+          }
+          let tenantIDs: string[] = []
+          tenantIDs = extractIDs(raw?.tenantIDs)
+          if (!tenantIDs.length) tenantIDs = extractIDs(raw?.tenantIds)
+          if (!tenantIDs.length) tenantIDs = extractIDs(raw?.tenant_ids)
+          if (!tenantIDs.length) tenantIDs = extractIDs(raw?.tenants)
+          // Source tenant id (the tenant of the post being copied from)
+          const sourceTenantID: string | undefined =
+            typeof raw?.sourceTenantID === 'string'
+              ? raw.sourceTenantID
+              : typeof raw?.sourceTenantId === 'string'
+              ? raw.sourceTenantId
+              : undefined
+          // Query param fallback
+          if (!tenantIDs.length) {
+            const q: any = (req as any)?.query || {}
+            tenantIDs = extractIDs(q?.tenantIDs) || extractIDs(q?.tenantIds)
+            if (!tenantIDs.length && (typeof (req as any)?.originalUrl === 'string' || typeof (req as any)?.url === 'string')) {
+              try {
+                const urlStr: string = (req as any).originalUrl || (req as any).url
+                const u = new URL(urlStr, 'http://local')
+                const all = u.searchParams.getAll('tenantIDs')
+                if (all && all.length) {
+                  tenantIDs = extractIDs(all)
+                } else {
+                  const qp = u.searchParams.get('tenantIDs') || u.searchParams.get('tenantIds')
+                  if (qp) tenantIDs = extractIDs(qp)
+                }
+              } catch {}
+            }
+          }
+          if (!tenantIDs.length) {
+            const debug: any = {}
+            try {
+              debug.bodyType = typeof (req as any)?.body
+              debug.rawType = typeof raw
+              debug.rawKeys = raw && typeof raw === 'object' ? Object.keys(raw) : undefined
+              debug.queryKeys = (req as any)?.query ? Object.keys((req as any).query) : undefined
+              debug.url = (req as any)?.originalUrl || (req as any)?.url
+            } catch {}
+            const body: any = { error: 'No tenantIDs provided' }
+            if (process.env.NODE_ENV !== 'production') body.debug = debug
+            return send(400, body)
+          }
+          const isSuper = !!req.user?.roles?.includes('super')
+          const userTenantIDs: string[] = Array.isArray(req.user?.tenants)
+            ? (req.user.tenants as any[])
+                .map((t) => (typeof t?.tenant === 'string' ? t.tenant : t?.tenant?.id))
+                .filter(Boolean)
+            : []
+          const allowedTenantIDs = isSuper ? tenantIDs : tenantIDs.filter((t) => userTenantIDs.includes(t))
+          if (!allowedTenantIDs.length) return send(403, { error: 'You do not have access to the selected tenants' })
+          // Load source post (draft-aware), scoping to the source tenant if provided
+          let source: any
+          try {
+            if (sourceTenantID) {
+              source = await req.payload.findByID({
+                collection: 'posts',
+                id,
+                draft: true,
+                req: { ...(req as any), tenant: sourceTenantID } as any,
+              })
+            } else {
+              source = await req.payload.findByID({
+                collection: 'posts',
+                id,
+                draft: true,
+              })
+            }
+          } catch (e: any) {
+            return send(404, { error: 'Post not found or inaccessible for the current tenant scope' })
+          }
+          if (!source) return send(404, { error: 'Post not found' })
+          const sourceTenantId: string | undefined =
+            typeof (source as any)?.tenant === 'string' ? (source as any).tenant : (source as any)?.tenant?.id
+          const toCreate = allowedTenantIDs
+          const results: any[] = []
+          for (const tID of toCreate) {
+            if (tID && sourceTenantId && tID === sourceTenantId) {
+              results.push({ tenantID: tID, skipped: true, reason: 'same-tenant' })
+              continue
+            }
+            // Normalize relationships to IDs and strip system fields
+            const categories = Array.isArray((source as any)?.categories)
+              ? (source as any).categories.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
+              : []
+            const tags = Array.isArray((source as any)?.tags)
+              ? (source as any).tags.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
+              : []
+            const relatedPosts = Array.isArray((source as any)?.relatedPosts)
+              ? (source as any).relatedPosts.map((p: any) => (typeof p === 'string' ? p : p?.id)).filter(Boolean)
+              : undefined
+            const heroImage =
+              typeof (source as any)?.heroImage === 'string'
+                ? (source as any).heroImage
+                : (source as any)?.heroImage?.id
+            const metaImage =
+              typeof (source as any)?.meta?.image === 'string'
+                ? (source as any).meta.image
+                : (source as any)?.meta?.image?.id
+            const keyTakeaways = Array.isArray((source as any)?.keyTakeaways)
+              ? (source as any).keyTakeaways
+                  .map((k: any) => ({ point: String(k?.point || '') }))
+                  .filter((k: any) => k.point)
+              : []
+            const articleType =
+              typeof (source as any)?.articleType === 'string'
+                ? (source as any).articleType
+                : (source as any)?.articleType?.id
+            const data: any = {
+              title: (source as any)?.title,
+              // Avoid cross-tenant media references; let editors set media per site
+              heroImage: undefined,
+              content: (source as any)?.content,
+              meta: {
+                title: (source as any)?.meta?.title,
+                description: (source as any)?.meta?.description,
+                image: undefined,
+              },
+              categories,
+              keyTakeaways,
+              articleType,
+              tags,
+              // Avoid cross-tenant posts relationships
+              relatedPosts: undefined,
+              publishedAt: null,
+              slug: (source as any)?.slug,
+              slugLock: (source as any)?.slugLock,
+              tenant: tID,
+              _status: 'draft',
+            }
+            try {
+              // Ensure create runs within the target tenant scope
+              const scopedReq = { ...(req as any), tenant: tID }
+              const created = await req.payload.create({
+                collection: 'posts',
+                data,
+                draft: true,
+                req: scopedReq as any,
+              })
+              results.push({ tenantID: tID, id: created?.id, slug: created?.slug, _status: created?._status || 'draft' })
+            } catch (e: any) {
+              results.push({ tenantID: tID, error: e?.message || 'create failed' })
+            }
+          }
+          return send(200, { ok: true, count: results.filter((r) => !r.skipped && !r.error).length, results })
+        } catch (err: any) {
+          console.error('[posts/:id/share] error', err)
+          const body: any = { error: err?.message || 'Server error' }
+          if (process.env.NODE_ENV !== 'production') {
+            body.stack = err?.stack
+          }
+          return send(500, body)
+        }
+      }) as any,
+    },
   ],
   fields: [
     {
@@ -349,6 +566,23 @@ export const Posts: CollectionConfig<'posts'> = {
                   not_in: [id],
                 },
               }),
+            },
+          ],
+        },
+        {
+          label: 'Share',
+          fields: [
+            {
+              name: 'share',
+              type: 'ui',
+              label: 'Share',
+              admin: {
+                components: {
+                  Field: {
+                    path: '@/components/admin/ShareCopyField#ShareCopyField',
+                  },
+                },
+              },
             },
           ],
         },
