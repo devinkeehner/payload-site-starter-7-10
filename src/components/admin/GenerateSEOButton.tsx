@@ -108,6 +108,40 @@ const GenerateSEOButton: React.FC = () => {
       if (data?.articleTypeID) {
         dispatchFields({ type: 'UPDATE', path: 'articleType', value: data.articleTypeID })
       }
+
+      // Persist the generated fields to the server, then refresh the page
+      try {
+        const updatePayload: any = {}
+        if (typeof data?.description === 'string') {
+          updatePayload.meta = { description: data.description }
+        }
+        if (Array.isArray(data?.keyTakeawaysNormalized)) {
+          updatePayload.keyTakeaways = data.keyTakeawaysNormalized
+        }
+        if (Array.isArray(data?.categoryIDs)) {
+          updatePayload.categories = data.categoryIDs
+        }
+        if (data?.articleTypeID) {
+          updatePayload.articleType = data.articleTypeID
+        }
+        if (Object.keys(updatePayload).length) {
+          const saveRes = await fetch(`/api/posts/${finalId}?draft=true`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(updatePayload),
+          })
+          if (!saveRes.ok) {
+            console.error('[GenerateSEO] Auto-save failed', await saveRes.text())
+          }
+        }
+      } catch (e) {
+        console.error('[GenerateSEO] Auto-save error', e)
+      }
+
+      if (typeof window !== 'undefined') {
+        window.location.reload()
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
       alert(message || 'Error generating SEO')
