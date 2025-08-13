@@ -96,11 +96,13 @@ const ShareCopyField: React.FC = () => {
   }, [])
 
   const filteredTenants = useMemo(() => {
-    if (isSuper) return tenants
-    if (!myTenantIDs || myTenantIDs.length === 0) return tenants
+    // Exclude the current tenant of the post (we don't need to share to itself)
+    const withoutSource = tenants.filter((t) => !sourceTenantID || t.id !== sourceTenantID)
+    if (isSuper) return withoutSource
+    if (!myTenantIDs || myTenantIDs.length === 0) return withoutSource
     const set = new Set(myTenantIDs)
-    return tenants.filter((t) => set.has(t.id))
-  }, [tenants, myTenantIDs, isSuper])
+    return withoutSource.filter((t) => set.has(t.id))
+  }, [tenants, myTenantIDs, isSuper, sourceTenantID])
 
   const allSelectableIDs = useMemo(() => filteredTenants.map((t) => t.id).filter(Boolean), [filteredTenants])
   const allSelected = selected.length > 0 && selected.length === allSelectableIDs.length
@@ -131,15 +133,17 @@ const ShareCopyField: React.FC = () => {
     setLoading(true)
     setStatus(null)
     try {
+      // Sanitize selection: only allow IDs present in filteredTenants (excludes current tenant)
+      const shareTargets = selected.filter((id) => allSelectableIDs.includes(id))
       const qs = new URLSearchParams()
-      if (selected.length) qs.set('tenantIDs', selected.join(','))
+      if (shareTargets.length) qs.set('tenantIDs', shareTargets.join(','))
       if (sourceTenantID) qs.set('sourceTenantID', sourceTenantID)
       const url = `/api/posts/${resolvedId}/share?${qs.toString()}`
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ tenantIDs: selected, sourceTenantID }),
+        body: JSON.stringify({ tenantIDs: shareTargets, sourceTenantID }),
       })
       let data: ShareResponse | null = null
       try {

@@ -360,6 +360,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 collection: 'posts',
                 id,
                 draft: true,
+                depth: 0,
                 req: { ...(req as any), tenant: sourceTenantID } as any,
               })
             } else {
@@ -367,6 +368,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 collection: 'posts',
                 id,
                 draft: true,
+                depth: 0,
               })
             }
           } catch (e: any) {
@@ -413,7 +415,20 @@ export const Posts: CollectionConfig<'posts'> = {
               title: (source as any)?.title,
               // Avoid cross-tenant media references; let editors set media per site
               heroImage: undefined,
-              content: (source as any)?.content,
+              content: (() => {
+                const normalize = (node: any): any => {
+                  if (Array.isArray(node)) return node.map(normalize)
+                  if (!node || typeof node !== 'object') return node
+                  if (node.type === 'upload' && node.relationTo === 'media' && node.value && typeof node.value === 'object') {
+                    const id = (node.value as any)?.id ?? (node.value as any)?._id
+                    return { ...node, value: id }
+                  }
+                  const out: any = { ...node }
+                  for (const k of Object.keys(node)) out[k] = normalize((node as any)[k])
+                  return out
+                }
+                return normalize((source as any)?.content)
+              })(),
               meta: {
                 title: (source as any)?.meta?.title,
                 description: (source as any)?.meta?.description,
@@ -438,6 +453,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 collection: 'posts',
                 data,
                 draft: true,
+                depth: 0,
                 req: scopedReq as any,
               })
               results.push({ tenantID: tID, id: created?.id, slug: created?.slug, _status: created?._status || 'draft' })
