@@ -214,12 +214,13 @@ export const plugins: Plugin[] = [
       'wordpress-posts': {},
       pages: {},
       media: {},
+      'media-canvas': {},
       'standard-media': { isGlobal: true },
       'rep-info': { isGlobal: true },
       'site-seo': { isGlobal: true },
       forms: {},
       'form-submissions': {},
-    },
+    } as any,
   }),
   // Rename tenant field labels to use "Site" terminology
   (config) => {

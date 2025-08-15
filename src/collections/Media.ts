@@ -34,7 +34,7 @@ export const Media: CollectionConfig = {
     {
       name: 'caption',
       type: 'richText',
-      required: true,
+      required: false,
       editor: lexicalEditor({
         features: ({ rootFeatures }) => {
           return [...rootFeatures, FixedToolbarFeature(), InlineToolbarFeature()]
@@ -47,11 +47,32 @@ export const Media: CollectionConfig = {
       ({ doc }) => {
         const base = process.env.R2_PUBLIC_BASE_URL || ''
 
+        const getKeyFromUrl = (url: string): string | undefined => {
+          if (!url) return undefined
+          try {
+            const u = new URL(url, 'http://_') // base to parse relative URLs
+            return u.pathname.replace(/^\/+/, '') || undefined
+          } catch {
+            // url might be a simple path like "/media/file.png" or "media/file.png"
+            return url.replace(/^\/+/, '') || undefined
+          }
+        }
+
+        const buildKey = (file: any): string | undefined => {
+          if (!file || typeof file !== 'object') return undefined
+          const prefix = file?.prefix as string | undefined
+          const filename = file?.filename as string | undefined
+          if (prefix && filename) return `${prefix.replace(/\/+$/, '')}/${filename.replace(/^\/+/, '')}`
+          if (filename) return filename
+          const keyFromUrl = getKeyFromUrl(String(file?.url || ''))
+          return keyFromUrl
+        }
+
         const setAbsUrl = (file: any) => {
           if (!file) return
-          const filename = file?.filename || String(file?.url || '').split('/').pop()
-          if (filename) {
-            file.url = base ? `${base}/${filename}` : filename
+          const key = buildKey(file)
+          if (base && key) {
+            file.url = `${base.replace(/\/+$/, '')}/${key}`
           }
         }
 

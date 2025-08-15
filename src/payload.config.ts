@@ -21,6 +21,7 @@ import { WordpressPosts } from './collections/WordpressPosts';
 // Site settings and other component imports
 import { Navbar } from './components/site/navbar/config';
 import { StandardMedia } from './collections/StandardMedia';
+import { MediaCanvas } from './collections/MediaCanvas';
 import { RepInfo } from './collections/RepInfo';
 import { SiteSEO } from './collections/SiteSEO';
 import { Header } from './components/site/header/config';
@@ -80,6 +81,7 @@ export default buildConfig({
     Pages,
     WordpressPosts,
     Media,
+    MediaCanvas,
     // Site Settings
     RepInfo,
     Navbar,

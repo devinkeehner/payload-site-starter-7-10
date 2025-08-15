@@ -71,6 +71,7 @@ export interface Config {
     pages: Page;
     'wordpress-posts': WordpressPost;
     media: Media;
+    'media-canvas': MediaCanva;
     'rep-info': RepInfo;
     navbars: Navbar;
     'standard-media': StandardMedia;
@@ -96,6 +97,7 @@ export interface Config {
     pages: PagesSelect<false> | PagesSelect<true>;
     'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    'media-canvas': MediaCanvasSelect<false> | MediaCanvasSelect<true>;
     'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
     'standard-media': StandardMediaSelect<false> | StandardMediaSelect<true>;
@@ -226,7 +228,7 @@ export interface Media {
   id: string;
   tenant?: (string | null) | Tenant;
   alt: string;
-  caption: {
+  caption?: {
     root: {
       type: string;
       children: {
@@ -240,7 +242,7 @@ export interface Media {
       version: number;
     };
     [k: string]: unknown;
-  };
+  } | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -942,6 +944,26 @@ export interface Author {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media-canvas".
+ */
+export interface MediaCanva {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  title: string;
+  /**
+   * Upload or select an image to compose into a 1200×630 canvas
+   */
+  image: string | Media;
+  heading?: string | null;
+  subheading?: string | null;
+  posX?: number | null;
+  posY?: number | null;
+  scale?: number | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "rep-info".
  */
 export interface RepInfo {
@@ -1303,6 +1325,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: string | Media;
+      } | null)
+    | ({
+        relationTo: 'media-canvas';
+        value: string | MediaCanva;
       } | null)
     | ({
         relationTo: 'rep-info';
@@ -1734,6 +1760,22 @@ export interface MediaSelect<T extends boolean = true> {
               filename?: T;
             };
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "media-canvas_select".
+ */
+export interface MediaCanvasSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  image?: T;
+  heading?: T;
+  subheading?: T;
+  posX?: T;
+  posY?: T;
+  scale?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
