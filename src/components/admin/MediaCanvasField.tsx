@@ -6,6 +6,7 @@ import { Button, useField, useFormFields } from '@payloadcms/ui'
 // Fixed OG dimensions
 const CANVAS_W = 1200
 const CANVAS_H = 630
+const DEFAULT_TEXT_WIDTH = CANVAS_W - 36 * 2
 
 // Utility to derive an absolute media URL from a media field value
 const deriveMediaURL = async (val: any): Promise<string | null> => {
@@ -152,6 +153,8 @@ const MediaCanvasField: React.FC = () => {
   const { value: headingY, setValue: setHeadingY } = useNumberField('headingY', 630 - 36 - 120)
   const { value: subheadingX, setValue: setSubheadingX } = useNumberField('subheadingX', 36)
   const { value: subheadingY, setValue: setSubheadingY } = useNumberField('subheadingY', 630 - 36 - 48)
+  const { value: headingWidth, setValue: setHeadingWidth } = useNumberField('headingWidth', DEFAULT_TEXT_WIDTH)
+  const { value: subheadingWidth, setValue: setSubheadingWidth } = useNumberField('subheadingWidth', DEFAULT_TEXT_WIDTH)
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [img, setImg] = useState<HTMLImageElement | null>(null)
@@ -159,6 +162,7 @@ const MediaCanvasField: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
+  const [hoverTarget, setHoverTarget] = useState<'heading' | 'subheading' | 'heading-resize' | 'subheading-resize' | null>(null)
 
   // Load image whenever field changes
   useEffect(() => {
@@ -236,13 +240,13 @@ const MediaCanvasField: React.FC = () => {
 
     // Text overlay (draggable)
     const pad = 36
-    const maxWidth = CANVAS_W - pad * 2
+    const fallbackMax = CANVAS_W - pad * 2
     // Heading
     if (heading) {
       drawText(ctx, heading, {
         x: headingX || pad,
         y: headingY || (CANVAS_H - pad - 120),
-        maxWidth,
+        maxWidth: headingWidth || fallbackMax,
         font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
         color: '#ffffff',
         lineHeight: 56,
@@ -253,23 +257,80 @@ const MediaCanvasField: React.FC = () => {
       drawText(ctx, subheading, {
         x: subheadingX || pad,
         y: subheadingY || (CANVAS_H - pad - 48),
-        maxWidth,
+        maxWidth: subheadingWidth || fallbackMax,
         font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
         color: '#f1f5f9',
         lineHeight: 36,
       })
     }
-  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY])
+
+    // Hover outline around clickable text boxes
+    if (hoverTarget) {
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+      ctx.lineWidth = 2
+      ctx.setLineDash([6, 4])
+      const handleSize = 14
+      const handleOffset = 8
+      if ((hoverTarget === 'heading' || hoverTarget === 'heading-resize') && heading) {
+        // Match hitTest bounds
+        const hb = measureWrappedText(
+          ctx,
+          heading,
+          { maxWidth: headingWidth || fallbackMax, font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial', lineHeight: 56 },
+        )
+        const hx = headingX || pad
+        const hy = (headingY || (CANVAS_H - pad - 120))
+        const hTop = hy - 0.8 * 56
+        const hBottom = hy + hb.height
+        const margin = 6
+        ctx.strokeRect(hx - margin, hTop - margin, hb.width + margin * 2, (hBottom - hTop) + margin * 2)
+        // Draw resize handle
+        const centerY = (hTop + hBottom) / 2
+        const handleX = hx + hb.width + handleOffset - handleSize / 2
+        const handleY = centerY - handleSize / 2
+        ctx.setLineDash([])
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+        ctx.fillRect(handleX, handleY, handleSize, handleSize)
+        ctx.strokeRect(handleX, handleY, handleSize, handleSize)
+      } else if ((hoverTarget === 'subheading' || hoverTarget === 'subheading-resize') && subheading) {
+        const sb = measureWrappedText(
+          ctx,
+          subheading,
+          { maxWidth: subheadingWidth || fallbackMax, font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial', lineHeight: 36 },
+        )
+        const sx = subheadingX || pad
+        const sy = (subheadingY || (CANVAS_H - pad - 48))
+        const sTop = sy - 0.8 * 36
+        const sBottom = sy + sb.height
+        const margin = 6
+        ctx.strokeRect(sx - margin, sTop - margin, sb.width + margin * 2, (sBottom - sTop) + margin * 2)
+        // Draw resize handle
+        const centerY = (sTop + sBottom) / 2
+        const handleX = sx + sb.width + handleOffset - handleSize / 2
+        const handleY = centerY - handleSize / 2
+        ctx.setLineDash([])
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+        ctx.fillRect(handleX, handleY, handleSize, handleSize)
+        ctx.strokeRect(handleX, handleY, handleSize, handleSize)
+      }
+      ctx.restore()
+    }
+  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY, headingWidth, subheadingWidth, hoverTarget])
 
   // Pointer interactions
   const dragState = useRef<
     | { mode: 'image'; startX: number; startY: number; baseX: number; baseY: number }
     | { mode: 'heading'; startX: number; startY: number; baseX: number; baseY: number }
     | { mode: 'subheading'; startX: number; startY: number; baseX: number; baseY: number }
+    | { mode: 'heading-resize'; startX: number; baseWidth: number }
+    | { mode: 'subheading-resize'; startX: number; baseWidth: number }
     | null
   >(null)
 
-  const hitTest = (e: React.PointerEvent<HTMLCanvasElement>): 'heading' | 'subheading' | null => {
+  const hitTest = (e: React.PointerEvent<HTMLCanvasElement>): 'heading' | 'subheading' | 'heading-resize' | 'subheading-resize' | null => {
     const canvas = canvasRef.current
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
@@ -279,14 +340,14 @@ const MediaCanvasField: React.FC = () => {
     const py = (e.clientY - rect.top) * scaleY
 
     const pad = 36
-    const maxWidth = CANVAS_W - pad * 2
+    const fallbackMax = CANVAS_W - pad * 2
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
     // Heading bounds
     if (heading) {
       const hb = measureWrappedText(ctx, heading, {
-        maxWidth,
+        maxWidth: headingWidth || fallbackMax,
         font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
         lineHeight: 56,
       })
@@ -294,12 +355,20 @@ const MediaCanvasField: React.FC = () => {
       const hy = (headingY || (CANVAS_H - pad - 120))
       const hTop = hy - 0.8 * 56
       const hBottom = hy + hb.height
+      // Resize handle hit (right-center)
+      const handleSize = 14
+      const handleOffset = 8
+      const centerY = (hTop + hBottom) / 2
+      const handleX = hx + hb.width + handleOffset - handleSize / 2
+      const handleY = centerY - handleSize / 2
+      if (px >= handleX && px <= handleX + handleSize && py >= handleY && py <= handleY + handleSize) return 'heading-resize'
+      // Body hit
       if (px >= hx && px <= hx + hb.width && py >= hTop && py <= hBottom) return 'heading'
     }
     // Subheading bounds
     if (subheading) {
       const sb = measureWrappedText(ctx, subheading, {
-        maxWidth,
+        maxWidth: subheadingWidth || fallbackMax,
         font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
         lineHeight: 36,
       })
@@ -307,6 +376,12 @@ const MediaCanvasField: React.FC = () => {
       const sy = (subheadingY || (CANVAS_H - pad - 48))
       const sTop = sy - 0.8 * 36
       const sBottom = sy + sb.height
+      const handleSize = 14
+      const handleOffset = 8
+      const centerY = (sTop + sBottom) / 2
+      const handleX = sx + sb.width + handleOffset - handleSize / 2
+      const handleY = centerY - handleSize / 2
+      if (px >= handleX && px <= handleX + handleSize && py >= handleY && py <= handleY + handleSize) return 'subheading-resize'
       if (px >= sx && px <= sx + sb.width && py >= sTop && py <= sBottom) return 'subheading'
     }
     return null
@@ -315,16 +390,26 @@ const MediaCanvasField: React.FC = () => {
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
     const hit = hitTest(e)
+    setHoverTarget(hit)
     if (hit === 'heading') {
       dragState.current = { mode: 'heading', startX: e.clientX, startY: e.clientY, baseX: headingX || 0, baseY: headingY || 0 }
     } else if (hit === 'subheading') {
       dragState.current = { mode: 'subheading', startX: e.clientX, startY: e.clientY, baseX: subheadingX || 0, baseY: subheadingY || 0 }
+    } else if (hit === 'heading-resize') {
+      dragState.current = { mode: 'heading-resize', startX: e.clientX, baseWidth: headingWidth || DEFAULT_TEXT_WIDTH }
+    } else if (hit === 'subheading-resize') {
+      dragState.current = { mode: 'subheading-resize', startX: e.clientX, baseWidth: subheadingWidth || DEFAULT_TEXT_WIDTH }
     } else {
       dragState.current = { mode: 'image', startX: e.clientX, startY: e.clientY, baseX: posX || 0, baseY: posY || 0 }
     }
   }
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!dragState.current) return
+    // Update hover when not dragging
+    if (!dragState.current) {
+      const hit = hitTest(e)
+      setHoverTarget(prev => (prev === hit ? prev : hit))
+      return
+    }
     const dx = e.clientX - dragState.current.startX
     const dy = e.clientY - dragState.current.startY
     if (dragState.current.mode === 'image') {
@@ -336,10 +421,22 @@ const MediaCanvasField: React.FC = () => {
     } else if (dragState.current.mode === 'subheading') {
       setSubheadingX(dragState.current.baseX + dx)
       setSubheadingY(dragState.current.baseY + dy)
+    } else if (dragState.current.mode === 'heading-resize') {
+      const minW = 100
+      const maxW = DEFAULT_TEXT_WIDTH
+      setHeadingWidth(clamp(dragState.current.baseWidth + dx, minW, maxW))
+    } else if (dragState.current.mode === 'subheading-resize') {
+      const minW = 100
+      const maxW = DEFAULT_TEXT_WIDTH
+      setSubheadingWidth(clamp(dragState.current.baseWidth + dx, minW, maxW))
     }
   }
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     dragState.current = null
+  }
+
+  const onPointerLeave = () => {
+    setHoverTarget(null)
   }
 
   // Wheel to zoom (around center)
@@ -568,10 +665,11 @@ const MediaCanvasField: React.FC = () => {
             ref={canvasRef}
             width={CANVAS_W}
             height={CANVAS_H}
-            style={{ width: '100%', height: 'auto', cursor: img ? 'grab' as const : 'default' }}
+            style={{ width: '100%', height: 'auto', cursor: img ? (hoverTarget ? ((hoverTarget === 'heading-resize' || hoverTarget === 'subheading-resize') ? 'ew-resize' : 'move') : 'grab') : 'default' }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}
+            onPointerLeave={onPointerLeave}
             onWheel={onWheel}
           />
         </div>
