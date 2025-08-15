@@ -959,6 +959,10 @@ export interface MediaCanva {
   posX?: number | null;
   posY?: number | null;
   scale?: number | null;
+  headingX?: number | null;
+  headingY?: number | null;
+  subheadingX?: number | null;
+  subheadingY?: number | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1774,6 +1778,10 @@ export interface MediaCanvasSelect<T extends boolean = true> {
   posX?: T;
   posY?: T;
   scale?: T;
+  headingX?: T;
+  headingY?: T;
+  subheadingX?: T;
+  subheadingY?: T;
   updatedAt?: T;
   createdAt?: T;
 }

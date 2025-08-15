@@ -69,6 +69,35 @@ export const MediaCanvas: CollectionConfig = {
       defaultValue: 1,
       admin: { hidden: true },
     },
+    // Text positions (persisted)
+    {
+      name: 'headingX',
+      type: 'number',
+      label: 'Heading X',
+      defaultValue: 36,
+      admin: { hidden: true },
+    },
+    {
+      name: 'headingY',
+      type: 'number',
+      label: 'Heading Y',
+      defaultValue: 474, // 630 - 36 - 120
+      admin: { hidden: true },
+    },
+    {
+      name: 'subheadingX',
+      type: 'number',
+      label: 'Subheading X',
+      defaultValue: 36,
+      admin: { hidden: true },
+    },
+    {
+      name: 'subheadingY',
+      type: 'number',
+      label: 'Subheading Y',
+      defaultValue: 546, // 630 - 36 - 48
+      admin: { hidden: true },
+    },
     // UI Canvas Editor
     {
       name: 'editor',

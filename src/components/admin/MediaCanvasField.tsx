@@ -97,6 +97,41 @@ const drawText = (ctx: CanvasRenderingContext2D, text: string, opts: { x: number
   ctx.restore()
 }
 
+// Measure wrapped text similarly to drawText to get bounding box for hit-testing
+const measureWrappedText = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  opts: { maxWidth: number; font: string; lineHeight: number },
+): { width: number; height: number; lines: string[] } => {
+  const { maxWidth, font, lineHeight } = opts
+  const lines: string[] = []
+  if (!text) return { width: 0, height: 0, lines }
+  ctx.save()
+  ctx.font = font
+  const words = text.split(/\s+/)
+  let line = ''
+  let maxLineWidth = 0
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w
+    const { width } = ctx.measureText(test)
+    if (width > maxWidth && line) {
+      lines.push(line)
+      maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width)
+      line = w
+    } else {
+      line = test
+    }
+  }
+  if (line) {
+    lines.push(line)
+    maxLineWidth = Math.max(maxLineWidth, ctx.measureText(line).width)
+  }
+  ctx.restore()
+  const height = lines.length * lineHeight
+  const width = Math.min(maxLineWidth, maxWidth)
+  return { width, height, lines }
+}
+
 const MediaCanvasField: React.FC = () => {
   // Read sibling fields from the form
   const imageField = useFormFields(([fields]) => (fields as any)?.image?.value ?? (fields as any)?.image?.initialValue)
@@ -112,6 +147,11 @@ const MediaCanvasField: React.FC = () => {
   const { value: posX, setValue: setPosX } = useNumberField('posX', 0)
   const { value: posY, setValue: setPosY } = useNumberField('posY', 0)
   const { value: scale, setValue: setScale } = useNumberField('scale', 1)
+  // Text positions
+  const { value: headingX, setValue: setHeadingX } = useNumberField('headingX', 36)
+  const { value: headingY, setValue: setHeadingY } = useNumberField('headingY', 630 - 36 - 120)
+  const { value: subheadingX, setValue: setSubheadingX } = useNumberField('subheadingX', 36)
+  const { value: subheadingY, setValue: setSubheadingY } = useNumberField('subheadingY', 630 - 36 - 48)
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const [img, setImg] = useState<HTMLImageElement | null>(null)
@@ -194,14 +234,14 @@ const MediaCanvasField: React.FC = () => {
       ctx.drawImage(img, dx, dy, dw, dh)
     }
 
-    // Text overlay (simple)
+    // Text overlay (draggable)
     const pad = 36
     const maxWidth = CANVAS_W - pad * 2
     // Heading
     if (heading) {
       drawText(ctx, heading, {
-        x: pad,
-        y: CANVAS_H - pad - 120,
+        x: headingX || pad,
+        y: headingY || (CANVAS_H - pad - 120),
         maxWidth,
         font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
         color: '#ffffff',
@@ -211,29 +251,92 @@ const MediaCanvasField: React.FC = () => {
     // Subheading
     if (subheading) {
       drawText(ctx, subheading, {
-        x: pad,
-        y: CANVAS_H - pad - 48,
+        x: subheadingX || pad,
+        y: subheadingY || (CANVAS_H - pad - 48),
         maxWidth,
         font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
         color: '#f1f5f9',
         lineHeight: 36,
       })
     }
-  }, [img, posX, posY, scale, heading, subheading])
+  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY])
 
   // Pointer interactions
-  const dragState = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
+  const dragState = useRef<
+    | { mode: 'image'; startX: number; startY: number; baseX: number; baseY: number }
+    | { mode: 'heading'; startX: number; startY: number; baseX: number; baseY: number }
+    | { mode: 'subheading'; startX: number; startY: number; baseX: number; baseY: number }
+    | null
+  >(null)
+
+  const hitTest = (e: React.PointerEvent<HTMLCanvasElement>): 'heading' | 'subheading' | null => {
+    const canvas = canvasRef.current
+    if (!canvas) return null
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = CANVAS_W / rect.width
+    const scaleY = CANVAS_H / rect.height
+    const px = (e.clientX - rect.left) * scaleX
+    const py = (e.clientY - rect.top) * scaleY
+
+    const pad = 36
+    const maxWidth = CANVAS_W - pad * 2
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+
+    // Heading bounds
+    if (heading) {
+      const hb = measureWrappedText(ctx, heading, {
+        maxWidth,
+        font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
+        lineHeight: 56,
+      })
+      const hx = headingX || pad
+      const hy = (headingY || (CANVAS_H - pad - 120))
+      const hTop = hy - 0.8 * 56
+      const hBottom = hy + hb.height
+      if (px >= hx && px <= hx + hb.width && py >= hTop && py <= hBottom) return 'heading'
+    }
+    // Subheading bounds
+    if (subheading) {
+      const sb = measureWrappedText(ctx, subheading, {
+        maxWidth,
+        font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
+        lineHeight: 36,
+      })
+      const sx = subheadingX || pad
+      const sy = (subheadingY || (CANVAS_H - pad - 48))
+      const sTop = sy - 0.8 * 36
+      const sBottom = sy + sb.height
+      if (px >= sx && px <= sx + sb.width && py >= sTop && py <= sBottom) return 'subheading'
+    }
+    return null
+  }
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
-    dragState.current = { startX: e.clientX, startY: e.clientY, baseX: posX || 0, baseY: posY || 0 }
+    const hit = hitTest(e)
+    if (hit === 'heading') {
+      dragState.current = { mode: 'heading', startX: e.clientX, startY: e.clientY, baseX: headingX || 0, baseY: headingY || 0 }
+    } else if (hit === 'subheading') {
+      dragState.current = { mode: 'subheading', startX: e.clientX, startY: e.clientY, baseX: subheadingX || 0, baseY: subheadingY || 0 }
+    } else {
+      dragState.current = { mode: 'image', startX: e.clientX, startY: e.clientY, baseX: posX || 0, baseY: posY || 0 }
+    }
   }
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!dragState.current) return
     const dx = e.clientX - dragState.current.startX
     const dy = e.clientY - dragState.current.startY
-    setPosX(dragState.current.baseX + dx)
-    setPosY(dragState.current.baseY + dy)
+    if (dragState.current.mode === 'image') {
+      setPosX(dragState.current.baseX + dx)
+      setPosY(dragState.current.baseY + dy)
+    } else if (dragState.current.mode === 'heading') {
+      setHeadingX(dragState.current.baseX + dx)
+      setHeadingY(dragState.current.baseY + dy)
+    } else if (dragState.current.mode === 'subheading') {
+      setSubheadingX(dragState.current.baseX + dx)
+      setSubheadingY(dragState.current.baseY + dy)
+    }
   }
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
     dragState.current = null
