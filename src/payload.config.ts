@@ -28,11 +28,8 @@ import { Header } from './components/site/header/config';
 import { Footer } from './components/site/footer/config';
 
 // Misc imports
-import CustomDashboard from './components/admin/CustomDashboard';
 import { plugins } from '@/lib/plugins';
-import { CONTENT_COLLECTIONS } from './components/admin/collectionGroups';
 import { defaultLexical } from '@/collections/fields/defaultLexical';
-import { getServerSideURL } from '@/lib/utilities/getURL';
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
