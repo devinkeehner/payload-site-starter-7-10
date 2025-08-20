@@ -98,6 +98,79 @@ export const MediaCanvas: CollectionConfig = {
       defaultValue: 546, // 630 - 36 - 48
       admin: { hidden: true },
     },
+    {
+      name: 'headingWidth',
+      type: 'number',
+      label: 'Heading Width',
+      defaultValue: 1128, // 1200 - 36*2
+      admin: { hidden: true },
+    },
+    {
+      name: 'subheadingWidth',
+      type: 'number',
+      label: 'Subheading Width',
+      defaultValue: 1128, // 1200 - 36*2
+      admin: { hidden: true },
+    },
+    {
+      name: 'textBlocks',
+      label: 'Additional Text Blocks',
+      type: 'array',
+      labels: { singular: 'Text Block', plural: 'Text Blocks' },
+      admin: {
+        description: 'Add optional text boxes rendered on the canvas',
+      },
+      fields: [
+        {
+          name: 'text',
+          type: 'text',
+          label: 'Text',
+          defaultValue: 'New text',
+        },
+        {
+          name: 'x',
+          type: 'number',
+          label: 'X',
+          defaultValue: 36,
+          admin: { hidden: true },
+        },
+        {
+          name: 'y',
+          type: 'number',
+          label: 'Y',
+          defaultValue: 546,
+          admin: { hidden: true },
+        },
+        {
+          name: 'width',
+          type: 'number',
+          label: 'Width',
+          defaultValue: 1128,
+          admin: { hidden: true },
+        },
+        {
+          name: 'font',
+          type: 'text',
+          label: 'Font (CSS)',
+          defaultValue: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
+          admin: { hidden: true },
+        },
+        {
+          name: 'color',
+          type: 'text',
+          label: 'Color',
+          defaultValue: '#f1f5f9',
+          admin: { hidden: true },
+        },
+        {
+          name: 'lineHeight',
+          type: 'number',
+          label: 'Line Height',
+          defaultValue: 36,
+          admin: { hidden: true },
+        },
+      ],
+    },
     // UI Canvas Editor
     {
       name: 'editor',

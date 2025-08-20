@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, useField, useFormFields } from '@payloadcms/ui'
+import { Button, useField, useFormFields, useForm } from '@payloadcms/ui'
 
 // Fixed OG dimensions
 const CANVAS_W = 1200
@@ -162,7 +162,58 @@ const MediaCanvasField: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
-  const [hoverTarget, setHoverTarget] = useState<'heading' | 'subheading' | 'heading-resize' | 'subheading-resize' | null>(null)
+  const [hoverTarget, setHoverTarget] = useState<string | null>(null)
+
+  // Dynamic additional text blocks array (robust live reconstruction from form field store)
+  const fieldsState = useFormFields(([fields]) => fields) as any
+  const { dispatchFields } = useForm()
+  const { blocks: textBlocks, keys: textBlockKeys } = useMemo(() => {
+    if (!fieldsState) return { blocks: [], keys: [] as string[] }
+    // If Payload exposes whole-array value, prefer it
+    const direct = fieldsState?.textBlocks?.value ?? fieldsState?.textBlocks?.initialValue
+    if (Array.isArray(direct)) {
+      // Keys assumed to be numeric indices 0..n-1
+      return { blocks: direct, keys: direct.map((_, i) => String(i)) }
+    }
+    // Reconstruct from child paths: textBlocks.N.{text,x,y,width,font,color,lineHeight}
+    const keys = Object.keys(fieldsState as Record<string, unknown>) as string[]
+    const segSet = new Set<string>()
+    for (const k of keys) {
+      const m = /^textBlocks\.([^\.]+)\./.exec(k)
+      if (m && m[1]) segSet.add(m[1])
+    }
+    const result: any[] = []
+    const segs = Array.from(segSet).sort((a, b) => {
+      const ai = Number.isFinite(Number(a)) ? Number(a) : Number.POSITIVE_INFINITY
+      const bi = Number.isFinite(Number(b)) ? Number(b) : Number.POSITIVE_INFINITY
+      if (ai !== bi) return ai - bi
+      return a.localeCompare(b)
+    })
+    const getVal = (path: string, def: any) => {
+      const node = (fieldsState as any)[path]
+      const v = node?.value ?? node?.initialValue
+      return v !== undefined ? v : def
+    }
+    const pad = 36
+    for (const seg of segs) {
+      const blk: any = {}
+      blk.text = getVal(`textBlocks.${seg}.text`, 'New text') || 'New text'
+      blk.x = getVal(`textBlocks.${seg}.x`, pad)
+      blk.y = getVal(`textBlocks.${seg}.y`, 630 - pad - 48)
+      blk.width = getVal(`textBlocks.${seg}.width`, DEFAULT_TEXT_WIDTH)
+      blk.font = getVal(`textBlocks.${seg}.font`, '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial')
+      blk.color = getVal(`textBlocks.${seg}.color`, '#f1f5f9')
+      blk.lineHeight = getVal(`textBlocks.${seg}.lineHeight`, 36)
+      result.push(blk)
+    }
+    return { blocks: result, keys: segs }
+  }, [fieldsState])
+  const textBlocksRef = useRef<any[]>(textBlocks)
+  const textBlockKeysRef = useRef<string[]>(textBlockKeys)
+  useEffect(() => {
+    textBlocksRef.current = textBlocks
+    textBlockKeysRef.current = textBlockKeys
+  }, [JSON.stringify(textBlocks), JSON.stringify(textBlockKeys)])
 
   // Load image whenever field changes
   useEffect(() => {
@@ -264,6 +315,30 @@ const MediaCanvasField: React.FC = () => {
       })
     }
 
+    // Additional text blocks
+    if (textBlocks && textBlocks.length) {
+      for (let i = 0; i < textBlocks.length; i++) {
+        const b = textBlocks[i] || {}
+        const bx = typeof b.x === 'number' ? b.x : pad
+        const by = typeof b.y === 'number' ? b.y : (CANVAS_H - pad - 48)
+        const bWidth = typeof b.width === 'number' && b.width > 0 ? b.width : (DEFAULT_TEXT_WIDTH)
+        const bFont = typeof b.font === 'string' && b.font ? b.font : '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
+        const bColor = typeof b.color === 'string' && b.color ? b.color : '#f1f5f9'
+        const bLine = typeof b.lineHeight === 'number' && b.lineHeight > 0 ? b.lineHeight : 36
+        const bText = typeof b.text === 'string' && b.text !== undefined ? (b.text || 'New text') : 'New text'
+        if (bText) {
+          drawText(ctx, bText, {
+            x: bx,
+            y: by,
+            maxWidth: bWidth,
+            font: bFont,
+            color: bColor,
+            lineHeight: bLine,
+          })
+        }
+      }
+    }
+
     // Hover outline around clickable text boxes
     if (hoverTarget) {
       ctx.save()
@@ -315,10 +390,36 @@ const MediaCanvasField: React.FC = () => {
         ctx.strokeStyle = 'rgba(0,0,0,0.6)'
         ctx.fillRect(handleX, handleY, handleSize, handleSize)
         ctx.strokeRect(handleX, handleY, handleSize, handleSize)
+      } else if (hoverTarget?.startsWith('block') && textBlocks && textBlocks.length) {
+        const isResize = hoverTarget.startsWith('block-resize-')
+        const idxStr = hoverTarget.split('-').pop() || '0'
+        const i = parseInt(idxStr, 10)
+        const b = textBlocks[i] || {}
+        const bText = typeof b.text === 'string' && b.text !== undefined ? (b.text || 'New text') : 'New text'
+        const bx = typeof b.x === 'number' ? b.x : pad
+        const by = typeof b.y === 'number' ? b.y : (CANVAS_H - pad - 48)
+        const bWidth = typeof b.width === 'number' && b.width > 0 ? b.width : (DEFAULT_TEXT_WIDTH)
+        const bFont = typeof b.font === 'string' && b.font ? b.font : '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
+        const bLine = typeof b.lineHeight === 'number' && b.lineHeight > 0 ? b.lineHeight : 36
+        if (bText) {
+          const mb = measureWrappedText(ctx, bText, { maxWidth: bWidth, font: bFont, lineHeight: bLine })
+          const bTop = by - 0.8 * bLine
+          const bBottom = by + mb.height
+          const margin = 6
+          ctx.strokeRect(bx - margin, bTop - margin, mb.width + margin * 2, (bBottom - bTop) + margin * 2)
+          const centerY = (bTop + bBottom) / 2
+          const handleX = bx + mb.width + handleOffset - handleSize / 2
+          const handleY = centerY - handleSize / 2
+          ctx.setLineDash([])
+          ctx.fillStyle = 'rgba(255,255,255,0.95)'
+          ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+          ctx.fillRect(handleX, handleY, handleSize, handleSize)
+          ctx.strokeRect(handleX, handleY, handleSize, handleSize)
+        }
       }
       ctx.restore()
     }
-  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY, headingWidth, subheadingWidth, hoverTarget])
+  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY, headingWidth, subheadingWidth, JSON.stringify(textBlocks), hoverTarget])
 
   // Pointer interactions
   const dragState = useRef<
@@ -327,10 +428,12 @@ const MediaCanvasField: React.FC = () => {
     | { mode: 'subheading'; startX: number; startY: number; baseX: number; baseY: number }
     | { mode: 'heading-resize'; startX: number; baseWidth: number }
     | { mode: 'subheading-resize'; startX: number; baseWidth: number }
+    | { mode: 'block'; index: number; startX: number; startY: number; baseX: number; baseY: number }
+    | { mode: 'block-resize'; index: number; startX: number; baseWidth: number }
     | null
   >(null)
 
-  const hitTest = (e: React.PointerEvent<HTMLCanvasElement>): 'heading' | 'subheading' | 'heading-resize' | 'subheading-resize' | null => {
+  const hitTest = (e: React.PointerEvent<HTMLCanvasElement>): string | null => {
     const canvas = canvasRef.current
     if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
@@ -384,6 +487,30 @@ const MediaCanvasField: React.FC = () => {
       if (px >= handleX && px <= handleX + handleSize && py >= handleY && py <= handleY + handleSize) return 'subheading-resize'
       if (px >= sx && px <= sx + sb.width && py >= sTop && py <= sBottom) return 'subheading'
     }
+
+    // Blocks bounds (iterate from last to first so later blocks get priority)
+    if (textBlocks && textBlocks.length) {
+      for (let i = textBlocks.length - 1; i >= 0; i--) {
+        const b = textBlocks[i] || {}
+        const bText = typeof b.text === 'string' && b.text !== undefined ? (b.text || 'New text') : 'New text'
+        if (!bText) continue
+        const bFont = typeof b.font === 'string' && b.font ? b.font : '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
+        const bLine = typeof b.lineHeight === 'number' && b.lineHeight > 0 ? b.lineHeight : 36
+        const bx = typeof b.x === 'number' ? b.x : pad
+        const by = typeof b.y === 'number' ? b.y : (CANVAS_H - pad - 48)
+        const bWidth = typeof b.width === 'number' && b.width > 0 ? b.width : (DEFAULT_TEXT_WIDTH)
+        const mb = measureWrappedText(ctx, bText, { maxWidth: bWidth, font: bFont, lineHeight: bLine })
+        const bTop = by - 0.8 * bLine
+        const bBottom = by + mb.height
+        const handleSize = 14
+        const handleOffset = 8
+        const centerY = (bTop + bBottom) / 2
+        const handleX = bx + mb.width + handleOffset - handleSize / 2
+        const handleY = centerY - handleSize / 2
+        if (px >= handleX && px <= handleX + handleSize && py >= handleY && py <= handleY + handleSize) return `block-resize-${i}`
+        if (px >= bx && px <= bx + mb.width && py >= bTop && py <= bBottom) return `block-${i}`
+      }
+    }
     return null
   }
 
@@ -399,6 +526,17 @@ const MediaCanvasField: React.FC = () => {
       dragState.current = { mode: 'heading-resize', startX: e.clientX, baseWidth: headingWidth || DEFAULT_TEXT_WIDTH }
     } else if (hit === 'subheading-resize') {
       dragState.current = { mode: 'subheading-resize', startX: e.clientX, baseWidth: subheadingWidth || DEFAULT_TEXT_WIDTH }
+    } else if (hit?.startsWith('block-resize-')) {
+      const idx = parseInt(hit.split('-').pop() || '0', 10)
+      const curr = textBlocksRef.current[idx] || {}
+      const baseWidth = typeof curr.width === 'number' ? curr.width : DEFAULT_TEXT_WIDTH
+      dragState.current = { mode: 'block-resize', index: idx, startX: e.clientX, baseWidth }
+    } else if (hit?.startsWith('block-')) {
+      const idx = parseInt(hit.split('-').pop() || '0', 10)
+      const curr = textBlocksRef.current[idx] || {}
+      const baseX = typeof curr.x === 'number' ? curr.x : 0
+      const baseY = typeof curr.y === 'number' ? curr.y : 0
+      dragState.current = { mode: 'block', index: idx, startX: e.clientX, startY: e.clientY, baseX, baseY }
     } else {
       dragState.current = { mode: 'image', startX: e.clientX, startY: e.clientY, baseX: posX || 0, baseY: posY || 0 }
     }
@@ -411,7 +549,7 @@ const MediaCanvasField: React.FC = () => {
       return
     }
     const dx = e.clientX - dragState.current.startX
-    const dy = e.clientY - dragState.current.startY
+    const dy = 'startY' in dragState.current ? (e.clientY - dragState.current.startY) : 0
     if (dragState.current.mode === 'image') {
       setPosX(dragState.current.baseX + dx)
       setPosY(dragState.current.baseY + dy)
@@ -429,6 +567,22 @@ const MediaCanvasField: React.FC = () => {
       const minW = 100
       const maxW = DEFAULT_TEXT_WIDTH
       setSubheadingWidth(clamp(dragState.current.baseWidth + dx, minW, maxW))
+    } else if (dragState.current.mode === 'block') {
+      const i = dragState.current.index
+      const baseX = dragState.current.baseX
+      const baseY = dragState.current.baseY
+      const newX = baseX + dx
+      const newY = baseY + dy
+      const seg = textBlockKeysRef.current[i] ?? String(i)
+      dispatchFields({ type: 'UPDATE', path: `textBlocks.${seg}.x`, value: newX })
+      dispatchFields({ type: 'UPDATE', path: `textBlocks.${seg}.y`, value: newY })
+    } else if (dragState.current.mode === 'block-resize') {
+      const i = dragState.current.index
+      const minW = 100
+      const maxW = DEFAULT_TEXT_WIDTH
+      const newW = clamp(dragState.current.baseWidth + dx, minW, maxW)
+      const seg = textBlockKeysRef.current[i] ?? String(i)
+      dispatchFields({ type: 'UPDATE', path: `textBlocks.${seg}.width`, value: newW })
     }
   }
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -665,7 +819,7 @@ const MediaCanvasField: React.FC = () => {
             ref={canvasRef}
             width={CANVAS_W}
             height={CANVAS_H}
-            style={{ width: '100%', height: 'auto', cursor: img ? (hoverTarget ? ((hoverTarget === 'heading-resize' || hoverTarget === 'subheading-resize') ? 'ew-resize' : 'move') : 'grab') : 'default' }}
+            style={{ width: '100%', height: 'auto', cursor: img ? (hoverTarget ? ((hoverTarget.includes('resize')) ? 'ew-resize' : 'move') : 'grab') : 'default' }}
             onPointerDown={onPointerDown}
             onPointerMove={onPointerMove}
             onPointerUp={onPointerUp}

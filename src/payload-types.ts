@@ -963,6 +963,23 @@ export interface MediaCanva {
   headingY?: number | null;
   subheadingX?: number | null;
   subheadingY?: number | null;
+  headingWidth?: number | null;
+  subheadingWidth?: number | null;
+  /**
+   * Add optional text boxes rendered on the canvas
+   */
+  textBlocks?:
+    | {
+        text?: string | null;
+        x?: number | null;
+        y?: number | null;
+        width?: number | null;
+        font?: string | null;
+        color?: string | null;
+        lineHeight?: number | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1782,6 +1799,20 @@ export interface MediaCanvasSelect<T extends boolean = true> {
   headingY?: T;
   subheadingX?: T;
   subheadingY?: T;
+  headingWidth?: T;
+  subheadingWidth?: T;
+  textBlocks?:
+    | T
+    | {
+        text?: T;
+        x?: T;
+        y?: T;
+        width?: T;
+        font?: T;
+        color?: T;
+        lineHeight?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }

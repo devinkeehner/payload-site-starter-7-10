@@ -18,6 +18,11 @@ const nextConfig = {
           protocol: url.protocol.replace(':', ''),
         }
       }),
+      // Allow media assets served from R2/Cloudflare via our media domain
+      {
+        protocol: 'https',
+        hostname: 'media.cthousegop.com',
+      },
     ],
   },
   reactStrictMode: true,
