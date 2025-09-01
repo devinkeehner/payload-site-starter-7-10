@@ -69,9 +69,9 @@ export interface Config {
   collections: {
     posts: Post;
     pages: Page;
-    'wordpress-posts': WordpressPost;
     media: Media;
     'media-canvas': MediaCanva;
+    'wordpress-posts': WordpressPost;
     'rep-info': RepInfo;
     navbars: Navbar;
     'standard-media': StandardMedia;
@@ -95,9 +95,9 @@ export interface Config {
   collectionsSelect: {
     posts: PostsSelect<false> | PostsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
-    'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'media-canvas': MediaCanvasSelect<false> | MediaCanvasSelect<true>;
+    'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
     'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
     'standard-media': StandardMediaSelect<false> | StandardMediaSelect<true>;
@@ -169,7 +169,9 @@ export interface Post {
   id: string;
   tenant?: (string | null) | Tenant;
   title: string;
+  heroSource?: ('upload' | 'link') | null;
   heroImage?: (string | null) | Media;
+  heroExternalURL?: string | null;
   content: {
     root: {
       type: string;
@@ -913,37 +915,6 @@ export interface BannerBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "wordpress-posts".
- */
-export interface WordpressPost {
-  id: string;
-  tenant?: (string | null) | Tenant;
-  title: string;
-  slug?: string | null;
-  status?: ('published' | 'draft') | null;
-  publishedAt?: string | null;
-  excerpt?: string | null;
-  content?: string | null;
-  categories?: (string | Category)[] | null;
-  tags?: (string | Tag)[] | null;
-  author?: (string | null) | Author;
-  featuredImageUrl?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "authors".
- */
-export interface Author {
-  id: string;
-  login: string;
-  name?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media-canvas".
  */
 export interface MediaCanva {
@@ -980,6 +951,37 @@ export interface MediaCanva {
         id?: string | null;
       }[]
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wordpress-posts".
+ */
+export interface WordpressPost {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  title: string;
+  slug?: string | null;
+  status?: ('published' | 'draft') | null;
+  publishedAt?: string | null;
+  excerpt?: string | null;
+  content?: string | null;
+  categories?: (string | Category)[] | null;
+  tags?: (string | Tag)[] | null;
+  author?: (string | null) | Author;
+  featuredImageUrl?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "authors".
+ */
+export interface Author {
+  id: string;
+  login: string;
+  name?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1340,16 +1342,16 @@ export interface PayloadLockedDocument {
         value: string | Page;
       } | null)
     | ({
-        relationTo: 'wordpress-posts';
-        value: string | WordpressPost;
-      } | null)
-    | ({
         relationTo: 'media';
         value: string | Media;
       } | null)
     | ({
         relationTo: 'media-canvas';
         value: string | MediaCanva;
+      } | null)
+    | ({
+        relationTo: 'wordpress-posts';
+        value: string | WordpressPost;
       } | null)
     | ({
         relationTo: 'rep-info';
@@ -1460,7 +1462,9 @@ export interface PayloadMigration {
 export interface PostsSelect<T extends boolean = true> {
   tenant?: T;
   title?: T;
+  heroSource?: T;
   heroImage?: T;
+  heroExternalURL?: T;
   content?: T;
   meta?:
     | T
@@ -1671,25 +1675,6 @@ export interface BannerBlockSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "wordpress-posts_select".
- */
-export interface WordpressPostsSelect<T extends boolean = true> {
-  tenant?: T;
-  title?: T;
-  slug?: T;
-  status?: T;
-  publishedAt?: T;
-  excerpt?: T;
-  content?: T;
-  categories?: T;
-  tags?: T;
-  author?: T;
-  featuredImageUrl?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
@@ -1813,6 +1798,25 @@ export interface MediaCanvasSelect<T extends boolean = true> {
         lineHeight?: T;
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "wordpress-posts_select".
+ */
+export interface WordpressPostsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  slug?: T;
+  status?: T;
+  publishedAt?: T;
+  excerpt?: T;
+  content?: T;
+  categories?: T;
+  tags?: T;
+  author?: T;
+  featuredImageUrl?: T;
   updatedAt?: T;
   createdAt?: T;
 }

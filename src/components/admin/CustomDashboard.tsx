@@ -4,9 +4,9 @@ import { CONTENT_COLLECTIONS } from './collectionGroups';
 const GROUPS: Record<string, { slug: string; label: string }[]> = {
   Content: CONTENT_COLLECTIONS,
   'Site Settings': [
-    { slug: 'rep-info', label: 'Rep Info' },
-    { slug: 'navbars', label: 'Navbars' },
-    { slug: 'standard-media', label: 'Standard Photos' },
+    { slug: 'rep-info', label: 'Rep & District Settings' },
+    { slug: 'navbars', label: 'Navbar' },
+    { slug: 'standard-media', label: 'Banners and Social Images' },
     { slug: 'site-seo', label: 'Site SEO' },
   ],
   'Forms & Submissions': [

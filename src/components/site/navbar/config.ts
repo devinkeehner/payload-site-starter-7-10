@@ -5,6 +5,10 @@ import { link } from '@/collections/fields/link'
 
 export const Navbar: CollectionConfig = {
   slug: 'navbars',
+  labels: {
+    singular: 'Navbar',
+    plural: 'Navbar',
+  },
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'updatedAt'],
