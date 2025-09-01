@@ -5,8 +5,8 @@ import { anyone } from '@/lib/access/anyone'
 
 export const MediaCanvas: CollectionConfig = {
   labels: {
-    singular: 'Media Canvas',
-    plural: 'Media Canvas',
+    singular: 'Canvas',
+    plural: 'Canvas',
   },
   slug: 'media-canvas',
   admin: {

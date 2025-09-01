@@ -76,9 +76,9 @@ export default buildConfig({
     // Content
     Posts,
     Pages,
-    WordpressPosts,
     Media,
     MediaCanvas,
+    WordpressPosts,
     // Site Settings
     RepInfo,
     Navbar,

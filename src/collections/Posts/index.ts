@@ -485,9 +485,31 @@ export const Posts: CollectionConfig<'posts'> = {
         {
           fields: [
             {
+              name: 'heroSource',
+              type: 'radio',
+              options: [
+                { label: 'Upload', value: 'upload' },
+                { label: 'Link', value: 'link' },
+              ],
+              defaultValue: 'upload',
+              admin: { layout: 'horizontal' },
+            },
+            {
               name: 'heroImage',
+              label: 'Hero Image/Video',
               type: 'upload',
               relationTo: 'media',
+              admin: {
+                condition: (_data, siblingData) => (siblingData?.heroSource ?? 'upload') === 'upload',
+              },
+            },
+            {
+              name: 'heroExternalURL',
+              label: 'External Image/Video URL',
+              type: 'text',
+              admin: {
+                condition: (_data, siblingData) => siblingData?.heroSource === 'link',
+              },
             },
             {
               name: 'content',

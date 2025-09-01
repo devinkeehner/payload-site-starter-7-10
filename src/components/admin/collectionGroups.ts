@@ -2,7 +2,7 @@
 export const CONTENT_COLLECTIONS = [
   { slug: 'posts', label: 'Posts' },
   { slug: 'pages', label: 'Pages' },
-  { slug: 'wordpress-posts', label: 'Wordpress Archive' },
   { slug: 'media', label: 'Media' },
-  { slug: 'media-canvas', label: 'Media Canvas' },
+  { slug: 'media-canvas', label: 'Canvas' },
+  { slug: 'wordpress-posts', label: 'Wordpress Archive' },
 ];

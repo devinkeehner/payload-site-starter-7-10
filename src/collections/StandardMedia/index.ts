@@ -2,8 +2,8 @@ import type { CollectionConfig } from 'payload'
 
 export const StandardMedia: CollectionConfig = {
   labels: {
-    singular: 'Standard Photos',
-    plural: 'Standard Photos',
+    singular: 'Banners and Social Images',
+    plural: 'Banners and Social Images',
   },
   slug: 'standard-media',
   admin: {

@@ -2,8 +2,8 @@ import type { CollectionConfig } from 'payload'
 
 export const RepInfo: CollectionConfig = {
   labels: {
-    singular: 'Rep Info',
-    plural: 'Rep Info',
+    singular: 'Rep & District Settings',
+    plural: 'Rep & District Settings',
   },
   slug: 'rep-info',
   admin: {
