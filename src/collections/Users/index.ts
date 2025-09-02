@@ -37,6 +37,16 @@ export const Users: CollectionConfig = {
       ],
       defaultValue: [],
       admin: { position: 'sidebar' },
+      saveToJWT: true,
+    },
+    {
+      name: 'tenants',
+      type: 'relationship',
+      relationTo: 'tenants',
+      hasMany: true,
+      admin: { position: 'sidebar' },
+      // Persist assigned sites into JWT so filters apply immediately on login
+      saveToJWT: true,
     },
   ],
   timestamps: true,
