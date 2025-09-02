@@ -37,8 +37,20 @@ const dirname = path.dirname(filename);
 export default buildConfig({
   admin: {
     components: {
+<<<<<<< HEAD
       // Wrap the admin UI with a lightweight provider that renders a small tenant badge
       providers: ['@/components/admin/TenantBadgeProvider#default'],
+=======
+      Breadcrumbs: {
+        Component: './components/admin/TenantBreadcrumb',
+      },
+      views: {
+        Dashboard: {
+          Component: './components/admin/CustomDashboard',
+          path: '/',
+        } as any,
+      },
+>>>>>>> c985fd99d0671ff6a542a62758171647f05cde66
     },
     importMap: {
       baseDir: path.resolve(dirname),

@@ -1,5 +1,6 @@
 'use client'
 
+<<<<<<< HEAD
 import React, { useEffect, useMemo, useState } from 'react'
 
 // Minimal tenant type
@@ -58,3 +59,28 @@ export const TenantBreadcrumb: React.FC = () => {
     </div>
   )
 }
+=======
+import React from 'react'
+import Link from 'next/link'
+import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+
+export const TenantBreadcrumb = ({ children }: { children?: React.ReactNode }) => {
+  const { selectedTenantID, options } = useTenantSelection()
+  const label = options.find((o) => o.value === selectedTenantID)?.label
+
+  if (!label) {
+    return <>{children}</>
+  }
+
+  return (
+    <>
+      <li>
+        <Link href="/admin">{label}</Link>
+      </li>
+      {children}
+    </>
+  )
+}
+
+export default TenantBreadcrumb
+>>>>>>> c985fd99d0671ff6a542a62758171647f05cde66
