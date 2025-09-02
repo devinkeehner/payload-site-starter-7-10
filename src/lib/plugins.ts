@@ -228,7 +228,13 @@ export const plugins: Plugin[] = [
       const traverse = (fields: Field[]): void => {
         fields.forEach((field) => {
           if ('name' in field && field.name === 'tenant') field.label = 'Site'
-          if ('name' in field && field.name === 'tenants') field.label = 'Sites'
+          if ('name' in field && field.name === 'tenants') {
+            field.label = 'Sites'
+            // Ensure assigned sites are included in the JWT so filtering applies on login
+            if (collection.slug === 'users') {
+              ;(field as any).saveToJWT = true
+            }
+          }
           if ('fields' in field && Array.isArray(field.fields)) {
             traverse(field.fields as Field[])
           }
