@@ -216,7 +216,7 @@ export const plugins: Plugin[] = [
       media: {},
       'media-canvas': {},
       'standard-media': { isGlobal: true },
-      'rep-info': { isGlobal: true },
+      'rep-info': {},
       'site-seo': { isGlobal: true },
       forms: {},
       'form-submissions': {},
