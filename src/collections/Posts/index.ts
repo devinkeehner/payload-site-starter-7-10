@@ -16,6 +16,7 @@ import { authenticatedOrPublished } from '../../lib/access/authenticatedOrPublis
 import { BannerConfig } from '@/components/blocks/banner-block/config'
 import { CodeBlockConfig } from '@/components/blocks/code-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
+import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 
@@ -519,7 +520,7 @@ export const Posts: CollectionConfig<'posts'> = {
                   return [
                     ...rootFeatures,
                     HeadingFeature({ enabledHeadingSizes: ['h1', 'h2', 'h3', 'h4'] }),
-                    BlocksFeature({ blocks: [BannerConfig, CodeBlockConfig, MediaBlockConfig] }),
+                    BlocksFeature({ blocks: [BannerConfig, CodeBlockConfig, MediaBlockConfig, FormBlockConfig] }),
                     FixedToolbarFeature(),
                     InlineToolbarFeature(),
                     HorizontalRuleFeature(),
