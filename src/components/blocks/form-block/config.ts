@@ -16,6 +16,12 @@ export const FormBlockConfig: Block = {
       type: 'relationship',
       relationTo: 'forms',
       required: true,
+      // Ensure only forms from the currently selected tenant (site) are selectable
+      filterOptions: ({ req }) => {
+        const t: any = (req as any)?.tenant
+        const tenantID = typeof t === 'string' ? t : t?.id
+        return tenantID ? { tenant: { equals: tenantID } } : {}
+      },
     },
     {
       name: 'enableIntro',
