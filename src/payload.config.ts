@@ -37,9 +37,6 @@ const dirname = path.dirname(filename);
 export default buildConfig({
   admin: {
     components: {
-      Breadcrumbs: {
-        Component: './components/admin/TenantBreadcrumb',
-      },
       views: {
         Dashboard: {
           Component: './components/admin/CustomDashboard',
