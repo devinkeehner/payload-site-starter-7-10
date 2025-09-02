@@ -1,40 +1,16 @@
 'use client'
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { CONTENT_COLLECTIONS } from './collectionGroups';
-
-// Dashboard groups mirror sidebar order
-const GROUPS: Record<string, { slug: string; label: string }[]> = {
-  Content: CONTENT_COLLECTIONS,
-  'Site Settings': [
-    { slug: 'rep-info', label: 'Rep & District Settings' },
-    { slug: 'navbars', label: 'Navbar' },
-    { slug: 'standard-media', label: 'Banners and Social Images' },
-    { slug: 'site-seo', label: 'Site SEO' },
-  ],
-  'Forms & Submissions': [
-    { slug: 'forms', label: 'Forms' },
-    { slug: 'form-submissions', label: 'Form Submissions' },
-  ],
-  Admin: [
-    { slug: 'categories', label: 'Categories' },
-    { slug: 'users', label: 'Users' },
-    { slug: 'tenants', label: 'Sites' },
-  ],
-  Misc: [
-    { slug: 'authors', label: 'Authors' },
-    { slug: 'tags', label: 'Tags' },
-  ],
-};
+import React, { useEffect, useMemo, useState } from 'react'
 
 // Minimal tenant type
 type Tenant = { id: string; name?: string | null; slug?: string | null }
 
-// Best-effort read of current tenant selection from cookies set by the multi-tenant plugin
+// Attempt to read current tenant ID from cookies set by the multi-tenant plugin
 const readSelectedTenantIDFromCookies = (): string | undefined => {
   if (typeof document === 'undefined') return undefined
   try {
     const cookies = document.cookie.split(';').map((c) => c.trim())
+    // Heuristic: check common keys used by multi-tenant plugins
     const guesses = ['payload-tenant', 'tenant', 'selectedTenant', 'currentTenant']
     for (const key of guesses) {
       const found = cookies.find((c) => c.startsWith(key + '='))
@@ -44,7 +20,7 @@ const readSelectedTenantIDFromCookies = (): string | undefined => {
   return undefined
 }
 
-const TenantBreadcrumb: React.FC = () => {
+export const TenantBreadcrumb: React.FC = () => {
   const [tenant, setTenant] = useState<Tenant | null>(null)
   const [tenantID, setTenantID] = useState<string | undefined>(undefined)
 
@@ -82,24 +58,3 @@ const TenantBreadcrumb: React.FC = () => {
     </div>
   )
 }
-
-const CustomDashboard = () => (
-  <div style={{ padding: '2rem' }}>
-    <h1 style={{ margin: 0, marginBottom: '1rem' }}>Custom Dashboard</h1>
-    <TenantBreadcrumb />
-    {Object.entries(GROUPS).map(([group, links]) => (
-      <section key={group} style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{group}</h2>
-        <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem' }}>
-          {links.map(({ slug, label }) => (
-            <li key={slug}>
-              <a href={`/admin/collections/${slug}`}>{label}</a>
-            </li>
-          ))}
-        </ul>
-      </section>
-    ))}
-  </div>
-);
-
-export default CustomDashboard;

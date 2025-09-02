@@ -41,9 +41,9 @@ import { RowLabel as RowLabel_6c7dc7ac5edec7fc90cbdfeee7e3fb62 } from '@/compone
 import { RowLabel as RowLabel_85c06c685452ea6602918f9aec823dac } from '@/components/site/footer/row-label'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { TenantSelector as TenantSelector_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
+import { default as default_0eca8e1f770b286147f066629322290a } from '@/components/admin/TenantBadgeProvider'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
-import { default as default_d9529890fa20de5c8f810a9f7021b88f } from '../../../components/admin/CustomDashboard'
 
 export const importMap = {
   "@payloadcms/plugin-multi-tenant/client#TenantField": TenantField_1d0591e3cf4f332c83a86da13a0de59a,
@@ -89,7 +89,7 @@ export const importMap = {
   "@/components/site/footer/row-label#RowLabel": RowLabel_85c06c685452ea6602918f9aec823dac,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/plugin-multi-tenant/client#TenantSelector": TenantSelector_1d0591e3cf4f332c83a86da13a0de59a,
+  "@/components/admin/TenantBadgeProvider#default": default_0eca8e1f770b286147f066629322290a,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
-  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
-  "./components/admin/CustomDashboard#default": default_d9529890fa20de5c8f810a9f7021b88f
+  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }
