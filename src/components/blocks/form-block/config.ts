@@ -20,7 +20,7 @@ export const FormBlockConfig: Block = {
       filterOptions: ({ req }) => {
         const t: any = (req as any)?.tenant
         const tenantID = typeof t === 'string' ? t : t?.id
-        return tenantID ? { tenant: { equals: tenantID } } : {}
+        return tenantID ? { tenant: { equals: tenantID } } : true
       },
     },
     {
