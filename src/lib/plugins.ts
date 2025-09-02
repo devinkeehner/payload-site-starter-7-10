@@ -233,6 +233,14 @@ export const plugins: Plugin[] = [
             // Ensure assigned sites are included in the JWT so filtering applies on login
             if (collection.slug === 'users') {
               ;(field as any).saveToJWT = true
+              // Also persist the nested relationship field so the JWT contains IDs
+              if ('fields' in field && Array.isArray((field as any).fields)) {
+                ;((field as any).fields as Field[]).forEach((sub) => {
+                  if ('name' in sub && sub.name === 'tenant') {
+                    ;(sub as any).saveToJWT = true
+                  }
+                })
+              }
             }
           }
           if ('fields' in field && Array.isArray(field.fields)) {
