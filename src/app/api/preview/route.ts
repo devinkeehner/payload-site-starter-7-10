@@ -1,5 +1,7 @@
 import { draftMode } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
+import { getPayload } from 'payload'
+import configPromise from '@payload-config'
 
 const collectionPrefixMap = {
   posts: '/posts',
@@ -24,11 +26,32 @@ export async function GET(req: NextRequest) {
   const collection = req.nextUrl.searchParams.get('collection') || ''
   let path = req.nextUrl.searchParams.get('path') || '/'
 
-  if (slug && collection && collection in collectionPrefixMap) {
+  // Optional tenant-aware redirect for posts/pages: when a tenant ID is sent, resolve its slug
+  // and redirect to /[tenantSlug]/[slug]
+  const tenantID = req.nextUrl.searchParams.get('tenant') || ''
+  if ((collection === 'posts' || collection === 'pages') && slug && tenantID) {
+    try {
+      const payload = await getPayload({ config: configPromise })
+      const tenant = await payload.findByID({ collection: 'tenants', id: tenantID })
+      if (tenant?.slug) {
+        path = `/${tenant.slug}/${slug}`
+      } else {
+        // Fallback to collection-based path
+        const key = collection as keyof typeof collectionPrefixMap
+        path = `${collectionPrefixMap[key]}/${slug}`
+      }
+    } catch (e) {
+      const key = collection as keyof typeof collectionPrefixMap
+      path = `${collectionPrefixMap[key]}/${slug}`
+    }
+  } else if (slug && collection && (collection as keyof typeof collectionPrefixMap) in collectionPrefixMap) {
     path = `${collectionPrefixMap[collection as keyof typeof collectionPrefixMap]}/${slug}`
   }
 
-  const redirectURL = new URL(path, req.nextUrl.origin)
+  // Allow redirecting to a separate frontend site
+  const externalOrigin = process.env.PREVIEW_FRONTEND_ORIGIN || ''
+  const baseOrigin = externalOrigin || req.nextUrl.origin
+  const redirectURL = new URL(path, baseOrigin)
 
   // Attach Payload preview JWT so the front-end can fetch drafts from the API
   const token = process.env.PAYLOAD_PREVIEW_JWT || ''

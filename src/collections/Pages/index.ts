@@ -45,6 +45,10 @@ export const Pages: CollectionConfig<'pages'> = {
         const path = generatePreviewAPIUrl({
           slug: typeof data?.slug === 'string' ? data.slug : '',
           collection: 'pages',
+          tenantId:
+            (typeof (data as any)?.tenant === 'string'
+              ? ((data as any).tenant as string)
+              : (data as any)?.tenant?.id) || undefined,
         })
 
         return path
@@ -55,6 +59,10 @@ export const Pages: CollectionConfig<'pages'> = {
         slug: typeof data?.slug === 'string' ? data.slug : '',
         collection: 'pages',
         req,
+        tenantId:
+          (typeof (data as any)?.tenant === 'string'
+            ? ((data as any).tenant as string)
+            : (data as any)?.tenant?.id) || undefined,
       }),
     useAsTitle: 'title',
   },

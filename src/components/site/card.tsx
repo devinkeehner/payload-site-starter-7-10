@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import useClickableCard from '@/lib/utilities/useClickableCard'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import React, { Fragment } from 'react'
 // Use a lightweight data shape for cards so various sources (posts, search index)
 // can supply minimal fields without strict Payload types
@@ -38,6 +39,7 @@ export function Card({
   title: titleFromProps,
 }: CardProps) {
   const { card, link } = useClickableCard({})
+  const pathname = usePathname()
 
   if (!doc) return null
 
@@ -47,7 +49,18 @@ export function Card({
   const hasCategories = categories && Array.isArray(categories) && categories.length > 0
   const titleToUse = titleFromProps || title
   const sanitizedDescription = description?.replace(/\s/g, ' ')
-  const href = `/${relationTo}/${slug}`
+  // Derive current tenant slug from the first URL segment if present
+  const firstSeg = (() => {
+    try {
+      const parts = (pathname || '').split('/').filter(Boolean)
+      return parts[0] || ''
+    } catch {
+      return ''
+    }
+  })()
+  const nonTenantRoots = new Set(['posts', 'search', 'admin', 'api'])
+  const tenantSlug = firstSeg && !nonTenantRoots.has(firstSeg) ? firstSeg : ''
+  const href = relationTo === 'posts' && slug ? (tenantSlug ? `/${tenantSlug}/${slug}` : `/posts/${slug}`) : `/${relationTo}/${slug}`
 
   return (
     <article
