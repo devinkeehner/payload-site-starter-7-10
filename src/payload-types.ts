@@ -1006,6 +1006,8 @@ export interface RepInfo {
   youtube?: string | null;
   instagram?: string | null;
   x?: string | null;
+  flickrTag?: string | null;
+  flickrURL?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1840,6 +1842,8 @@ export interface RepInfoSelect<T extends boolean = true> {
   youtube?: T;
   instagram?: T;
   x?: T;
+  flickrTag?: T;
+  flickrURL?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -77,5 +77,17 @@ export const RepInfo: CollectionConfig = {
       type: 'text',
       required: false,
     },
+    {
+      name: 'flickrTag',
+      label: 'Flickr Tag',
+      type: 'text',
+      required: false,
+    },
+    {
+      name: 'flickrURL',
+      label: 'Flickr URL',
+      type: 'text',
+      required: false,
+    },
   ],
 }
