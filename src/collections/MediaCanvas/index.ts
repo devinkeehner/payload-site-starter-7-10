@@ -88,14 +88,14 @@ export const MediaCanvas: CollectionConfig = {
       name: 'subheadingX',
       type: 'number',
       label: 'Subheading X',
-      defaultValue: 36,
+      defaultValue: 680,
       admin: { hidden: true },
     },
     {
       name: 'subheadingY',
       type: 'number',
       label: 'Subheading Y',
-      defaultValue: 546, // 630 - 36 - 48
+      defaultValue: 340,
       admin: { hidden: true },
     },
     {
@@ -109,7 +109,7 @@ export const MediaCanvas: CollectionConfig = {
       name: 'subheadingWidth',
       type: 'number',
       label: 'Subheading Width',
-      defaultValue: 1128, // 1200 - 36*2
+      defaultValue: 480,
       admin: { hidden: true },
     },
     {
