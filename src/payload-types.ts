@@ -925,6 +925,24 @@ export interface MediaCanva {
    * Upload or select an image to compose into a 1200×630 canvas
    */
   image: string | Media;
+  /**
+   * Add paragraphs/headings here — each paragraph becomes a movable line on the canvas
+   */
+  richText?: {
+    root: {
+      type: string;
+      children: {
+        type: string;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   heading?: string | null;
   subheading?: string | null;
   posX?: number | null;
@@ -936,6 +954,18 @@ export interface MediaCanva {
   subheadingY?: number | null;
   headingWidth?: number | null;
   subheadingWidth?: number | null;
+  /**
+   * Auto-managed positions for Lexical paragraphs
+   */
+  rtLayout?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   /**
    * Add optional text boxes rendered on the canvas
    */
@@ -1777,6 +1807,7 @@ export interface MediaCanvasSelect<T extends boolean = true> {
   tenant?: T;
   title?: T;
   image?: T;
+  richText?: T;
   heading?: T;
   subheading?: T;
   posX?: T;
@@ -1788,6 +1819,7 @@ export interface MediaCanvasSelect<T extends boolean = true> {
   subheadingY?: T;
   headingWidth?: T;
   subheadingWidth?: T;
+  rtLayout?: T;
   textBlocks?:
     | T
     | {

@@ -98,6 +98,94 @@ const drawText = (ctx: CanvasRenderingContext2D, text: string, opts: { x: number
   ctx.restore()
 }
 
+// Draw wrapped text with optional decorations (underline/strikethrough)
+const drawTextAlignedDecorated = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  opts: {
+    x: number
+    y: number
+    maxWidth: number
+    font: string
+    color: string
+    lineHeight: number
+    align?: 'left' | 'center' | 'right'
+    underline?: boolean
+    strikethrough?: boolean
+  },
+) => {
+  const { x, y, maxWidth, font, color, lineHeight, align = 'left', underline, strikethrough } = opts
+  if (!text) return
+  ctx.save()
+  ctx.font = font
+  ctx.fillStyle = color
+  ctx.textAlign = align
+  const words = text.split(/\s+/)
+  let line = ''
+  let yy = y
+  const lines: string[] = []
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w
+    const { width } = ctx.measureText(test)
+    if (width > maxWidth && line) {
+      lines.push(line)
+      ctx.fillText(line, x, yy)
+      yy += lineHeight
+      line = w
+    } else {
+      line = test
+    }
+  }
+  if (line) {
+    lines.push(line)
+    ctx.fillText(line, x, yy)
+  }
+
+  // Decorations
+  if (underline || strikethrough) {
+    ctx.strokeStyle = color
+    ctx.lineWidth = Math.max(1, Math.floor(lineHeight / 12))
+    yy = y
+    for (const ln of lines) {
+      const metrics = ctx.measureText(ln)
+      let startX = x
+      if (align === 'center') startX = x - metrics.width / 2
+      else if (align === 'right') startX = x - metrics.width
+      const endX = startX + metrics.width
+      const baseline = yy
+      if (underline) {
+        const uy = baseline + Math.max(2, Math.floor(lineHeight * 0.15))
+        ctx.beginPath()
+        ctx.moveTo(startX, uy)
+        ctx.lineTo(endX, uy)
+        ctx.stroke()
+      }
+      if (strikethrough) {
+        const sy = baseline - Math.max(2, Math.floor(lineHeight * 0.35))
+        ctx.beginPath()
+        ctx.moveTo(startX, sy)
+        ctx.lineTo(endX, sy)
+        ctx.stroke()
+      }
+      yy += lineHeight
+    }
+  }
+  ctx.restore()
+}
+
+// Compute default font string for an RTLine (honors heading level, bold, italic). Layout font, if provided, wins.
+const fontFromLine = (line: RTLine, lay?: any): string => {
+  if (lay && typeof lay.font === 'string' && lay.font) return lay.font
+  const italic = line.italic ? 'italic ' : ''
+  const weight = line.bold || line.kind === 'heading' ? '700 ' : '600 '
+  let size = 28
+  if (line.kind === 'heading') {
+    const lvl = line.headingLevel || 2
+    size = lvl === 1 ? 56 : lvl === 2 ? 48 : lvl === 3 ? 40 : lvl === 4 ? 34 : lvl === 5 ? 28 : 24
+  }
+  return `${italic}${weight}${size}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`
+}
+
 // Measure wrapped text similarly to drawText to get bounding box for hit-testing
 const measureWrappedText = (
   ctx: CanvasRenderingContext2D,
@@ -133,6 +221,141 @@ const measureWrappedText = (
   return { width, height, lines }
 }
 
+// Draw wrapped text with alignment relative to an anchor x position
+const drawTextAligned = (
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  opts: { x: number; y: number; maxWidth: number; font: string; color: string; lineHeight: number; align?: 'left' | 'center' | 'right' },
+) => {
+  const { x, y, maxWidth, font, color, lineHeight, align = 'left' } = opts
+  if (!text) return
+  ctx.save()
+  ctx.font = font
+  ctx.fillStyle = color
+  ctx.textAlign = align
+  // Simple wrap identical to drawText
+  const words = text.split(/\s+/)
+  let line = ''
+  let yy = y
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w
+    const { width } = ctx.measureText(test)
+    if (width > maxWidth && line) {
+      ctx.fillText(line, x, yy)
+      line = w
+      yy += lineHeight
+    } else {
+      line = test
+    }
+  }
+  if (line) ctx.fillText(line, x, yy)
+  ctx.restore()
+}
+
+type RTLine = {
+  idx: number
+  key: string
+  text: string
+  kind: 'paragraph' | 'heading'
+  headingLevel?: number
+  align?: 'left' | 'center' | 'right'
+  color?: string
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  strikethrough?: boolean
+  listType?: 'bullet' | 'number'
+  listIndex?: number
+}
+
+// Extract paragraphs from Payload Lexical JSON into simple lines, including lists and inline styles
+const extractRTParagraphs = (lex: any): RTLine[] => {
+  try {
+    const root = lex?.root
+    if (!root || !Array.isArray(root.children)) return []
+    const lines: RTLine[] = []
+    const pushLine = (partial: Omit<RTLine, 'idx'>) => {
+      lines.push({ idx: lines.length, ...partial })
+    }
+    for (const child of root.children) {
+      const type = child?.type
+      if (!type) continue
+      const nodeKey: string = String((child?.key ?? child?.id ?? 'idx-' + lines.length))
+      const collectInline = (kids: any[]) => {
+        const parts: string[] = []
+        let inlineColor: string | undefined
+        let bold = false
+        let italic = false
+        let underline = false
+        let strikethrough = false
+        for (const k of kids) {
+          if (typeof k?.text === 'string') parts.push(k.text)
+          const styleStr = typeof k?.style === 'string' ? (k.style as string) : ''
+          if (styleStr && !inlineColor) {
+            const m = /color\s*:\s*([^;]+)\s*;?/i.exec(styleStr)
+            if (m && m[1]) inlineColor = m[1].trim()
+          }
+          const fmt = typeof k?.format === 'number' ? k.format : 0
+          // Bitmask heuristic: 1=bold, 2=italic, 4=underline, 8=strike
+          if (fmt) {
+            if ((fmt & 1) === 1) bold = true
+            if ((fmt & 2) === 2) italic = true
+            if ((fmt & 4) === 4) underline = true
+            if ((fmt & 8) === 8) strikethrough = true
+          }
+          if (styleStr) {
+            if (/font-weight\s*:\s*(bold|[7-9]00)/i.test(styleStr)) bold = true
+            if (/font-style\s*:\s*italic/i.test(styleStr)) italic = true
+            if (/text-decoration[^;]*underline/i.test(styleStr)) underline = true
+            if (/text-decoration[^;]*(line-through|strikethrough)/i.test(styleStr)) strikethrough = true
+          }
+        }
+        const text = parts.join(' ').replace(/\s+/g, ' ').trim()
+        return { text, inlineColor, bold, italic, underline, strikethrough }
+      }
+
+      if (type === 'heading') {
+        const kids = Array.isArray(child.children) ? child.children : []
+        const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(kids)
+        if (!text) continue
+        const tag = String(child?.tag || '').toLowerCase()
+        const level = tag.startsWith('h') ? Number(tag.slice(1)) || 2 : 2
+        const align = (child?.format as any) as 'left' | 'center' | 'right' | undefined
+        pushLine({ key: nodeKey, text, kind: 'heading', headingLevel: level, align, color: inlineColor, bold: !!bold, italic: !!italic, underline: !!underline, strikethrough: !!strikethrough })
+      } else if (type === 'paragraph') {
+        const kids = Array.isArray(child.children) ? child.children : []
+        const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(kids)
+        if (!text) continue
+        const align = (child?.format as any) as 'left' | 'center' | 'right' | undefined
+        pushLine({ key: nodeKey, text, kind: 'paragraph', align, color: inlineColor, bold: !!bold, italic: !!italic, underline: !!underline, strikethrough: !!strikethrough })
+      } else if (type === 'list') {
+        // Lexical list with children listitem -> paragraph/text
+        const listType: 'bullet' | 'number' = (child?.listType === 'number') ? 'number' : 'bullet'
+        const items = Array.isArray(child.children) ? child.children : []
+        let ordinal = 1
+        for (const li of items) {
+          if (!li || li.type !== 'listitem') continue
+          const liKey = String(li?.key ?? li?.id ?? `${nodeKey}-${ordinal}`)
+          const liKids = Array.isArray(li.children) ? li.children : []
+          // Usually each list item contains one paragraph
+          for (const p of liKids) {
+            if (!p || p.type !== 'paragraph') continue
+            const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(Array.isArray(p.children) ? p.children : [])
+            if (!text) continue
+            const align = (p?.format as any) as 'left' | 'center' | 'right' | undefined
+            const prefix = listType === 'number' ? `${ordinal}. ` : '• '
+            pushLine({ key: liKey, text: prefix + text, kind: 'paragraph', align, color: inlineColor, bold: !!bold, italic: !!italic, underline: !!underline, strikethrough: !!strikethrough, listType, listIndex: listType === 'number' ? ordinal : undefined })
+          }
+          ordinal++
+        }
+      }
+    }
+    return lines
+  } catch {
+    return []
+  }
+}
+
 const MediaCanvasField: React.FC = () => {
   // Read sibling fields from the form
   const imageField = useFormFields(([fields]) => (fields as any)?.image?.value ?? (fields as any)?.image?.initialValue)
@@ -140,9 +363,11 @@ const MediaCanvasField: React.FC = () => {
   const subheading = useFormFields(([fields]) => (fields as any)?.subheading?.value ?? (fields as any)?.subheading?.initialValue ?? '') as string
   const title = useFormFields(([fields]) => (fields as any)?.title?.value ?? (fields as any)?.title?.initialValue ?? '') as string
   const tenantField = useFormFields(([fields]) => (fields as any)?.tenant?.value ?? (fields as any)?.tenant?.initialValue)
+  const richText = useFormFields(([fields]) => (fields as any)?.richText?.value ?? (fields as any)?.richText?.initialValue)
 
   // Setter for relationship field to media
   const { setValue: setImageRelation } = useField<any>({ path: 'image' })
+  const { value: rtLayoutVal, setValue: setRtLayout } = useField<any>({ path: 'rtLayout' })
 
   // Persistent numeric fields
   const { value: posX, setValue: setPosX } = useNumberField('posX', 0)
@@ -163,6 +388,7 @@ const MediaCanvasField: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [hoverTarget, setHoverTarget] = useState<string | null>(null)
+  const [selectedRtIndex, setSelectedRtIndex] = useState<number | null>(null)
 
   // Dynamic additional text blocks array (robust live reconstruction from form field store)
   const fieldsState = useFormFields(([fields]) => fields) as any
@@ -260,6 +486,32 @@ const MediaCanvasField: React.FC = () => {
     }
   }, [JSON.stringify(imageField)])
 
+  // Build list of Lexical paragraphs and a corresponding effective layout
+  const rtLines = useMemo<RTLine[]>(() => extractRTParagraphs(richText), [JSON.stringify(richText)])
+
+  // Ensure rtLayout exists for each line; default to a stacked right-column layout (only for missing entries) keyed by Lexical node key.
+  useEffect(() => {
+    const padY = 12
+    const baseX = 680
+    const baseW = 480
+    const startY = 300
+    const current = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+    let changed = false
+    let accY = startY
+    for (let i = 0; i < rtLines.length; i++) {
+      const line = rtLines[i] as RTLine
+      const key = line.key
+      const existing = current[key]
+      const lh = line.kind === 'heading' ? 56 : 36
+      if (!existing) {
+        current[key] = { key, x: baseX, y: accY, width: baseW, lineHeight: lh }
+        accY += lh + padY
+        changed = true
+      }
+    }
+    if (changed) setRtLayout(current)
+  }, [JSON.stringify(rtLines)])
+
   // Draw whenever deps change
   useEffect(() => {
     const canvas = canvasRef.current
@@ -339,6 +591,24 @@ const MediaCanvasField: React.FC = () => {
       }
     }
 
+    // Lexical-driven lines (draw in reverse so earlier paragraphs end up on top)
+    if (rtLines.length) {
+      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+      for (let i = rtLines.length - 1; i >= 0; i--) {
+        const line = rtLines[i] as RTLine
+        const lay = layout[line.key] || {}
+        const x = typeof lay.x === 'number' ? lay.x : 680
+        const y = typeof lay.y === 'number' ? lay.y : 340
+        const w = typeof lay.width === 'number' && lay.width > 0 ? lay.width : DEFAULT_TEXT_WIDTH
+        const lineHeight = typeof lay.lineHeight === 'number' && lay.lineHeight > 0 ? lay.lineHeight : (line.kind === 'heading' ? 56 : 36)
+        const font = fontFromLine(line, lay)
+        const color = typeof lay.color === 'string' && lay.color ? lay.color : (line.color || '#f1f5f9')
+        const align = (lay.align as any) || line.align || 'left'
+        const anchorX = align === 'left' ? x : align === 'center' ? x + w / 2 : x + w
+        drawTextAlignedDecorated(ctx, line.text, { x: anchorX, y, maxWidth: w, font, color, lineHeight, align, underline: !!line.underline, strikethrough: !!line.strikethrough })
+      }
+    }
+
     // Hover outline around clickable text boxes
     if (hoverTarget) {
       ctx.save()
@@ -390,18 +660,16 @@ const MediaCanvasField: React.FC = () => {
         ctx.strokeStyle = 'rgba(0,0,0,0.6)'
         ctx.fillRect(handleX, handleY, handleSize, handleSize)
         ctx.strokeRect(handleX, handleY, handleSize, handleSize)
-      } else if (hoverTarget?.startsWith('block') && textBlocks && textBlocks.length) {
-        const isResize = hoverTarget.startsWith('block-resize-')
-        const idxStr = hoverTarget.split('-').pop() || '0'
-        const i = parseInt(idxStr, 10)
-        const b = textBlocks[i] || {}
-        const bText = typeof b.text === 'string' && b.text !== undefined ? (b.text || 'New text') : 'New text'
-        const bx = typeof b.x === 'number' ? b.x : pad
-        const by = typeof b.y === 'number' ? b.y : (CANVAS_H - pad - 48)
-        const bWidth = typeof b.width === 'number' && b.width > 0 ? b.width : (DEFAULT_TEXT_WIDTH)
-        const bFont = typeof b.font === 'string' && b.font ? b.font : '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
-        const bLine = typeof b.lineHeight === 'number' && b.lineHeight > 0 ? b.lineHeight : 36
+      } else if (hoverTarget?.startsWith('block')) {
+        const idx = parseInt(hoverTarget.split('-').pop() || '0', 10)
+        const b = (textBlocks && textBlocks[idx]) ? (textBlocks[idx] as any) : {}
+        const bText = typeof b.text === 'string' && b.text !== undefined ? (b.text || 'New text') : ''
         if (bText) {
+          const bx = typeof b.x === 'number' ? b.x : pad
+          const by = typeof b.y === 'number' ? b.y : (CANVAS_H - pad - 48)
+          const bWidth = typeof b.width === 'number' && b.width > 0 ? b.width : (DEFAULT_TEXT_WIDTH)
+          const bFont = typeof b.font === 'string' && b.font ? b.font : '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial'
+          const bLine = typeof b.lineHeight === 'number' && b.lineHeight > 0 ? b.lineHeight : 36
           const mb = measureWrappedText(ctx, bText, { maxWidth: bWidth, font: bFont, lineHeight: bLine })
           const bTop = by - 0.8 * bLine
           const bBottom = by + mb.height
@@ -416,10 +684,37 @@ const MediaCanvasField: React.FC = () => {
           ctx.fillRect(handleX, handleY, handleSize, handleSize)
           ctx.strokeRect(handleX, handleY, handleSize, handleSize)
         }
+      } else if (hoverTarget?.startsWith('rt')) {
+        const idx = parseInt(hoverTarget.split('-').pop() || '0', 10)
+        const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+        const line = rtLines[idx] as RTLine
+        if (line) {
+          const lay = layout[line.key] || {}
+          const x = typeof lay.x === 'number' ? lay.x : 680
+          const y = typeof lay.y === 'number' ? lay.y : 340
+          const w = typeof lay.width === 'number' && lay.width > 0 ? lay.width : DEFAULT_TEXT_WIDTH
+          const lineHeight = typeof lay.lineHeight === 'number' && lay.lineHeight > 0 ? lay.lineHeight : (line.kind === 'heading' ? 56 : 36)
+          const font = fontFromLine(line, lay)
+          const mb = measureWrappedText(ctx, line.text, { maxWidth: w, font, lineHeight })
+          const top = y - 0.8 * lineHeight
+          const bottom = y + mb.height
+          const align = (lay.align as any) || line.align || 'left'
+          const anchorX = align === 'left' ? x : align === 'center' ? x + w / 2 : x + w
+          const left = align === 'left' ? anchorX : align === 'center' ? anchorX - mb.width / 2 : anchorX - mb.width
+          const margin = 6
+          ctx.strokeRect(left - margin, top - margin, mb.width + margin * 2, (bottom - top) + margin * 2)
+          const centerY = (top + bottom) / 2
+          const handleX = left + mb.width + handleOffset - handleSize / 2
+          const handleY = centerY - handleSize / 2
+          ctx.setLineDash([])
+          ctx.fillStyle = 'rgba(255,255,255,0.95)'
+          ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+          ctx.fillRect(handleX, handleY, handleSize, handleSize)
+          ctx.strokeRect(handleX, handleY, handleSize, handleSize)
+        }
       }
-      ctx.restore()
     }
-  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY, headingWidth, subheadingWidth, JSON.stringify(textBlocks), hoverTarget])
+  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY, headingWidth, subheadingWidth, JSON.stringify(textBlocks), hoverTarget, JSON.stringify(rtLayoutVal), JSON.stringify(richText)])
 
   // Pointer interactions
   const dragState = useRef<
@@ -430,6 +725,8 @@ const MediaCanvasField: React.FC = () => {
     | { mode: 'subheading-resize'; startX: number; baseWidth: number }
     | { mode: 'block'; index: number; startX: number; startY: number; baseX: number; baseY: number }
     | { mode: 'block-resize'; index: number; startX: number; baseWidth: number }
+    | { mode: 'rt'; index: number; startX: number; startY: number; baseX: number; baseY: number }
+    | { mode: 'rt-resize'; index: number; startX: number; baseWidth: number }
     | null
   >(null)
 
@@ -447,34 +744,25 @@ const MediaCanvasField: React.FC = () => {
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
 
-    // Heading bounds
+    // Heading
     if (heading) {
-      const hb = measureWrappedText(ctx, heading, {
-        maxWidth: headingWidth || fallbackMax,
-        font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
-        lineHeight: 56,
-      })
+      const hb = measureWrappedText(ctx, heading, { maxWidth: headingWidth || fallbackMax, font: 'bold 48px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial', lineHeight: 56 })
       const hx = headingX || pad
       const hy = (headingY || (CANVAS_H - pad - 120))
       const hTop = hy - 0.8 * 56
       const hBottom = hy + hb.height
-      // Resize handle hit (right-center)
       const handleSize = 14
       const handleOffset = 8
       const centerY = (hTop + hBottom) / 2
       const handleX = hx + hb.width + handleOffset - handleSize / 2
       const handleY = centerY - handleSize / 2
       if (px >= handleX && px <= handleX + handleSize && py >= handleY && py <= handleY + handleSize) return 'heading-resize'
-      // Body hit
       if (px >= hx && px <= hx + hb.width && py >= hTop && py <= hBottom) return 'heading'
     }
-    // Subheading bounds
+
+    // Subheading
     if (subheading) {
-      const sb = measureWrappedText(ctx, subheading, {
-        maxWidth: subheadingWidth || fallbackMax,
-        font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
-        lineHeight: 36,
-      })
+      const sb = measureWrappedText(ctx, subheading, { maxWidth: subheadingWidth || fallbackMax, font: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial', lineHeight: 36 })
       const sx = subheadingX || pad
       const sy = (subheadingY || (CANVAS_H - pad - 48))
       const sTop = sy - 0.8 * 36
@@ -488,7 +776,7 @@ const MediaCanvasField: React.FC = () => {
       if (px >= sx && px <= sx + sb.width && py >= sTop && py <= sBottom) return 'subheading'
     }
 
-    // Blocks bounds (iterate from last to first so later blocks get priority)
+    // Additional text blocks (iterate last to first for topmost last-added)
     if (textBlocks && textBlocks.length) {
       for (let i = textBlocks.length - 1; i >= 0; i--) {
         const b = textBlocks[i] || {}
@@ -511,6 +799,33 @@ const MediaCanvasField: React.FC = () => {
         if (px >= bx && px <= bx + mb.width && py >= bTop && py <= bBottom) return `block-${i}`
       }
     }
+
+    // RT lines (document order so earlier paragraphs are treated as topmost)
+    if (rtLines && rtLines.length) {
+      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+      for (let i = 0; i < rtLines.length; i++) {
+        const line = rtLines[i] as RTLine
+        const lay = layout[line.key] || {}
+        const x = typeof lay.x === 'number' ? lay.x : 680
+        const y = typeof lay.y === 'number' ? lay.y : 340
+        const w = typeof lay.width === 'number' && lay.width > 0 ? lay.width : DEFAULT_TEXT_WIDTH
+        const lineHeight = typeof lay.lineHeight === 'number' && lay.lineHeight > 0 ? lay.lineHeight : (line.kind === 'heading' ? 56 : 36)
+        const font = fontFromLine(line, lay)
+        const mb = measureWrappedText(ctx, line.text, { maxWidth: w, font, lineHeight })
+        const top = y - 0.8 * lineHeight
+        const bottom = y + mb.height
+        const align = (lay.align as any) || line.align || 'left'
+        const anchorX = align === 'left' ? x : align === 'center' ? x + w / 2 : x + w
+        const left = align === 'left' ? anchorX : align === 'center' ? anchorX - mb.width / 2 : anchorX - mb.width
+        const handleSize = 14
+        const handleOffset = 8
+        const centerY = (top + bottom) / 2
+        const handleX = left + mb.width + handleOffset - handleSize / 2
+        const handleY = centerY - handleSize / 2
+        if (px >= handleX && px <= handleX + handleSize && py >= handleY && py <= handleY + handleSize) return `rt-resize-${i}`
+        if (px >= left && px <= left + mb.width && py >= top && py <= bottom) return `rt-${i}`
+      }
+    }
     return null
   }
 
@@ -520,25 +835,49 @@ const MediaCanvasField: React.FC = () => {
     setHoverTarget(hit)
     if (hit === 'heading') {
       dragState.current = { mode: 'heading', startX: e.clientX, startY: e.clientY, baseX: headingX || 0, baseY: headingY || 0 }
+      setSelectedRtIndex(null)
     } else if (hit === 'subheading') {
       dragState.current = { mode: 'subheading', startX: e.clientX, startY: e.clientY, baseX: subheadingX || 0, baseY: subheadingY || 0 }
+      setSelectedRtIndex(null)
     } else if (hit === 'heading-resize') {
       dragState.current = { mode: 'heading-resize', startX: e.clientX, baseWidth: headingWidth || DEFAULT_TEXT_WIDTH }
+      setSelectedRtIndex(null)
     } else if (hit === 'subheading-resize') {
       dragState.current = { mode: 'subheading-resize', startX: e.clientX, baseWidth: subheadingWidth || DEFAULT_TEXT_WIDTH }
+      setSelectedRtIndex(null)
     } else if (hit?.startsWith('block-resize-')) {
       const idx = parseInt(hit.split('-').pop() || '0', 10)
       const curr = textBlocksRef.current[idx] || {}
       const baseWidth = typeof curr.width === 'number' ? curr.width : DEFAULT_TEXT_WIDTH
       dragState.current = { mode: 'block-resize', index: idx, startX: e.clientX, baseWidth }
+      setSelectedRtIndex(null)
     } else if (hit?.startsWith('block-')) {
       const idx = parseInt(hit.split('-').pop() || '0', 10)
       const curr = textBlocksRef.current[idx] || {}
       const baseX = typeof curr.x === 'number' ? curr.x : 0
       const baseY = typeof curr.y === 'number' ? curr.y : 0
       dragState.current = { mode: 'block', index: idx, startX: e.clientX, startY: e.clientY, baseX, baseY }
+      setSelectedRtIndex(null)
+    } else if (hit?.startsWith('rt-resize-')) {
+      const idx = parseInt(hit.split('-').pop() || '0', 10)
+      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+      const line = rtLines[idx] as RTLine
+      const lay = layout[line.key] || {}
+      const baseWidth = typeof lay.width === 'number' ? lay.width : DEFAULT_TEXT_WIDTH
+      dragState.current = { mode: 'rt-resize', index: idx, startX: e.clientX, baseWidth }
+      setSelectedRtIndex(idx)
+    } else if (hit?.startsWith('rt-')) {
+      const idx = parseInt(hit.split('-').pop() || '0', 10)
+      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+      const line = rtLines[idx] as RTLine
+      const lay = layout[line.key] || {}
+      const baseX = typeof lay.x === 'number' ? lay.x : 0
+      const baseY = typeof lay.y === 'number' ? lay.y : 0
+      dragState.current = { mode: 'rt', index: idx, startX: e.clientX, startY: e.clientY, baseX, baseY }
+      setSelectedRtIndex(idx)
     } else {
       dragState.current = { mode: 'image', startX: e.clientX, startY: e.clientY, baseX: posX || 0, baseY: posY || 0 }
+      setSelectedRtIndex(null)
     }
   }
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -583,6 +922,25 @@ const MediaCanvasField: React.FC = () => {
       const newW = clamp(dragState.current.baseWidth + dx, minW, maxW)
       const seg = textBlockKeysRef.current[i] ?? String(i)
       dispatchFields({ type: 'UPDATE', path: `textBlocks.${seg}.width`, value: newW })
+    } else if (dragState.current.mode === 'rt') {
+      const i = dragState.current.index
+      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+      const newX = dragState.current.baseX + dx
+      const newY = dragState.current.baseY + dy
+      const line = rtLines[i] as RTLine
+      const prev = layout[line.key] || {}
+      layout[line.key] = { ...prev, key: line.key, x: newX, y: newY, width: prev.width ?? 480 }
+      setRtLayout(layout)
+    } else if (dragState.current.mode === 'rt-resize') {
+      const i = dragState.current.index
+      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+      const minW = 100
+      const maxW = DEFAULT_TEXT_WIDTH
+      const newW = clamp(dragState.current.baseWidth + dx, minW, maxW)
+      const line = rtLines[i] as RTLine
+      const prev = layout[line.key] || { x: 680, y: 340 }
+      layout[line.key] = { ...prev, key: line.key, width: newW }
+      setRtLayout(layout)
     }
   }
   const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -812,6 +1170,57 @@ const MediaCanvasField: React.FC = () => {
           {saving ? 'Saving…' : 'Save to Media'}
         </Button>
       </div>
+
+      {/* Lexical line style controls (appear when a Lexical line is selected) */}
+      {selectedRtIndex !== null && rtLines[selectedRtIndex] ? (
+        (() => {
+          const i = selectedRtIndex as number
+          const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+          const line = rtLines[i] as RTLine
+          const lay = layout[line.key] || {}
+          const currentColor = typeof lay.color === 'string' && lay.color ? lay.color : (line.color || '#f1f5f9')
+          const currentAlign = (lay.align as any) || line.align || 'left'
+          return (
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
+              <small style={{ opacity: 0.8 }}>Selected line:</small>
+              <small style={{ maxWidth: 360, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{line.text}</small>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, opacity: 0.8 }}>Color</span>
+                <input
+                  type="color"
+                  value={/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(currentColor) ? currentColor : '#f1f5f9'}
+                  onChange={(ev) => {
+                    const color = ev.target.value
+                    const next = { ...(layout as any) }
+                    const prev = next[line.key] || {}
+                    next[line.key] = { ...prev, key: line.key, color }
+                    setRtLayout(next)
+                  }}
+                  style={{ width: 28, height: 28, padding: 0, border: '1px solid var(--theme-elevation-150)', borderRadius: 4 }}
+                />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, opacity: 0.8 }}>Align</span>
+                <select
+                  value={currentAlign}
+                  onChange={(ev) => {
+                    const align = ev.target.value as 'left' | 'center' | 'right'
+                    const next = { ...(layout as any) }
+                    const prev = next[line.key] || {}
+                    next[line.key] = { ...prev, key: line.key, align }
+                    setRtLayout(next)
+                  }}
+                  style={{ height: 28, border: '1px solid var(--theme-elevation-150)', borderRadius: 4, background: 'var(--theme-elevation-50)' }}
+                >
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </label>
+            </div>
+          )
+        })()
+      ) : null}
 
       <div style={{ border: '1px solid var(--theme-elevation-100)', borderRadius: 8, overflow: 'hidden', width: '100%', maxWidth: 900 }}>
         <div style={{ background: '#0b0b0b', display: 'flex', justifyContent: 'center' }}>

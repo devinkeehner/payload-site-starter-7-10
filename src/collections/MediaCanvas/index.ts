@@ -1,4 +1,9 @@
 import type { CollectionConfig } from 'payload'
+import {
+  FixedToolbarFeature,
+  InlineToolbarFeature,
+  lexicalEditor,
+} from '@payloadcms/richtext-lexical'
 
 import { authenticated } from '@/lib/access/authenticated'
 import { anyone } from '@/lib/access/anyone'
@@ -35,6 +40,25 @@ export const MediaCanvas: CollectionConfig = {
       required: true,
       admin: {
         description: 'Upload or select an image to compose into a 1200×630 canvas',
+      },
+    },
+    // Prototype: Lexical editor as the source of canvas text lines
+    {
+      name: 'richText',
+      type: 'richText',
+      label: 'Text',
+      editor: lexicalEditor({
+        features: ({ rootFeatures }) => {
+          // Basic toolbar with formatting and inline controls
+          return [
+            ...rootFeatures,
+            FixedToolbarFeature(),
+            InlineToolbarFeature(),
+          ]
+        },
+      }),
+      admin: {
+        description: 'Add paragraphs/headings here — each paragraph becomes a movable line on the canvas',
       },
     },
     {
@@ -111,6 +135,13 @@ export const MediaCanvas: CollectionConfig = {
       label: 'Subheading Width',
       defaultValue: 480,
       admin: { hidden: true },
+    },
+    // Prototype: Per-paragraph layout for richText paragraphs (JSON map keyed by index)
+    {
+      name: 'rtLayout',
+      label: 'Rich Text Layout',
+      type: 'json',
+      admin: { hidden: true, description: 'Auto-managed positions for Lexical paragraphs' },
     },
     {
       name: 'textBlocks',
