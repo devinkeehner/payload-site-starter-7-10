@@ -245,6 +245,7 @@ export interface Media {
     };
     [k: string]: unknown;
   } | null;
+  prefix?: string | null;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -1001,6 +1002,7 @@ export interface WordpressPost {
   tags?: (string | Tag)[] | null;
   author?: (string | null) | Author;
   featuredImageUrl?: string | null;
+  featuredImage?: (string | null) | Media;
   updatedAt: string;
   createdAt: string;
 }
@@ -1713,6 +1715,7 @@ export interface MediaSelect<T extends boolean = true> {
   tenant?: T;
   alt?: T;
   caption?: T;
+  prefix?: T;
   updatedAt?: T;
   createdAt?: T;
   url?: T;
@@ -1851,6 +1854,7 @@ export interface WordpressPostsSelect<T extends boolean = true> {
   tags?: T;
   author?: T;
   featuredImageUrl?: T;
+  featuredImage?: T;
   updatedAt?: T;
   createdAt?: T;
 }

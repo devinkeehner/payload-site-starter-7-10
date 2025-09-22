@@ -121,7 +121,11 @@ export default buildConfig({
 
     // S3 storage plugin for media uploads
     s3Storage({
-      collections: { media: true },
+      collections: {
+        media: {
+          prefix: 'tenants/',
+        },
+      },
       bucket: process.env.R2_BUCKET || '',
       clientUploads: false,
       config: {

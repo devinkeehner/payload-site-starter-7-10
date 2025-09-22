@@ -15,8 +15,8 @@ importers:
         specifier: 3.47.0
         version: 3.47.0(payload@3.47.0(graphql@16.11.0)(typescript@5.7.3))
       '@payloadcms/email-resend':
-        specifier: ^3.49.1
-        version: 3.49.1(payload@3.47.0(graphql@16.11.0)(typescript@5.7.3))
+        specifier: ^3.47.0
+        version: 3.47.0(payload@3.47.0(graphql@16.11.0)(typescript@5.7.3))
       '@payloadcms/live-preview-react':
         specifier: 3.47.0
         version: 3.47.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -169,7 +169,7 @@ importers:
         specifier: 15.2.0
         version: 15.2.0(eslint@9.27.0(jiti@2.4.2))(typescript@5.7.3)
       fast-xml-parser:
-        specifier: ^4.3.4
+        specifier: ^4.4.1
         version: 4.4.1
       postcss:
         specifier: ^8.5.4
@@ -186,6 +186,12 @@ importers:
       ts-node:
         specifier: ^10.9.2
         version: 10.9.2(@types/node@22.5.4)(typescript@5.7.3)
+      tsconfig-paths:
+        specifier: ^4.2.0
+        version: 4.2.0
+      tsx:
+        specifier: ^4.20.5
+        version: 4.20.5
       typescript:
         specifier: 5.7.3
         version: 5.7.3
@@ -1510,11 +1516,11 @@ packages:
     peerDependencies:
       payload: 3.47.0
 
-  '@payloadcms/email-resend@3.49.1':
-    resolution: {integrity: sha512-is486Xhl2lvvxipD4zB+cJLGZKLMqLK1aSN9Fkc41rWZDjUh5wg69LhUmWT1SPzI+IZsgZ+R/rBqDJVhTF5oyg==}
+  '@payloadcms/email-resend@3.47.0':
+    resolution: {integrity: sha512-4DMlbQIw9UhJVQIQYKCwMeg6eQumGRCUFlpuTH1ED6k3AyKD4++x2JVql/uuCISReTQZABfmYetAZxEY3x3gdw==}
     engines: {node: ^18.20.2 || >=20.9.0}
     peerDependencies:
-      payload: 3.49.1
+      payload: 3.47.0
 
   '@payloadcms/graphql@3.47.0':
     resolution: {integrity: sha512-nEPX9IK7eVORmyn04s0eiq0NIQjQ8agnhbpu4hir4PmRuRcHdI0+b4TKowghUyu7S00MFQg7c7tgtDgOUacbeg==}
@@ -3853,6 +3859,11 @@ packages:
     resolution: {integrity: sha512-g1MWMLBiz8FKi1e4w0UyVL3w+iJceWAFBAaBnnGKOpNa5f8TLktkbre1+s6oICydWAm+HRUGTmI+//xv2hvXYA==}
     hasBin: true
 
+  json5@2.2.3:
+    resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
+    engines: {node: '>=6'}
+    hasBin: true
+
   jsox@1.2.121:
     resolution: {integrity: sha512-9Ag50tKhpTwS6r5wh3MJSAvpSof0UBr39Pto8OnzFT32Z/pAbxAsKHzyvsyMEHVslELvHyO/4/jaQELHk8wDcw==}
     hasBin: true
@@ -5091,6 +5102,10 @@ packages:
   tsconfig-paths@3.15.0:
     resolution: {integrity: sha512-2Ac2RgzDe/cn48GvOe3M+o82pEFewD3UPbyoUHHdKasHwJKjds4fLXWf/Ux5kATBKN20oaFGu+jbElp1pos0mg==}
 
+  tsconfig-paths@4.2.0:
+    resolution: {integrity: sha512-NoZ4roiN7LnbKn9QqE1amc9DJfzvZXxF4xDavcOWt1BPkdx+m+0gJuPM+S0vCe7zTJMYUP0R8pO2XMr+Y8oLIg==}
+    engines: {node: '>=6'}
+
   tslib@1.14.1:
     resolution: {integrity: sha512-Xni35NKzjgMrwevysHTCArtLDpPvye8zV/0E4EyYn43P7/7qvQwPh9BGkHewbMulVntbigmcT7rdX3BNo9wRJg==}
 
@@ -5104,6 +5119,11 @@ packages:
 
   tsx@4.20.3:
     resolution: {integrity: sha512-qjbnuR9Tr+FJOMBqJCW5ehvIo/buZq7vH7qD7JziU98h6l3qGy0a/yPFjwO+y0/T7GFpNgNAvEcPPVfyT8rrPQ==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+
+  tsx@4.20.5:
+    resolution: {integrity: sha512-+wKjMNU9w/EaQayHXb7WA7ZaHY6hN8WgfvHNQ3t1PnU91/7O8TcTnIhCDYTZwnt8JsO9IBqZ30Ln1r7pPF52Aw==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -7290,7 +7310,7 @@ snapshots:
       nodemailer: 6.9.16
       payload: 3.47.0(graphql@16.11.0)(typescript@5.7.3)
 
-  '@payloadcms/email-resend@3.49.1(payload@3.47.0(graphql@16.11.0)(typescript@5.7.3))':
+  '@payloadcms/email-resend@3.47.0(payload@3.47.0(graphql@16.11.0)(typescript@5.7.3))':
     dependencies:
       payload: 3.47.0(graphql@16.11.0)(typescript@5.7.3)
 
@@ -10016,6 +10036,8 @@ snapshots:
     dependencies:
       minimist: 1.2.8
 
+  json5@2.2.3: {}
+
   jsox@1.2.121: {}
 
   jsx-ast-utils@3.3.5:
@@ -11488,6 +11510,12 @@ snapshots:
       minimist: 1.2.8
       strip-bom: 3.0.0
 
+  tsconfig-paths@4.2.0:
+    dependencies:
+      json5: 2.2.3
+      minimist: 1.2.8
+      strip-bom: 3.0.0
+
   tslib@1.14.1: {}
 
   tslib@2.8.1: {}
@@ -11502,7 +11530,14 @@ snapshots:
   tsx@4.20.3:
     dependencies:
       esbuild: 0.25.6
-      get-tsconfig: 4.8.1
+      get-tsconfig: 4.10.1
+    optionalDependencies:
+      fsevents: 2.3.3
+
+  tsx@4.20.5:
+    dependencies:
+      esbuild: 0.25.6
+      get-tsconfig: 4.10.1
     optionalDependencies:
       fsevents: 2.3.3
 

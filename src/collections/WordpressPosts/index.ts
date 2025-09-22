@@ -90,5 +90,11 @@ export const WordpressPosts: CollectionConfig<'wordpress-posts'> = {
       label: 'Featured / Meta Image URL',
       type: 'text',
     },
+    {
+      name: 'featuredImage',
+      label: 'Featured Image (uploaded)',
+      type: 'upload',
+      relationTo: 'media',
+    },
   ],
 }
