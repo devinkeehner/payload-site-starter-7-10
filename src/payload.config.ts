@@ -123,7 +123,8 @@ export default buildConfig({
     s3Storage({
       collections: {
         media: {
-          prefix: 'tenants/',
+          // Keep prefix static here; per-tenant subfolder is provided by importer via file.prefix
+          prefix: '',
         },
       },
       bucket: process.env.R2_BUCKET || '',

@@ -135,7 +135,9 @@ if (!fs.existsSync(absPath)) {
       const contentType = res.headers.get('content-type') || 'application/octet-stream'
       const parsed = new URL(opts.url)
       const base = path.basename(parsed.pathname || 'image').split('?')[0]
-      const filename = `${opts.tenantSlug}${opts.attachId ? '-' + opts.attachId : ''}-${base}`
+      const keyPrefix = `${opts.tenantSlug}/`
+      // Temporary: prefix filenames per-tenant so they are unique across tenants
+      const filename = `WP${opts.tenantSlug}-${base}`
 
       let created
       try {
@@ -144,6 +146,7 @@ if (!fs.existsSync(absPath)) {
           file: {
             data: buffer,
             // include both for maximum adapter compatibility
+            prefix: keyPrefix,
             name: filename,
             filename,
             size,

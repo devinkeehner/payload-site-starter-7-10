@@ -43,6 +43,25 @@ export const Media: CollectionConfig = {
     },
   ],
   hooks: {
+    beforeValidate: [
+      async ({ data, req }) => {
+        try {
+          const file: any = (req as any)?.file
+          const tenantId = (data as any)?.tenant
+          if (file && typeof file === 'object' && tenantId && req?.payload) {
+            const tenant = await req.payload.findByID({ collection: 'tenants', id: tenantId })
+            const slug = (tenant as any)?.slug
+            if (slug) {
+              // Place the upload under /<tenant-slug>/
+              file.prefix = `${slug}/`
+            }
+          }
+        } catch {
+          // no-op: fallback to default prefix if anything fails
+        }
+        return data
+      },
+    ],
     afterRead: [
       ({ doc }) => {
         const base = process.env.R2_PUBLIC_BASE_URL || ''
