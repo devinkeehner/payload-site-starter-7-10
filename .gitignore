@@ -25,3 +25,7 @@ public/sitemap*.xml
 
 .env*
 .env*
+
+# Imports/Exports
+Imports/
+exports/
