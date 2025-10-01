@@ -1130,6 +1130,10 @@ export interface StandardMedia {
   title: string;
   bannerImage: string | Media;
   bannerVideo?: (string | null) | Media;
+  /**
+   * Align hero text to the left or right side on large screens.
+   */
+  heroTextAlign?: ('left' | 'right') | null;
   introVideo?: (string | null) | Media;
   mobileHeadshot: string | Media;
   defaultFeaturedImage: string | Media;
@@ -1947,6 +1951,7 @@ export interface StandardMediaSelect<T extends boolean = true> {
   title?: T;
   bannerImage?: T;
   bannerVideo?: T;
+  heroTextAlign?: T;
   introVideo?: T;
   mobileHeadshot?: T;
   defaultFeaturedImage?: T;

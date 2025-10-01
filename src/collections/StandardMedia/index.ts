@@ -40,6 +40,20 @@ export const StandardMedia: CollectionConfig = {
       relationTo: 'media',
     },
     {
+      name: 'heroTextAlign',
+      label: 'Hero text alignment',
+      type: 'radio',
+      options: [
+        { label: 'Left', value: 'left' },
+        { label: 'Right', value: 'right' },
+      ],
+      defaultValue: 'right',
+      admin: {
+        layout: 'horizontal',
+        description: 'Align hero text to the left or right side on large screens.',
+      },
+    },
+    {
       name: 'introVideo',
       label: 'Intro Video',
       type: 'upload',
