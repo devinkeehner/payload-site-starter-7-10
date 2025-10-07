@@ -194,15 +194,15 @@ export interface Post {
      */
     image: string | Media;
     description: string;
+    descriptionApproved: boolean;
   };
   categories: (string | Category)[];
   keyTakeaways: {
     point: string;
     id?: string | null;
   }[];
+  keyTakeawaysApproved: boolean;
   articleType: string | ArticleType;
-  tags?: (string | Tag)[] | null;
-  relatedPosts?: (string | Post)[] | null;
   publishedAt?: string | null;
   slug?: string | null;
   slugLock?: boolean | null;
@@ -346,17 +346,6 @@ export interface ArticleType {
   title: string;
   slug?: string | null;
   slugLock?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "tags".
- */
-export interface Tag {
-  id: string;
-  slug: string;
-  title: string;
   updatedAt: string;
   createdAt: string;
 }
@@ -1008,6 +997,17 @@ export interface WordpressPost {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "tags".
+ */
+export interface Tag {
+  id: string;
+  slug: string;
+  title: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "authors".
  */
 export interface Author {
@@ -1510,6 +1510,7 @@ export interface PostsSelect<T extends boolean = true> {
         title?: T;
         image?: T;
         description?: T;
+        descriptionApproved?: T;
       };
   categories?: T;
   keyTakeaways?:
@@ -1518,9 +1519,8 @@ export interface PostsSelect<T extends boolean = true> {
         point?: T;
         id?: T;
       };
+  keyTakeawaysApproved?: T;
   articleType?: T;
-  tags?: T;
-  relatedPosts?: T;
   publishedAt?: T;
   slug?: T;
   slugLock?: T;

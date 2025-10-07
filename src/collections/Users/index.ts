@@ -15,6 +15,7 @@ export const Users: CollectionConfig = {
     group: 'Admin',
     defaultColumns: ['name', 'email'],
     useAsTitle: 'name',
+    hidden: ({ user }) => !user?.roles?.includes('super'),
   },
   auth: {
     useAPIKey: true,

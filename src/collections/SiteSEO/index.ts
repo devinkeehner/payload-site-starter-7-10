@@ -11,6 +11,7 @@ export const SiteSEO: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
     description: 'SEO metadata for the site home page',
+    hidden: ({ user }) => !user?.roles?.includes('super'),
   },
   access: {
     read: () => true,

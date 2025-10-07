@@ -29,7 +29,10 @@ export const plugins: Plugin[] = [
   redirectsPlugin({
     collections: ['pages', 'posts'],
     overrides: {
-      admin: { group: 'Misc' },
+      admin: {
+        group: 'Misc',
+        hidden: ({ user }) => !user?.roles?.includes('super'),
+      },
       // @ts-expect-error - This is a valid override, mapped fields don't resolve to the same type
       fields: ({ defaultFields }) => {
         return defaultFields.map((field) => {

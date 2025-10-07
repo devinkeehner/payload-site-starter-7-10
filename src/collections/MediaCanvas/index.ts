@@ -18,6 +18,7 @@ export const MediaCanvas: CollectionConfig = {
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
+    hidden: ({ user }) => !user?.roles?.includes('super'),
   },
   access: {
     create: authenticated,

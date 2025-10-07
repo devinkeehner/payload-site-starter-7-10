@@ -41,7 +41,6 @@ export const Posts: CollectionConfig<'posts'> = {
     slug: true,
     categories: true,
     articleType: true,
-    tags: true,
     keyTakeaways: true,
     meta: {
       image: true,
@@ -564,6 +563,12 @@ export const Posts: CollectionConfig<'posts'> = {
                 MetaTitleField({ hasGenerateFn: true, overrides: { required: true } }),
                 MetaImageField({ relationTo: 'media', overrides: { required: true } }),
                 MetaDescriptionField({ overrides: { required: true } }),
+                {
+                  name: 'descriptionApproved',
+                  label: 'Description Approved',
+                  type: 'checkbox',
+                  required: true,
+                },
                 PreviewField({
                   hasGenerateFn: true,
                   titlePath: 'meta.title',
@@ -592,27 +597,16 @@ export const Posts: CollectionConfig<'posts'> = {
               ],
             },
             {
+              name: 'keyTakeawaysApproved',
+              label: 'Key Takeaways Approved',
+              type: 'checkbox',
+              required: true,
+            },
+            {
               name: 'articleType',
               type: 'relationship',
               relationTo: 'article-types',
               required: true,
-            },
-            {
-              name: 'tags',
-              type: 'relationship',
-              relationTo: 'tags',
-              hasMany: true,
-            },
-            {
-              name: 'relatedPosts',
-              type: 'relationship',
-              relationTo: 'posts',
-              hasMany: true,
-              filterOptions: ({ id }) => ({
-                id: {
-                  not_in: [id],
-                },
-              }),
             },
           ],
         },
