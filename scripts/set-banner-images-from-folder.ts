@@ -6,7 +6,7 @@
  * If multiple candidates exist, prefer one without the word "copy".
  *
  * Usage:
- *  pnpm tsx scripts/set-banner-images-from-folder.ts --dir "Imports/web banner 25/webp" [--tenant <slug>] [--dry-run]
+ *  pnpm tsx scripts/set-banner-images-from-folder.ts --dir "Imports/web banner 25/webp" [--tenant <slug>] [--dry-run] [--force-upload|--force] [--replace-existing|--replace]
  */
 
 import dotenv from 'dotenv'
@@ -16,7 +16,7 @@ import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import payload from 'payload'
 
-interface CliOpts { dir: string; tenant?: string; dryRun: boolean }
+interface CliOpts { dir: string; tenant?: string; dryRun: boolean; force: boolean; replaceExisting: boolean }
 function parseArgs(): CliOpts {
   const get = (flag: string) => {
     const i = process.argv.findIndex((a) => a === flag)
@@ -24,15 +24,17 @@ function parseArgs(): CliOpts {
   }
   const dir = get('--dir')
   if (!dir) {
-    console.error('❌ Usage: pnpm tsx scripts/set-banner-images-from-folder.ts --dir "Imports/web banner 25/webp" [--tenant <slug>] [--dry-run]')
+    console.error('❌ Usage: pnpm tsx scripts/set-banner-images-from-folder.ts --dir "Imports/web banner 25/webp" [--tenant <slug>] [--dry-run] [--force-upload|--force] [--replace-existing|--replace]')
     process.exit(1)
   }
   const tenant = get('--tenant')
   const dryRun = process.argv.includes('--dry-run') || process.argv.includes('--dryRun')
-  return { dir, tenant, dryRun }
+  const force = process.argv.includes('--force-upload') || process.argv.includes('--force')
+  const replaceExisting = process.argv.includes('--replace-existing') || process.argv.includes('--replace')
+  return { dir, tenant, dryRun, force, replaceExisting }
 }
 
-const { dir: SRC_DIR, tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
+const { dir: SRC_DIR, tenant: ONLY_TENANT, dryRun: DRY_RUN, force: FORCE_UPLOAD, replaceExisting: REPLACE_EXISTING } = parseArgs()
 
 ;(async () => {
   dotenv.config()
@@ -72,12 +74,42 @@ const { dir: SRC_DIR, tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
   }
 
   async function ensureMedia(tenantId: string, filePath: string, alt: string): Promise<string | undefined> {
-    // If a media with same alt already exists for this tenant, reuse it
+    // If a media with same alt already exists for this tenant, decide based on flags
     const existing = await payload.find({ collection: 'media', where: { alt: { equals: alt }, tenant: { equals: tenantId } }, limit: 1, overrideAccess: true as any })
-    if (existing.totalDocs) return existing.docs[0].id as string
-    if (DRY_RUN) { console.log(`· dry-run: would upload media '${path.basename(filePath)}' (alt='${alt}')`); return undefined }
+    const hasExisting = existing.totalDocs > 0
+    const existingId = hasExisting ? (existing.docs[0].id as string) : undefined
+
+    if (DRY_RUN) {
+      if (hasExisting) {
+        if (REPLACE_EXISTING) console.log(`· dry-run: would REPLACE existing media ${existingId} with '${path.basename(filePath)}' (alt='${alt}')`)
+        else if (FORCE_UPLOAD) console.log(`· dry-run: would CREATE new media from '${path.basename(filePath)}' even though one exists (alt='${alt}')`)
+        else console.log(`· dry-run: would REUSE existing media ${existingId} (alt='${alt}')`)
+      } else {
+        console.log(`· dry-run: would upload media '${path.basename(filePath)}' (alt='${alt}')`)
+      }
+      return undefined
+    }
 
     const fileBuf = fs.readFileSync(filePath)
+
+    if (hasExisting && REPLACE_EXISTING) {
+      // Replace the file content of the existing media in place
+      await payload.update({
+        collection: 'media',
+        id: existingId!,
+        data: { alt, tenant: tenantId },
+        file: { data: fileBuf, mimetype: 'image/webp', name: path.basename(filePath), size: fileBuf.length } as any,
+        overrideAccess: true,
+        context: { disableRevalidate: true } as any,
+      })
+      return existingId
+    }
+
+    if (hasExisting && !FORCE_UPLOAD) {
+      // Reuse existing without uploading a new file
+      return existingId
+    }
+
     const created = await payload.create({
       collection: 'media',
       data: { alt, tenant: tenantId },

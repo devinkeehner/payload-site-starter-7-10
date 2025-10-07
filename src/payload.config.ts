@@ -39,6 +39,10 @@ export default buildConfig({
     components: {
       // Wrap the admin UI with a lightweight provider that renders a small tenant badge
       providers: ['@/components/admin/TenantBadgeProvider#default'],
+      graphics: {
+        Icon: '@/components/admin/brand/Icon#default',
+        Logo: '@/components/admin/brand/Logo#default',
+      },
     },
     importMap: {
       baseDir: path.resolve(dirname),
@@ -49,6 +53,15 @@ export default buildConfig({
         { label: 'Mobile', name: 'mobile', width: 375, height: 667 },
         { label: 'Tablet', name: 'tablet', width: 768, height: 1024 },
         { label: 'Desktop', name: 'desktop', width: 1440, height: 900 },
+      ],
+    },
+    meta: {
+      icons: [
+        {
+          rel: 'icon',
+          type: 'image/svg+xml',
+          url: '/brand/icon-light.svg',
+        },
       ],
     },
   },

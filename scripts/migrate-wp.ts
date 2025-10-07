@@ -69,6 +69,21 @@ if (!fs.existsSync(absPath)) {
   console.log(`Connected to MongoDB – starting import for tenant "${TENANT_SLUG}"…`)
 
   /** ------------------------- Helpers --------------------------------- */
+  function sanitizeWPContent(html?: string): string | undefined {
+    if (!html) return html
+    let out = String(html)
+    // Remove specific social share anchors
+    out = out.replace(/<a[^>]*class="[^"]*synved-social-button[^"]*"[^>]*>.*?<\/a>/gis, '')
+    // Remove common container blocks that are just social widgets
+    out = out.replace(/<\s*(div|p|span)[^>]*class="[^"]*synved-social[^"]*"[^>]*>.*?<\/(div|p|span)>/gis, '')
+    // Remove ShareThis blocks if present
+    out = out.replace(/<\s*(div|p|span)[^>]*class="[^"]*sharethis[^"]*"[^>]*>.*?<\/(div|p|span)>/gis, '')
+    // Trim leading empty paragraphs or whitespace
+    out = out.replace(/^(\s|(&nbsp;)|<p>\s*<\/p>)+/gis, '')
+    // Collapse excessive whitespace left by removals
+    out = out.replace(/\n{3,}/g, '\n\n')
+    return out
+  }
   async function getTenantIdBySlug(slug: string): Promise<string> {
     const res = await payload.find({ collection: 'tenants', where: { slug: { equals: slug } }, limit: 1 })
     if (!res.totalDocs) {
@@ -217,7 +232,8 @@ if (!fs.existsSync(absPath)) {
       const publishedAtRaw = item['wp:post_date_gmt'] as string | undefined
       const publishedAt = publishedAtRaw ? new Date(publishedAtRaw + 'Z') : undefined
       const excerpt = ((item['excerpt:encoded'] as string) || '').trim()
-      const content = item['content:encoded'] as string | undefined
+      const rawContent = item['content:encoded'] as string | undefined
+      const content = sanitizeWPContent(rawContent)
 
       // Look up existing post early so we can avoid duplicate media uploads across runs
       const existing = await payload.find({ collection: 'wordpress-posts', where: { slug: { equals: slug } }, limit: 1 })

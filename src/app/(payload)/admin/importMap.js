@@ -39,6 +39,8 @@ import { LinkToDoc as LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloa
 import { ReindexButton as ReindexButton_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloadcms/plugin-search/client'
 import { RowLabel as RowLabel_6c7dc7ac5edec7fc90cbdfeee7e3fb62 } from '@/components/site/header/row-label'
 import { RowLabel as RowLabel_85c06c685452ea6602918f9aec823dac } from '@/components/site/footer/row-label'
+import { default as default_d724e3c9fa2fc7ba502c18e1e0541534 } from '@/components/admin/brand/Icon'
+import { default as default_f5b90b1f137d54d2b96fee0d0c4d5b67 } from '@/components/admin/brand/Logo'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { TenantSelector as TenantSelector_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
 import { default as default_0eca8e1f770b286147f066629322290a } from '@/components/admin/TenantBadgeProvider'
@@ -87,6 +89,8 @@ export const importMap = {
   "@payloadcms/plugin-search/client#ReindexButton": ReindexButton_aead06e4cbf6b2620c5c51c9ab283634,
   "@/components/site/header/row-label#RowLabel": RowLabel_6c7dc7ac5edec7fc90cbdfeee7e3fb62,
   "@/components/site/footer/row-label#RowLabel": RowLabel_85c06c685452ea6602918f9aec823dac,
+  "@/components/admin/brand/Icon#default": default_d724e3c9fa2fc7ba502c18e1e0541534,
+  "@/components/admin/brand/Logo#default": default_f5b90b1f137d54d2b96fee0d0c4d5b67,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/plugin-multi-tenant/client#TenantSelector": TenantSelector_1d0591e3cf4f332c83a86da13a0de59a,
   "@/components/admin/TenantBadgeProvider#default": default_0eca8e1f770b286147f066629322290a,
