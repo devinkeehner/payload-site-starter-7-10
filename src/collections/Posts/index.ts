@@ -530,11 +530,14 @@ export const Posts: CollectionConfig<'posts'> = {
                     continue
                   }
                 }
-                if (!Array.isArray(val) && typeof val === 'object' && val?.relationTo === 'media') {
-                  const relationId = extractMediaId(val)
-                  if (relationId) {
-                    updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
-                    continue
+                if (!Array.isArray(val) && typeof val === 'object') {
+                  const relationTo = (val as any)?.relationTo
+                  if (relationTo === 'media') {
+                    const relationId = extractMediaId(val)
+                    if (relationId) {
+                      updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
+                      continue
+                    }
                   }
                 }
                 updated[key] = await walk(val)
