@@ -385,6 +385,166 @@ export const Posts: CollectionConfig<'posts'> = {
           if (!source) return send(404, { error: 'Post not found' })
           const sourceTenantId: string | undefined =
             typeof (source as any)?.tenant === 'string' ? (source as any).tenant : (source as any)?.tenant?.id
+
+          const tenantCache = new Map<string, { id: string; slug?: string | null }>()
+          const mediaDocCache = new Map<string, any>()
+          const mediaCloneCache = new Map<string, string>()
+
+          const extractMediaId = (value: any): string | undefined => {
+            if (!value) return undefined
+            if (typeof value === 'string') return value
+            if (typeof value === 'object') {
+              if (typeof value.id === 'string') return value.id
+              if (typeof value._id === 'string') return value._id
+              if (typeof value.value === 'string') return value.value
+              if (typeof value.value === 'object') return extractMediaId(value.value)
+            }
+            return undefined
+          }
+
+          const getTenantInfo = async (tenantId: string) => {
+            if (tenantCache.has(tenantId)) return tenantCache.get(tenantId)!
+            const tenantDoc = await req.payload.findByID({
+              collection: 'tenants',
+              id: tenantId,
+              depth: 0,
+              overrideAccess: true,
+            })
+            const info = { id: tenantId, slug: (tenantDoc as any)?.slug ?? undefined }
+            tenantCache.set(tenantId, info)
+            return info
+          }
+
+          const buildMediaUrl = (doc: any): string | undefined => {
+            if (typeof doc?.url === 'string' && doc.url) return doc.url
+            const base = process.env.R2_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_MEDIA_BASE_URL
+            if (!base) return undefined
+            const prefix = typeof doc?.prefix === 'string' ? doc.prefix.replace(/\/+$/u, '') : ''
+            const filename = typeof doc?.filename === 'string' ? doc.filename.replace(/^\/+/, '') : ''
+            if (!filename) return undefined
+            const key = prefix ? `${prefix}/${filename}` : filename
+            return `${base.replace(/\/+$/u, '')}/${key.replace(/^\/+/, '')}`
+          }
+
+          const fetchMediaDoc = async (mediaId: string) => {
+            if (mediaDocCache.has(mediaId)) return mediaDocCache.get(mediaId)!
+            const scopedSourceReq = sourceTenantId
+              ? ({ ...(req as any), tenant: sourceTenantId } as any)
+              : (req as any)
+            const doc = await req.payload.findByID({
+              collection: 'media',
+              id: mediaId,
+              depth: 0,
+              overrideAccess: true,
+              req: scopedSourceReq,
+            })
+            mediaDocCache.set(mediaId, doc)
+            return doc
+          }
+
+          const ensureMediaClone = async (mediaId: string | undefined, tenantId: string, scopedReq: any): Promise<string | undefined> => {
+            if (!mediaId) return undefined
+            const cacheKey = `${mediaId}:${tenantId}`
+            if (mediaCloneCache.has(cacheKey)) return mediaCloneCache.get(cacheKey)!
+
+            const mediaDoc = await fetchMediaDoc(mediaId).catch((error: any) => {
+              throw new Error(`Failed to load media ${mediaId}: ${error?.message || error}`)
+            })
+            if (!mediaDoc) throw new Error(`Media ${mediaId} not found`)
+
+            const mediaUrl = buildMediaUrl(mediaDoc)
+            if (!mediaUrl) throw new Error(`Media ${mediaId} is missing a resolvable URL`)
+
+            const response = await fetch(mediaUrl)
+            if (!response.ok) {
+              throw new Error(`Unable to download media ${mediaId} (status ${response.status})`)
+            }
+            const arrayBuffer = await response.arrayBuffer()
+            const fileBuffer = Buffer.from(arrayBuffer)
+
+            const tenantInfo = await getTenantInfo(tenantId)
+            const filename =
+              typeof mediaDoc?.filename === 'string' && mediaDoc.filename
+                ? mediaDoc.filename.replace(/\\/gu, '/').split('/').pop() || mediaDoc.filename
+                : `${mediaId}`
+            const mimeType = typeof mediaDoc?.mimeType === 'string' ? mediaDoc.mimeType : 'application/octet-stream'
+            const captionClone = mediaDoc?.caption ? JSON.parse(JSON.stringify(mediaDoc.caption)) : undefined
+
+            const createdMedia = await req.payload.create({
+              collection: 'media',
+              data: {
+                alt: (mediaDoc as any)?.alt,
+                caption: captionClone,
+                tenant: tenantId,
+              },
+              file: {
+                data: fileBuffer,
+                size: fileBuffer.length,
+                name: filename,
+                filename,
+                mimetype: mimeType,
+                mimeType,
+                prefix: tenantInfo.slug ? `${tenantInfo.slug.replace(/\/+$/u, '')}/` : undefined,
+              } as any,
+              req: scopedReq,
+              overrideAccess: true,
+              context: { disableRevalidate: true } as any,
+            })
+
+            const newId = (createdMedia as any)?.id
+            if (typeof newId !== 'string') throw new Error(`Cloned media for ${mediaId} did not return an ID`)
+
+            mediaCloneCache.set(cacheKey, newId)
+            return newId
+          }
+
+          const cloneRichTextUploads = async (value: any, tenantId: string, scopedReq: any): Promise<any> => {
+            const walk = async (node: any): Promise<any> => {
+              if (Array.isArray(node)) {
+                const next: any[] = []
+                for (const item of node) {
+                  next.push(await walk(item))
+                }
+                return next
+              }
+              if (!node || typeof node !== 'object') return node
+
+              if (node.type === 'upload' && node.relationTo === 'media') {
+                const uploadId = extractMediaId(node.value)
+                const clonedId = await ensureMediaClone(uploadId, tenantId, scopedReq)
+                return { ...node, value: clonedId }
+              }
+
+              const entries = Object.entries(node)
+              const updated: Record<string, any> = Array.isArray(node) ? [] : { ...node }
+              for (const [key, val] of entries) {
+                if (!val) {
+                  updated[key] = val
+                  continue
+                }
+                // Handle common media relationship shapes nested inside blocks
+                if (key === 'media' || key === 'image') {
+                  const relationId = extractMediaId(val)
+                  if (relationId) {
+                    updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
+                    continue
+                  }
+                }
+                if (!Array.isArray(val) && typeof val === 'object' && val?.relationTo === 'media') {
+                  const relationId = extractMediaId(val)
+                  if (relationId) {
+                    updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
+                    continue
+                  }
+                }
+                updated[key] = await walk(val)
+              }
+              return updated
+            }
+
+            return walk(value)
+          }
+
           const toCreate = allowedTenantIDs
           const results: any[] = []
           for (const tID of toCreate) {
@@ -392,71 +552,59 @@ export const Posts: CollectionConfig<'posts'> = {
               results.push({ tenantID: tID, skipped: true, reason: 'same-tenant' })
               continue
             }
-            // Normalize relationships to IDs and strip system fields
-            const categories = Array.isArray((source as any)?.categories)
-              ? (source as any).categories.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
-              : []
-            const tags = Array.isArray((source as any)?.tags)
-              ? (source as any).tags.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
-              : []
-            const relatedPosts = Array.isArray((source as any)?.relatedPosts)
-              ? (source as any).relatedPosts.map((p: any) => (typeof p === 'string' ? p : p?.id)).filter(Boolean)
-              : undefined
-            const heroImage =
-              typeof (source as any)?.heroImage === 'string'
-                ? (source as any).heroImage
-                : (source as any)?.heroImage?.id
-            const metaImage =
-              typeof (source as any)?.meta?.image === 'string'
-                ? (source as any).meta.image
-                : (source as any)?.meta?.image?.id
-            const keyTakeaways = Array.isArray((source as any)?.keyTakeaways)
-              ? (source as any).keyTakeaways
-                  .map((k: any) => ({ point: String(k?.point || '') }))
-                  .filter((k: any) => k.point)
-              : []
-            const articleType =
-              typeof (source as any)?.articleType === 'string'
-                ? (source as any).articleType
-                : (source as any)?.articleType?.id
-            const data: any = {
-              title: (source as any)?.title,
-              // Avoid cross-tenant media references; let editors set media per site
-              heroImage: undefined,
-              content: (() => {
-                const normalize = (node: any): any => {
-                  if (Array.isArray(node)) return node.map(normalize)
-                  if (!node || typeof node !== 'object') return node
-                  if (node.type === 'upload' && node.relationTo === 'media' && node.value && typeof node.value === 'object') {
-                    const id = (node.value as any)?.id ?? (node.value as any)?._id
-                    return { ...node, value: id }
-                  }
-                  const out: any = { ...node }
-                  for (const k of Object.keys(node)) out[k] = normalize((node as any)[k])
-                  return out
-                }
-                return normalize((source as any)?.content)
-              })(),
-              meta: {
-                title: (source as any)?.meta?.title,
-                description: (source as any)?.meta?.description,
-                image: undefined,
-              },
-              categories,
-              keyTakeaways,
-              articleType,
-              tags,
-              // Avoid cross-tenant posts relationships
-              relatedPosts: undefined,
-              publishedAt: null,
-              slug: (source as any)?.slug,
-              slugLock: (source as any)?.slugLock,
-              tenant: tID,
-              _status: 'draft',
-            }
+            const scopedReq = { ...(req as any), tenant: tID }
             try {
-              // Ensure create runs within the target tenant scope
-              const scopedReq = { ...(req as any), tenant: tID }
+              // Normalize relationships to IDs and strip system fields
+              const categories = Array.isArray((source as any)?.categories)
+                ? (source as any).categories.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
+                : []
+              const tags = Array.isArray((source as any)?.tags)
+                ? (source as any).tags.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
+                : []
+              const relatedPosts = Array.isArray((source as any)?.relatedPosts)
+                ? (source as any).relatedPosts.map((p: any) => (typeof p === 'string' ? p : p?.id)).filter(Boolean)
+                : undefined
+              const heroImageId = extractMediaId((source as any)?.heroImage)
+              const metaImageId = extractMediaId((source as any)?.meta?.image)
+              const keyTakeaways = Array.isArray((source as any)?.keyTakeaways)
+                ? (source as any).keyTakeaways
+                    .map((k: any) => ({ point: String(k?.point || '') }))
+                    .filter((k: any) => k.point)
+                : []
+              const articleType =
+                typeof (source as any)?.articleType === 'string'
+                  ? (source as any).articleType
+                  : (source as any)?.articleType?.id
+
+              const [clonedHeroImage, clonedMetaImage, clonedContent] = await Promise.all([
+                ensureMediaClone(heroImageId, tID, scopedReq),
+                ensureMediaClone(metaImageId, tID, scopedReq),
+                cloneRichTextUploads((source as any)?.content, tID, scopedReq),
+              ])
+
+              const data: any = {
+                title: (source as any)?.title,
+                heroSource: (source as any)?.heroSource,
+                heroImage: clonedHeroImage,
+                heroExternalURL: (source as any)?.heroExternalURL,
+                content: clonedContent,
+                meta: {
+                  title: (source as any)?.meta?.title,
+                  description: (source as any)?.meta?.description,
+                  image: clonedMetaImage,
+                },
+                categories,
+                keyTakeaways,
+                articleType,
+                tags,
+                relatedPosts: undefined,
+                publishedAt: null,
+                slug: (source as any)?.slug,
+                slugLock: (source as any)?.slugLock,
+                tenant: tID,
+                _status: 'draft',
+              }
+
               const created = await req.payload.create({
                 collection: 'posts',
                 data,
