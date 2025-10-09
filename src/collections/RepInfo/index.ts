@@ -1,4 +1,5 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, CollectionAfterChangeHook, CollectionAfterDeleteHook } from 'payload'
+import { triggerFrontendRevalidate } from '../../lib/utilities/revalidateFrontend'
 
 export const RepInfo: CollectionConfig = {
   labels: {
@@ -13,6 +14,44 @@ export const RepInfo: CollectionConfig = {
   },
   access: {
     read: () => true,
+  },
+  hooks: {
+    afterChange: [
+      (async ({ req: { payload, context } }) => {
+        if (context?.disableRevalidate) return
+        try {
+          const tenants = await payload.find({
+            collection: 'tenants',
+            limit: 1000,
+            depth: 0,
+            select: { slug: true } as any,
+          })
+          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
+          await triggerFrontendRevalidate({ paths, tags: ['payload:rep-info', ...slugs.map((s: string) => `tenant:${s}`)] })
+        } catch (e) {
+          payload.logger?.error?.('Failed to revalidate after rep-info change', e as any)
+        }
+      }) as CollectionAfterChangeHook,
+    ],
+    afterDelete: [
+      (async ({ req: { payload, context } }) => {
+        if (context?.disableRevalidate) return
+        try {
+          const tenants = await payload.find({
+            collection: 'tenants',
+            limit: 1000,
+            depth: 0,
+            select: { slug: true } as any,
+          })
+          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
+          await triggerFrontendRevalidate({ paths, tags: ['payload:rep-info', ...slugs.map((s: string) => `tenant:${s}`)] })
+        } catch (e) {
+          payload.logger?.error?.('Failed to revalidate after rep-info delete', e as any)
+        }
+      }) as CollectionAfterDeleteHook,
+    ],
   },
   fields: [
     {

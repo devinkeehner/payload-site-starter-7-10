@@ -1,8 +1,7 @@
 import type { CollectionAfterChangeHook, CollectionAfterDeleteHook } from 'payload'
 
-import { revalidatePath, revalidateTag } from 'next/cache'
-
 import type { Post } from '../../../payload-types'
+import { triggerFrontendRevalidate } from '../../../lib/utilities/revalidateFrontend'
 
 export const revalidatePost: CollectionAfterChangeHook<Post> = async ({
   doc,
@@ -34,11 +33,11 @@ export const revalidatePost: CollectionAfterChangeHook<Post> = async ({
       // Legacy path for backward compatibility
       paths.push(`/posts/${doc.slug}`)
 
-      for (const p of paths) {
-        payload.logger.info(`Revalidating post at path: ${p}`)
-        revalidatePath(p)
-      }
-      revalidateTag('posts-sitemap')
+      payload.logger.info(`Triggering frontend revalidation for post: ${doc.slug}`)
+      await triggerFrontendRevalidate({
+        paths,
+        tags: ['payload:posts', ...(tenantSlug ? [`tenant:${tenantSlug}`] : [])],
+      })
     }
 
     // If the post was previously published, revalidate the old paths
@@ -49,11 +48,11 @@ export const revalidatePost: CollectionAfterChangeHook<Post> = async ({
       // Legacy old path
       oldPaths.push(`/posts/${previousDoc.slug}`)
 
-      for (const p of oldPaths) {
-        payload.logger.info(`Revalidating old post at path: ${p}`)
-        revalidatePath(p)
-      }
-      revalidateTag('posts-sitemap')
+      payload.logger.info(`Triggering frontend revalidation for old post paths: ${previousDoc.slug}`)
+      await triggerFrontendRevalidate({
+        paths: oldPaths,
+        tags: ['payload:posts', ...(prevTenantSlug ? [`tenant:${prevTenantSlug}`] : [])],
+      })
     }
   }
   return doc
@@ -69,14 +68,16 @@ export const revalidateDelete: CollectionAfterDeleteHook<Post> = async ({ doc, r
           const t = await payload.findByID({ collection: 'tenants', id, depth: 0, select: { slug: true } as any })
           const tenantSlug = (t as any)?.slug
           if (tenantSlug) paths.push(`/${tenantSlug}/${doc?.slug}`)
+          await triggerFrontendRevalidate({
+            paths: [...paths, `/posts/${doc?.slug}`],
+            tags: ['payload:posts', ...(tenantSlug ? [`tenant:${tenantSlug}`] : [])],
+          })
+          return doc
         } catch {}
       }
     } catch {}
     // Legacy path
-    paths.push(`/posts/${doc?.slug}`)
-
-    for (const p of paths) revalidatePath(p)
-    revalidateTag('posts-sitemap')
+    await triggerFrontendRevalidate({ paths: [`/posts/${doc?.slug}`], tags: ['payload:posts'] })
   }
 
   return doc
