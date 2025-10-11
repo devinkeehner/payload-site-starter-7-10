@@ -37,8 +37,8 @@ const dirname = path.dirname(filename);
 export default buildConfig({
   admin: {
     components: {
-      // Wrap the admin UI with a lightweight provider that renders a small tenant badge
-      providers: ['@/components/admin/TenantBadgeProvider#default'],
+      // Wrap the admin UI with providers for tenant UX
+      providers: ['@/components/admin/TenantBadgeProvider#default', '@/components/admin/TenantSwitchGuard#default'],
       graphics: {
         Icon: '@/components/admin/brand/Icon#default',
         Logo: '@/components/admin/brand/Logo#default',

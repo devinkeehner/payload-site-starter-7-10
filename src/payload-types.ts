@@ -1191,7 +1191,7 @@ export interface User {
   roles?: 'super'[] | null;
   tenants?:
     | {
-        tenant: string | Tenant;
+        tenant?: (string | null) | Tenant;
         id?: string | null;
       }[]
     | null;

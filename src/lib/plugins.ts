@@ -230,7 +230,16 @@ export const plugins: Plugin[] = [
     config.collections?.forEach((collection) => {
       const traverse = (fields: Field[]): void => {
         fields.forEach((field) => {
-          if ('name' in field && field.name === 'tenant') field.label = 'Site'
+          if ('name' in field && field.name === 'tenant') {
+            // Rename to "Site" and hide on edit to avoid accidental tenant changes via the selector
+            field.label = 'Site'
+            ;(field as any).admin = {
+              ...((field as any).admin || {}),
+              // Show the tenant picker only when creating a new document.
+              // When editing (data.id exists), hide the tenant field so UI won't attempt to update ownership.
+              condition: (data: any) => !data?.id,
+            }
+          }
           if ('name' in field && field.name === 'tenants') {
             field.label = 'Sites'
             // Ensure assigned sites are included in the JWT so filtering applies on login

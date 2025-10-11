@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   }
 
   // Enable draft mode by setting cookies
-  const { enable } = await draftMode()
-  enable()
+  const draft = await draftMode()
+  draft.enable()
 
   // Redirect to the provided path (default to /)
   const slug = req.nextUrl.searchParams.get('slug') || ''
