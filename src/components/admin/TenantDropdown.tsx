@@ -1,14 +1,18 @@
 'use client'
 
 import React, { useCallback, useMemo, useState } from 'react'
-import { ConfirmationModal, SelectInput, useModal, useTranslation } from '@payloadcms/ui'
-import type { ReactSelectOption } from '@payloadcms/ui'
+import { ConfirmationModal, SelectInput, useAuth, useModal, useTranslation } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
 const confirmSwitchTenantSlug = 'custom-tenant-selector-confirm-switch'
 const confirmLeaveWithoutSavingSlug = 'custom-tenant-selector-confirm-leave'
 
-const toOption = (candidate: unknown): ReactSelectOption | undefined => {
+type TenantOption = {
+  label: string
+  value: string
+}
+
+const toOption = (candidate: unknown): TenantOption | undefined => {
   if (!candidate || typeof candidate !== 'object') return undefined
   const option = candidate as { label?: unknown; value?: unknown }
   if (option.value == null) return undefined
@@ -20,15 +24,44 @@ const toOption = (candidate: unknown): ReactSelectOption | undefined => {
 
 const TenantDropdown: React.FC = () => {
   const { entityType, modified, options = [], selectedTenantID, setTenant } = useTenantSelection()
+  const { user } = useAuth()
   const { openModal, closeModal } = useModal()
   const { i18n, t } = useTranslation()
 
-  const normalizedOptions = useMemo<ReactSelectOption[]>(() => {
+  const assignedTenantIDs = useMemo(() => {
+    const ids = new Set<string>()
+    if (Array.isArray(user?.tenants)) {
+      user.tenants.forEach((assignment: any) => {
+        const relation = assignment?.tenant
+        if (!relation) return
+        if (typeof relation === 'string') {
+          ids.add(relation)
+          return
+        }
+        if (typeof relation === 'object') {
+          const relationID = relation?.id ?? relation?.value
+          if (relationID != null) ids.add(String(relationID))
+        }
+      })
+    }
+    return ids
+  }, [user])
+
+  const normalizedOptions = useMemo<TenantOption[]>(() => {
     if (!Array.isArray(options)) return []
-    return options
+
+    const normalized = options
       .map((option) => toOption(option))
-      .filter((option): option is ReactSelectOption => Boolean(option))
-  }, [options])
+      .filter((option): option is TenantOption => Boolean(option))
+
+    return normalized.sort((a, b) => {
+      const aAssigned = assignedTenantIDs.has(String(a.value))
+      const bAssigned = assignedTenantIDs.has(String(b.value))
+      if (aAssigned && !bAssigned) return -1
+      if (!aAssigned && bAssigned) return 1
+      return String(a.label).localeCompare(String(b.label))
+    })
+  }, [options, assignedTenantIDs])
 
   const selectedValue = selectedTenantID == null ? undefined : String(selectedTenantID)
   const currentOption = useMemo(
@@ -36,16 +69,19 @@ const TenantDropdown: React.FC = () => {
     [normalizedOptions, selectedValue],
   )
 
-  const [pendingSelection, setPendingSelection] = useState<ReactSelectOption | undefined>(undefined)
+  const [pendingSelection, setPendingSelection] = useState<TenantOption | undefined>(undefined)
+
+  const translate = useMemo(
+    () => t as unknown as (key: string, options?: Record<string, unknown>) => string,
+    [t],
+  )
 
   const translateLabel = useCallback(() => {
-    return t('plugin-multi-tenant:nav-tenantSelector-label', {
-      lng: i18n?.language,
-    })
-  }, [i18n?.language, t])
+    return translate('plugin-multi-tenant:nav-tenantSelector-label')
+  }, [translate])
 
   const switchTenant = useCallback(
-    (option: ReactSelectOption | undefined) => {
+    (option: TenantOption | undefined) => {
       setPendingSelection(undefined)
       if (option?.value) {
         setTenant({ id: option.value as string, refresh: true })
@@ -103,13 +139,13 @@ const TenantDropdown: React.FC = () => {
       />
 
       <ConfirmationModal
-        body={t('plugin-multi-tenant:confirm-tenant-switch--body', {
+        body={translate('plugin-multi-tenant:confirm-tenant-switch--body', {
           fromTenant: currentOption?.label,
           toTenant: pendingSelection?.label,
         })}
-        cancelLabel={t('general:stayOnThisPage')}
-        confirmLabel={t('general:leaveAnyway')}
-        heading={t('plugin-multi-tenant:confirm-tenant-switch--heading', {
+        cancelLabel={translate('general:stayOnThisPage')}
+        confirmLabel={translate('general:leaveAnyway')}
+        heading={translate('plugin-multi-tenant:confirm-tenant-switch--heading', {
           tenantLabel: 'Tenant',
         })}
         modalSlug={confirmSwitchTenantSlug}
@@ -124,10 +160,10 @@ const TenantDropdown: React.FC = () => {
       />
 
       <ConfirmationModal
-        body={t('general:changesNotSaved')}
-        cancelLabel={t('general:stayOnThisPage')}
-        confirmLabel={t('general:leaveAnyway')}
-        heading={t('general:leaveWithoutSaving')}
+        body={translate('general:changesNotSaved')}
+        cancelLabel={translate('general:stayOnThisPage')}
+        confirmLabel={translate('general:leaveAnyway')}
+        heading={translate('general:leaveWithoutSaving')}
         modalSlug={confirmLeaveWithoutSavingSlug}
         onCancel={() => {
           setPendingSelection(undefined)
