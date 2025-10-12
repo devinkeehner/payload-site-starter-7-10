@@ -12,6 +12,7 @@ import { fields } from './fields'
 import RichText from '@/components/site/rich-text'
 
 import type { FormFieldBlock, Form as FormType } from '@payloadcms/plugin-form-builder/types'
+import type { DefaultTypedEditorState } from '@payloadcms/richtext-lexical'
 import type { SerializedEditorState } from '@payloadcms/richtext-lexical/lexical'
 
 export type FormBlockType = {
@@ -19,7 +20,7 @@ export type FormBlockType = {
   blockType?: 'formBlock'
   enableIntro: boolean
   form: FormType
-  introContent?: SerializedEditorState
+  introContent?: DefaultTypedEditorState | SerializedEditorState
 }
 
 export function FormBlock(props: { id?: string } & FormBlockType) {
@@ -128,7 +129,11 @@ export function FormBlock(props: { id?: string } & FormBlockType) {
     <Section>
       <Container>
         {enableIntro && introContent && !hasSubmitted && (
-          <RichText className="mb-8 lg:mb-12" data={introContent} enableGutter={false} />
+          <RichText
+            className="mb-8 lg:mb-12"
+            data={introContent as unknown as DefaultTypedEditorState}
+            enableGutter={false}
+          />
         )}
         <div className="p-6 lg:p-8 border rounded-sm bg-card">
           <FormProvider {...formMethods}>
@@ -170,9 +175,9 @@ export function FormBlock(props: { id?: string } & FormBlockType) {
                 </div>
               </form>
             )}
-            {!isLoading && hasSubmitted && confirmationType === 'message' && (
+            {!isLoading && hasSubmitted && confirmationType === 'message' && confirmationMessage && (
               <div className="p-4 bg-green-50 border border-green-200 rounded-md animate-in fade-in-50">
-                <RichText data={confirmationMessage} />
+                <RichText data={confirmationMessage as unknown as DefaultTypedEditorState} />
               </div>
             )}
             {isLoading && !hasSubmitted && (

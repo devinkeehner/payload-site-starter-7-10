@@ -42,6 +42,7 @@ export default buildConfig({
         '@/components/admin/TenantSwitchGuard#default',
         '@/components/admin/TenantHeaderIndicator#default',
       ],
+      beforeNavLinks: ['@/components/admin/TenantNavPanel#default'],
       graphics: {
         Icon: '@/components/admin/brand/Icon#default',
         Logo: '@/components/admin/brand/Logo#default',

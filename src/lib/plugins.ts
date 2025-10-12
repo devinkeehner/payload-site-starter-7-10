@@ -202,15 +202,15 @@ export const plugins: Plugin[] = [
   // Multi-tenant must run first so other plugins respect tenant scoping
   multiTenantPlugin({
     tenantsSlug: 'tenants', // identify the Tenants collection
-    tenantSelectorLabel: 'Select Site',
+    tenantSelectorLabel: undefined,
     // disable tenant-based access constraints for admins
     useTenantsCollectionAccess: true,
     useTenantsListFilter: true,
     // Filter by a user's assigned tenants
     useUsersTenantFilter: true,
     debug: true,
-    // allow super users to see all tenants
-    userHasAccessToAllTenants: (user) => !!user.roles?.includes('super'),
+    // allow all users to see every tenant in the selector
+    userHasAccessToAllTenants: () => true,
     collections: {
       navbars: { isGlobal: true },
       posts: {},
