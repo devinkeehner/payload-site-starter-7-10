@@ -11,3 +11,29 @@
 .payload-minimal-template {
   padding-top: 0 !important;
 }
+
+/* Admin user badge — render as grey outline icon */
+.app-header .graphic-account__bg {
+  fill: transparent !important;
+  stroke: var(--theme-elevation-300) !important;
+  stroke-width: 1.5px !important;
+}
+
+.app-header .graphic-account__head,
+.app-header .graphic-account__body {
+  fill: transparent !important;
+  stroke: var(--theme-elevation-600) !important;
+  stroke-width: 1.5px !important;
+}
+
+.app-header .graphic-account:hover .graphic-account__bg,
+.app-header .graphic-account:hover .graphic-account__head,
+.app-header .graphic-account:hover .graphic-account__body {
+  stroke: var(--theme-elevation-800) !important;
+}
+
+.app-header .graphic-account--active .graphic-account__bg,
+.app-header .graphic-account--active .graphic-account__head,
+.app-header .graphic-account--active .graphic-account__body {
+  stroke: var(--theme-text) !important;
+}

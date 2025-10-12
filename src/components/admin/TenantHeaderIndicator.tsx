@@ -52,10 +52,19 @@ const ensureTenantSelectorInteractive = () => {
   }
 }
 
+const formatVisitHref = (slug?: string | null) => {
+  if (!slug) return undefined
+  const base = process.env.NEXT_PUBLIC_SERVER_URL
+  if (base) {
+    return `${base.replace(/\/$/, '')}/${slug}`
+  }
+  return `/${slug}`
+}
+
 const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname()
   const { config } = useConfig()
-  useActiveTenant() // ensure hook runs to keep cache warm, even if header only needs tenant info indirectly
+  const { tenant, tenantID, tenantName } = useActiveTenant()
 
   const [collectionLabel, setCollectionLabel] = useState<string | undefined>(undefined)
   const [collectionHref, setCollectionHref] = useState<string | undefined>(undefined)
@@ -63,6 +72,9 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   const [docKey, setDocKey] = useState<string | undefined>(undefined)
 
   const collections = useMemo(() => config?.collections || [], [config])
+
+  const tenantSlug = tenant?.slug || tenantID || undefined
+  const visitHref = useMemo(() => formatVisitHref(tenant?.slug || tenantID || undefined), [tenant?.slug, tenantID])
 
   useEffect(() => {
     if (typeof document === "undefined") return
@@ -184,12 +196,46 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
           pointerEvents: "none",
         }}
       >
-        <div style={{ pointerEvents: "auto" }}>
+        <div
+          style={{
+            pointerEvents: "auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "1.5rem",
+          }}
+        >
           <TenantBreadcrumbBar
             collectionLabel={collectionLabel}
             collectionHref={collectionHref}
             docLabel={docLabel}
           />
+          {(visitHref || tenantName) && (
+            <a
+              href={visitHref || undefined}
+              target={visitHref ? "_blank" : undefined}
+              rel={visitHref ? "noreferrer" : undefined}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.4rem",
+                fontSize: "0.95rem",
+                fontWeight: 600,
+                padding: "0.35rem 0.75rem",
+                borderRadius: "999px",
+                border: "1px solid var(--theme-elevation-150)",
+                textDecoration: "none",
+                color: "var(--theme-text)",
+                background: "var(--theme-elevation-50)",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                cursor: visitHref ? "pointer" : "default",
+              }}
+            >
+              <span style={{ opacity: 0.7 }}>Visit Site</span>
+              {tenantSlug && <span style={{ opacity: 0.8 }}>/ {tenantSlug}</span>}
+              {!tenantSlug && tenantName && <span style={{ opacity: 0.8 }}>{tenantName}</span>}
+            </a>
+          )}
         </div>
       </div>
       {children}

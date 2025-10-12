@@ -39,7 +39,6 @@ export default buildConfig({
     components: {
       // Wrap the admin UI with providers for tenant UX
       providers: [
-        '@/components/admin/TenantBadgeProvider#default',
         '@/components/admin/TenantSwitchGuard#default',
         '@/components/admin/TenantHeaderIndicator#default',
       ],
