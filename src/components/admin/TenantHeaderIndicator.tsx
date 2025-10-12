@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useConfig } from "@payloadcms/ui"
 
@@ -210,11 +211,41 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
             collectionHref={collectionHref}
             docLabel={docLabel}
           />
-          {(visitHref || tenantName) && (
-            <a
-              href={visitHref || undefined}
-              target={visitHref ? "_blank" : undefined}
-              rel={visitHref ? "noreferrer" : undefined}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+            }}
+          >
+            {(visitHref || tenantName) && (
+              <a
+                href={visitHref || undefined}
+                target={visitHref ? "_blank" : undefined}
+                rel={visitHref ? "noreferrer" : undefined}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.4rem",
+                  fontSize: "0.95rem",
+                  fontWeight: 600,
+                  padding: "0.35rem 0.75rem",
+                  borderRadius: "999px",
+                  border: "1px solid var(--theme-elevation-150)",
+                  textDecoration: "none",
+                  color: "var(--theme-text)",
+                  background: "var(--theme-elevation-50)",
+                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+                  cursor: visitHref ? "pointer" : "default",
+                }}
+              >
+                <span style={{ opacity: 0.7 }}>Visit Site</span>
+                {tenantSlug && <span style={{ opacity: 0.8 }}>/ {tenantSlug}</span>}
+                {!tenantSlug && tenantName && <span style={{ opacity: 0.8 }}>{tenantName}</span>}
+              </a>
+            )}
+            <Link
+              href="/admin/account"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -228,14 +259,11 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
                 color: "var(--theme-text)",
                 background: "var(--theme-elevation-50)",
                 boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                cursor: visitHref ? "pointer" : "default",
               }}
             >
-              <span style={{ opacity: 0.7 }}>Visit Site</span>
-              {tenantSlug && <span style={{ opacity: 0.8 }}>/ {tenantSlug}</span>}
-              {!tenantSlug && tenantName && <span style={{ opacity: 0.8 }}>{tenantName}</span>}
-            </a>
-          )}
+              <span style={{ opacity: 0.7 }}>Account</span>
+            </Link>
+          </div>
         </div>
       </div>
       {children}
