@@ -42,4 +42,9 @@
   .app-header .graphic-account--active .graphic-account__body {
     stroke: var(--theme-text);
   }
+
+  /* Hide plugin tenant selector (replaced by custom dropdown in TenantNavPanel) */
+  #field-setTenant {
+    display: none !important;
+  }
 }

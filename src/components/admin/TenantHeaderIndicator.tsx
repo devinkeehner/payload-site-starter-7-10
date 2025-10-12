@@ -36,20 +36,52 @@ const ensureTenantSelectorInteractive = () => {
   const field = document.getElementById("field-setTenant")
   if (!field) return
 
-  field.classList.remove("read-only")
+  field.classList.remove("read-only", "field-type--readOnly")
 
   const wrappers = field.querySelectorAll<HTMLElement>(
-    ".react-select, .rs__control, .rs__option, .rs__single-value"
+    ".react-select, .rs__control, .rs__value-container, .rs__option, .rs__single-value, .rs__menu, .rs__indicators"
   )
+
   wrappers.forEach((el) => {
-    el.classList.remove("rs--is-disabled", "rs__control--is-disabled", "rs__single-value--is-disabled")
+    el.classList.remove(
+      "rs--is-disabled",
+      "rs__control--is-disabled",
+      "rs__single-value--is-disabled",
+      "rs__option--is-disabled",
+      "react-select__control--is-disabled"
+    )
     el.removeAttribute("aria-disabled")
     el.removeAttribute("data-disabled")
+    el.removeAttribute("aria-readonly")
+    if (el.tabIndex === -1) {
+      el.tabIndex = 0
+    }
+    if (el.style.pointerEvents === "none") {
+      el.style.pointerEvents = "auto"
+    }
+    if (el.style.opacity === "0.5") {
+      el.style.opacity = ""
+    }
+  })
+
+  const disabledAttrs = field.querySelectorAll<HTMLElement>(
+    "[aria-disabled='true'], [data-disabled='true'], [aria-readonly='true'], [readonly]"
+  )
+  disabledAttrs.forEach((el) => {
+    el.removeAttribute("aria-disabled")
+    el.removeAttribute("data-disabled")
+    el.removeAttribute("aria-readonly")
+    el.removeAttribute("readonly")
+    if (el instanceof HTMLInputElement || el instanceof HTMLButtonElement) {
+      el.disabled = false
+    }
   })
 
   const input = field.querySelector<HTMLInputElement>("input.rs__input")
   if (input) {
     input.removeAttribute("disabled")
+    input.removeAttribute("aria-readonly")
+    input.readOnly = false
   }
 }
 

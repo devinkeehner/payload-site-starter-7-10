@@ -43,9 +43,9 @@ import { default as default_d724e3c9fa2fc7ba502c18e1e0541534 } from '@/component
 import { default as default_f5b90b1f137d54d2b96fee0d0c4d5b67 } from '@/components/admin/brand/Logo'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { TenantSelector as TenantSelector_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
+import { default as default_7bc3a493a5fcf6301e9130ddb791c76c } from '@/components/admin/TenantNavPanel'
 import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/components/admin/TenantSwitchGuard'
 import { default as default_03d18d5b1bbb31219221c8c0e6fd3737 } from '@/components/admin/TenantHeaderIndicator'
-import { default as default_b7f2ddbc3ebf9e2ec0ecf36fb7b6b4cf } from '@/components/admin/TenantNavPanel'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
@@ -95,9 +95,9 @@ export const importMap = {
   "@/components/admin/brand/Logo#default": default_f5b90b1f137d54d2b96fee0d0c4d5b67,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelector": TenantSelector_d6d5f193a167989e2ee7d14202901e62,
+  "@/components/admin/TenantNavPanel#default": default_7bc3a493a5fcf6301e9130ddb791c76c,
   "@/components/admin/TenantSwitchGuard#default": default_599c1b72b7cec43f5abe1b2ad62dbd85,
   "@/components/admin/TenantHeaderIndicator#default": default_03d18d5b1bbb31219221c8c0e6fd3737,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
-  "@/components/admin/TenantNavPanel#default": default_b7f2ddbc3ebf9e2ec0ecf36fb7b6b4cf,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }

@@ -9,6 +9,7 @@ import {
   useTranslation,
 } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+import TenantDropdown from './TenantDropdown'
 
 type TenantOption = {
   label: string
@@ -163,6 +164,10 @@ const TenantNavPanel: React.FC = () => {
             )
           })}
         </ul>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--theme-elevation-150)', paddingTop: '0.75rem' }}>
+        <TenantDropdown />
       </div>
 
       <ConfirmationModal
