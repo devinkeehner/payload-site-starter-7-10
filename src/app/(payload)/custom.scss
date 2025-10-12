@@ -44,7 +44,25 @@
   }
 
   /* Hide plugin tenant selector (replaced by custom dropdown in TenantNavPanel) */
+  .tenant-selector #field-setTenant,
   #field-setTenant {
     display: none !important;
+  }
+
+  .tenant-selector--custom,
+  .tenant-selector--custom .tenant-selector--custom__input,
+  .tenant-selector--custom .react-select,
+  .tenant-selector--custom .rs__control {
+    width: 100% !important;
+    min-width: 0;
+  }
+
+  .tenant-selector--custom .tenant-selector--custom__input {
+    display: block !important;
+  }
+
+  .tenant-selector--custom .tenant-selector--custom__input .field-type__wrap,
+  .tenant-selector--custom .tenant-selector--custom__input .react-select {
+    width: 100% !important;
   }
 }

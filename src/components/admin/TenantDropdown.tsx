@@ -86,7 +86,10 @@ const TenantDropdown: React.FC = () => {
   if (normalizedOptions.length <= 1) return null
 
   return (
-    <div className="tenant-selector tenant-selector--custom" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+    <div
+      className="tenant-selector tenant-selector--custom"
+      style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}
+    >
       <SelectInput
         isClearable={false}
         label={translateLabel()}
@@ -96,6 +99,7 @@ const TenantDropdown: React.FC = () => {
         path="customTenantSelector"
         readOnly={false}
         value={selectedValue}
+        className="tenant-selector--custom__input"
       />
 
       <ConfirmationModal
