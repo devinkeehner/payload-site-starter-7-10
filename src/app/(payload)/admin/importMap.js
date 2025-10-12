@@ -45,6 +45,7 @@ import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e
 import { TenantSelector as TenantSelector_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
 import { default as default_0eca8e1f770b286147f066629322290a } from '@/components/admin/TenantBadgeProvider'
 import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/components/admin/TenantSwitchGuard'
+import { default as default_9d3af4f7f1f09d62d43da0ebd908f642 } from '@/components/admin/TenantHeaderIndicator'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
 
@@ -96,6 +97,7 @@ export const importMap = {
   "@payloadcms/plugin-multi-tenant/client#TenantSelector": TenantSelector_1d0591e3cf4f332c83a86da13a0de59a,
   "@/components/admin/TenantBadgeProvider#default": default_0eca8e1f770b286147f066629322290a,
   "@/components/admin/TenantSwitchGuard#default": default_599c1b72b7cec43f5abe1b2ad62dbd85,
+  "@/components/admin/TenantHeaderIndicator#default": default_9d3af4f7f1f09d62d43da0ebd908f642,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
 }
