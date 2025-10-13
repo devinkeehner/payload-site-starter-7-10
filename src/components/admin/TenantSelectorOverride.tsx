@@ -176,4 +176,6 @@ const TenantSelectorOverride: React.FC<TenantSelectorOverrideProps> = ({ disable
     </div>
   )
 
+}
+
 export default TenantSelectorOverride

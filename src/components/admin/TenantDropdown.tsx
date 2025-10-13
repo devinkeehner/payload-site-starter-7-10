@@ -27,7 +27,7 @@ const TenantDropdown: React.FC = () => {
   const { entityType, modified, options = [], selectedTenantID, setTenant } = useTenantSelection()
   const { user } = useAuth()
   const { openModal, closeModal } = useModal()
-  const { i18n, t } = useTranslation()
+  const { t } = useTranslation()
 
   const assignedTenantIDs = useMemo(() => {
     const ids = new Set<string>()
@@ -52,7 +52,9 @@ const TenantDropdown: React.FC = () => {
     normalizedOptions: TenantOption[]
     groupedOptions: OptionsOrGroups<TenantOption, GroupBase<TenantOption>>
   }>(() => {
-    if (!Array.isArray(options)) return { normalizedOptions: [], selectOptions: [] }
+    if (!Array.isArray(options)) {
+      return { normalizedOptions: [], groupedOptions: [] }
+    }
 
     const entries = options
       .map((option) => toOption(option))
@@ -67,8 +69,6 @@ const TenantDropdown: React.FC = () => {
     if (!assignedTenantIDs.size) {
       return { normalizedOptions: sorted, groupedOptions: sorted }
     }
-
-    const assigned: TenantOption[] = []
 
     const grouped: OptionsOrGroups<TenantOption, GroupBase<TenantOption>> = [
       {
@@ -105,10 +105,10 @@ const TenantDropdown: React.FC = () => {
   }, [])
 
   const switchTenant = useCallback(
-    (option: OptionObject | undefined) => {
+    (option: TenantOption | undefined) => {
       setPendingSelection(undefined)
       if (option?.value) {
-        setTenant({ id: option.value as string, refresh: true })
+        setTenant({ id: option.value, refresh: true })
       } else {
         setTenant({ id: undefined, refresh: true })
       }

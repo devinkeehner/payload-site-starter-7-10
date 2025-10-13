@@ -71,6 +71,9 @@ importers:
       '@radix-ui/react-slot':
         specifier: ^1.2.3
         version: 1.2.3(@types/react@19.0.10)(react@19.0.0)
+      '@types/react-select':
+        specifier: ^5.0.1
+        version: 5.0.1(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@vercel/analytics':
         specifier: ^1.5.0
         version: 1.5.0(next@15.3.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(sass@1.77.4))(react@19.0.0)
@@ -122,6 +125,9 @@ importers:
       react-hook-form:
         specifier: 7.54.2
         version: 7.54.2(react@19.0.0)
+      react-select:
+        specifier: ^5.10.2
+        version: 5.10.2(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react-wrap-balancer:
         specifier: ^1.1.1
         version: 1.1.1(react@19.0.0)
@@ -2246,6 +2252,10 @@ packages:
     resolution: {integrity: sha512-4fSQ8vWFkg+TGhePfUzVmat3eC14TXYSsiiDSLI0dVLsrm9gZFABjPy/Qu6TKgl1tq1Bu1yDsuQgY3A3DOjCcg==}
     peerDependencies:
       '@types/react': ^19.0.0
+
+  '@types/react-select@5.0.1':
+    resolution: {integrity: sha512-h5Im0AP0dr4AVeHtrcvQrLV+gmPa7SA0AGdxl2jOhtwiE6KgXBFSogWw8az32/nusE6AQHlCOHQWjP1S/+oMWA==}
+    deprecated: This is a stub types definition. react-select provides its own type definitions, so you do not need this installed.
 
   '@types/react-transition-group@4.4.12':
     resolution: {integrity: sha512-8TV6R3h2j7a91c+1DXdJi3Syo69zzIZbz7Lg5tORM5LEJG7X/E6a1V3drRyBRZq7/utz7A+c4OgYLiLcYGHG6w==}
@@ -4486,6 +4496,12 @@ packages:
     peerDependenciesMeta:
       '@types/react':
         optional: true
+
+  react-select@5.10.2:
+    resolution: {integrity: sha512-Z33nHdEFWq9tfnfVXaiM12rbJmk+QjFEztWLtmXqQhz6Al4UZZ9xc0wiatmGtUOCCnHN0WizL3tCMYRENX4rVQ==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   react-select@5.9.0:
     resolution: {integrity: sha512-nwRKGanVHGjdccsnzhFte/PULziueZxGD8LL2WojON78Mvnq7LdAMEtu2frrwld1fr3geixg3iiMBIc/LLAZpw==}
@@ -7834,6 +7850,15 @@ snapshots:
     dependencies:
       '@types/react': 19.0.10
 
+  '@types/react-select@5.0.1(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)':
+    dependencies:
+      react-select: 5.10.2(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+    transitivePeerDependencies:
+      - '@types/react'
+      - react
+      - react-dom
+      - supports-color
+
   '@types/react-transition-group@4.4.12(@types/react@19.0.10)':
     dependencies:
       '@types/react': 19.0.10
@@ -10298,6 +10323,23 @@ snapshots:
       use-sidecar: 1.1.3(@types/react@19.0.10)(react@19.0.0)
     optionalDependencies:
       '@types/react': 19.0.10
+
+  react-select@5.10.2(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
+    dependencies:
+      '@babel/runtime': 7.27.4
+      '@emotion/cache': 11.14.0
+      '@emotion/react': 11.14.0(@types/react@19.0.10)(react@19.0.0)
+      '@floating-ui/dom': 1.7.0
+      '@types/react-transition-group': 4.4.12(@types/react@19.0.10)
+      memoize-one: 6.0.0
+      prop-types: 15.8.1
+      react: 19.0.0
+      react-dom: 19.0.0(react@19.0.0)
+      react-transition-group: 4.4.5(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      use-isomorphic-layout-effect: 1.2.1(@types/react@19.0.10)(react@19.0.0)
+    transitivePeerDependencies:
+      - '@types/react'
+      - supports-color
 
   react-select@5.9.0(@types/react@19.0.10)(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:
