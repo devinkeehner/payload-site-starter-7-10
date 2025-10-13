@@ -103,11 +103,19 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   const [collectionHref, setCollectionHref] = useState<string | undefined>(undefined)
   const [docLabel, setDocLabel] = useState<string | undefined>(undefined)
   const [docKey, setDocKey] = useState<string | undefined>(undefined)
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const collections = useMemo(() => config?.collections || [], [config])
 
   const tenantSlug = tenant?.slug || tenantID || undefined
-  const visitHref = useMemo(() => formatVisitHref(tenant?.slug || tenantID || undefined), [tenant?.slug, tenantID])
+  const visitHref = useMemo(() => {
+    if (!isHydrated) return undefined
+    return formatVisitHref(tenantSlug)
+  }, [isHydrated, tenantSlug])
+
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
 
   useEffect(() => {
     if (typeof document === "undefined") return
@@ -250,7 +258,7 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
               gap: "0.75rem",
             }}
           >
-            {(visitHref || tenantName) && (
+            {isHydrated && (visitHref || tenantName) && (
               <a
                 href={visitHref || undefined}
                 target={visitHref ? "_blank" : undefined}

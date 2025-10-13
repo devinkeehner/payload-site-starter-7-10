@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTheme } from '@payloadcms/ui'
 
 import { useActiveTenant } from './hooks/useActiveTenant'
@@ -10,16 +10,6 @@ export type BreadcrumbCrumb = {
   label: React.ReactNode
   href?: string
   current?: boolean
-}
-
-function useTenantCrumb(): BreadcrumbCrumb | null {
-  const { tenant, tenantID } = useActiveTenant()
-  if (!tenant && !tenantID) return null
-
-  return {
-    label: tenant?.name || tenant?.slug || tenantID || 'Site',
-    href: '/admin',
-  }
 }
 
 const getTenantColor = (theme: 'light' | 'dark') => (theme === 'dark' ? '#facc15' : '#dc2626')
@@ -32,10 +22,22 @@ export interface TenantBreadcrumbBarProps {
 
 export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collectionLabel, collectionHref, docLabel }) => {
   const { theme } = useTheme()
-  const tenantCrumb = useTenantCrumb()
+  const { tenant, tenantID } = useActiveTenant()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const tenantCrumb: BreadcrumbCrumb | null = tenant || tenantID
+    ? {
+        label: tenant?.name || tenant?.slug || tenantID || 'Site',
+        href: '/admin',
+      }
+    : null
 
   const crumbs: BreadcrumbCrumb[] = []
-  if (tenantCrumb) crumbs.push(tenantCrumb)
+  if (mounted && tenantCrumb) crumbs.push(tenantCrumb)
   if (collectionLabel) {
     crumbs.push({ label: collectionLabel, href: collectionHref })
   }
@@ -79,12 +81,13 @@ export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collec
           }}
         />
       </Link>
-      {crumbs.map((crumb, index) => {
+      {mounted && crumbs.map((crumb, index) => {
         const isTenant = index === 0
         const isLast = index === crumbs.length - 1
         const color = isTenant ? tenantColor : 'var(--theme-text)'
         const node = crumb.href && !isLast ? (
           <Link
+            key={index}
             href={crumb.href}
             style={{
               color,
@@ -96,6 +99,7 @@ export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collec
           </Link>
         ) : (
           <span
+            key={index}
             style={{
               color,
               fontWeight: isTenant || isLast ? 700 : 500,
@@ -106,7 +110,7 @@ export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collec
         )
 
         return (
-          <React.Fragment key={index}>
+          <React.Fragment key={`crumb-${index}`}>
             {index > 0 && <span style={{ opacity: 0.5 }}>›</span>}
             {node}
           </React.Fragment>

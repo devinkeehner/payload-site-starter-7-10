@@ -1,7 +1,8 @@
 'use client'
 
 import React, { useCallback, useMemo, useState } from 'react'
-import { ConfirmationModal, SelectInput, useAuth, useModal, useTranslation } from '@payloadcms/ui'
+import { ConfirmationModal, useAuth, useModal, useTranslation } from '@payloadcms/ui'
+import ReactSelect, { type GroupBase, type OptionsOrGroups, type SingleValue, type StylesConfig } from 'react-select'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
 const confirmSwitchTenantSlug = 'custom-tenant-selector-confirm-switch'
@@ -47,20 +48,43 @@ const TenantDropdown: React.FC = () => {
     return ids
   }, [user])
 
-  const normalizedOptions = useMemo<TenantOption[]>(() => {
-    if (!Array.isArray(options)) return []
+  const { normalizedOptions, groupedOptions } = useMemo<{
+    normalizedOptions: TenantOption[]
+    groupedOptions: OptionsOrGroups<TenantOption, GroupBase<TenantOption>>
+  }>(() => {
+    if (!Array.isArray(options)) return { normalizedOptions: [], selectOptions: [] }
 
-    const normalized = options
+    const entries = options
       .map((option) => toOption(option))
       .filter((option): option is TenantOption => Boolean(option))
+      .map((option) => ({
+        label: option.label,
+        value: option.value,
+      }))
 
-    return normalized.sort((a, b) => {
-      const aAssigned = assignedTenantIDs.has(String(a.value))
-      const bAssigned = assignedTenantIDs.has(String(b.value))
-      if (aAssigned && !bAssigned) return -1
-      if (!aAssigned && bAssigned) return 1
-      return String(a.label).localeCompare(String(b.label))
-    })
+    const sorted = [...entries].sort((a, b) => String(a.label).localeCompare(String(b.label)))
+
+    if (!assignedTenantIDs.size) {
+      return { normalizedOptions: sorted, groupedOptions: sorted }
+    }
+
+    const assigned: TenantOption[] = []
+
+    const grouped: OptionsOrGroups<TenantOption, GroupBase<TenantOption>> = [
+      {
+        label: 'Assigned Sites',
+        options: sorted.filter((option) => assignedTenantIDs.has(option.value)),
+      },
+      {
+        label: 'All Sites',
+        options: sorted.filter((option) => !assignedTenantIDs.has(option.value)),
+      },
+    ]
+
+    return {
+      normalizedOptions: sorted,
+      groupedOptions: grouped,
+    }
   }, [options, assignedTenantIDs])
 
   const selectedValue = selectedTenantID == null ? undefined : String(selectedTenantID)
@@ -77,11 +101,11 @@ const TenantDropdown: React.FC = () => {
   )
 
   const translateLabel = useCallback(() => {
-    return translate('plugin-multi-tenant:nav-tenantSelector-label')
-  }, [translate])
+    return 'Site Navigation'
+  }, [])
 
   const switchTenant = useCallback(
-    (option: TenantOption | undefined) => {
+    (option: OptionObject | undefined) => {
       setPendingSelection(undefined)
       if (option?.value) {
         setTenant({ id: option.value as string, refresh: true })
@@ -92,9 +116,8 @@ const TenantDropdown: React.FC = () => {
     [setTenant],
   )
 
-  const handleChange = useCallback(
-    (option: unknown) => {
-      const parsed = toOption(option)
+  const attemptTenantChange = useCallback(
+    (parsed: TenantOption | undefined) => {
       if (!parsed) {
         switchTenant(undefined)
         return
@@ -119,6 +142,60 @@ const TenantDropdown: React.FC = () => {
     [entityType, modified, openModal, selectedValue, switchTenant],
   )
 
+  const handleChange = useCallback(
+    (option: SingleValue<TenantOption>) => {
+      attemptTenantChange(option ?? undefined)
+    },
+    [attemptTenantChange],
+  )
+
+  const reactSelectStyles = useMemo<StylesConfig<TenantOption, false>>(
+    () => ({
+      control: (base, state) => ({
+        ...base,
+        minHeight: 44,
+        borderRadius: '0.65rem',
+        borderColor: state.isFocused ? 'var(--theme-elevation-250)' : 'var(--theme-elevation-150)',
+        boxShadow: state.isFocused ? '0 0 0 2px var(--theme-elevation-150)' : base.boxShadow,
+        '&:hover': {
+          borderColor: 'var(--theme-elevation-250)',
+        },
+      }),
+      valueContainer: (base) => ({
+        ...base,
+        padding: '0.25rem 2.5rem 0.25rem 0.85rem',
+      }),
+      singleValue: (base) => ({
+        ...base,
+        fontWeight: 600,
+        color: 'var(--theme-text)',
+      }),
+      option: (base, state) => ({
+        ...base,
+        fontWeight: state.isSelected || state.isFocused ? 600 : 500,
+        backgroundColor: state.isSelected
+          ? 'var(--theme-elevation-150)'
+          : state.isFocused
+            ? 'var(--theme-elevation-100)'
+            : base.backgroundColor,
+        color: 'var(--theme-text)',
+      }),
+      menu: (base) => ({
+        ...base,
+        zIndex: 40,
+      }),
+      groupHeading: (base) => ({
+        ...base,
+        textTransform: 'uppercase',
+        fontSize: '0.65rem',
+        letterSpacing: '0.08em',
+        fontWeight: 600,
+        opacity: 0.65,
+      }),
+    }),
+    [],
+  )
+
   if (normalizedOptions.length <= 1) return null
 
   return (
@@ -126,16 +203,29 @@ const TenantDropdown: React.FC = () => {
       className="tenant-selector tenant-selector--custom"
       style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}
     >
-      <SelectInput
+      <label className="tenant-selector--custom__label" htmlFor="tenant-selector__input">
+        {translateLabel()}
+      </label>
+      <ReactSelect
+        className="tenant-selector--custom__select"
+        classNamePrefix="rs"
+        inputId="tenant-selector__input"
         isClearable={false}
-        label={translateLabel()}
-        name="customTenantSelector"
+        options={groupedOptions}
         onChange={handleChange}
-        options={normalizedOptions}
-        path="customTenantSelector"
-        readOnly={false}
-        value={selectedValue}
-        className="tenant-selector--custom__input"
+        value={currentOption ?? null}
+        styles={reactSelectStyles}
+        menuPlacement="auto"
+        menuPortalTarget={typeof document !== 'undefined' ? document.body : undefined}
+        placeholder="Select a site"
+        theme={(theme) => ({
+          ...theme,
+          borderRadius: 10,
+          colors: {
+            ...theme.colors,
+            primary: 'var(--theme-elevation-250)',
+          },
+        })}
       />
 
       <ConfirmationModal

@@ -57,12 +57,57 @@
     min-width: 0;
   }
 
-  .tenant-selector--custom .tenant-selector--custom__input {
-    display: block !important;
+  .tenant-selector--custom__label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--theme-text);
   }
 
-  .tenant-selector--custom .tenant-selector--custom__input .field-type__wrap,
-  .tenant-selector--custom .tenant-selector--custom__input .react-select {
-    width: 100% !important;
+  .tenant-selector--custom__select {
+    width: 100%;
+  }
+
+  .tenant-selector--custom .rs__menu-list {
+    padding: 0.25rem 0 !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .tenant-selector--custom .tenant-option {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .tenant-selector--custom .tenant-option--assigned {
+    background: var(--theme-elevation-0);
+    border: 1px solid var(--theme-elevation-150);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .tenant-selector--custom .tenant-option--other {
+    background: var(--theme-elevation-50);
+    border: 1px solid transparent;
+  }
+
+  .tenant-selector--custom .tenant-option__group-heading {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    opacity: 0.65;
+  }
+
+  .tenant-selector--custom .tenant-option__label {
+    font-size: 0.95rem;
+    font-weight: 600;
+  }
+
+  .tenant-selector--custom .rs__option {
+    border-radius: 0.5rem !important;
   }
 }
