@@ -167,7 +167,7 @@ export const Posts: CollectionConfig<'posts'> = {
             response = await client.responses.create({
               prompt: {
                 id: 'pmpt_688d35bf76348194bc06464d4d5f202e063e27e2905e1241',
-                version: '30',
+                version: '31',
                 // Pass variables to the hosted prompt here
                 variables: {
                   // Variables expected by the hosted prompt (v23)
