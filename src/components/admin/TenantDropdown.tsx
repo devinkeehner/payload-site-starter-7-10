@@ -201,7 +201,7 @@ const TenantDropdown: React.FC = () => {
   return (
     <div
       className="tenant-selector tenant-selector--custom"
-      style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100%' }}
+      style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', marginBottom: '1.5rem' }}
     >
       <label className="tenant-selector--custom__label" htmlFor="tenant-selector__input">
         {translateLabel()}

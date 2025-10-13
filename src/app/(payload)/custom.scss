@@ -61,10 +61,16 @@
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--theme-text);
+    margin: 0 0 0.2rem 0;
   }
 
   .tenant-selector--custom__select {
     width: 100%;
+  }
+
+  /* Reduce any default margins from React Select control */
+  .tenant-selector--custom__select .rs__control {
+    margin: 0 !important;
   }
 
   .tenant-selector--custom .rs__menu-list {
@@ -72,6 +78,43 @@
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+  }
+
+  /* Light separator between Assigned Sites and All Sites groups */
+  .tenant-selector--custom .rs__group + .rs__group {
+    border-top: 1px solid var(--theme-elevation-150);
+    margin-top: 0.25rem;
+    padding-top: 0.25rem;
+  }
+
+  /* Hide default (duplicate) tenant selector rendered in the nav area */
+  .nav__wrap .tenant-selector {
+    display: none !important;
+  }
+  .nav__wrap .tenant-selector--custom {
+    display: flex !important;
+  }
+
+  .nav__wrap .tenant-selector:not(.tenant-selector--custom) {
+    display: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  /* Stronger target if it's mounted as a direct child of nav__wrap */
+  .nav__wrap > .tenant-selector:not(.tenant-selector--custom) {
+    display: none !important;
+  }
+
+  /* Fallback: hide the field container by ID if present */
+  .nav__wrap #field-setTenant {
+    display: none !important;
+  }
+
+  /* If the parent .tenant-selector contains #field-setTenant, hide the parent as well */
+  .nav__wrap .tenant-selector:has(#field-setTenant) {
+    display: none !important;
   }
 
   .tenant-selector--custom .tenant-option {

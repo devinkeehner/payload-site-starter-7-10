@@ -14,7 +14,15 @@ const TenantNavPanel: React.FC = () => {
   return (
     <div
       className="tenant-nav-panel"
-      style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: '0.25rem', width: '100%' }}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.25rem',
+        paddingBottom: '0.15rem',
+        marginBottom: '1.2rem',
+        borderBottom: '1px solid var(--theme-elevation-150)',
+        width: '100%',
+      }}
     >
       <TenantDropdown />
     </div>
