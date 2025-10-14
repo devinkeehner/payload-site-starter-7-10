@@ -1,5 +1,5 @@
 'use client'
-import React, { useCallback, useEffect } from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import { TextFieldClientProps } from 'payload'
 
 import { useField, Button, TextInput, FieldLabel, useFormFields, useForm } from '@payloadcms/ui'
@@ -40,14 +40,30 @@ export const SlugComponent: React.FC<SlugComponentProps> = ({
     return fields[fieldToUse]?.value as string
   })
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
-    if (checkboxValue) {
+    // Clear any pending update when lock toggles or value changes
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+
+    if (!checkboxValue) return
+
+    debounceRef.current = setTimeout(() => {
       if (targetFieldValue) {
         const formattedSlug = formatSlug(targetFieldValue)
-
         if (value !== formattedSlug) setValue(formattedSlug)
       } else {
         if (value !== '') setValue('')
+      }
+    }, 400)
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+        debounceRef.current = null
       }
     }
   }, [targetFieldValue, checkboxValue, setValue, value])
