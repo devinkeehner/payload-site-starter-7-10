@@ -26,7 +26,24 @@ const deriveIdFromPath = (): string | undefined => {
   return undefined
 }
 
-const ShareCopyField: React.FC = () => {
+const deriveCollectionSlugFromPath = (): string | undefined => {
+  if (typeof window === 'undefined') return undefined
+  try {
+    const parts = window.location.pathname.split('/').filter(Boolean)
+    const i = parts.findIndex((p) => p === 'collections')
+    if (i !== -1 && parts[i + 1]) return parts[i + 1]
+  } catch {
+    // no-op
+  }
+  return undefined
+}
+
+interface ShareCopyFieldProps {
+  collectionSlug?: string
+}
+
+const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
+  const effectiveCollectionSlug = collectionSlug || deriveCollectionSlugFromPath() || 'posts'
   const docInfo = useDocumentInfo() as { id?: string } | null
   const infoId = docInfo?.id
   const fieldId = useFormFields(
@@ -138,7 +155,7 @@ const ShareCopyField: React.FC = () => {
       const qs = new URLSearchParams()
       if (shareTargets.length) qs.set('tenantIDs', shareTargets.join(','))
       if (sourceTenantID) qs.set('sourceTenantID', sourceTenantID)
-      const url = `/api/posts/${resolvedId}/share?${qs.toString()}`
+      const url = `/api/${effectiveCollectionSlug}/${resolvedId}/share?${qs.toString()}`
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

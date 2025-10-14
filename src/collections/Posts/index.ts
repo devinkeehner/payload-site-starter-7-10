@@ -389,6 +389,8 @@ export const Posts: CollectionConfig<'posts'> = {
           const tenantCache = new Map<string, { id: string; slug?: string | null }>()
           const mediaDocCache = new Map<string, any>()
           const mediaCloneCache = new Map<string, string>()
+          const formDocCache = new Map<string, any>()
+          const formCloneCache = new Map<string, string>()
 
           const extractMediaId = (value: any): string | undefined => {
             if (!value) return undefined
@@ -398,6 +400,18 @@ export const Posts: CollectionConfig<'posts'> = {
               if (typeof value._id === 'string') return value._id
               if (typeof value.value === 'string') return value.value
               if (typeof value.value === 'object') return extractMediaId(value.value)
+            }
+            return undefined
+          }
+
+          const extractFormId = (value: any): string | undefined => {
+            if (!value) return undefined
+            if (typeof value === 'string') return value
+            if (typeof value === 'object') {
+              if (typeof value.id === 'string') return value.id
+              if (typeof value._id === 'string') return value._id
+              if (typeof value.value === 'string') return value.value
+              if (typeof value.value === 'object') return extractFormId(value.value)
             }
             return undefined
           }
@@ -498,6 +512,112 @@ export const Posts: CollectionConfig<'posts'> = {
             return newId
           }
 
+          const fetchFormDoc = async (formId: string) => {
+            if (formDocCache.has(formId)) return formDocCache.get(formId)!
+            const scopedSourceReq = sourceTenantId
+              ? ({ ...(req as any), tenant: sourceTenantId } as any)
+              : (req as any)
+            const doc = await req.payload.findByID({
+              collection: 'forms',
+              id: formId,
+              depth: 2,
+              overrideAccess: true,
+              req: scopedSourceReq,
+            })
+            formDocCache.set(formId, doc)
+            return doc
+          }
+
+          const cloneFormFieldOptions = async (options: any[], tenantId: string, scopedReq: any) => {
+            if (!Array.isArray(options)) return options
+            const clonedOptions: any[] = []
+            for (const option of options) {
+              if (!option) continue
+              const nextOption: Record<string, any> = { ...option }
+              delete nextOption.id
+              delete nextOption._id
+              if (nextOption.image) {
+                const optionImageId = extractMediaId(nextOption.image)
+                nextOption.image = await ensureMediaClone(optionImageId, tenantId, scopedReq)
+              }
+              clonedOptions.push(nextOption)
+            }
+            return clonedOptions
+          }
+
+          const cloneFormFields = async (fields: any[], tenantId: string, scopedReq: any) => {
+            if (!Array.isArray(fields)) return fields
+            const clonedFields: any[] = []
+            for (const field of fields) {
+              if (!field) continue
+              const nextField: Record<string, any> = JSON.parse(JSON.stringify(field))
+              delete nextField.id
+              delete nextField._id
+              if (Array.isArray(nextField.options)) {
+                nextField.options = await cloneFormFieldOptions(nextField.options, tenantId, scopedReq)
+              }
+              clonedFields.push(nextField)
+            }
+            return clonedFields
+          }
+
+          const ensureFormClone = async (formId: string | undefined, tenantId: string, scopedReq: any): Promise<string | undefined> => {
+            if (!formId) return undefined
+            const cacheKey = `${formId}:${tenantId}`
+            if (formCloneCache.has(cacheKey)) return formCloneCache.get(cacheKey)!
+
+            const formDoc = await fetchFormDoc(formId).catch((error: any) => {
+              throw new Error(`Failed to load form ${formId}: ${error?.message || error}`)
+            })
+            if (!formDoc) throw new Error(`Form ${formId} not found`)
+
+            const cloneKeys = [
+              'title',
+              'fields',
+              'submitButtonLabel',
+              'confirmationType',
+              'confirmationMessage',
+              'redirect',
+              'emails',
+            ]
+
+            const data: Record<string, any> = {}
+            for (const key of cloneKeys) {
+              if (typeof formDoc[key] !== 'undefined') {
+                data[key] = JSON.parse(JSON.stringify(formDoc[key]))
+              }
+            }
+
+            data.fields = await cloneFormFields(data.fields, tenantId, scopedReq)
+            if (Array.isArray(data.emails)) {
+              data.emails = data.emails.map((email: any) => {
+                if (!email) return email
+                const nextEmail = { ...email }
+                delete nextEmail.id
+                delete nextEmail._id
+                return nextEmail
+              })
+            }
+
+            data.tenant = tenantId
+
+            const createdForm = await req.payload.create({
+              collection: 'forms',
+              data,
+              draft: true,
+              depth: 0,
+              req: scopedReq as any,
+              overrideAccess: true,
+              context: { disableRevalidate: true } as any,
+            })
+
+            const newId = (createdForm as any)?.id
+            if (typeof newId !== 'string') throw new Error(`Cloned form for ${formId} did not return an ID`)
+
+            formCloneCache.set(cacheKey, newId)
+            return newId
+          }
+
           const cloneRichTextUploads = async (value: any, tenantId: string, scopedReq: any): Promise<any> => {
             const walk = async (node: any): Promise<any> => {
               if (Array.isArray(node)) {
@@ -530,12 +650,26 @@ export const Posts: CollectionConfig<'posts'> = {
                     continue
                   }
                 }
+                if (key === 'form') {
+                  const relationId = extractFormId(val)
+                  if (relationId) {
+                    updated[key] = await ensureFormClone(relationId, tenantId, scopedReq)
+                    continue
+                  }
+                }
                 if (!Array.isArray(val) && typeof val === 'object') {
                   const relationTo = (val as any)?.relationTo
                   if (relationTo === 'media') {
                     const relationId = extractMediaId(val)
                     if (relationId) {
                       updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
+                      continue
+                    }
+                  }
+                  if (relationTo === 'forms') {
+                    const relationId = extractFormId(val)
+                    if (relationId) {
+                      updated[key] = await ensureFormClone(relationId, tenantId, scopedReq)
                       continue
                     }
                   }
@@ -766,8 +900,8 @@ export const Posts: CollectionConfig<'posts'> = {
           fields: [
             {
               name: 'share',
+              label: 'Share Copy',
               type: 'ui',
-              label: 'Share',
               admin: {
                 components: {
                   Field: {
