@@ -123,10 +123,12 @@ export interface Config {
   globals: {
     header: Header;
     footer: Footer;
+    'global-meta-seo': GlobalMetaSeo;
   };
   globalsSelect: {
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
+    'global-meta-seo': GlobalMetaSeoSelect<false> | GlobalMetaSeoSelect<true>;
   };
   locale: null;
   user: User & {
@@ -2437,6 +2439,23 @@ export interface Footer {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "global-meta-seo".
+ */
+export interface GlobalMetaSeo {
+  id: string;
+  /**
+   * Paste the GTM header script block. <script> wrappers are okay.
+   */
+  gtmHeader?: string | null;
+  /**
+   * Paste the GTM <noscript> iframe block.
+   */
+  gtmBodyNoscript?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "header_select".
  */
 export interface HeaderSelect<T extends boolean = true> {
@@ -2477,6 +2496,17 @@ export interface FooterSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "global-meta-seo_select".
+ */
+export interface GlobalMetaSeoSelect<T extends boolean = true> {
+  gtmHeader?: T;
+  gtmBodyNoscript?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

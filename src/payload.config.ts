@@ -2,7 +2,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb';
 import { resendAdapter } from '@payloadcms/email-resend';
 import sharp from 'sharp';
 import path from 'path';
-import { buildConfig, PayloadRequest } from 'payload';
+import { buildConfig, PayloadRequest, type GlobalConfig } from 'payload';
 import { fileURLToPath } from 'url';
 import { s3Storage } from '@payloadcms/storage-s3';
 
@@ -30,6 +30,37 @@ import { Footer } from './components/site/footer/config';
 // Misc imports
 import { plugins } from '@/lib/plugins';
 import { defaultLexical } from '@/collections/fields/defaultLexical';
+
+// Inline Global Meta & SEO (Payload Global - site-wide)
+const GlobalMetaSEOGlobal: GlobalConfig = {
+  slug: 'global-meta-seo',
+  label: 'Global Meta & SEO',
+  admin: {
+    group: 'Admin',
+    hidden: ({ user }) => !user?.roles?.includes('super'),
+  },
+  access: {
+    read: () => true,
+  },
+  fields: [
+    {
+      name: 'gtmHeader',
+      label: 'Google Tag Manager Header',
+      type: 'textarea',
+      admin: {
+        description: 'Paste the GTM header script block. <script> wrappers are okay.',
+      },
+    },
+    {
+      name: 'gtmBodyNoscript',
+      label: 'Google Tag Manager Body (noscript)',
+      type: 'textarea',
+      admin: {
+        description: 'Paste the GTM <noscript> iframe block.',
+      },
+    },
+  ],
+};
 
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
@@ -109,7 +140,7 @@ export default buildConfig({
 
   cors: '*',
 
-  globals: [Header, Footer],
+  globals: [Header, Footer, GlobalMetaSEOGlobal],
 
   plugins: [
     // Spread any additional plugins you’ve defined elsewhere
