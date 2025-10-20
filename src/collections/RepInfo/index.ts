@@ -83,6 +83,24 @@ export const RepInfo: CollectionConfig = {
           type: 'text',
           required: true,
         },
+        {
+          name: 'url',
+          label: 'Town Website URL',
+          type: 'text',
+          admin: {
+            description: 'Optional: paste the town website URL, including https:// (opens in a new tab).',
+          },
+          validate: (value) => {
+            if (!value) return true
+            try {
+              // eslint-disable-next-line no-new
+              new URL(value)
+              return true
+            } catch (_) {
+              return 'Enter a valid URL (example: https://www.example.com)'
+            }
+          },
+        },
       ],
     },
     {

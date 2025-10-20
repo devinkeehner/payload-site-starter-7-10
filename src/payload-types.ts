@@ -1032,6 +1032,10 @@ export interface RepInfo {
   towns?:
     | {
         town: string;
+        /**
+         * Optional: paste the town website URL, including https:// (opens in a new tab).
+         */
+        url?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -1877,6 +1881,7 @@ export interface RepInfoSelect<T extends boolean = true> {
     | T
     | {
         town?: T;
+        url?: T;
         id?: T;
       };
   form?: T;
