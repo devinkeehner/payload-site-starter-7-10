@@ -227,9 +227,8 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
     <>
       <div
         style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 90,
+          position: "relative",
+          zIndex: 10,
           background: "var(--theme-elevation-0)",
           borderBottom: "1px solid var(--theme-elevation-100)",
           padding: "1.25rem clamp(1rem, 3vw, 2rem) 1rem",
