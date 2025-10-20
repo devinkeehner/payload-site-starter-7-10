@@ -90,7 +90,7 @@ export const RepInfo: CollectionConfig = {
           admin: {
             description: 'Optional: paste the town website URL, including https:// (opens in a new tab).',
           },
-          validate: (value) => {
+          validate: (value: string | null | undefined) => {
             if (!value) return true
             try {
               // eslint-disable-next-line no-new
