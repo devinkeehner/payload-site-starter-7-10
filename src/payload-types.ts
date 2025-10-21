@@ -1166,6 +1166,14 @@ export interface SiteSeo {
   description: string;
   metaImage?: (string | null) | Media;
   tags?: (string | Tag)[] | null;
+  /**
+   * Paste the Meta Pixel <script> block. Script tags are optional.
+   */
+  metaPixelHeader?: string | null;
+  /**
+   * Paste the Meta Pixel <noscript> block to render inside the <body>.
+   */
+  metaPixelNoscript?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1976,6 +1984,8 @@ export interface SiteSeoSelect<T extends boolean = true> {
   description?: T;
   metaImage?: T;
   tags?: T;
+  metaPixelHeader?: T;
+  metaPixelNoscript?: T;
   updatedAt?: T;
   createdAt?: T;
 }

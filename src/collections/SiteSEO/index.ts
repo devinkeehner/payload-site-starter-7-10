@@ -64,5 +64,21 @@ export const SiteSEO: CollectionConfig = {
       relationTo: 'tags',
       hasMany: true,
     },
+    {
+      name: 'metaPixelHeader',
+      label: 'Meta Pixel Header Script',
+      type: 'textarea',
+      admin: {
+        description: 'Paste the Meta Pixel <script> block. Script tags are optional.',
+      },
+    },
+    {
+      name: 'metaPixelNoscript',
+      label: 'Meta Pixel Body (noscript)',
+      type: 'textarea',
+      admin: {
+        description: 'Paste the Meta Pixel <noscript> block to render inside the <body>.',
+      },
+    },
   ],
 }
