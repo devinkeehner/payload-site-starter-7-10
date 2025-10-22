@@ -89,7 +89,23 @@ export const StandardMedia: CollectionConfig = {
       defaultValue: 'right',
       admin: {
         layout: 'horizontal',
+        width: '50%',
         description: 'Align hero text to the left or right side on large screens.',
+      },
+    },
+    {
+      name: 'heroTextSize',
+      label: 'Hero text size',
+      type: 'radio',
+      options: [
+        { label: 'Small', value: 'small' },
+        { label: 'Default', value: 'default' },
+        { label: 'Large', value: 'large' },
+      ],
+      defaultValue: 'default',
+      admin: {
+        layout: 'horizontal',
+        width: '50%',
       },
     },
     {
