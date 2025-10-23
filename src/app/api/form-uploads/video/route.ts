@@ -50,6 +50,27 @@ export async function POST(req: Request): Promise<Response> {
 
   const headerToken = req.headers.get(HEADER_TOKEN)
   const expectedToken = process.env.FORM_VIDEO_UPLOAD_TOKEN
+  const ALLOWED_ORIGINS = (process.env.FORM_VIDEO_UPLOAD_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+  const matchOrigin = (origin: string, allowed: string): boolean => {
+    if (allowed === '*') return true
+    if (allowed === origin) return true
+    if (allowed.startsWith('*.')) {
+      const suffix = allowed.slice(1)
+      return origin.endsWith(suffix)
+    }
+    return false
+  }
+
+  const isOriginAllowed = (origin: string | null): boolean => {
+    if (!origin) return true
+    if (ALLOWED_ORIGINS.length === 0) return true
+    const normalized = origin.toLowerCase()
+    return ALLOWED_ORIGINS.some((allowed) => matchOrigin(normalized, allowed.toLowerCase()))
+  }
 
   if (!user) {
     if (!expectedToken || headerToken !== expectedToken) {
@@ -62,6 +83,12 @@ export async function POST(req: Request): Promise<Response> {
     formData = await req.formData()
   } catch {
     return new Response('Invalid form data', { status: 400 })
+  }
+
+  const origin = req.headers.get('Origin')
+  if (!isOriginAllowed(origin)) {
+    payload.logger.debug({ origin }, 'Origin not allowed')
+    return new Response('Forbidden', { status: 403 })
   }
 
   const file = formData.get('file') as File | null
