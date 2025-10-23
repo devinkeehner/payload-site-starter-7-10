@@ -820,6 +820,27 @@ export interface Form {
             blockName?: string | null;
             blockType: 'image-select';
           }
+        | {
+            name: string;
+            label: string;
+            width?: number | null;
+            maxDuration?: number | null;
+            maxFileSizeMB?: number | null;
+            /**
+             * Defaults to video/webm and video/mp4 when left empty.
+             */
+            mimeTypes?:
+              | {
+                  mimeType: string;
+                  id?: string | null;
+                }[]
+              | null;
+            helpText?: string | null;
+            required?: boolean | null;
+            id?: string | null;
+            blockName?: string | null;
+            blockType: 'video-capture';
+          }
       )[]
     | null;
   submitButtonLabel?: string | null;
@@ -2151,6 +2172,25 @@ export interface FormsSelect<T extends boolean = true> {
                     image?: T;
                     id?: T;
                   };
+              required?: T;
+              id?: T;
+              blockName?: T;
+            };
+        'video-capture'?:
+          | T
+          | {
+              name?: T;
+              label?: T;
+              width?: T;
+              maxDuration?: T;
+              maxFileSizeMB?: T;
+              mimeTypes?:
+                | T
+                | {
+                    mimeType?: T;
+                    id?: T;
+                  };
+              helpText?: T;
               required?: T;
               id?: T;
               blockName?: T;

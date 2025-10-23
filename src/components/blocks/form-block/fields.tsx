@@ -6,6 +6,7 @@ import { Number } from './number'
 import { Radio } from './radio'
 import { CheckboxGroup } from './checkbox-group'
 import { ImageSelect } from './image-select'
+import { VideoCapture } from './video-capture'
 import { Select } from './select'
 import { State } from './state'
 import { Text } from './text'
@@ -20,6 +21,7 @@ export const fields = {
   radio: Radio,
   'checkbox-group': CheckboxGroup,
   'image-select': ImageSelect,
+  'video-capture': VideoCapture,
   select: Select,
   state: State,
   text: Text,

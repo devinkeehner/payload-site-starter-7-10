@@ -179,6 +179,77 @@ export const plugins: Plugin[] = [
         ],
         labels: { singular: 'Image Select', plural: 'Image Selects' },
       } as any,
+      'video-capture': {
+        slug: 'video-capture',
+        fields: [
+          {
+            type: 'row',
+            fields: [
+              {
+                name: 'name',
+                type: 'text',
+                label: 'Name (lowercase, no special characters)',
+                required: true,
+                admin: { width: '50%' },
+              },
+              {
+                name: 'label',
+                type: 'text',
+                label: 'Label',
+                localized: true,
+                required: true,
+                admin: { width: '50%' },
+              },
+            ],
+          },
+          {
+            type: 'row',
+            fields: [
+              {
+                name: 'width',
+                type: 'number',
+                label: 'Field Width (percentage)',
+                admin: { width: '33%' },
+              },
+              {
+                name: 'maxDuration',
+                type: 'number',
+                label: 'Max Duration (seconds)',
+                admin: { width: '33%' },
+              },
+              {
+                name: 'maxFileSizeMB',
+                type: 'number',
+                label: 'Max File Size (MB)',
+                admin: { width: '33%' },
+              },
+            ],
+          },
+          {
+            name: 'mimeTypes',
+            type: 'array',
+            label: 'Allowed MIME Types',
+            labels: { singular: 'MIME Type', plural: 'MIME Types' },
+            admin: { description: 'Defaults to video/webm and video/mp4 when left empty.' },
+            fields: [
+              {
+                name: 'mimeType',
+                type: 'text',
+                label: 'MIME Type',
+                required: true,
+              },
+            ],
+          },
+          {
+            name: 'helpText',
+            type: 'textarea',
+            label: 'Helper Text',
+            localized: true,
+          },
+          { name: 'required', type: 'checkbox', label: 'Required' },
+        ],
+        labels: { singular: 'Video Capture', plural: 'Video Captures' },
+      } as any,
     },
     formOverrides: {
       admin: { group: 'Forms & Submissions' },
