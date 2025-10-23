@@ -218,12 +218,12 @@ export const VideoCapture: React.FC<
         setRecorderError('An error occurred while recording. Please try again.')
       }
 
+      setShowLivePreview(true)
       if (livePreviewRef.current) {
         livePreviewRef.current.srcObject = stream
         void livePreviewRef.current.play().catch(() => {
           /* ignore autoplay failures */
         })
-        setShowLivePreview(true)
       }
 
       recorder.start()
@@ -418,17 +418,17 @@ export const VideoCapture: React.FC<
           onChange={handleFileSelection}
         />
 
-        {showLivePreview && (
-          <div className="rounded border bg-black/60 p-2">
-            <video
-              ref={livePreviewRef}
-              muted
-              playsInline
-              className="h-48 w-full rounded object-cover"
-              aria-label="Live recording preview"
-            />
-          </div>
-        )}
+        <div className="rounded border bg-black/60 p-2" hidden={!showLivePreview}>
+          <video
+            ref={livePreviewRef}
+            muted
+            playsInline
+            autoPlay
+            className="h-48 w-full rounded object-cover"
+            aria-label="Live recording preview"
+            style={!showLivePreview ? { display: 'none' } : undefined}
+          />
+        </div>
 
         {recordedDuration !== null && (
           <p className="text-sm text-muted-foreground">Recorded duration: {recordedDuration} seconds</p>
