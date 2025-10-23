@@ -116,7 +116,7 @@ export async function POST(req: Request): Promise<Response> {
   const file = formData.get('file') as File | null
   if (!file) return new Response('Missing file field', { status: 400 })
 
-  const tenant = (formData.get('tenant') as string) || undefined
+  const tenantParam = (formData.get('tenant') as string) || undefined
   const durationStr = (formData.get('duration') as string) || undefined
   const duration = durationStr ? Number.parseInt(durationStr, 10) : undefined
 
@@ -128,6 +128,21 @@ export async function POST(req: Request): Promise<Response> {
   const alt = (formData.get('alt') as string) || `Form submission video (${filename})`
 
   try {
+    // Resolve tenant: accept 24-char ObjectId or slug; otherwise omit
+    const isValidObjectId = (val: string) => /^(?:[a-f0-9]{24})$/i.test(val)
+    let tenantId: string | undefined = tenantParam
+    if (tenantParam && !isValidObjectId(tenantParam)) {
+      try {
+        const found = await payload.find({
+          collection: 'tenants',
+          where: { slug: { equals: tenantParam } },
+          limit: 1,
+          overrideAccess: true,
+        })
+        tenantId = (found?.docs?.[0] as any)?.id || undefined
+      } catch {}
+    }
+
     const payloadReq: PayloadRequest = {
       ...(req as unknown as PayloadRequest),
       user,
@@ -139,7 +154,7 @@ export async function POST(req: Request): Promise<Response> {
       collection: 'media',
       data: {
         alt,
-        ...(tenant ? { tenant } : {}),
+        ...(tenantId ? { tenant: tenantId } : {}),
       },
       file: {
         data: buffer,
@@ -149,7 +164,7 @@ export async function POST(req: Request): Promise<Response> {
         mimeType: file.type || 'video/webm',
         mimetype: file.type || 'video/webm',
       } as any,
-      req: payloadReq,
+      req: (tenantId ? ({ ...payloadReq, tenant: tenantId } as any) : payloadReq),
       overrideAccess: !user,
     })
 
