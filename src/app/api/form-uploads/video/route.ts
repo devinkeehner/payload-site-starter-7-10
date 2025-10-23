@@ -5,6 +5,7 @@ import configPromise from '@payload-config'
 export const runtime = 'nodejs'
 
 const HEADER_TOKEN = 'x-form-upload-token'
+const CORS_MODE = (process.env.FORM_VIDEO_UPLOAD_CORS_MODE || 'strict').toLowerCase()
 
 const buildFilename = (sourceName: string | undefined, fallbackType: string | undefined): string => {
   const trimmed = typeof sourceName === 'string' ? sourceName.trim() : ''
@@ -72,9 +73,30 @@ export async function POST(req: Request): Promise<Response> {
     return ALLOWED_ORIGINS.some((allowed) => matchOrigin(normalized, allowed.toLowerCase()))
   }
 
+  const createCorsHeaders = (origin: string | null): Record<string, string> => {
+    const headers: Record<string, string> = {
+      'Access-Control-Allow-Methods': 'OPTIONS, POST',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Form-Upload-Token',
+      'Access-Control-Max-Age': '86400',
+      Vary: 'Origin',
+    }
+
+    if (CORS_MODE === 'permissive') {
+      headers['Access-Control-Allow-Origin'] = '*'
+      return headers
+    }
+
+    if (!origin) {
+      if (ALLOWED_ORIGINS.length === 0) headers['Access-Control-Allow-Origin'] = '*'
+      return headers
+    }
+    if (isOriginAllowed(origin)) headers['Access-Control-Allow-Origin'] = origin
+    return headers
+  }
+
   if (!user) {
     if (!expectedToken || headerToken !== expectedToken) {
-      return new Response('Unauthorized', { status: 401 })
+      return new Response('Unauthorized', { status: 401, headers: createCorsHeaders(req.headers.get('Origin')) })
     }
   }
 
@@ -86,9 +108,9 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const origin = req.headers.get('Origin')
-  if (!isOriginAllowed(origin)) {
+  if (CORS_MODE !== 'permissive' && !isOriginAllowed(origin)) {
     payload.logger.debug({ origin }, 'Origin not allowed')
-    return new Response('Forbidden', { status: 403 })
+    return new Response('Forbidden', { status: 403, headers: createCorsHeaders(origin) })
   }
 
   const file = formData.get('file') as File | null
@@ -142,14 +164,30 @@ export async function POST(req: Request): Promise<Response> {
 
     return new Response(JSON.stringify(responseBody), {
       status: 201,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...createCorsHeaders(origin) },
     })
   } catch (err: any) {
     payload.logger.error({ err }, 'Error uploading video from public form')
     const message = typeof err?.message === 'string' ? err.message : 'Upload failed'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...createCorsHeaders(origin) },
     })
   }
+}
+
+export async function OPTIONS(req: Request): Promise<Response> {
+  const origin = req.headers.get('Origin')
+  // Always return CORS headers for preflight
+  return new Response(null, { status: 204, headers: {
+    ...{
+      'Access-Control-Allow-Methods': 'OPTIONS, POST',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Form-Upload-Token',
+      'Access-Control-Max-Age': '86400',
+      Vary: 'Origin',
+    },
+    ...(CORS_MODE === 'permissive'
+      ? { 'Access-Control-Allow-Origin': '*' }
+      : (origin ? { 'Access-Control-Allow-Origin': origin } : {})),
+  } })
 }
