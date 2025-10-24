@@ -1162,6 +1162,14 @@ export interface StandardMedia {
    */
   heroTextAlign?: ('left' | 'right') | null;
   heroTextSize?: ('small' | 'default' | 'large') | null;
+  /**
+   * Controls which part of the image stays visible vertically when cropped.
+   */
+  heroImageVerticalAlign?: ('top' | 'center' | 'bottom') | null;
+  /**
+   * Controls which side of the image stays visible horizontally when cropped.
+   */
+  heroImageHorizontalAlign?: ('left' | 'center' | 'right') | null;
   introVideo?: (string | null) | Media;
   mobileHeadshot: string | Media;
   defaultFeaturedImage: string | Media;
@@ -1990,6 +1998,8 @@ export interface StandardMediaSelect<T extends boolean = true> {
   bannerVideo?: T;
   heroTextAlign?: T;
   heroTextSize?: T;
+  heroImageVerticalAlign?: T;
+  heroImageHorizontalAlign?: T;
   introVideo?: T;
   mobileHeadshot?: T;
   defaultFeaturedImage?: T;
