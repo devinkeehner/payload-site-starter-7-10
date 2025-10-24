@@ -157,6 +157,7 @@ const TenantDropdown: React.FC = () => {
         borderRadius: '0.65rem',
         borderColor: state.isFocused ? 'var(--theme-elevation-250)' : 'var(--theme-elevation-150)',
         boxShadow: state.isFocused ? '0 0 0 2px var(--theme-elevation-150)' : base.boxShadow,
+        backgroundColor: 'var(--theme-elevation-100)',
         '&:hover': {
           borderColor: 'var(--theme-elevation-250)',
         },
@@ -170,19 +171,41 @@ const TenantDropdown: React.FC = () => {
         fontWeight: 600,
         color: 'var(--theme-text)',
       }),
+      placeholder: (base) => ({
+        ...base,
+        color: 'var(--theme-text)',
+        opacity: 0.7,
+      }),
+      input: (base) => ({
+        ...base,
+        color: 'var(--theme-text)',
+      }),
       option: (base, state) => ({
         ...base,
         fontWeight: state.isSelected || state.isFocused ? 600 : 500,
         backgroundColor: state.isSelected
-          ? 'var(--theme-elevation-150)'
+          ? 'var(--theme-elevation-250)'
           : state.isFocused
-            ? 'var(--theme-elevation-100)'
-            : base.backgroundColor,
+            ? 'var(--theme-elevation-200)'
+            : 'var(--theme-elevation-100)',
         color: 'var(--theme-text)',
       }),
       menu: (base) => ({
         ...base,
-        zIndex: 40,
+        backgroundColor: 'var(--theme-elevation-100)',
+        border: '1px solid var(--theme-elevation-200)',
+        boxShadow: '0 10px 24px rgba(0, 0, 0, 0.25)',
+        overflow: 'hidden',
+        zIndex: 60,
+      }),
+      menuList: (base) => ({
+        ...base,
+        backgroundColor: 'var(--theme-elevation-100)',
+        padding: '0.35rem 0',
+      }),
+      menuPortal: (base) => ({
+        ...base,
+        zIndex: 70,
       }),
       groupHeading: (base) => ({
         ...base,

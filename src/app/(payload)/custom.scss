@@ -73,11 +73,32 @@
     margin: 0 !important;
   }
 
+  .tenant-selector--custom .rs__menu {
+    background: var(--theme-elevation-100) !important;
+    border: 1px solid var(--theme-elevation-200) !important;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.25) !important;
+  }
+
   .tenant-selector--custom .rs__menu-list {
     padding: 0.25rem 0 !important;
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    background: transparent !important;
+  }
+
+  .tenant-selector--custom .rs__option {
+    border-radius: 0.5rem !important;
+    color: var(--theme-text) !important;
+    background: transparent !important;
+  }
+
+  .tenant-selector--custom .rs__option--is-focused {
+    background: var(--theme-elevation-150) !important;
+  }
+
+  .tenant-selector--custom .rs__option--is-selected {
+    background: var(--theme-elevation-200) !important;
   }
 
   /* Light separator between Assigned Sites and All Sites groups */
