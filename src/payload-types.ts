@@ -1067,6 +1067,14 @@ export interface RepInfo {
   x?: string | null;
   flickrTag?: string | null;
   flickrURL?: string | null;
+  /**
+   * Numeric page ID used to generate page access tokens.
+   */
+  facebookPageId?: string | null;
+  /**
+   * Automatically generated. Keep this field secure.
+   */
+  facebookPageAccessToken?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1929,6 +1937,8 @@ export interface RepInfoSelect<T extends boolean = true> {
   x?: T;
   flickrTag?: T;
   flickrURL?: T;
+  facebookPageId?: T;
+  facebookPageAccessToken?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -2515,6 +2525,10 @@ export interface GlobalMetaSeo {
    */
   gtmHeader?: string | null;
   /**
+   * Paste the structured data JSON-LD without <script> tags.
+   */
+  siteJsonLd?: string | null;
+  /**
    * Paste the GTM <noscript> iframe block.
    */
   gtmBodyNoscript?: string | null;
@@ -2573,6 +2587,7 @@ export interface FooterSelect<T extends boolean = true> {
  */
 export interface GlobalMetaSeoSelect<T extends boolean = true> {
   gtmHeader?: T;
+  siteJsonLd?: T;
   gtmBodyNoscript?: T;
   updatedAt?: T;
   createdAt?: T;

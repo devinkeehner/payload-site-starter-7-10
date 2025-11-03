@@ -52,6 +52,14 @@ const GlobalMetaSEOGlobal: GlobalConfig = {
       },
     },
     {
+      name: 'siteJsonLd',
+      label: 'Site JSON-LD',
+      type: 'textarea',
+      admin: {
+        description: 'Paste the structured data JSON-LD without <script> tags.',
+      },
+    },
+    {
       name: 'gtmBodyNoscript',
       label: 'Google Tag Manager Body (noscript)',
       type: 'textarea',
