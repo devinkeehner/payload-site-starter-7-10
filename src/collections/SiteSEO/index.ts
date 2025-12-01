@@ -65,6 +65,14 @@ export const SiteSEO: CollectionConfig = {
       hasMany: true,
     },
     {
+      name: 'siteJsonLd',
+      label: 'Site JSON-LD',
+      type: 'textarea',
+      admin: {
+        description: 'Paste the structured data JSON-LD without <script> tags.',
+      },
+    },
+    {
       name: 'metaPixelHeader',
       label: 'Meta Pixel Header Script',
       type: 'textarea',

@@ -898,6 +898,7 @@ export interface Form {
         id?: string | null;
       }[]
     | null;
+  enableHoneypot?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1204,6 +1205,10 @@ export interface SiteSeo {
   description: string;
   metaImage?: (string | null) | Media;
   tags?: (string | Tag)[] | null;
+  /**
+   * Paste the structured data JSON-LD without <script> tags.
+   */
+  siteJsonLd?: string | null;
   /**
    * Paste the Meta Pixel <script> block. Script tags are optional.
    */
@@ -2027,6 +2032,7 @@ export interface SiteSeoSelect<T extends boolean = true> {
   description?: T;
   metaImage?: T;
   tags?: T;
+  siteJsonLd?: T;
   metaPixelHeader?: T;
   metaPixelNoscript?: T;
   updatedAt?: T;
@@ -2236,6 +2242,7 @@ export interface FormsSelect<T extends boolean = true> {
         message?: T;
         id?: T;
       };
+  enableHoneypot?: T;
   updatedAt?: T;
   createdAt?: T;
 }

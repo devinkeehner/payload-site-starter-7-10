@@ -257,6 +257,16 @@ export const plugins: Plugin[] = [
         const fields = Array.isArray(defaultFields) ? [...defaultFields] : []
 
         fields.push({
+          name: 'enableHoneypot',
+          label: 'Enable Honeypot',
+          type: 'checkbox',
+          defaultValue: true,
+          admin: {
+            position: 'sidebar',
+          },
+        })
+
+        fields.push({
           name: 'shareCopy',
           label: 'Share Copy',
           type: 'ui',
