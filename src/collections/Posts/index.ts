@@ -856,7 +856,7 @@ export const Posts: CollectionConfig<'posts'> = {
                   type: 'checkbox',
                   required: true,
                   validate: (value, { data }) => {
-                    const status = data?._status ?? (data as any)?.status
+                    const status = (data as Record<string, any> | undefined)?.['_status'] ?? (data as Record<string, any> | undefined)?.status
                     if (status === 'published' && !value) {
                       return 'Description must be approved before publishing.'
                     }
@@ -896,7 +896,7 @@ export const Posts: CollectionConfig<'posts'> = {
               type: 'checkbox',
               required: true,
               validate: (value, { data }) => {
-                const status = data?._status ?? (data as any)?.status
+                const status = (data as Record<string, any> | undefined)?.['_status'] ?? (data as Record<string, any> | undefined)?.status
                 if (status === 'published' && !value) {
                   return 'Key takeaways must be approved before publishing.'
                 }
