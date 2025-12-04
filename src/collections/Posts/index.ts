@@ -855,6 +855,13 @@ export const Posts: CollectionConfig<'posts'> = {
                   label: 'Description Approved',
                   type: 'checkbox',
                   required: true,
+                  validate: (value, { data }) => {
+                    const status = data?._status ?? (data as any)?.status
+                    if (status === 'published' && !value) {
+                      return 'Description must be approved before publishing.'
+                    }
+                    return true
+                  },
                 },
                 PreviewField({
                   hasGenerateFn: true,
@@ -888,6 +895,13 @@ export const Posts: CollectionConfig<'posts'> = {
               label: 'Key Takeaways Approved',
               type: 'checkbox',
               required: true,
+              validate: (value, { data }) => {
+                const status = data?._status ?? (data as any)?.status
+                if (status === 'published' && !value) {
+                  return 'Key takeaways must be approved before publishing.'
+                }
+                return true
+              },
             },
             {
               name: 'articleType',
