@@ -267,6 +267,16 @@ export const plugins: Plugin[] = [
         })
 
         fields.push({
+          name: 'enableTurnstile',
+          label: 'Enable Turnstile CAPTCHA',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            position: 'sidebar',
+          },
+        })
+
+        fields.push({
           name: 'shareCopy',
           label: 'Share Copy',
           type: 'ui',
@@ -716,6 +726,57 @@ export const plugins: Plugin[] = [
     },
     formSubmissionOverrides: {
       admin: { group: 'Forms & Submissions' },
+      hooks: {
+        beforeChange: [
+          async ({ data, req }) => {
+            const TURNSTILE_TOKEN_FIELD_NAME = 'turnstileToken'
+            const secretKey = process.env.TURNSTILE_SECRET_KEY
+
+            const formId = typeof data?.form === 'string' ? data.form : data?.form?.id
+            if (!formId) return data
+
+            const form = await req.payload.findByID({ collection: 'forms', id: formId })
+            const turnstileEnabled = (form as { enableTurnstile?: boolean })?.enableTurnstile === true
+            if (!turnstileEnabled) return data
+
+            if (!secretKey) {
+              throw new Error('Verification service not configured. Please try again later.')
+            }
+
+            const submissionData = Array.isArray(data?.submissionData) ? [...data.submissionData] : []
+            const tokenEntryIndex = submissionData.findIndex((entry: any) => entry?.field === TURNSTILE_TOKEN_FIELD_NAME)
+            const tokenEntry = tokenEntryIndex >= 0 ? submissionData[tokenEntryIndex] : null
+            const token = typeof tokenEntry?.value === 'string' ? tokenEntry.value : ''
+
+            if (!token) {
+              throw new Error('Please complete the verification challenge before submitting.')
+            }
+
+            const turnstileResponse = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: new URLSearchParams({
+                secret: secretKey,
+                response: token,
+              }),
+            })
+
+            const turnstileResult = (await turnstileResponse.json()) as { success?: boolean }
+            if (!turnstileResult.success) {
+              throw new Error('Verification failed. Please retry the challenge.')
+            }
+
+            if (tokenEntryIndex >= 0) {
+              submissionData.splice(tokenEntryIndex, 1)
+            }
+
+            return {
+              ...data,
+              submissionData,
+            }
+          },
+        ],
+      },
     },
     defaultToEmail: process.env.RESEND_FROM_EMAIL || '',
   }),
