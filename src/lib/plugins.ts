@@ -737,16 +737,25 @@ export const plugins: Plugin[] = [
 
             const form = await req.payload.findByID({ collection: 'forms', id: formId })
             const turnstileEnabled = (form as { enableTurnstile?: boolean })?.enableTurnstile === true
-            if (!turnstileEnabled) return data
-
-            if (!secretKey) {
-              throw new Error('Verification service not configured. Please try again later.')
-            }
-
             const submissionData = Array.isArray(data?.submissionData) ? [...data.submissionData] : []
             const tokenEntryIndex = submissionData.findIndex((entry: any) => entry?.field === TURNSTILE_TOKEN_FIELD_NAME)
             const tokenEntry = tokenEntryIndex >= 0 ? submissionData[tokenEntryIndex] : null
             const token = typeof tokenEntry?.value === 'string' ? tokenEntry.value : ''
+
+            if (!turnstileEnabled) {
+              if (tokenEntryIndex >= 0) {
+                submissionData.splice(tokenEntryIndex, 1)
+              }
+
+              return {
+                ...data,
+                submissionData,
+              }
+            }
+
+            if (!secretKey) {
+              throw new Error('Verification service not configured. Please try again later.')
+            }
 
             if (!token) {
               throw new Error('Please complete the verification challenge before submitting.')
