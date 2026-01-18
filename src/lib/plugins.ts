@@ -740,7 +740,14 @@ export const plugins: Plugin[] = [
             const submissionData = Array.isArray(data?.submissionData) ? [...data.submissionData] : []
             const tokenEntryIndex = submissionData.findIndex((entry: any) => entry?.field === TURNSTILE_TOKEN_FIELD_NAME)
             const tokenEntry = tokenEntryIndex >= 0 ? submissionData[tokenEntryIndex] : null
-            const token = typeof tokenEntry?.value === 'string' ? tokenEntry.value : ''
+            const tokenFromData = typeof tokenEntry?.value === 'string' ? tokenEntry.value : ''
+            const tokenFromHeader =
+              typeof req?.headers?.get === 'function'
+                ? req.headers.get('x-turnstile-token') || ''
+                : typeof req?.headers?.['x-turnstile-token'] === 'string'
+                  ? req.headers['x-turnstile-token']
+                  : ''
+            const token = tokenFromData || tokenFromHeader
 
             if (!turnstileEnabled) {
               if (tokenEntryIndex >= 0) {
