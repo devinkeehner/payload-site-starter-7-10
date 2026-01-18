@@ -741,12 +741,15 @@ export const plugins: Plugin[] = [
             const tokenEntryIndex = submissionData.findIndex((entry: any) => entry?.field === TURNSTILE_TOKEN_FIELD_NAME)
             const tokenEntry = tokenEntryIndex >= 0 ? submissionData[tokenEntryIndex] : null
             const tokenFromData = typeof tokenEntry?.value === 'string' ? tokenEntry.value : ''
-            const tokenFromHeader =
-              typeof req?.headers?.get === 'function'
-                ? req.headers.get('x-turnstile-token') || ''
-                : typeof req?.headers?.['x-turnstile-token'] === 'string'
-                  ? req.headers['x-turnstile-token']
-                  : ''
+            const tokenFromHeader = (() => {
+              const headers = req?.headers as unknown
+              if (headers && typeof (headers as { get?: (name: string) => string | null }).get === 'function') {
+                return (headers as { get: (name: string) => string | null }).get('x-turnstile-token') || ''
+              }
+
+              const raw = (headers as Record<string, string | string[] | undefined>)?.['x-turnstile-token']
+              return Array.isArray(raw) ? raw[0] : raw || ''
+            })()
             const token = tokenFromData || tokenFromHeader
 
             if (!turnstileEnabled) {
