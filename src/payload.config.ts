@@ -146,7 +146,10 @@ export default buildConfig({
     Tags,
   ],
 
-  cors: '*',
+  cors: {
+    origins: ['https://www.cthousegop.com', 'https://cthousegop.com', 'http://localhost:3000'],
+    headers: ['Content-Type', 'Authorization', 'x-turnstile-token'],
+  },
 
   globals: [Header, Footer, GlobalMetaSEOGlobal],
 
