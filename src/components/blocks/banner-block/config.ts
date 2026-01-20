@@ -1,11 +1,16 @@
 import type { Block } from 'payload'
 
 import {
+  BlocksFeature,
   FixedToolbarFeature,
   InlineToolbarFeature,
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
 
+import { CodeBlockConfig } from '@/components/blocks/code-block/config'
+import { MediaBlockConfig } from '@/components/blocks/media-block/config'
+import { MediaGalleryBlockConfig } from '@/components/blocks/media-gallery-block/config'
+import { VideoBlockConfig } from '@/components/blocks/video-block/config'
 export const BannerConfig: Block = {
   slug: 'banner',
   fields: [
@@ -26,7 +31,19 @@ export const BannerConfig: Block = {
       type: 'richText',
       editor: lexicalEditor({
         features: ({ rootFeatures }) => {
-          return [...rootFeatures, FixedToolbarFeature(), InlineToolbarFeature()]
+          return [
+            ...rootFeatures,
+            BlocksFeature({
+              blocks: [
+                CodeBlockConfig,
+                MediaBlockConfig,
+                VideoBlockConfig,
+                MediaGalleryBlockConfig,
+              ],
+            }),
+            FixedToolbarFeature(),
+            InlineToolbarFeature(),
+          ]
         },
       }),
       label: false,
