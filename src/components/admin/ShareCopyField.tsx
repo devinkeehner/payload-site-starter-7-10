@@ -70,6 +70,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
   const [selected, setSelected] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [statusDetails, setStatusDetails] = useState<string[]>([])
 
   useEffect(() => {
     let ignore = false
@@ -124,6 +125,16 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
   const allSelectableIDs = useMemo(() => filteredTenants.map((t) => t.id).filter(Boolean), [filteredTenants])
   const allSelected = selected.length > 0 && selected.length === allSelectableIDs.length
 
+  const tenantLabelById = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const t of tenants) {
+      if (!t?.id) continue
+      const label = String(t.name || t.slug || t.id)
+      map.set(t.id, label)
+    }
+    return map
+  }, [tenants])
+
   // Keep selection in sync with filtered list
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => allSelectableIDs.includes(id)))
@@ -149,6 +160,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
     }
     setLoading(true)
     setStatus(null)
+    setStatusDetails([])
     try {
       // Sanitize selection: only allow IDs present in filteredTenants (excludes current tenant)
       const shareTargets = selected.filter((id) => allSelectableIDs.includes(id))
@@ -162,15 +174,28 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
         credentials: 'include',
         body: JSON.stringify({ tenantIDs: shareTargets, sourceTenantID }),
       })
+      const contentType = res.headers.get('content-type') || ''
+      const rawText = await res.text()
       let data: ShareResponse | null = null
       try {
-        data = await res.json()
+        data = rawText ? (JSON.parse(rawText) as ShareResponse) : null
       } catch {
-        /* no-op */
+        data = null
       }
       if (!res.ok) {
-        const msg = data?.error || `Share failed (status ${res.status})`
+        const serverMsg = data?.error
+          ? String(data.error)
+          : rawText
+            ? rawText.slice(0, 500)
+            : '(empty response)'
+        const msg = `Share failed (status ${res.status})`
         setStatus(msg)
+        setStatusDetails([
+          `Collection: ${effectiveCollectionSlug}`,
+          `Post ID: ${resolvedId}`,
+          `Content-Type: ${contentType || '(missing)'}`,
+          `Error: ${serverMsg}`,
+        ])
         alert(msg)
         return
       }
@@ -178,9 +203,33 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
       const skipped = data?.results?.filter((r) => r.skipped)?.length ?? 0
       const failed = data?.results?.filter((r) => !!r.error)?.length ?? 0
       setStatus(`Created ${successCount} draft copie(s). Skipped: ${skipped}. Failed: ${failed}.`)
+
+      const details: string[] = []
+      if (!data) {
+        details.push('Warning: server response was not JSON; unable to show per-tenant details.')
+      } else if (Array.isArray(data.results) && data.results.length) {
+        for (const r of data.results) {
+          const tenantID = String(r.tenantID || '')
+          const tenantLabel = tenantLabelById.get(tenantID) || tenantID || '(unknown tenant)'
+          if (r.error) {
+            details.push(`${tenantLabel}: FAILED - ${String(r.error)}`)
+          } else if (r.skipped) {
+            details.push(`${tenantLabel}: skipped`)
+          } else {
+            const createdId = r.id ? `id=${r.id}` : ''
+            const createdSlug = r.slug ? `slug=${r.slug}` : ''
+            const extra = [createdId, createdSlug].filter(Boolean).join(', ')
+            details.push(`${tenantLabel}: created${extra ? ` (${extra})` : ''}`)
+          }
+        }
+      } else {
+        details.push('No per-tenant results returned from server.')
+      }
+      setStatusDetails(details)
     } catch (e) {
       console.error(e)
       setStatus('Unexpected error while sharing')
+      setStatusDetails([String((e as any)?.message || e)])
     } finally {
       setLoading(false)
     }
@@ -218,6 +267,18 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
       {status ? (
         <div style={{ marginTop: 8 }}>
           <small>{status}</small>
+        </div>
+      ) : null}
+
+      {statusDetails.length ? (
+        <div style={{ marginTop: 8 }}>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>
+            {statusDetails.map((d, i) => (
+              <li key={i}>
+                <small>{d}</small>
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>
