@@ -489,7 +489,7 @@ export const Posts: CollectionConfig<'posts'> = {
             const createdMedia = await req.payload.create({
               collection: 'media',
               data: {
-                alt: (mediaDoc as any)?.alt,
+                alt: (mediaDoc as any)?.alt || filename,
                 caption: captionClone,
                 tenant: tenantId,
               },
@@ -497,10 +497,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 data: fileBuffer,
                 size: fileBuffer.length,
                 name: filename,
-                filename,
                 mimetype: mimeType,
-                mimeType,
-                prefix: tenantInfo.slug ? `${tenantInfo.slug.replace(/\/+$/u, '')}/` : undefined,
               } as any,
               req: scopedReq,
               overrideAccess: true,
