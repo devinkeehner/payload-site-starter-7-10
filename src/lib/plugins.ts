@@ -539,26 +539,45 @@ export const plugins: Plugin[] = [
                 const mimeType = typeof mediaDoc?.mimeType === 'string' ? mediaDoc.mimeType : 'application/octet-stream'
                 const captionClone = mediaDoc?.caption ? JSON.parse(JSON.stringify(mediaDoc.caption)) : undefined
 
-                const createdMedia = await req.payload.create({
-                  collection: 'media',
-                  data: {
-                    alt: (mediaDoc as any)?.alt,
-                    caption: captionClone,
-                    tenant: tenantId,
-                  },
-                  file: {
-                    data: fileBuffer,
-                    size: fileBuffer.length,
-                    name: filename,
-                    filename,
-                    mimetype: mimeType,
-                    mimeType,
-                    prefix: tenantInfo.slug ? `${tenantInfo.slug.replace(/\/+$/u, '')}/` : undefined,
-                  } as any,
-                  req: scopedReq,
-                  overrideAccess: true,
-                  context: { disableRevalidate: true } as any,
-                })
+                const dot = filename.lastIndexOf('.')
+                const base = dot > 0 ? filename.slice(0, dot) : filename
+                const ext = dot > 0 ? filename.slice(dot) : ''
+                const tenantSlug = typeof tenantInfo?.slug === 'string' ? tenantInfo.slug : ''
+                const safeTenant = (tenantSlug || tenantId).replace(/[^a-z0-9_-]+/giu, '-')
+                const preferredFilename = `${safeTenant}-${base}-${mediaId}${ext}`
+
+                const createWithName = async (name: string) =>
+                  await req.payload.create({
+                    collection: 'media',
+                    data: {
+                      alt: (mediaDoc as any)?.alt || name,
+                      caption: captionClone,
+                      tenant: tenantId,
+                    },
+                    file: {
+                      data: fileBuffer,
+                      size: fileBuffer.length,
+                      name,
+                      mimetype: mimeType,
+                    } as any,
+                    req: scopedReq,
+                    overrideAccess: true,
+                    context: { disableRevalidate: true } as any,
+                  })
+
+                let createdMedia: any
+                try {
+                  createdMedia = await createWithName(preferredFilename)
+                } catch (error: any) {
+                  const message = String(error?.message || error)
+                  if (message.includes('filename')) {
+                    const nonce = Date.now().toString(36)
+                    const uniqueFilename = `${safeTenant}-${base}-${mediaId}-${nonce}${ext}`
+                    createdMedia = await createWithName(uniqueFilename)
+                  } else {
+                    throw error
+                  }
+                }
 
                 const newId = (createdMedia as any)?.id
                 if (typeof newId !== 'string') throw new Error(`Cloned media for ${mediaId} did not return an ID`)
