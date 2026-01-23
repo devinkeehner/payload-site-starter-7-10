@@ -486,25 +486,47 @@ export const Posts: CollectionConfig<'posts'> = {
             const mimeType = typeof mediaDoc?.mimeType === 'string' ? mediaDoc.mimeType : 'application/octet-stream'
             const captionClone = mediaDoc?.caption ? JSON.parse(JSON.stringify(mediaDoc.caption)) : undefined
 
+            const dot = filename.lastIndexOf('.')
+            const base = dot > 0 ? filename.slice(0, dot) : filename
+            const ext = dot > 0 ? filename.slice(dot) : ''
+            const tenantSlug = typeof tenantInfo?.slug === 'string' ? tenantInfo.slug : ''
+            const safeTenant = (tenantSlug || tenantId).replace(/[^a-z0-9_-]+/giu, '-')
+            const preferredFilename = `${safeTenant}-${base}-${mediaId}${ext}`
+
             let createdMedia: any
             try {
-              createdMedia = await req.payload.create({
-                collection: 'media',
-                data: {
-                  alt: (mediaDoc as any)?.alt || filename,
-                  caption: captionClone,
-                  tenant: tenantId,
-                },
-                file: {
-                  data: fileBuffer,
-                  size: fileBuffer.length,
-                  name: filename,
-                  mimetype: mimeType,
-                } as any,
-                req: scopedReq,
-                overrideAccess: true,
-                context: { disableRevalidate: true } as any,
-              })
+              const createWithName = async (name: string) =>
+                await req.payload.create({
+                  collection: 'media',
+                  data: {
+                    alt: (mediaDoc as any)?.alt || name,
+                    caption: captionClone,
+                    tenant: tenantId,
+                  },
+                  file: {
+                    data: fileBuffer,
+                    size: fileBuffer.length,
+                    name,
+                    mimetype: mimeType,
+                  } as any,
+                  req: scopedReq,
+                  overrideAccess: true,
+                  context: { disableRevalidate: true } as any,
+                })
+
+              try {
+                createdMedia = await createWithName(preferredFilename)
+              } catch (error: any) {
+                const message = String(error?.message || error)
+
+                if (message.includes('filename')) {
+                  const nonce = Date.now().toString(36)
+                  const uniqueFilename = `${safeTenant}-${base}-${mediaId}-${nonce}${ext}`
+                  createdMedia = await createWithName(uniqueFilename)
+                } else {
+                  throw error
+                }
+              }
             } catch (error: any) {
               const fileKeys = ['data', 'size', 'name', 'mimetype']
               throw new Error(

@@ -111,7 +111,6 @@ export const Media: CollectionConfig = {
     staticDir: path.resolve(dirname, '../../public/media'),
     adminThumbnail: 'thumbnail',
     focalPoint: true,
-    filenameCompoundIndex: ['tenant', 'filename'],
     imageSizes: [
       {
         name: 'thumbnail',
