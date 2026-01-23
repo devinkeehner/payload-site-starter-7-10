@@ -486,23 +486,31 @@ export const Posts: CollectionConfig<'posts'> = {
             const mimeType = typeof mediaDoc?.mimeType === 'string' ? mediaDoc.mimeType : 'application/octet-stream'
             const captionClone = mediaDoc?.caption ? JSON.parse(JSON.stringify(mediaDoc.caption)) : undefined
 
-            const createdMedia = await req.payload.create({
-              collection: 'media',
-              data: {
-                alt: (mediaDoc as any)?.alt || filename,
-                caption: captionClone,
-                tenant: tenantId,
-              },
-              file: {
-                data: fileBuffer,
-                size: fileBuffer.length,
-                name: filename,
-                mimetype: mimeType,
-              } as any,
-              req: scopedReq,
-              overrideAccess: true,
-              context: { disableRevalidate: true } as any,
-            })
+            let createdMedia: any
+            try {
+              createdMedia = await req.payload.create({
+                collection: 'media',
+                data: {
+                  alt: (mediaDoc as any)?.alt || filename,
+                  caption: captionClone,
+                  tenant: tenantId,
+                },
+                file: {
+                  data: fileBuffer,
+                  size: fileBuffer.length,
+                  name: filename,
+                  mimetype: mimeType,
+                } as any,
+                req: scopedReq,
+                overrideAccess: true,
+                context: { disableRevalidate: true } as any,
+              })
+            } catch (error: any) {
+              const fileKeys = ['data', 'size', 'name', 'mimetype']
+              throw new Error(
+                `Failed to clone media ${mediaId} for tenant ${tenantId}: ${error?.message || error}. Media URL: ${mediaUrl}. File keys: ${fileKeys.join(', ')}`,
+              )
+            }
 
             const newId = (createdMedia as any)?.id
             if (typeof newId !== 'string') throw new Error(`Cloned media for ${mediaId} did not return an ID`)
