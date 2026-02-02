@@ -126,6 +126,23 @@ export const Pages: CollectionConfig<'pages'> = {
             }),
           ],
         },
+        {
+          label: 'Share',
+          fields: [
+            {
+              name: 'draftShareLink',
+              label: 'Copy draft URL',
+              type: 'ui',
+              admin: {
+                components: {
+                  Field: {
+                    path: '@/components/admin/DraftShareField#DraftShareField',
+                  },
+                },
+              },
+            },
+          ],
+        },
       ],
     },
     {
@@ -133,6 +150,13 @@ export const Pages: CollectionConfig<'pages'> = {
       type: 'date',
       admin: {
         position: 'sidebar',
+      },
+    },
+    {
+      name: 'draftShareToken',
+      type: 'text',
+      admin: {
+        hidden: true,
       },
     },
     ...slugField(),
