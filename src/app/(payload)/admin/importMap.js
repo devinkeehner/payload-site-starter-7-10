@@ -30,6 +30,7 @@ import { MetaImageComponent as MetaImageComponent_a8a977ebc872c5d5ea7ee689724c08
 import { MetaDescriptionComponent as MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { ShareCopyField as ShareCopyField_beaba85f0ccf15f13c89f620a863758e } from '@/components/admin/ShareCopyField'
+import { DraftShareField as DraftShareField_b8b20b8fa8917c47596a0044ca795a6a } from '@/components/admin/DraftShareField'
 import { SlugComponent as SlugComponent_20724636d9656daa0703c14077e21c27 } from '@/collections/fields/slug/slug-component'
 import { OverviewComponent as OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MediaCanvasField as MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07 } from '@/components/admin/MediaCanvasField'
@@ -84,6 +85,7 @@ export const importMap = {
   "@payloadcms/plugin-seo/client#MetaDescriptionComponent": MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#PreviewComponent": PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@/components/admin/ShareCopyField#ShareCopyField": ShareCopyField_beaba85f0ccf15f13c89f620a863758e,
+  "@/components/admin/DraftShareField#DraftShareField": DraftShareField_b8b20b8fa8917c47596a0044ca795a6a,
   "@/collections/fields/slug/slug-component#SlugComponent": SlugComponent_20724636d9656daa0703c14077e21c27,
   "@payloadcms/plugin-seo/client#OverviewComponent": OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@/components/admin/MediaCanvasField#MediaCanvasField": MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07,

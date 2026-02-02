@@ -206,6 +206,7 @@ export interface Post {
   keyTakeawaysApproved: boolean;
   articleType: string | ArticleType;
   publishedAt?: string | null;
+  draftShareToken?: string | null;
   slug?: string | null;
   slugLock?: boolean | null;
   updatedAt: string;
@@ -440,6 +441,7 @@ export interface Page {
     description?: string | null;
   };
   publishedAt?: string | null;
+  draftShareToken?: string | null;
   slug?: string | null;
   slugLock?: boolean | null;
   updatedAt: string;
@@ -1580,6 +1582,7 @@ export interface PostsSelect<T extends boolean = true> {
   keyTakeawaysApproved?: T;
   articleType?: T;
   publishedAt?: T;
+  draftShareToken?: T;
   slug?: T;
   slugLock?: T;
   updatedAt?: T;
@@ -1645,6 +1648,7 @@ export interface PagesSelect<T extends boolean = true> {
         description?: T;
       };
   publishedAt?: T;
+  draftShareToken?: T;
   slug?: T;
   slugLock?: T;
   updatedAt?: T;

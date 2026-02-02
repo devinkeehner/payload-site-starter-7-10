@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Button, useDocumentInfo, useForm, useFormFields } from '@payloadcms/ui'
 
 const deriveIdFromPath = (): string | undefined => {
@@ -66,9 +66,18 @@ const DraftShareField: React.FC = () => {
   const [status, setStatus] = useState<string | null>(null)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [isHydrated, setIsHydrated] = useState(false)
+  const [pathId, setPathId] = useState<string | undefined>(undefined)
+  const [pathCollection, setPathCollection] = useState<string | undefined>(undefined)
 
-  const resolvedId = infoId || fieldId || deriveIdFromPath()
-  const collectionSlug = deriveCollectionSlugFromPath() || 'posts'
+  useEffect(() => {
+    setIsHydrated(true)
+    setPathId(deriveIdFromPath())
+    setPathCollection(deriveCollectionSlugFromPath())
+  }, [])
+
+  const resolvedId = infoId || fieldId || pathId
+  const collectionSlug = pathCollection || 'posts'
 
   const tenantId = useMemo(() => {
     if (!tenantField) return undefined
@@ -161,6 +170,8 @@ const DraftShareField: React.FC = () => {
       setLoading(false)
     }
   }
+
+  if (!isHydrated) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

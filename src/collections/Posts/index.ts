@@ -953,18 +953,6 @@ export const Posts: CollectionConfig<'posts'> = {
                 },
               },
             },
-            {
-              name: 'draftShareLink',
-              label: 'Copy draft URL',
-              type: 'ui',
-              admin: {
-                components: {
-                  Field: {
-                    path: '@/components/admin/DraftShareField#DraftShareField',
-                  },
-                },
-              },
-            },
           ],
         },
       ],
@@ -987,6 +975,19 @@ export const Posts: CollectionConfig<'posts'> = {
             return value
           },
         ],
+      },
+    },
+    {
+      name: 'draftShareLink',
+      label: 'Copy draft URL',
+      type: 'ui',
+      admin: {
+        position: 'sidebar',
+        components: {
+          Field: {
+            path: '@/components/admin/DraftShareField#DraftShareField',
+          },
+        },
       },
     },
     {
