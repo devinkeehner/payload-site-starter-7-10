@@ -36,7 +36,7 @@ const makeInternalDocToHref = (tenantSlug?: string | null) =>
     if (typeof value !== 'object') {
       throw new Error('Expected value to be an object')
     }
-    const slug = (value as any).slug as string
+    const slug = typeof (value as { slug?: unknown }).slug === 'string' ? (value as { slug?: string }).slug : ''
     if (relationTo === 'posts') {
       return tenantSlug ? `/${tenantSlug}/${slug}` : `/posts/${slug}`
     }

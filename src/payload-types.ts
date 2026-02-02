@@ -899,6 +899,7 @@ export interface Form {
       }[]
     | null;
   enableHoneypot?: boolean | null;
+  enableTurnstile?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -2243,6 +2244,7 @@ export interface FormsSelect<T extends boolean = true> {
         id?: T;
       };
   enableHoneypot?: T;
+  enableTurnstile?: T;
   updatedAt?: T;
   createdAt?: T;
 }

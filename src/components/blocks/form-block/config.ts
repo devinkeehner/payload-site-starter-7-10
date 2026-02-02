@@ -24,8 +24,8 @@ export const FormBlockConfig: Block = {
       required: true,
       // Ensure only forms from the currently selected tenant (site) are selectable
       filterOptions: ({ req }) => {
-        const t: any = (req as any)?.tenant
-        const tenantID = typeof t === 'string' ? t : t?.id
+        const t = (req as { tenant?: unknown })?.tenant
+        const tenantID = typeof t === 'string' ? t : (t as { id?: string | null } | null)?.id
         return tenantID ? { tenant: { equals: tenantID } } : true
       },
     },

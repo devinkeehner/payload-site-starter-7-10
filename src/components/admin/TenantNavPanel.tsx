@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import TenantDropdown from './TenantDropdown'
 
@@ -8,7 +8,13 @@ const TenantNavPanel: React.FC = () => {
   const { options = [] } = useTenantSelection()
 
   const hasTenants = useMemo(() => Array.isArray(options) && options.length > 1, [options])
+  const [isHydrated, setIsHydrated] = useState(false)
 
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  if (!isHydrated) return null
   if (!hasTenants) return null
 
   return (

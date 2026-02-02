@@ -126,15 +126,6 @@ export const VideoCapture: React.FC<
     return undefined
   }, [blob])
 
-  useEffect(() => {
-    return () => {
-      stopRecording()
-      if (mediaStreamRef.current) {
-        mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      }
-    }
-  }, [])
-
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current) {
       mediaRecorderRef.current.stop()
@@ -149,6 +140,15 @@ export const VideoCapture: React.FC<
     setShowLivePreview(false)
     setRecording(false)
   }, [])
+
+  useEffect(() => {
+    return () => {
+      stopRecording()
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      }
+    }
+  }, [stopRecording])
 
   const startRecording = useCallback(async () => {
     setRecorderError(null)

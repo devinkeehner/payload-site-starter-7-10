@@ -14,17 +14,28 @@ interface CollectionMeta {
   useAsTitle?: string
 }
 
+type CollectionConfigShape = {
+  slug?: string
+  labels?: { plural?: string; singular?: string }
+  admin?: { useAsTitle?: string }
+}
+
 const resolveCollectionLabel = (collection?: CollectionMeta | null, fallback?: string) => {
   if (!collection) return fallback
   return collection.label || fallback || collection.slug
 }
 
-const resolveNestedValue = (obj: any, path?: string) => {
+const resolveNestedValue = (obj: Record<string, unknown> | null | undefined, path?: string) => {
   if (!obj || !path) return undefined
-  return path.split(".").reduce((acc, key) => (acc ? acc[key] : undefined), obj)
+  return path.split(".").reduce<unknown>((acc, key) => {
+    if (acc && typeof acc === 'object' && key in (acc as Record<string, unknown>)) {
+      return (acc as Record<string, unknown>)[key]
+    }
+    return undefined
+  }, obj)
 }
 
-const getCollectionMeta = (collections: any[] | undefined, slug: string | undefined): CollectionMeta | null => {
+const getCollectionMeta = (collections: CollectionConfigShape[] | undefined, slug: string | undefined): CollectionMeta | null => {
   if (!slug || !collections) return null
   const found = collections.find((c) => c?.slug === slug)
   if (!found) return null
@@ -105,7 +116,7 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   const [docKey, setDocKey] = useState<string | undefined>(undefined)
   const [isHydrated, setIsHydrated] = useState(false)
 
-  const collections = useMemo(() => config?.collections || [], [config])
+  const collections = useMemo<CollectionConfigShape[]>(() => (config?.collections || []) as CollectionConfigShape[], [config])
 
   const tenantSlug = tenant?.slug || tenantID || undefined
   const visitHref = useMemo(() => {
@@ -208,7 +219,7 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
           derived = json?.title || json?.name || json?.slug || docId
         }
         setDocLabel(String(derived))
-      } catch (err) {
+      } catch (_err) {
         if (!cancelled) {
           setDocLabel(docId)
         }

@@ -1,13 +1,7 @@
-import { CollectionSlug } from 'payload'
 import { getServerSideURL } from './getURL'
 
-const collectionPrefixMap: Partial<Record<CollectionSlug, string>> = {
-  posts: '/posts',
-  pages: '',
-}
-
 type Props = {
-  collection: keyof typeof collectionPrefixMap
+  collection: 'posts' | 'pages'
   slug: string
   tenantId?: string
 }

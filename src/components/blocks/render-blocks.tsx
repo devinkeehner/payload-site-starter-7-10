@@ -37,7 +37,7 @@ export const RenderBlocks: React.FC<{
             const Block = blockComponents[blockType]
 
             if (Block) {
-              // @ts-ignore expected error
+              // @ts-expect-error - block props vary by block type
               return <Block key={index} index={index} {...block} disableInnerContainer />
             }
           }

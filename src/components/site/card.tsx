@@ -9,6 +9,7 @@ import React, { Fragment } from 'react'
 // can supply minimal fields without strict Payload types
 
 import { Media } from '@/components/site/media'
+import type { Media as MediaType } from '@/payload-types'
 import { Badge } from '../ui/badge'
 
 export type CardPostData = {
@@ -18,7 +19,7 @@ export type CardPostData = {
   meta?: {
     title?: string | null
     description?: string | null
-    image?: unknown | null
+    image?: MediaType | string | null
   } | null
 }
 
@@ -75,7 +76,7 @@ export function Card({
           <Media
             className="h-48 overflow-hidden"
             imgClassName="w-full h-full object-cover"
-            resource={metaImage as any}
+            resource={metaImage as MediaType}
           />
         ) : (
           <div className="h-48 flex items-center justify-center bg-muted border-b">No image</div>

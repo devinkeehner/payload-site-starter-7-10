@@ -25,7 +25,7 @@ export const generatePreviewPath = ({ collection, slug, req, tenantId }: Props) 
   // preview API can resolve the correct tenant slug and redirect to /[tenant]/[slug]
   try {
     const fromArg = typeof tenantId === 'string' ? tenantId : undefined
-    const fromReq = (req as any)?.tenant
+    const fromReq = (req as { tenant?: unknown })?.tenant
     const tenant = fromArg || (typeof fromReq === 'string' ? fromReq : undefined)
     if ((collection === 'posts' || collection === 'pages') && typeof tenant === 'string' && tenant) {
       encodedParams.set('tenant', tenant)

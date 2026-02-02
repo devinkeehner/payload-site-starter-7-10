@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmationModal, SelectInput, useModal, useTranslation } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import type { ViewTypes } from 'payload'
@@ -71,11 +71,13 @@ const TenantSelectorOverride: React.FC<TenantSelectorOverrideProps> = ({ disable
   )
 
   const translate = useCallback(
-    (key: string, variables?: Record<string, unknown>) => t(key as any, variables),
+    (key: string, variables?: Record<string, unknown>) =>
+      (t as unknown as (key: string, options?: Record<string, unknown>) => string)(key, variables),
     [t],
   )
 
   const [pendingSelection, setPendingSelection] = useState<unknown>(undefined)
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const switchTenant = useCallback(
     (option: unknown) => {
@@ -119,6 +121,11 @@ const TenantSelectorOverride: React.FC<TenantSelectorOverrideProps> = ({ disable
     [entityType, modified, openModal, selectedValue, switchTenant],
   )
 
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  if (!isHydrated) return null
   if (normalizedOptions.length <= 1) return null
 
   const pendingLabel = getOptionLabel(pendingSelection)

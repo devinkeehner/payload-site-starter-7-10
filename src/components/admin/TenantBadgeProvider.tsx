@@ -45,7 +45,8 @@ const readSelectedTenantIDFromStorage = (): string | undefined => {
         const parsed = JSON.parse(raw)
         if (typeof parsed === 'string' && parsed) return parsed
         if (parsed && typeof parsed === 'object') {
-          const candidate = (parsed as any).id || (parsed as any).value || (parsed as any).slug
+          const record = parsed as { id?: unknown; value?: unknown; slug?: unknown }
+          const candidate = record.id ?? record.value ?? record.slug
           if (typeof candidate === 'string' && candidate) return candidate
         }
       } catch {
@@ -105,21 +106,21 @@ const TenantBadge: React.FC = () => {
       const fire = () => window.dispatchEvent(new Event('payload:locationchange'))
       const origPush = history.pushState.bind(history)
       const origReplace = history.replaceState.bind(history)
-      if ((history.pushState as any).__patched !== true) {
-        history.pushState = ((...args: any[]) => {
-          const r = origPush(...(args as [any, string, (string | URL | null | undefined)]))
+      if ((history.pushState as { __patched?: boolean }).__patched !== true) {
+        history.pushState = ((...args: Parameters<History['pushState']>) => {
+          const r = origPush(...args)
           fire()
           return r
-        }) as any
-        ;(history.pushState as any).__patched = true
+        }) as History['pushState']
+        ;(history.pushState as { __patched?: boolean }).__patched = true
       }
-      if ((history.replaceState as any).__patched !== true) {
-        history.replaceState = ((...args: any[]) => {
-          const r = origReplace(...(args as [any, string, (string | URL | null | undefined)]))
+      if ((history.replaceState as { __patched?: boolean }).__patched !== true) {
+        history.replaceState = ((...args: Parameters<History['replaceState']>) => {
+          const r = origReplace(...args)
           fire()
           return r
-        }) as any
-        ;(history.replaceState as any).__patched = true
+        }) as History['replaceState']
+        ;(history.replaceState as { __patched?: boolean }).__patched = true
       }
     }
     patchHistory()

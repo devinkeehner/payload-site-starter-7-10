@@ -90,6 +90,7 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    suppressHydrationWarning: true,
     user: Users.slug,
     livePreview: {
       breakpoints: [
@@ -169,6 +170,22 @@ export default buildConfig({
 
       // Adjust 'site-seo' if your SiteSEO collection uses a different slug.
       const siteIndex = filtered.findIndex((c) => c.slug === 'site-seo');
+
+      if (forms) {
+        forms.admin = {
+          ...(forms.admin || {}),
+          components: {
+            ...(forms.admin?.components || {}),
+            views: {
+              ...(forms.admin?.components?.views || {}),
+              list: {
+                ...(forms.admin?.components?.views?.list || {}),
+                Component: '@/components/admin/FormResultsDashboard#default',
+              },
+            },
+          },
+        }
+      }
 
       if (siteIndex !== -1 && forms && submissions) {
         filtered.splice(siteIndex + 1, 0, forms, submissions);

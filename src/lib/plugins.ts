@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
 import { payloadCloudPlugin } from '@payloadcms/payload-cloud'
 import { formBuilderPlugin } from '@payloadcms/plugin-form-builder'
@@ -445,7 +446,7 @@ export const plugins: Plugin[] = [
                     depth: 2,
                   })
                 }
-              } catch (e) {
+              } catch {
                 return send(404, { error: 'Form not found or inaccessible for the current tenant scope' })
               }
 

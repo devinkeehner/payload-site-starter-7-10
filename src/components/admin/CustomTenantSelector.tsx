@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ConfirmationModal,
   SelectInput,
@@ -50,6 +50,7 @@ const CustomTenantSelector: React.FC<Props> = ({ label, viewType }) => {
 
   const translate = useMemo(() => t as unknown as (key: string, options?: Record<string, unknown>) => string, [t])
   const [tenantSelection, setTenantSelection] = useState<TenantOption | undefined>(undefined)
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const { assignedOptions, otherOptions, allOptions } = useMemo(() => {
     const normalized = (options as any[]).map(normalizeOption)
@@ -137,9 +138,14 @@ const CustomTenantSelector: React.FC<Props> = ({ label, viewType }) => {
     [searchTerm],
   )
 
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
   const filteredAssigned = filterOptions(assignedOptions)
   const filteredOthers = filterOptions(otherOptions)
 
+  if (!isHydrated) return null
   if (!allOptions.length) return null
 
   return (

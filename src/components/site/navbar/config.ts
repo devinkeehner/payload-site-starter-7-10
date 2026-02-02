@@ -27,13 +27,15 @@ export const Navbar: CollectionConfig = {
             collection: 'tenants',
             limit: 1000,
             depth: 0,
-            select: { slug: true } as any,
+            select: { slug: true } as const,
           })
-          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const slugs = (tenants?.docs || [])
+            .map((t) => (typeof (t as { slug?: unknown }).slug === 'string' ? (t as { slug?: string }).slug : undefined))
+            .filter((slug): slug is string => typeof slug === 'string')
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:navbars', ...slugs.map((s: string) => `tenant:${s}`)] })
-        } catch (e) {
-          payload.logger?.error?.('Failed to revalidate after navbar change', e as any)
+        } catch (err) {
+          payload.logger?.error?.('Failed to revalidate after navbar change', err)
         }
       }) as CollectionAfterChangeHook,
     ],
@@ -45,13 +47,15 @@ export const Navbar: CollectionConfig = {
             collection: 'tenants',
             limit: 1000,
             depth: 0,
-            select: { slug: true } as any,
+            select: { slug: true } as const,
           })
-          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const slugs = (tenants?.docs || [])
+            .map((t) => (typeof (t as { slug?: unknown }).slug === 'string' ? (t as { slug?: string }).slug : undefined))
+            .filter((slug): slug is string => typeof slug === 'string')
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:navbars', ...slugs.map((s: string) => `tenant:${s}`)] })
-        } catch (e) {
-          payload.logger?.error?.('Failed to revalidate after navbar delete', e as any)
+        } catch (err) {
+          payload.logger?.error?.('Failed to revalidate after navbar delete', err)
         }
       }) as CollectionAfterDeleteHook,
     ],

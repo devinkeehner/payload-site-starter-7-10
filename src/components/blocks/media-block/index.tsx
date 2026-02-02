@@ -24,7 +24,7 @@ export const MediaBlock: React.FC<Props> = (props) => {
   const {
     captionClassName,
     className,
-    enableGutter = true,
+    enableGutter: _enableGutter = true,
     imgClassName,
     media,
     staticImage,
@@ -35,7 +35,7 @@ export const MediaBlock: React.FC<Props> = (props) => {
   if (media && typeof media === 'object') caption = media.caption
 
   return (
-    <Section>
+    <Section className={className}>
       <Container>
         {(media || staticImage) && (
           <Media imgClassName={cn('border', imgClassName)} resource={media} src={staticImage} />

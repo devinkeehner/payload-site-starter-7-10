@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmationModal, useAuth, useModal, useTranslation } from '@payloadcms/ui'
 import ReactSelect, { type GroupBase, type OptionsOrGroups, type SingleValue, type StylesConfig } from 'react-select'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
@@ -11,6 +11,10 @@ const confirmLeaveWithoutSavingSlug = 'custom-tenant-selector-confirm-leave'
 type TenantOption = {
   label: string
   value: string
+}
+
+type TenantAssignment = {
+  tenant?: string | { id?: unknown; value?: unknown }
 }
 
 const toOption = (candidate: unknown): TenantOption | undefined => {
@@ -31,20 +35,19 @@ const TenantDropdown: React.FC = () => {
 
   const assignedTenantIDs = useMemo(() => {
     const ids = new Set<string>()
-    if (Array.isArray(user?.tenants)) {
-      user.tenants.forEach((assignment: any) => {
-        const relation = assignment?.tenant
-        if (!relation) return
-        if (typeof relation === 'string') {
-          ids.add(relation)
-          return
-        }
-        if (typeof relation === 'object') {
-          const relationID = relation?.id ?? relation?.value
-          if (relationID != null) ids.add(String(relationID))
-        }
-      })
-    }
+    const assignments = Array.isArray(user?.tenants) ? (user.tenants as TenantAssignment[]) : []
+    assignments.forEach((assignment) => {
+      const relation = assignment?.tenant
+      if (!relation) return
+      if (typeof relation === 'string') {
+        ids.add(relation)
+        return
+      }
+      if (typeof relation === 'object') {
+        const relationID = (relation as { id?: unknown; value?: unknown }).id ?? (relation as { value?: unknown }).value
+        if (relationID != null) ids.add(String(relationID))
+      }
+    })
     return ids
   }, [user])
 
@@ -99,6 +102,8 @@ const TenantDropdown: React.FC = () => {
     () => t as unknown as (key: string, options?: Record<string, unknown>) => string,
     [t],
   )
+
+  const [isHydrated, setIsHydrated] = useState(false)
 
   const translateLabel = useCallback(() => {
     return 'Site Navigation'
@@ -219,6 +224,11 @@ const TenantDropdown: React.FC = () => {
     [],
   )
 
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  if (!isHydrated) return null
   if (normalizedOptions.length <= 1) return null
 
   return (
