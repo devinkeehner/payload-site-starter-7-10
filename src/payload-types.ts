@@ -1249,7 +1249,7 @@ export interface User {
   roles?: 'super'[] | null;
   tenants?:
     | {
-        tenant?: (string | null) | Tenant;
+        tenant: string | Tenant;
         id?: string | null;
       }[]
     | null;
