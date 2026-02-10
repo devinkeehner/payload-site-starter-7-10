@@ -431,6 +431,7 @@ export interface Page {
     | ArchiveBlock
     | FormBlock
     | BannerBlock
+    | PolicyVoicesBlock
   )[];
   meta?: {
     title?: string | null;
@@ -932,6 +933,98 @@ export interface BannerBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PolicyVoicesBlock".
+ */
+export interface PolicyVoicesBlock {
+  title?: string | null;
+  titleImage?: (string | null) | Media;
+  leftLabel?: string | null;
+  rightLabel?: string | null;
+  backgroundImage?: (string | null) | Media;
+  ctaLabel?: string | null;
+  ctaLink?: {
+    type?: ('reference' | 'custom') | null;
+    newTab?: boolean | null;
+    reference?:
+      | ({
+          relationTo: 'pages';
+          value: string | Page;
+        } | null)
+      | ({
+          relationTo: 'posts';
+          value: string | Post;
+        } | null);
+    url?: string | null;
+  };
+  speechBubbles?:
+    | {
+        text: string;
+        side: 'affordability' | 'accountability';
+        x: number;
+        y: number;
+        link?: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'pages';
+                value: string | Page;
+              } | null)
+            | ({
+                relationTo: 'posts';
+                value: string | Post;
+              } | null);
+          url?: string | null;
+        };
+        id?: string | null;
+      }[]
+    | null;
+  cards?:
+    | {
+        title: string;
+        description: string;
+        side: 'affordability' | 'accountability';
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        anchorId?: string | null;
+        link?: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'pages';
+                value: string | Page;
+              } | null)
+            | ({
+                relationTo: 'posts';
+                value: string | Post;
+              } | null);
+          url?: string | null;
+          label?: string | null;
+        };
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'policyVoices';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media-canvas".
  */
 export interface MediaCanva {
@@ -1238,6 +1331,8 @@ export interface FormSubmission {
         id?: string | null;
       }[]
     | null;
+  submitterIP?: string | null;
+  submitterEmail?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1639,6 +1734,7 @@ export interface PagesSelect<T extends boolean = true> {
         archive?: T | ArchiveBlockSelect<T>;
         formBlock?: T | FormBlockSelect<T>;
         banner?: T | BannerBlockSelect<T>;
+        policyVoices?: T | PolicyVoicesBlockSelect<T>;
       };
   meta?:
     | T
@@ -1770,6 +1866,64 @@ export interface FormBlockSelect<T extends boolean = true> {
 export interface BannerBlockSelect<T extends boolean = true> {
   style?: T;
   content?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PolicyVoicesBlock_select".
+ */
+export interface PolicyVoicesBlockSelect<T extends boolean = true> {
+  title?: T;
+  titleImage?: T;
+  leftLabel?: T;
+  rightLabel?: T;
+  backgroundImage?: T;
+  ctaLabel?: T;
+  ctaLink?:
+    | T
+    | {
+        type?: T;
+        newTab?: T;
+        reference?: T;
+        url?: T;
+      };
+  speechBubbles?:
+    | T
+    | {
+        text?: T;
+        side?: T;
+        x?: T;
+        y?: T;
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+            };
+        id?: T;
+      };
+  cards?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        side?: T;
+        icon?: T;
+        anchorId?: T;
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+            };
+        id?: T;
+      };
   id?: T;
   blockName?: T;
 }
@@ -2266,6 +2420,8 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
         value?: T;
         id?: T;
       };
+  submitterIP?: T;
+  submitterEmail?: T;
   updatedAt?: T;
   createdAt?: T;
 }

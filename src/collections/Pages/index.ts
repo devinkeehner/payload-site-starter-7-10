@@ -10,6 +10,7 @@ import { RichTextBlockConfig } from '@/components/blocks/richtext-block/config'
 import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { MediaGalleryBlockConfig } from '@/components/blocks/media-gallery-block/config'
+import { PolicyVoicesBlockConfig } from '@/components/blocks/policy-voices-block/config'
 import { HeroConfig } from '@/components/heros/config'
 import { slugField } from '@/collections/fields/slug'
 import { populatePublishedAt } from '@/lib/hooks/populatePublishedAt'
@@ -93,6 +94,7 @@ export const Pages: CollectionConfig<'pages'> = {
                 ArchiveConfig,
                 FormBlockConfig,
                 BannerConfig,
+                PolicyVoicesBlockConfig,
               ],
               required: true,
               admin: {

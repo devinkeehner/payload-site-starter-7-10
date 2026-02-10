@@ -6,7 +6,7 @@ import { nestedDocsPlugin } from '@payloadcms/plugin-nested-docs'
 import { redirectsPlugin } from '@payloadcms/plugin-redirects'
 import { seoPlugin } from '@payloadcms/plugin-seo'
 import { searchPlugin } from '@payloadcms/plugin-search'
-import { Plugin, type Field } from 'payload'
+import { Plugin, type Field, type Where } from 'payload'
 import { revalidateRedirects } from '@/lib/hooks/revalidateRedirects'
 import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
 import { searchFields } from '@/lib/search/fieldOverrides'
@@ -746,6 +746,39 @@ export const plugins: Plugin[] = [
     },
     formSubmissionOverrides: {
       admin: { group: 'Forms & Submissions' },
+      fields: ({ defaultFields }) => {
+        const fields = Array.isArray(defaultFields) ? [...defaultFields] : []
+
+        fields.push(
+          {
+            name: 'cooldownNotice',
+            label: 'Cooldown Policy',
+            type: 'ui',
+            admin: {
+              position: 'sidebar',
+              components: {
+                Field: {
+                  path: '@/components/admin/FormSubmissionCooldownNotice#FormSubmissionCooldownNotice',
+                },
+              },
+            },
+          },
+          {
+            name: 'submitterIP',
+            label: 'Submitter IP',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'submitterEmail',
+            label: 'Submitter Email',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+        )
+
+        return fields
+      },
       hooks: {
         beforeChange: [
           async ({ data, req }) => {
@@ -758,6 +791,125 @@ export const plugins: Plugin[] = [
             const form = await req.payload.findByID({ collection: 'forms', id: formId })
             const turnstileEnabled = (form as { enableTurnstile?: boolean })?.enableTurnstile === true
             const submissionData = Array.isArray(data?.submissionData) ? [...data.submissionData] : []
+
+            const getHeader = (name: string) => {
+              const headers = req?.headers as unknown
+              if (headers && typeof (headers as { get?: (name: string) => string | null }).get === 'function') {
+                return (headers as { get: (name: string) => string | null }).get(name) || ''
+              }
+
+              const raw = (headers as Record<string, string | string[] | undefined>)?.[name]
+              return Array.isArray(raw) ? raw[0] || '' : raw || ''
+            }
+
+            const submitterIP = (() => {
+              const forwarded = getHeader('x-forwarded-for')
+              if (forwarded) return forwarded.split(',')[0]?.trim() || ''
+              return (
+                (req as { ip?: string; connection?: { remoteAddress?: string } } | undefined)?.ip ||
+                (req as { connection?: { remoteAddress?: string } } | undefined)?.connection?.remoteAddress ||
+                ''
+              )
+            })()
+
+            const submitterEmail = (() => {
+              for (const entry of submissionData) {
+                if (!entry || typeof entry !== 'object') continue
+                const rawValue = typeof entry?.value === 'string' ? entry.value.trim() : ''
+                if (!rawValue || !rawValue.includes('@')) continue
+                const fieldName = typeof entry?.field === 'string' ? entry.field.toLowerCase() : ''
+                if (!fieldName || fieldName.includes('email') || rawValue.includes('@')) {
+                  return rawValue.toLowerCase()
+                }
+              }
+              return ''
+            })()
+
+            const emailDomain = submitterEmail.split('@')[1] || ''
+            const exemptIPs = (process.env.FORM_SUBMISSION_COOLDOWN_EXEMPT_IPS || '')
+              .split(',')
+              .map((value) => value.trim())
+              .filter(Boolean)
+            const exemptDomains = (process.env.FORM_SUBMISSION_COOLDOWN_EXEMPT_EMAIL_DOMAINS || '')
+              .split(',')
+              .map((value) => value.trim().toLowerCase())
+              .filter(Boolean)
+
+            const isExempt =
+              (submitterIP && exemptIPs.includes(submitterIP)) ||
+              (emailDomain && exemptDomains.includes(emailDomain.toLowerCase()))
+
+            if (!isExempt && (submitterIP || submitterEmail)) {
+              const COOLDOWN_THRESHOLD = 3
+              const BASE_COOLDOWN_MINUTES = 15
+              const EXTRA_COOLDOWN_MINUTES = 30
+              const lookbackMs = 1000 * 60 * 60 * 24
+              const now = Date.now()
+              const cutoffIso = new Date(now - lookbackMs).toISOString()
+
+              const matchOr: Where[] = []
+              if (submitterIP) matchOr.push({ submitterIP: { equals: submitterIP } })
+              if (submitterEmail) matchOr.push({ submitterEmail: { equals: submitterEmail } })
+
+              const andFilters: Where[] = [{ createdAt: { greater_than: cutoffIso } }]
+              if (matchOr.length) {
+                andFilters.push({ or: matchOr })
+              }
+
+              const recent = await req.payload.find({
+                collection: 'form-submissions',
+                where: { and: andFilters },
+                limit: 200,
+                depth: 0,
+                overrideAccess: true,
+                sort: 'createdAt',
+              })
+
+              const timestamps = (recent?.docs || [])
+                .map((doc: { createdAt?: string }) => (doc.createdAt ? new Date(doc.createdAt).getTime() : NaN))
+                .filter((value) => Number.isFinite(value))
+                .sort((a, b) => a - b)
+
+              timestamps.push(now)
+
+              let lockoutCount = 0
+              let lastLockoutAt: number | null = null
+              let windowStart: number | null = null
+              let windowCount = 0
+              const windowMs = BASE_COOLDOWN_MINUTES * 60 * 1000
+
+              for (const timestamp of timestamps) {
+                if (windowStart === null) {
+                  windowStart = timestamp
+                  windowCount = 1
+                  continue
+                }
+
+                if (timestamp - windowStart <= windowMs) {
+                  windowCount += 1
+                } else {
+                  windowStart = timestamp
+                  windowCount = 1
+                }
+
+                if (windowCount >= COOLDOWN_THRESHOLD) {
+                  lockoutCount += 1
+                  lastLockoutAt = timestamp
+                  windowStart = timestamp
+                  windowCount = 0
+                }
+              }
+
+              if (lastLockoutAt !== null && lockoutCount > 0) {
+                const lockoutMinutes = BASE_COOLDOWN_MINUTES + (lockoutCount - 1) * EXTRA_COOLDOWN_MINUTES
+                const unlockAt = lastLockoutAt + lockoutMinutes * 60 * 1000
+                if (now < unlockAt) {
+                  throw new Error(
+                    `Too many submissions. Please wait ${lockoutMinutes} minutes before trying again.`,
+                  )
+                }
+              }
+            }
             const tokenEntryIndex = submissionData.findIndex((entry: any) => entry?.field === TURNSTILE_TOKEN_FIELD_NAME)
             const tokenEntry = tokenEntryIndex >= 0 ? submissionData[tokenEntryIndex] : null
             const tokenFromData = typeof tokenEntry?.value === 'string' ? tokenEntry.value : ''
@@ -780,6 +932,8 @@ export const plugins: Plugin[] = [
               return {
                 ...data,
                 submissionData,
+                submitterIP: submitterIP || undefined,
+                submitterEmail: submitterEmail || undefined,
               }
             }
 
@@ -812,6 +966,8 @@ export const plugins: Plugin[] = [
             return {
               ...data,
               submissionData,
+              submitterIP: submitterIP || undefined,
+              submitterEmail: submitterEmail || undefined,
             }
           },
         ],

@@ -18,7 +18,7 @@ const blockComponents = {
   banner: BannerBlock,
   richTextBlock: RichTextBlock,
   mediaGallery: MediaGalleryBlock,
-}
+} satisfies Record<string, React.ComponentType<any>>
 
 export const RenderBlocks: React.FC<{
   blocks: Page['layout'][0][]
@@ -33,8 +33,8 @@ export const RenderBlocks: React.FC<{
         {blocks.map((block, index) => {
           const { blockType } = block
 
-          if (blockType && blockType in blockComponents) {
-            const Block = blockComponents[blockType]
+          if (blockType && Object.prototype.hasOwnProperty.call(blockComponents, blockType)) {
+            const Block = blockComponents[blockType as keyof typeof blockComponents]
 
             if (Block) {
               // @ts-expect-error - block props vary by block type
