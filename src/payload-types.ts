@@ -1040,7 +1040,13 @@ export interface PetitionDriveBlock {
   formTitleOverride?: string | null;
   petitionFormKicker?: string | null;
   petitionFormSupportText?: string | null;
+  /**
+   * Text shown on the main petition submit button.
+   */
   petitionSubmitLabel?: string | null;
+  /**
+   * Small line of text shown below the submit button.
+   */
   petitionPrivacyText?: string | null;
   disclaimer?: string | null;
   sideContentType?: ('none' | 'video' | 'image' | 'text') | null;

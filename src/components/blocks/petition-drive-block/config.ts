@@ -80,11 +80,19 @@ export const PetitionDriveBlockConfig: Block = {
       name: 'petitionSubmitLabel',
       type: 'text',
       defaultValue: 'Add My Name Now',
+      label: 'Submit Button Text',
+      admin: {
+        description: 'Text shown on the main petition submit button.',
+      },
     },
     {
       name: 'petitionPrivacyText',
       type: 'text',
       defaultValue: 'We respect your privacy and never sell your data',
+      label: 'Privacy Line Text',
+      admin: {
+        description: 'Small line of text shown below the submit button.',
+      },
     },
     {
       name: 'disclaimer',
