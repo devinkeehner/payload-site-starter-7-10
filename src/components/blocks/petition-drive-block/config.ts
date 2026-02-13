@@ -1,6 +1,66 @@
 import type { Block } from 'payload'
 import { defaultLexical } from '@/collections/fields/defaultLexical'
 
+const textToLexical = (raw: string) => {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const children =
+    lines.length > 0
+      ? lines.map((line) => ({
+          type: 'paragraph',
+          version: 1,
+          children: [
+            {
+              type: 'text',
+              version: 1,
+              text: line,
+              format: 0,
+              detail: 0,
+              mode: 'normal',
+              style: '',
+            },
+          ],
+          direction: null,
+          format: '',
+          indent: 0,
+          textFormat: 0,
+          textStyle: '',
+        }))
+      : [
+          {
+            type: 'paragraph',
+            version: 1,
+            children: [],
+            direction: null,
+            format: '',
+            indent: 0,
+            textFormat: 0,
+            textStyle: '',
+          },
+        ]
+
+  return {
+    root: {
+      type: 'root',
+      version: 1,
+      direction: null,
+      format: '',
+      indent: 0,
+      children,
+    },
+  }
+}
+
+const normalizeLexicalValue = (value: unknown) => {
+  if (!value) return value
+  if (typeof value === 'object') return value
+  if (typeof value === 'string') return textToLexical(value)
+  return value
+}
+
 export const PetitionDriveBlockConfig: Block = {
   slug: 'petitionDrive',
   interfaceName: 'PetitionDriveBlock',
@@ -30,6 +90,18 @@ export const PetitionDriveBlockConfig: Block = {
       type: 'richText',
       label: 'Explanation Content',
       editor: defaultLexical,
+      hooks: {
+        afterRead: [
+          ({ value }) => {
+            return normalizeLexicalValue(value)
+          },
+        ],
+        beforeValidate: [
+          ({ value }) => {
+            return normalizeLexicalValue(value)
+          },
+        ],
+      },
     },
     {
       name: 'desktopLogo',
