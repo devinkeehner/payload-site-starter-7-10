@@ -26,22 +26,10 @@ export const PetitionDriveBlockConfig: Block = {
       defaultValue: 'Join supporters across Connecticut and add your name in under 20 seconds.',
     },
     {
-      name: 'explanationLabel',
-      type: 'text',
-      label: 'Explanation Label',
-      defaultValue: 'Why this matters',
-      admin: {
-        description: 'Small heading shown below the subheadline.',
-      },
-    },
-    {
       name: 'explanationText',
-      type: 'textarea',
-      label: 'Explanation Text',
-      defaultValue: 'This petition helps us demonstrate broad public support and strengthens our case at the Capitol.',
-      admin: {
-        description: 'Additional plain-language explanation shown below the subheadline.',
-      },
+      type: 'richText',
+      label: 'Explanation Content',
+      editor: defaultLexical,
     },
     {
       name: 'desktopLogo',
