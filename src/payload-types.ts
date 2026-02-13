@@ -1032,12 +1032,23 @@ export interface PetitionDriveBlock {
   eyebrow?: string | null;
   headline: string;
   subheadline?: string | null;
+  /**
+   * Small heading shown below the subheadline.
+   */
+  explanationLabel?: string | null;
+  /**
+   * Additional plain-language explanation shown below the subheadline.
+   */
+  explanationText?: string | null;
   desktopLogo?: (string | null) | Media;
   mobileLogo?: (string | null) | Media;
   backgroundImage: string | Media;
   overlayStrength?: ('light' | 'medium' | 'heavy') | null;
   form: string | Form;
   formTitleOverride?: string | null;
+  /**
+   * Short uppercase line above the form title. Leave blank to hide.
+   */
   petitionFormKicker?: string | null;
   petitionFormSupportText?: string | null;
   /**
@@ -1051,6 +1062,22 @@ export interface PetitionDriveBlock {
   disclaimer?: string | null;
   sideContentType?: ('none' | 'video' | 'image' | 'text') | null;
   sideVideoURL?: string | null;
+  enableSideFollowupContent?: boolean | null;
+  sideFollowupContent?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   sideImage?: (string | null) | Media;
   sideText?: string | null;
   id?: string | null;
@@ -1970,6 +1997,8 @@ export interface PetitionDriveBlockSelect<T extends boolean = true> {
   eyebrow?: T;
   headline?: T;
   subheadline?: T;
+  explanationLabel?: T;
+  explanationText?: T;
   desktopLogo?: T;
   mobileLogo?: T;
   backgroundImage?: T;
@@ -1983,6 +2012,8 @@ export interface PetitionDriveBlockSelect<T extends boolean = true> {
   disclaimer?: T;
   sideContentType?: T;
   sideVideoURL?: T;
+  enableSideFollowupContent?: T;
+  sideFollowupContent?: T;
   sideImage?: T;
   sideText?: T;
   id?: T;

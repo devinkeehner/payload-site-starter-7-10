@@ -1,4 +1,5 @@
 import type { Block } from 'payload'
+import { defaultLexical } from '@/collections/fields/defaultLexical'
 
 export const PetitionDriveBlockConfig: Block = {
   slug: 'petitionDrive',
@@ -87,7 +88,10 @@ export const PetitionDriveBlockConfig: Block = {
     {
       name: 'petitionFormKicker',
       type: 'text',
-      defaultValue: 'Petition Signature',
+      label: 'Form Kicker (Optional)',
+      admin: {
+        description: 'Short uppercase line above the form title. Leave blank to hide.',
+      },
     },
     {
       name: 'petitionFormSupportText',
@@ -133,6 +137,25 @@ export const PetitionDriveBlockConfig: Block = {
       type: 'text',
       admin: {
         condition: (_data, siblingData) => siblingData?.sideContentType === 'video',
+      },
+    },
+    {
+      name: 'enableSideFollowupContent',
+      type: 'checkbox',
+      label: 'Add Text Under Side Video',
+      defaultValue: false,
+      admin: {
+        condition: (_data, siblingData) => siblingData?.sideContentType === 'video',
+      },
+    },
+    {
+      name: 'sideFollowupContent',
+      type: 'richText',
+      label: 'Side Video Follow-up Content',
+      editor: defaultLexical,
+      admin: {
+        condition: (_data, siblingData) =>
+          siblingData?.sideContentType === 'video' && Boolean(siblingData?.enableSideFollowupContent),
       },
     },
     {
