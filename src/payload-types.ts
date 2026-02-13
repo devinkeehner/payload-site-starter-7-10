@@ -1038,6 +1038,10 @@ export interface PetitionDriveBlock {
   overlayStrength?: ('light' | 'medium' | 'heavy') | null;
   form: string | Form;
   formTitleOverride?: string | null;
+  petitionFormKicker?: string | null;
+  petitionFormSupportText?: string | null;
+  petitionSubmitLabel?: string | null;
+  petitionPrivacyText?: string | null;
   disclaimer?: string | null;
   sideContentType?: ('none' | 'video' | 'image' | 'text') | null;
   sideVideoURL?: string | null;
@@ -1966,6 +1970,10 @@ export interface PetitionDriveBlockSelect<T extends boolean = true> {
   overlayStrength?: T;
   form?: T;
   formTitleOverride?: T;
+  petitionFormKicker?: T;
+  petitionFormSupportText?: T;
+  petitionSubmitLabel?: T;
+  petitionPrivacyText?: T;
   disclaimer?: T;
   sideContentType?: T;
   sideVideoURL?: T;

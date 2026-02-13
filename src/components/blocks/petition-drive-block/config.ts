@@ -17,10 +17,12 @@ export const PetitionDriveBlockConfig: Block = {
       name: 'headline',
       type: 'text',
       required: true,
+      defaultValue: 'Sign the Petition',
     },
     {
       name: 'subheadline',
       type: 'textarea',
+      defaultValue: 'Join supporters across Connecticut and add your name in under 20 seconds.',
     },
     {
       name: 'desktopLogo',
@@ -62,10 +64,32 @@ export const PetitionDriveBlockConfig: Block = {
     {
       name: 'formTitleOverride',
       type: 'text',
+      defaultValue: 'Add Your Name',
+    },
+    {
+      name: 'petitionFormKicker',
+      type: 'text',
+      defaultValue: 'Petition Signature',
+    },
+    {
+      name: 'petitionFormSupportText',
+      type: 'textarea',
+      defaultValue: 'Join supporters across Connecticut. It takes less than 20 seconds.',
+    },
+    {
+      name: 'petitionSubmitLabel',
+      type: 'text',
+      defaultValue: 'Add My Name Now',
+    },
+    {
+      name: 'petitionPrivacyText',
+      type: 'text',
+      defaultValue: 'We respect your privacy and never sell your data',
     },
     {
       name: 'disclaimer',
       type: 'textarea',
+      defaultValue: 'By signing, you agree to receive updates related to this petition.',
     },
     {
       name: 'sideContentType',
