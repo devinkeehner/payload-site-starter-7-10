@@ -432,6 +432,7 @@ export interface Page {
     | FormBlock
     | BannerBlock
     | PolicyVoicesBlock
+    | PetitionDriveBlock
   )[];
   meta?: {
     title?: string | null;
@@ -1022,6 +1023,29 @@ export interface PolicyVoicesBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'policyVoices';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PetitionDriveBlock".
+ */
+export interface PetitionDriveBlock {
+  eyebrow?: string | null;
+  headline: string;
+  subheadline?: string | null;
+  desktopLogo?: (string | null) | Media;
+  mobileLogo?: (string | null) | Media;
+  backgroundImage: string | Media;
+  overlayStrength?: ('light' | 'medium' | 'heavy') | null;
+  form: string | Form;
+  formTitleOverride?: string | null;
+  disclaimer?: string | null;
+  sideContentType?: ('none' | 'video' | 'image' | 'text') | null;
+  sideVideoURL?: string | null;
+  sideImage?: (string | null) | Media;
+  sideText?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'petitionDrive';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1735,6 +1759,7 @@ export interface PagesSelect<T extends boolean = true> {
         formBlock?: T | FormBlockSelect<T>;
         banner?: T | BannerBlockSelect<T>;
         policyVoices?: T | PolicyVoicesBlockSelect<T>;
+        petitionDrive?: T | PetitionDriveBlockSelect<T>;
       };
   meta?:
     | T
@@ -1924,6 +1949,28 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
             };
         id?: T;
       };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PetitionDriveBlock_select".
+ */
+export interface PetitionDriveBlockSelect<T extends boolean = true> {
+  eyebrow?: T;
+  headline?: T;
+  subheadline?: T;
+  desktopLogo?: T;
+  mobileLogo?: T;
+  backgroundImage?: T;
+  overlayStrength?: T;
+  form?: T;
+  formTitleOverride?: T;
+  disclaimer?: T;
+  sideContentType?: T;
+  sideVideoURL?: T;
+  sideImage?: T;
+  sideText?: T;
   id?: T;
   blockName?: T;
 }

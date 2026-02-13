@@ -37,6 +37,7 @@ import { MediaCanvasField as MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07 }
 import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/components/site/navbar/row-label'
 import { FormShareField as FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f } from '@/components/admin/FormShareField'
 import { default as default_f947c8c711b9789ffe849c3dce394ff8 } from '@/components/admin/FormResultsDashboard'
+import { FormSubmissionCooldownNotice as FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472 } from '@/components/admin/FormSubmissionCooldownNotice'
 import { WatchTenantCollection as WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
 import { LinkToDoc as LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloadcms/plugin-search/client'
 import { ReindexButton as ReindexButton_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloadcms/plugin-search/client'
@@ -92,6 +93,7 @@ export const importMap = {
   "@/components/site/navbar/row-label#RowLabel": RowLabel_049f819b8cc5e95a74082f1d6b1ff31a,
   "@/components/admin/FormShareField#FormShareField": FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f,
   "@/components/admin/FormResultsDashboard#default": default_f947c8c711b9789ffe849c3dce394ff8,
+  "@/components/admin/FormSubmissionCooldownNotice#FormSubmissionCooldownNotice": FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472,
   "@payloadcms/plugin-multi-tenant/client#WatchTenantCollection": WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a,
   "@payloadcms/plugin-search/client#LinkToDoc": LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634,
   "@payloadcms/plugin-search/client#ReindexButton": ReindexButton_aead06e4cbf6b2620c5c51c9ab283634,
