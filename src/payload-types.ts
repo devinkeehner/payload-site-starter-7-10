@@ -64,6 +64,7 @@ export type SupportedTimezones =
 export interface Config {
   auth: {
     users: UserAuthOperations;
+    'payload-mcp-api-keys': PayloadMcpApiKeyAuthOperations;
   };
   blocks: {};
   collections: {
@@ -84,8 +85,10 @@ export interface Config {
     tenants: Tenant;
     authors: Author;
     tags: Tag;
+    'payload-mcp-api-keys': PayloadMcpApiKey;
     redirects: Redirect;
     search: Search;
+    'payload-kv': PayloadKv;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -110,8 +113,10 @@ export interface Config {
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     authors: AuthorsSelect<false> | AuthorsSelect<true>;
     tags: TagsSelect<false> | TagsSelect<true>;
+    'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     search: SearchSelect<false> | SearchSelect<true>;
+    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -120,6 +125,7 @@ export interface Config {
   db: {
     defaultIDType: string;
   };
+  fallbackLocale: null;
   globals: {
     header: Header;
     footer: Footer;
@@ -131,9 +137,13 @@ export interface Config {
     'global-meta-seo': GlobalMetaSeoSelect<false> | GlobalMetaSeoSelect<true>;
   };
   locale: null;
-  user: User & {
-    collection: 'users';
-  };
+  user:
+    | (User & {
+        collection: 'users';
+      })
+    | (PayloadMcpApiKey & {
+        collection: 'payload-mcp-api-keys';
+      });
   jobs: {
     tasks: {
       schedulePublish: TaskSchedulePublish;
@@ -146,6 +156,24 @@ export interface Config {
   };
 }
 export interface UserAuthOperations {
+  forgotPassword: {
+    email: string;
+    password: string;
+  };
+  login: {
+    email: string;
+    password: string;
+  };
+  registerFirstUser: {
+    email: string;
+    password: string;
+  };
+  unlock: {
+    email: string;
+    password: string;
+  };
+}
+export interface PayloadMcpApiKeyAuthOperations {
   forgotPassword: {
     email: string;
     password: string;
@@ -940,8 +968,41 @@ export interface PolicyVoicesBlock {
   title?: string | null;
   titleImage?: (string | null) | Media;
   leftLabel?: string | null;
+  /**
+   * Optional. If set, this image is used instead of the left label text pill.
+   */
+  leftLabelImage?: (string | null) | Media;
   rightLabel?: string | null;
+  /**
+   * Optional. If set, this image is used instead of the right label text pill.
+   */
+  rightLabelImage?: (string | null) | Media;
   backgroundImage?: (string | null) | Media;
+  layoutMode?: ('scroll' | 'static') | null;
+  /**
+   * Choose between continuous card flow and stage-by-stage swapping.
+   */
+  interactionMode?: ('continuous' | 'stage') | null;
+  cardStyleMode?: ('glass' | 'solid') | null;
+  /**
+   * Auto assigns speech bubble positions if x/y are not set.
+   */
+  bubblePlacementMode?: ('auto' | 'hybrid' | 'manual') | null;
+  enableBubbleFloat?: boolean | null;
+  enableMobileSwipeFilter?: boolean | null;
+  /**
+   * How long bubble-triggered card highlighting lasts.
+   */
+  highlightDurationMs?: number | null;
+  /**
+   * Height of each scroll stage in viewport units.
+   */
+  scrollStageHeightVh?: number | null;
+  enableParallax?: boolean | null;
+  /**
+   * Background parallax strength from 0 to 0.2.
+   */
+  parallaxStrength?: number | null;
   ctaLabel?: string | null;
   ctaLink?: {
     type?: ('reference' | 'custom') | null;
@@ -959,10 +1020,16 @@ export interface PolicyVoicesBlock {
   };
   speechBubbles?:
     | {
-        text: string;
+        text?: string | null;
+        /**
+         * Optional. If set, this image is rendered instead of text.
+         */
+        image?: (string | null) | Media;
         side: 'affordability' | 'accountability';
-        x: number;
-        y: number;
+        useAutoPosition?: boolean | null;
+        x?: number | null;
+        y?: number | null;
+        floatDelay?: number | null;
         link?: {
           type?: ('reference' | 'custom') | null;
           newTab?: boolean | null;
@@ -1002,6 +1069,14 @@ export interface PolicyVoicesBlock {
             )
           | null;
         anchorId?: string | null;
+        /**
+         * Optional order for scroll stages. Lower numbers appear first.
+         */
+        stageOrder?: number | null;
+        /**
+         * Optional heading shown above this card in scroll mode.
+         */
+        stageTitle?: string | null;
         link?: {
           type?: ('reference' | 'custom') | null;
           newTab?: boolean | null;
@@ -1032,14 +1107,21 @@ export interface PetitionDriveBlock {
   eyebrow?: string | null;
   headline: string;
   subheadline?: string | null;
-  /**
-   * Small heading shown below the subheadline.
-   */
-  explanationLabel?: string | null;
-  /**
-   * Additional plain-language explanation shown below the subheadline.
-   */
-  explanationText?: string | null;
+  explanationText?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   desktopLogo?: (string | null) | Media;
   mobileLogo?: (string | null) | Media;
   backgroundImage: string | Media;
@@ -1433,6 +1515,280 @@ export interface User {
   password?: string | null;
 }
 /**
+ * API keys control which collections, resources, tools, and prompts MCP clients can access
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-mcp-api-keys".
+ */
+export interface PayloadMcpApiKey {
+  id: string;
+  /**
+   * The user that the API key is associated with.
+   */
+  user: string | User;
+  /**
+   * A useful label for the API key.
+   */
+  label?: string | null;
+  /**
+   * The purpose of the API key.
+   */
+  description?: string | null;
+  posts?: {
+    /**
+     * Allow clients to find posts.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create posts.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update posts.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete posts.
+     */
+    delete?: boolean | null;
+  };
+  pages?: {
+    /**
+     * Allow clients to find pages.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create pages.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update pages.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete pages.
+     */
+    delete?: boolean | null;
+  };
+  forms?: {
+    /**
+     * Allow clients to find forms.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create forms.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update forms.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete forms.
+     */
+    delete?: boolean | null;
+  };
+  formSubmissions?: {
+    /**
+     * Allow clients to find form-submissions.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create form-submissions.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update form-submissions.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete form-submissions.
+     */
+    delete?: boolean | null;
+  };
+  media?: {
+    /**
+     * Allow clients to find media.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create media.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update media.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete media.
+     */
+    delete?: boolean | null;
+  };
+  categories?: {
+    /**
+     * Allow clients to find categories.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create categories.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update categories.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete categories.
+     */
+    delete?: boolean | null;
+  };
+  articleTypes?: {
+    /**
+     * Allow clients to find article-types.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create article-types.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update article-types.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete article-types.
+     */
+    delete?: boolean | null;
+  };
+  authors?: {
+    /**
+     * Allow clients to find authors.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create authors.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update authors.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete authors.
+     */
+    delete?: boolean | null;
+  };
+  tags?: {
+    /**
+     * Allow clients to find tags.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create tags.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update tags.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete tags.
+     */
+    delete?: boolean | null;
+  };
+  siteSeo?: {
+    /**
+     * Allow clients to find site-seo.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create site-seo.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update site-seo.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete site-seo.
+     */
+    delete?: boolean | null;
+  };
+  repInfo?: {
+    /**
+     * Allow clients to find rep-info.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create rep-info.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update rep-info.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete rep-info.
+     */
+    delete?: boolean | null;
+  };
+  standardMedia?: {
+    /**
+     * Allow clients to find standard-media.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create standard-media.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update standard-media.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete standard-media.
+     */
+    delete?: boolean | null;
+  };
+  mediaCanvas?: {
+    /**
+     * Allow clients to find media-canvas.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create media-canvas.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update media-canvas.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete media-canvas.
+     */
+    delete?: boolean | null;
+  };
+  'payload-mcp-tool'?: {
+    /**
+     * Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation.
+     */
+    upsertPageWithBlocks?: boolean | null;
+    /**
+     * Update all forms that match a title across tenants and return changed, unchanged, and failed items.
+     */
+    bulkUpdateFormsByTitle?: boolean | null;
+    /**
+     * For contact forms, move the `other` textarea and `image-select` field into the final two positions in a configurable order across tenants.
+     */
+    reorderContactFormTailFields?: boolean | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
@@ -1487,6 +1843,23 @@ export interface Search {
     | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-kv".
+ */
+export interface PayloadKv {
+  id: string;
+  key: string;
+  data:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1656,22 +2029,27 @@ export interface PayloadLockedDocument {
         value: string | Tag;
       } | null)
     | ({
+        relationTo: 'payload-mcp-api-keys';
+        value: string | PayloadMcpApiKey;
+      } | null)
+    | ({
         relationTo: 'redirects';
         value: string | Redirect;
       } | null)
     | ({
         relationTo: 'search';
         value: string | Search;
-      } | null)
-    | ({
-        relationTo: 'payload-jobs';
-        value: string | PayloadJob;
       } | null);
   globalSlug?: string | null;
-  user: {
-    relationTo: 'users';
-    value: string | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: string | User;
+      }
+    | {
+        relationTo: 'payload-mcp-api-keys';
+        value: string | PayloadMcpApiKey;
+      };
   updatedAt: string;
   createdAt: string;
 }
@@ -1681,10 +2059,15 @@ export interface PayloadLockedDocument {
  */
 export interface PayloadPreference {
   id: string;
-  user: {
-    relationTo: 'users';
-    value: string | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: string | User;
+      }
+    | {
+        relationTo: 'payload-mcp-api-keys';
+        value: string | PayloadMcpApiKey;
+      };
   key?: string | null;
   value?:
     | {
@@ -1939,8 +2322,20 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
   title?: T;
   titleImage?: T;
   leftLabel?: T;
+  leftLabelImage?: T;
   rightLabel?: T;
+  rightLabelImage?: T;
   backgroundImage?: T;
+  layoutMode?: T;
+  interactionMode?: T;
+  cardStyleMode?: T;
+  bubblePlacementMode?: T;
+  enableBubbleFloat?: T;
+  enableMobileSwipeFilter?: T;
+  highlightDurationMs?: T;
+  scrollStageHeightVh?: T;
+  enableParallax?: T;
+  parallaxStrength?: T;
   ctaLabel?: T;
   ctaLink?:
     | T
@@ -1954,9 +2349,12 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
     | T
     | {
         text?: T;
+        image?: T;
         side?: T;
+        useAutoPosition?: T;
         x?: T;
         y?: T;
+        floatDelay?: T;
         link?:
           | T
           | {
@@ -1975,6 +2373,8 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
         side?: T;
         icon?: T;
         anchorId?: T;
+        stageOrder?: T;
+        stageTitle?: T;
         link?:
           | T
           | {
@@ -1997,7 +2397,6 @@ export interface PetitionDriveBlockSelect<T extends boolean = true> {
   eyebrow?: T;
   headline?: T;
   subheadline?: T;
-  explanationLabel?: T;
   explanationText?: T;
   desktopLogo?: T;
   mobileLogo?: T;
@@ -2614,6 +3013,131 @@ export interface TagsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-mcp-api-keys_select".
+ */
+export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
+  user?: T;
+  label?: T;
+  description?: T;
+  posts?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  pages?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  forms?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  formSubmissions?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  media?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  categories?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  articleTypes?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  authors?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  tags?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  siteSeo?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  repInfo?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  standardMedia?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  mediaCanvas?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  'payload-mcp-tool'?:
+    | T
+    | {
+        upsertPageWithBlocks?: T;
+        bulkUpdateFormsByTitle?: T;
+        reorderContactFormTailFields?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects_select".
  */
 export interface RedirectsSelect<T extends boolean = true> {
@@ -2653,6 +3177,14 @@ export interface SearchSelect<T extends boolean = true> {
       };
   updatedAt?: T;
   createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-kv_select".
+ */
+export interface PayloadKvSelect<T extends boolean = true> {
+  key?: T;
+  data?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

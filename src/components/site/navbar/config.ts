@@ -35,7 +35,7 @@ export const Navbar: CollectionConfig = {
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:navbars', ...slugs.map((s: string) => `tenant:${s}`)] })
         } catch (err) {
-          payload.logger?.error?.('Failed to revalidate after navbar change', err)
+          payload.logger?.error?.({ err }, 'Failed to revalidate after navbar change')
         }
       }) as CollectionAfterChangeHook,
     ],
@@ -55,7 +55,7 @@ export const Navbar: CollectionConfig = {
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:navbars', ...slugs.map((s: string) => `tenant:${s}`)] })
         } catch (err) {
-          payload.logger?.error?.('Failed to revalidate after navbar delete', err)
+          payload.logger?.error?.({ err }, 'Failed to revalidate after navbar delete')
         }
       }) as CollectionAfterDeleteHook,
     ],

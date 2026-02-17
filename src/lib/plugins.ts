@@ -12,6 +12,7 @@ import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
 import { searchFields } from '@/lib/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/lib/search/beforeSync'
 import { config } from '@/site.config'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
@@ -32,7 +33,7 @@ export const plugins: Plugin[] = [
     overrides: {
       admin: {
         group: 'Misc',
-        hidden: ({ user }) => !user?.roles?.includes('super'),
+        hidden: ({ user }) => !isSuperUser(user),
       },
       // @ts-expect-error - This is a valid override, mapped fields don't resolve to the same type
       fields: ({ defaultFields }) => {
@@ -418,7 +419,7 @@ export const plugins: Plugin[] = [
                 return send(400, body)
               }
 
-              const isSuper = !!req.user?.roles?.includes('super')
+              const isSuper = isSuperUser(req.user)
               const userTenantIDs: string[] = Array.isArray(req.user?.tenants)
                 ? (req.user.tenants as any[])
                     .map((t) => (typeof t?.tenant === 'string' ? t.tenant : t?.tenant?.id))

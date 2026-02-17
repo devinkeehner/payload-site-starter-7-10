@@ -52,6 +52,7 @@ import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/component
 import { default as default_03d18d5b1bbb31219221c8c0e6fd3737 } from '@/components/admin/TenantHeaderIndicator'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
+import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 
 export const importMap = {
   "@payloadcms/plugin-multi-tenant/client#TenantField": TenantField_1d0591e3cf4f332c83a86da13a0de59a,
@@ -107,5 +108,6 @@ export const importMap = {
   "@/components/admin/TenantSwitchGuard#default": default_599c1b72b7cec43f5abe1b2ad62dbd85,
   "@/components/admin/TenantHeaderIndicator#default": default_03d18d5b1bbb31219221c8c0e6fd3737,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
-  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24
+  "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
+  "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a
 }

@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
@@ -12,9 +13,9 @@ export const Tenants: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => !!req.user?.roles?.includes('super'),
-    update: ({ req }) => !!req.user?.roles?.includes('super'),
-    delete: ({ req }) => !!req.user?.roles?.includes('super'), // only super admins can delete
+    create: ({ req }) => isSuperUser(req.user),
+    update: ({ req }) => isSuperUser(req.user),
+    delete: ({ req }) => isSuperUser(req.user), // only super admins can delete
   },
   fields: [
     {

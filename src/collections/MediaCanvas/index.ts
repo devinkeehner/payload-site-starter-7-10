@@ -7,6 +7,7 @@ import {
 
 import { authenticated } from '@/lib/access/authenticated'
 import { anyone } from '@/lib/access/anyone'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 export const MediaCanvas: CollectionConfig = {
   labels: {
@@ -18,7 +19,7 @@ export const MediaCanvas: CollectionConfig = {
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
-    hidden: ({ user }) => !user?.roles?.includes('super'),
+    hidden: ({ user }) => !isSuperUser(user),
   },
   access: {
     create: authenticated,

@@ -29,6 +29,7 @@ import {
   PreviewField,
 } from '@payloadcms/plugin-seo/fields'
 import { slugField } from '@/collections/fields/slug'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 export const Posts: CollectionConfig<'posts'> = {
   slug: 'posts',
@@ -354,7 +355,7 @@ export const Posts: CollectionConfig<'posts'> = {
             if (process.env.NODE_ENV !== 'production') body.debug = debug
             return send(400, body)
           }
-          const isSuper = !!req.user?.roles?.includes('super')
+          const isSuper = isSuperUser(req.user)
           const userTenantIDs: string[] = Array.isArray(req.user?.tenants)
             ? (req.user.tenants as any[])
                 .map((t) => (typeof t?.tenant === 'string' ? t.tenant : t?.tenant?.id))

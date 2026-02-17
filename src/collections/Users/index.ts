@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
 import { authenticated } from '@/lib/access/authenticated'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -15,7 +16,7 @@ export const Users: CollectionConfig = {
     group: 'Admin',
     defaultColumns: ['name', 'email'],
     useAsTitle: 'name',
-    hidden: ({ user }) => !user?.roles?.includes('super'),
+    hidden: ({ user }) => !isSuperUser(user),
   },
   auth: {
     useAPIKey: true,

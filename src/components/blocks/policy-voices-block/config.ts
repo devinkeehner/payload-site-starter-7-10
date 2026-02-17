@@ -5,8 +5,26 @@ import { link } from '@/collections/fields/link'
 const bubbleFields: Field[] = [
   {
     name: 'text',
+    label: 'Bubble Text',
     type: 'text',
-    required: true,
+    required: false,
+    validate: (value: unknown, { siblingData }: { siblingData?: unknown }) => {
+      const hasText = typeof value === 'string' && value.trim().length > 0
+      const hasImage = Boolean((siblingData as Record<string, unknown> | undefined)?.image)
+      if (!hasText && !hasImage) {
+        return 'Provide bubble text or a bubble image.'
+      }
+      return true
+    },
+  },
+  {
+    name: 'image',
+    label: 'Bubble Image',
+    type: 'upload',
+    relationTo: 'media',
+    admin: {
+      description: 'Optional. If set, this image is rendered instead of text.',
+    },
   },
   {
     name: 'side',
@@ -18,19 +36,37 @@ const bubbleFields: Field[] = [
     ],
   },
   {
+    name: 'useAutoPosition',
+    label: 'Use Auto Position',
+    type: 'checkbox',
+    defaultValue: true,
+  },
+  {
     name: 'x',
     label: 'Desktop X position (%)',
     type: 'number',
     min: 0,
     max: 100,
-    required: true,
+    admin: {
+      condition: (_data, siblingData) => siblingData?.useAutoPosition !== true,
+    },
   },
   {
     name: 'y',
     label: 'Desktop Y position (px)',
     type: 'number',
     min: 0,
-    required: true,
+    admin: {
+      condition: (_data, siblingData) => siblingData?.useAutoPosition !== true,
+    },
+  },
+  {
+    name: 'floatDelay',
+    label: 'Float Delay (seconds)',
+    type: 'number',
+    defaultValue: 0,
+    min: 0,
+    max: 4,
   },
   link({
     appearances: false,
@@ -81,6 +117,22 @@ const cardFields: Field[] = [
     label: 'Anchor ID (for in-page links)',
     type: 'text',
   },
+  {
+    name: 'stageOrder',
+    label: 'Stage Order',
+    type: 'number',
+    admin: {
+      description: 'Optional order for scroll stages. Lower numbers appear first.',
+    },
+  },
+  {
+    name: 'stageTitle',
+    label: 'Stage Title',
+    type: 'text',
+    admin: {
+      description: 'Optional heading shown above this card in scroll mode.',
+    },
+  },
   link({
     appearances: false,
   }),
@@ -111,14 +163,126 @@ export const PolicyVoicesBlockConfig: Block = {
       defaultValue: 'Affordability',
     },
     {
+      name: 'leftLabelImage',
+      label: 'Left Label Image',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Optional. If set, this image is used instead of the left label text pill.',
+      },
+    },
+    {
       name: 'rightLabel',
       type: 'text',
       defaultValue: 'Accountability',
     },
     {
+      name: 'rightLabelImage',
+      label: 'Right Label Image',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Optional. If set, this image is used instead of the right label text pill.',
+      },
+    },
+    {
       name: 'backgroundImage',
       type: 'upload',
       relationTo: 'media',
+    },
+    {
+      name: 'layoutMode',
+      type: 'select',
+      defaultValue: 'scroll',
+      options: [
+        { label: 'Scroll (Viewport Sticky)', value: 'scroll' },
+        { label: 'Static', value: 'static' },
+      ],
+    },
+    {
+      name: 'interactionMode',
+      type: 'select',
+      defaultValue: 'continuous',
+      options: [
+        { label: 'Continuous (Voices Parity)', value: 'continuous' },
+        { label: 'Stage Swap', value: 'stage' },
+      ],
+      admin: {
+        description: 'Choose between continuous card flow and stage-by-stage swapping.',
+        condition: (_data, siblingData) => siblingData?.layoutMode !== 'static',
+      },
+    },
+    {
+      name: 'cardStyleMode',
+      type: 'select',
+      defaultValue: 'glass',
+      options: [
+        { label: 'Glass (Transparent)', value: 'glass' },
+        { label: 'Solid', value: 'solid' },
+      ],
+    },
+    {
+      name: 'bubblePlacementMode',
+      type: 'select',
+      defaultValue: 'hybrid',
+      options: [
+        { label: 'Auto', value: 'auto' },
+        { label: 'Hybrid (Auto + manual overrides)', value: 'hybrid' },
+        { label: 'Manual', value: 'manual' },
+      ],
+      admin: {
+        description: 'Auto assigns speech bubble positions if x/y are not set.',
+      },
+    },
+    {
+      name: 'enableBubbleFloat',
+      type: 'checkbox',
+      defaultValue: true,
+    },
+    {
+      name: 'enableMobileSwipeFilter',
+      type: 'checkbox',
+      defaultValue: true,
+    },
+    {
+      name: 'highlightDurationMs',
+      type: 'number',
+      defaultValue: 4000,
+      min: 1000,
+      max: 10000,
+      admin: {
+        description: 'How long bubble-triggered card highlighting lasts.',
+      },
+    },
+    {
+      name: 'scrollStageHeightVh',
+      type: 'number',
+      defaultValue: 100,
+      min: 60,
+      max: 180,
+      admin: {
+        description: 'Height of each scroll stage in viewport units.',
+        condition: (_data, siblingData) => siblingData?.layoutMode !== 'static',
+      },
+    },
+    {
+      name: 'enableParallax',
+      type: 'checkbox',
+      defaultValue: true,
+      admin: {
+        condition: (_data, siblingData) => siblingData?.layoutMode !== 'static',
+      },
+    },
+    {
+      name: 'parallaxStrength',
+      type: 'number',
+      defaultValue: 0.08,
+      min: 0,
+      max: 0.2,
+      admin: {
+        description: 'Background parallax strength from 0 to 0.2.',
+        condition: (_data, siblingData) => siblingData?.layoutMode !== 'static' && siblingData?.enableParallax,
+      },
     },
     {
       name: 'ctaLabel',

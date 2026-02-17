@@ -1,0 +1,669 @@
+
+> payload-site-starter@1.0.0 payload /home/dkeehner/projects/new-full/backend
+> cross-env NODE_OPTIONS=--no-deprecation payload run .tmp/reorder_contact_other_before_image_select.mjs
+
+{
+  "summary": {
+    "totalScanned": 134,
+    "totalContact": 54,
+    "changedCount": 0,
+    "unchangedCount": 53,
+    "skippedCount": 1,
+    "failedCount": 0
+  },
+  "changed": [],
+  "unchanged": [
+    {
+      "formId": "68e8ff7ef8adac5c870d265c",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68e698334f2f677486042c8b",
+        "slug": "piscopo",
+        "name": "Piscopo, John"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68e6a3504f2f677486051c0a",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68e698334f2f677486042c8b",
+        "slug": "piscopo",
+        "name": "Piscopo, John"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac468439bdb1c1e65ab23",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "689222176910bf7fc36f51ac",
+        "slug": "hro4200!",
+        "name": "Custom Sites "
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac467439bdb1c1e65ab00",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68a8557d84928c2dc1c71897",
+        "slug": "main",
+        "name": "CT House GOP"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac465439bdb1c1e65aadd",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b3fecd329282e3cb9de2",
+        "slug": "decaprio",
+        "name": "DeCaprio, Mark"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac464439bdb1c1e65aaba",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b48ccd329282e3cba2df",
+        "slug": "foncello",
+        "name": "Foncello, Martin"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac463439bdb1c1e65aa97",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b5f8cd329282e3cbada2",
+        "slug": "reddington-hughes",
+        "name": "Reddington-Hughes"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac461439bdb1c1e65aa74",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b715cd329282e3cbb712",
+        "slug": "bronko",
+        "name": "Bronko, Seth"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac460439bdb1c1e65aa51",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b7cecd329282e3cbbb5d",
+        "slug": "marra",
+        "name": "Marra, Tracy"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac45f439bdb1c1e65aa2e",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b933cd329282e3cbc709",
+        "slug": "weir",
+        "name": "Weir, Steve"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac45e439bdb1c1e65aa0b",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2b9d8cd329282e3cbcd55",
+        "slug": "buchsbaum",
+        "name": "Buchsbaum, Jason"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac45c439bdb1c1e65a9e8",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2ba48cd329282e3cbd0a0",
+        "slug": "canino",
+        "name": "Canino, Joe"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac45b439bdb1c1e65a9c5",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2ba90cd329282e3cbd3b1",
+        "slug": "courpas",
+        "name": "Courpas, Tina"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac459439bdb1c1e65a9a2",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2bac8cd329282e3cbd554",
+        "slug": "jensen",
+        "name": "Jensen, Arnold"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac458439bdb1c1e65a97f",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2bb3acd329282e3cbd8c4",
+        "slug": "stewart",
+        "name": "Stewart, Chris"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac457439bdb1c1e65a95c",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2bb5bcd329282e3cbd9b6",
+        "slug": "romano",
+        "name": "Romano, Amy"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac456439bdb1c1e65a939",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2bb74cd329282e3cbda9b",
+        "slug": "carney",
+        "name": "Carney, Devin"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac454439bdb1c1e65a916",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2bc85cd329282e3cbed39",
+        "slug": "carpino",
+        "name": "Carpino, Christie"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac453439bdb1c1e65a8f3",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2be67cd329282e3cc0d4e",
+        "slug": "case",
+        "name": "Case, Jay"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac451439bdb1c1e65a8d0",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2c135cd329282e3cc2842",
+        "slug": "dauphinais",
+        "name": "Dauphinais, Anne"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac450439bdb1c1e65a8ad",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2c253cd329282e3cc34d0",
+        "slug": "delnicki",
+        "name": "Delnicki, Tom"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac44f439bdb1c1e65a88a",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2c409cd329282e3cc46db",
+        "slug": "dubitsky",
+        "name": "Dubitsky, Doug"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac44e439bdb1c1e65a867",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2c4c9cd329282e3cc5357",
+        "slug": "fishbein",
+        "name": "Fishbein, Craig"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac44c439bdb1c1e65a844",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2c939cd329282e3cc7c85",
+        "slug": "ackert",
+        "name": "Ackert, Tim"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac44b439bdb1c1e65a821",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2c93fcd329282e3cc7ca4",
+        "slug": "hall",
+        "name": "Hall, Carol"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac449439bdb1c1e65a7fe",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2caabcd329282e3cc8d16",
+        "slug": "klarides-ditria",
+        "name": "Klarides-Ditria, Nicole"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac446439bdb1c1e65a7b8",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2cea5cd329282e3ccae85",
+        "slug": "mcgorty",
+        "name": "McGorty, Ben"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac445439bdb1c1e65a795",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2d07acd329282e3ccc31c",
+        "slug": "odea",
+        "name": "O'Dea, Tom"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac443439bdb1c1e65a772",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2d1e6cd329282e3ccd3d4",
+        "slug": "pavalock",
+        "name": "Pavalock-D'Amato"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac442439bdb1c1e65a74f",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2d611cd329282e3cd10fd",
+        "slug": "rutigliano",
+        "name": "Rutigliano, David"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac440439bdb1c1e65a72c",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2d7fdcd329282e3cd289e",
+        "slug": "vail",
+        "name": "Vail, Kurt"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac43f439bdb1c1e65a709",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2d963cd329282e3cd386e",
+        "slug": "yaccarino",
+        "name": "Yaccarino, Dave"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac43d439bdb1c1e65a6e6",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2db84cd329282e3cd56fe",
+        "slug": "zawistowski",
+        "name": "Zawistowski, Tami"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac43c439bdb1c1e65a6c3",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2ddf6cd329282e3cd763b",
+        "slug": "zupkus",
+        "name": "Zupkus, Lezlye"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac43a439bdb1c1e65a6a0",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2e081cd329282e3cd9493",
+        "slug": "polletta",
+        "name": "Polletta, Joe"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac436439bdb1c1e65a67d",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2e174cd329282e3cda044",
+        "slug": "haines",
+        "name": "Haines, Irene"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac435439bdb1c1e65a65a",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2e372cd329282e3cdb503",
+        "slug": "lanoue",
+        "name": "Lanoue, Brian"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac434439bdb1c1e65a637",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2e60bcd329282e3cdca4b",
+        "slug": "bolinsky",
+        "name": "Bolinsky, Mitch"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac432439bdb1c1e65a614",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2e9bbcd329282e3cdf01f",
+        "slug": "mastrofrancesco",
+        "name": "Mastrofrancesco, Gale"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac431439bdb1c1e65a5f1",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2eb69cd329282e3cdfd48",
+        "slug": "kennedy",
+        "name": "Kennedy, Kathy"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac430439bdb1c1e65a5ce",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2edb3cd329282e3ce0f2e",
+        "slug": "zullo",
+        "name": "Zullo, Joe"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac42e439bdb1c1e65a5ab",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2eecccd329282e3ce190c",
+        "slug": "howard",
+        "name": "Howard, Greg"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac42d439bdb1c1e65a588",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2f00dcd329282e3ce2153",
+        "slug": "callahan",
+        "name": "Callahan, Patrick"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac42c439bdb1c1e65a565",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2f1d9cd329282e3ce3008",
+        "slug": "nuccio",
+        "name": "Nuccio, Tammy"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac42a439bdb1c1e65a542",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2f411cd329282e3ce3da4",
+        "slug": "buckbee",
+        "name": "Buckbee, Bill"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac429439bdb1c1e65a51f",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2f784cd329282e3ce514d",
+        "slug": "anderson",
+        "name": "Anderson, Mark"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac428439bdb1c1e65a4fc",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2f8c2cd329282e3ce59d4",
+        "slug": "veach",
+        "name": "Veach, Donna"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac426439bdb1c1e65a4d9",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2f98ecd329282e3ce61c7",
+        "slug": "scott",
+        "name": "Scott, Tony"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac425439bdb1c1e65a4b6",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2fb66cd329282e3ce6efa",
+        "slug": "pizzuto",
+        "name": "Pizzuto, Bill"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac424439bdb1c1e65a493",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2fc85cd329282e3ce7899",
+        "slug": "aniskovich",
+        "name": "Aniskovich, Chris"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68dac422439bdb1c1e65a470",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68d2fd11cd329282e3ce7d55",
+        "slug": "hoxha",
+        "name": "Hoxha, Joe"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68d2e422d01a17b3d624e8a6",
+      "title": "Contact Form copy",
+      "tenant": {
+        "id": "68d2c4c9cd329282e3cc5357",
+        "slug": "fishbein",
+        "name": "Fishbein, Craig"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    },
+    {
+      "formId": "68829fc00a076e127c483af4",
+      "title": "Contact Form",
+      "tenant": {
+        "id": "68761c2ec6a201e9f6436216",
+        "slug": "candelora",
+        "name": "Candelora, Vincent"
+      },
+      "fieldCount": 7,
+      "otherIndex": 5,
+      "imageSelectIndex": 6
+    }
+  ],
+  "skipped": [
+    {
+      "formId": "68c05a4d96335f11fa0fc9ee",
+      "title": "Contact us",
+      "tenant": {
+        "id": "68a8557d84928c2dc1c71897",
+        "slug": "main",
+        "name": "CT House GOP"
+      },
+      "fieldCount": 9,
+      "otherIndex": -1,
+      "imageSelectIndex": -1,
+      "reason": "missing_other_or_image_select"
+    }
+  ],
+  "failed": []
+}

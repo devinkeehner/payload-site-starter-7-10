@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 export const SiteSEO: CollectionConfig = {
   labels: {
@@ -11,7 +12,7 @@ export const SiteSEO: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
     description: 'SEO metadata for the site home page',
-    hidden: ({ user }) => !user?.roles?.includes('super'),
+    hidden: ({ user }) => !isSuperUser(user),
   },
   access: {
     read: () => true,
