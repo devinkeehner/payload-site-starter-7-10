@@ -1047,11 +1047,11 @@ export interface PolicyVoicesBlock {
         id?: string | null;
       }[]
     | null;
-  cards?:
+  affordabilityEntries?:
     | {
+        entryType: 'card' | 'subheading';
         title: string;
-        description: string;
-        side: 'affordability' | 'accountability';
+        description?: string | null;
         icon?:
           | (
               | 'DollarSign'
@@ -1092,6 +1092,106 @@ export interface PolicyVoicesBlock {
           url?: string | null;
           label?: string | null;
         };
+        id?: string | null;
+      }[]
+    | null;
+  accountabilityEntries?:
+    | {
+        entryType: 'card' | 'subheading';
+        title: string;
+        description?: string | null;
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        anchorId?: string | null;
+        /**
+         * Optional order for scroll stages. Lower numbers appear first.
+         */
+        stageOrder?: number | null;
+        /**
+         * Optional heading shown above this card in scroll mode.
+         */
+        stageTitle?: string | null;
+        link?: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'pages';
+                value: string | Page;
+              } | null)
+            | ({
+                relationTo: 'posts';
+                value: string | Post;
+              } | null);
+          url?: string | null;
+          label?: string | null;
+        };
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Deprecated. Existing content is still read, but use the separate column arrays above.
+   */
+  cards?:
+    | {
+        entryType: 'card' | 'subheading';
+        title: string;
+        description?: string | null;
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        anchorId?: string | null;
+        /**
+         * Optional order for scroll stages. Lower numbers appear first.
+         */
+        stageOrder?: number | null;
+        /**
+         * Optional heading shown above this card in scroll mode.
+         */
+        stageTitle?: string | null;
+        link?: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'pages';
+                value: string | Page;
+              } | null)
+            | ({
+                relationTo: 'posts';
+                value: string | Post;
+              } | null);
+          url?: string | null;
+          label?: string | null;
+        };
+        side: 'affordability' | 'accountability';
         id?: string | null;
       }[]
     | null;
@@ -2365,12 +2465,12 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
             };
         id?: T;
       };
-  cards?:
+  affordabilityEntries?:
     | T
     | {
+        entryType?: T;
         title?: T;
         description?: T;
-        side?: T;
         icon?: T;
         anchorId?: T;
         stageOrder?: T;
@@ -2384,6 +2484,49 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
               url?: T;
               label?: T;
             };
+        id?: T;
+      };
+  accountabilityEntries?:
+    | T
+    | {
+        entryType?: T;
+        title?: T;
+        description?: T;
+        icon?: T;
+        anchorId?: T;
+        stageOrder?: T;
+        stageTitle?: T;
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+            };
+        id?: T;
+      };
+  cards?:
+    | T
+    | {
+        entryType?: T;
+        title?: T;
+        description?: T;
+        icon?: T;
+        anchorId?: T;
+        stageOrder?: T;
+        stageTitle?: T;
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+            };
+        side?: T;
         id?: T;
       };
   id?: T;

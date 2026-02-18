@@ -726,9 +726,22 @@ const upsertPageWithBlocksTool = {
     const tenant = args.tenant != null ? String(args.tenant) : undefined;
     const title = typeof args.title === 'string' ? args.title : undefined;
     const slug = typeof args.slug === 'string' ? args.slug : undefined;
-    const hero = args.hero;
-    const layout = args.layout;
-    const meta = args.meta;
+
+    const parseJSONIfString = <T>(value: unknown): T | unknown => {
+      if (typeof value !== 'string') return value;
+      try {
+        return JSON.parse(value) as T;
+      } catch {
+        return value;
+      }
+    };
+
+    const hero = parseJSONIfString<Record<string, unknown>>(args.hero);
+    const meta = parseJSONIfString<Record<string, unknown>>(args.meta);
+    const layout = Array.isArray(args.layout)
+      ? args.layout.map((item) => parseJSONIfString<Record<string, unknown>>(item))
+      : undefined;
+
     const publishedAt = typeof args.publishedAt === 'string' ? args.publishedAt : undefined;
     const status =
       args.status === 'published' || args.status === 'draft' ? args.status : 'draft';

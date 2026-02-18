@@ -74,7 +74,17 @@ const bubbleFields: Field[] = [
   }),
 ]
 
-const cardFields: Field[] = [
+const columnEntryFields: Field[] = [
+  {
+    name: 'entryType',
+    type: 'select',
+    defaultValue: 'card',
+    required: true,
+    options: [
+      { label: 'Card', value: 'card' },
+      { label: 'Subheading', value: 'subheading' },
+    ],
+  },
   {
     name: 'title',
     type: 'text',
@@ -83,16 +93,16 @@ const cardFields: Field[] = [
   {
     name: 'description',
     type: 'textarea',
-    required: true,
-  },
-  {
-    name: 'side',
-    type: 'select',
-    required: true,
-    options: [
-      { label: 'Affordability', value: 'affordability' },
-      { label: 'Accountability', value: 'accountability' },
-    ],
+    required: false,
+    validate: (value: unknown, { siblingData }: { siblingData?: unknown }) => {
+      const entryType = (siblingData as Record<string, unknown> | undefined)?.entryType
+      const isSubheading = entryType === 'subheading'
+      if (isSubheading) return true
+      return typeof value === 'string' && value.trim().length > 0 ? true : 'Description is required for card entries.'
+    },
+    admin: {
+      condition: (_data, siblingData) => siblingData?.entryType !== 'subheading',
+    },
   },
   {
     name: 'icon',
@@ -111,6 +121,9 @@ const cardFields: Field[] = [
       { label: 'File Check', value: 'FileCheck' },
       { label: 'Scale', value: 'Scale' },
     ],
+    admin: {
+      condition: (_data, siblingData) => siblingData?.entryType !== 'subheading',
+    },
   },
   {
     name: 'anchorId',
@@ -135,6 +148,11 @@ const cardFields: Field[] = [
   },
   link({
     appearances: false,
+    overrides: {
+      admin: {
+        condition: (_data, siblingData) => siblingData?.entryType !== 'subheading',
+      },
+    },
   }),
 ]
 
@@ -305,12 +323,43 @@ export const PolicyVoicesBlockConfig: Block = {
       fields: bubbleFields,
     },
     {
-      name: 'cards',
+      name: 'affordabilityEntries',
+      label: 'Affordability Entries',
       type: 'array',
       admin: {
         initCollapsed: true,
       },
-      fields: cardFields,
+      fields: columnEntryFields,
+    },
+    {
+      name: 'accountabilityEntries',
+      label: 'Accountability Entries',
+      type: 'array',
+      admin: {
+        initCollapsed: true,
+      },
+      fields: columnEntryFields,
+    },
+    {
+      name: 'cards',
+      label: 'Legacy Mixed Cards (Deprecated)',
+      type: 'array',
+      admin: {
+        initCollapsed: true,
+        description: 'Deprecated. Existing content is still read, but use the separate column arrays above.',
+      },
+      fields: [
+        ...columnEntryFields,
+        {
+          name: 'side',
+          type: 'select',
+          required: true,
+          options: [
+            { label: 'Affordability', value: 'affordability' },
+            { label: 'Accountability', value: 'accountability' },
+          ],
+        },
+      ],
     },
   ],
 }
