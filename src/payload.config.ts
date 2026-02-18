@@ -76,6 +76,20 @@ const GlobalMetaSEOGlobal: GlobalConfig = {
 const filename = fileURLToPath(import.meta.url);
 const dirname = path.dirname(filename);
 
+const parsePositiveInt = (value: string | undefined, fallback: number) => {
+  if (!value) return fallback;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+};
+
+const mongoPoolConfig = {
+  maxPoolSize: parsePositiveInt(process.env.MONGODB_MAX_POOL_SIZE, 10),
+  minPoolSize: parsePositiveInt(process.env.MONGODB_MIN_POOL_SIZE, 0),
+  maxConnecting: parsePositiveInt(process.env.MONGODB_MAX_CONNECTING, 2),
+  serverSelectionTimeoutMS: parsePositiveInt(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS, 15000),
+  socketTimeoutMS: parsePositiveInt(process.env.MONGODB_SOCKET_TIMEOUT_MS, 45000),
+} as const;
+
 const mcpCollections = {
   posts: { enabled: { find: true, create: true, update: true, delete: true } },
   pages: { enabled: { find: true, create: true, update: true, delete: true } },
@@ -908,6 +922,7 @@ export default buildConfig({
   // Database configuration
   db: mongooseAdapter({
     url: process.env.MONGODB_URI || '',
+    connectOptions: mongoPoolConfig,
   }),
 
   email: resendAdapter({

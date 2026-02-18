@@ -1,6 +1,8 @@
 'use client'
 
 import { MediaBlock } from '@/components/blocks/media-block'
+import { FormBlock } from '@/components/blocks/form-block'
+import { MediaGalleryBlock } from '@/components/blocks/media-gallery-block'
 import {
   DefaultNodeTypes,
   SerializedBlockNode,
@@ -28,15 +30,23 @@ import { cn } from '@/lib/utils'
 
 type NodeTypes =
   | DefaultNodeTypes
-  | SerializedBlockNode<CTABlockProps | MediaBlockProps | BannerBlockProps | CodeBlockProps>
+  | SerializedBlockNode<
+      CTABlockProps | MediaBlockProps | BannerBlockProps | CodeBlockProps | Record<string, unknown>
+    >
 
 const makeInternalDocToHref = (tenantSlug?: string | null) =>
   ({ linkNode }: { linkNode: SerializedLinkNode }) => {
-    const { value, relationTo } = linkNode.fields.doc!
-    if (typeof value !== 'object') {
-      throw new Error('Expected value to be an object')
-    }
-    const slug = typeof (value as { slug?: unknown }).slug === 'string' ? (value as { slug?: string }).slug : ''
+    const doc = linkNode.fields?.doc
+    const relationTo = doc?.relationTo
+    const value = doc?.value
+    const slug =
+      value && typeof value === 'object' && typeof (value as { slug?: unknown }).slug === 'string'
+        ? ((value as { slug?: string }).slug ?? '')
+        : ''
+
+    // Never throw from rich text link resolution during prerender.
+    if (!slug) return '#'
+
     if (relationTo === 'posts') {
       return tenantSlug ? `/${tenantSlug}/${slug}` : `/posts/${slug}`
     }
@@ -61,6 +71,38 @@ const makeJsxConverters = (tenantSlug?: string | null): JSXConvertersFunction<No
       ),
       code: ({ node }) => <CodeBlock className="col-start-2" {...node.fields} />,
       cta: ({ node }) => <CallToActionBlock {...node.fields} />,
+      formBlock: ({ node }: { node: SerializedBlockNode<Record<string, unknown>> }) => (
+        <FormBlock {...(node.fields as Parameters<typeof FormBlock>[0])} />
+      ),
+      mediaGallery: ({ node }: { node: SerializedBlockNode<Record<string, unknown>> }) => (
+        <MediaGalleryBlock {...(node.fields as Parameters<typeof MediaGalleryBlock>[0])} />
+      ),
+      videoBlock: ({ node }: { node: SerializedBlockNode<Record<string, unknown>> }) => {
+        const fields = (node.fields ?? {}) as {
+          source?: 'upload' | 'link'
+          externalURL?: string
+          media?: unknown
+        }
+        if (fields.source === 'link' && fields.externalURL) {
+          return (
+            <div className="col-start-1 col-span-3">
+              <a href={fields.externalURL} target="_blank" rel="noopener noreferrer" className="underline">
+                View video
+              </a>
+            </div>
+          )
+        }
+        if (fields.media && typeof fields.media === 'object') {
+          return (
+            <MediaBlock
+              className="col-start-1 col-span-3"
+              blockType="mediaBlock"
+              media={fields.media as MediaBlockProps['media']}
+            />
+          )
+        }
+        return null
+      },
     },
   })
 
