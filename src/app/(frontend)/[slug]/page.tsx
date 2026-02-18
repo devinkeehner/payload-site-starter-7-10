@@ -11,17 +11,45 @@ import { RenderHero } from '@/components/heros/render-hero'
 import { generateMeta } from '@/lib/utilities/generateMeta'
 import { LivePreviewListener } from '@/components/site/live-preview-listener'
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const isTransientMongoError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+  return (
+    message.includes('MongoNetworkError') ||
+    message.includes('tlsv1 alert internal error') ||
+    message.includes('ECONNRESET') ||
+    message.includes('ETIMEDOUT')
+  )
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn()
+    } catch (error) {
+      lastError = error
+      if (!isTransientMongoError(error) || i === attempts - 1) throw error
+      await wait(400 * (i + 1))
+    }
+  }
+  throw lastError
+}
+
 export async function generateStaticParams() {
-  const payload = await getPayload({ config: configPromise })
-  const pages = await payload.find({
-    collection: 'pages',
-    draft: false,
-    limit: 1000,
-    overrideAccess: false,
-    pagination: false,
-    select: {
-      slug: true,
-    },
+  const pages = await withRetry(async () => {
+    const payload = await getPayload({ config: configPromise })
+    return payload.find({
+      collection: 'pages',
+      draft: false,
+      limit: 1000,
+      overrideAccess: false,
+      pagination: false,
+      select: {
+        slug: true,
+      },
+    })
   })
 
   const params = pages.docs
@@ -80,19 +108,20 @@ export async function generateMetadata({ params: paramsPromise }: Args): Promise
 const queryPageBySlug = cache(async ({ slug }: { slug: string }) => {
   const { isEnabled: draft } = await draftMode()
 
-  const payload = await getPayload({ config: configPromise })
-
-  const result = await payload.find({
-    collection: 'pages',
-    draft,
-    limit: 1,
-    pagination: false,
-    overrideAccess: draft,
-    where: {
-      slug: {
-        equals: slug,
+  const result = await withRetry(async () => {
+    const payload = await getPayload({ config: configPromise })
+    return payload.find({
+      collection: 'pages',
+      draft,
+      limit: 1,
+      pagination: false,
+      overrideAccess: draft,
+      where: {
+        slug: {
+          equals: slug,
+        },
       },
-    },
+    })
   })
 
   return result.docs?.[0] || null
