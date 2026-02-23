@@ -1072,6 +1072,17 @@ export interface PolicyVoicesBlock {
         } | null);
     url?: string | null;
   };
+  supportDockEnabled?: boolean | null;
+  /**
+   * Form used by the bottom sticky support tab/sheet.
+   */
+  supportForm?: (string | null) | Form;
+  supportDockTabLabel?: string | null;
+  supportDockTitle?: string | null;
+  supportDockDescription?: string | null;
+  supportDockSubmitLabel?: string | null;
+  supportDockSuccessTitle?: string | null;
+  supportDockSuccessDescription?: string | null;
   speechBubbles?:
     | {
         text?: string | null;
@@ -2603,6 +2614,14 @@ export interface PolicyVoicesBlockSelect<T extends boolean = true> {
         reference?: T;
         url?: T;
       };
+  supportDockEnabled?: T;
+  supportForm?: T;
+  supportDockTabLabel?: T;
+  supportDockTitle?: T;
+  supportDockDescription?: T;
+  supportDockSubmitLabel?: T;
+  supportDockSuccessTitle?: T;
+  supportDockSuccessDescription?: T;
   speechBubbles?:
     | T
     | {

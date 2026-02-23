@@ -315,6 +315,76 @@ export const PolicyVoicesBlockConfig: Block = {
       },
     }),
     {
+      name: 'supportDockEnabled',
+      label: 'Enable Support Dock',
+      type: 'checkbox',
+      defaultValue: true,
+    },
+    {
+      name: 'supportForm',
+      label: 'Support Form',
+      type: 'relationship',
+      relationTo: 'forms',
+      admin: {
+        description: 'Form used by the bottom sticky support tab/sheet.',
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
+      name: 'supportDockTabLabel',
+      label: 'Support Dock Tab Label',
+      type: 'text',
+      defaultValue: 'Help Promote These Policies',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
+      name: 'supportDockTitle',
+      label: 'Support Dock Panel Title',
+      type: 'text',
+      defaultValue: 'Join the Support Team',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
+      name: 'supportDockDescription',
+      label: 'Support Dock Panel Description',
+      type: 'textarea',
+      defaultValue: 'Share your contact info and how you want to help promote these policy priorities.',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
+      name: 'supportDockSubmitLabel',
+      label: 'Support Submit Button Label',
+      type: 'text',
+      defaultValue: 'Submit Supporter Info',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
+      name: 'supportDockSuccessTitle',
+      label: 'Support Success Title',
+      type: 'text',
+      defaultValue: 'Submission received',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
+      name: 'supportDockSuccessDescription',
+      label: 'Support Success Description',
+      type: 'textarea',
+      defaultValue: 'Thanks for offering to help. Our team will follow up soon.',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.supportDockEnabled !== false,
+      },
+    },
+    {
       name: 'speechBubbles',
       type: 'array',
       admin: {
