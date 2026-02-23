@@ -1,0 +1,24 @@
+{
+  "lists": [
+    {
+      "listId": "254477",
+      "name": "Carpino 2020 cleaned",
+      "publicname": "Carpino 2020 cleaned",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "250524",
+      "name": "Rep. Christie Carpino",
+      "publicname": "Untitled",
+      "description": "",
+      "emailOwnerOnChange": "1",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

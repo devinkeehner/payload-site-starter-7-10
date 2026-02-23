@@ -1,0 +1,888 @@
+{
+  "accountId": "373633",
+  "folders": [
+    {
+      "clientFolderId": "147941",
+      "folderName": "Connecticut House Republicans",
+      "status": 200,
+      "accessible": true,
+      "listCount": 20
+    },
+    {
+      "clientFolderId": "150068",
+      "folderName": "Rep. Al Adinolfi",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150069",
+      "folderName": "Rep. Mike Alberts",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150070",
+      "folderName": "Rep. Bill Aman",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150071",
+      "folderName": "Rep. Jason Buchsbaum",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150072",
+      "folderName": "Rep. Aundre Bumgardner",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150073",
+      "folderName": "Rep. Sam Belsito",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150074",
+      "folderName": "Rep. Ben McGorty",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150075",
+      "folderName": "Rep. Joe Hoxha",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150076",
+      "folderName": "Rep. Mark Anderson",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150077",
+      "folderName": "Rep. Brian Farnen",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150078",
+      "folderName": "Rep. Harry Arora",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150079",
+      "folderName": "Rep. Tracy Marra",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150080",
+      "folderName": "Rep. Tom O'Dea",
+      "status": 200,
+      "accessible": true,
+      "listCount": 4
+    },
+    {
+      "clientFolderId": "150081",
+      "folderName": "Rep. Tim Ackert",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150082",
+      "folderName": "Rep. Tami Zawistowski",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150083",
+      "folderName": "Rep. Gale Mastrofrancesco",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150084",
+      "folderName": "Rep. Patrick Callahan",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150085",
+      "folderName": "Rep. Seth Bronko",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150086",
+      "folderName": "Rep. Prasad Srinivasan",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150087",
+      "folderName": "Rep. John Piscopo",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150088",
+      "folderName": "Rep. Vincent Candelora",
+      "status": 200,
+      "accessible": true,
+      "listCount": 6
+    },
+    {
+      "clientFolderId": "150089",
+      "folderName": "Rep. Kathy Kennedy",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150090",
+      "folderName": "Rep. Selim Noujaim",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150091",
+      "folderName": "Rep. Cara Pavalock",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150092",
+      "folderName": "Rep. Cecilia Buck-Taylor",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150093",
+      "folderName": "Rep. Noreen Kokoruda",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150094",
+      "folderName": "Rep. Charles Ferraro",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150095",
+      "folderName": "Rep. Mitch Bolinsky",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150096",
+      "folderName": "Rep. Christie Carpino",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150097",
+      "folderName": "Rep. Mike France",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150098",
+      "folderName": "Rep. Craig Miner",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150099",
+      "folderName": "Rep. Mike Bocchino",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150100",
+      "folderName": "Rep. Bill Pizzuto",
+      "status": 200,
+      "accessible": true,
+      "listCount": 4
+    },
+    {
+      "clientFolderId": "150101",
+      "folderName": "Rep. Michael Molgano",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150102",
+      "folderName": "Rep. Irene Haines",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150103",
+      "folderName": "Rep. Dan Carter",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150104",
+      "folderName": "Rep. Mark Tweedie",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150105",
+      "folderName": "Rep. Lezlye Zupkus",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150106",
+      "folderName": "Rep. Leslee Hill",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150107",
+      "folderName": "Rep. Laura Devlin",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150108",
+      "folderName": "Rep. Arnold Jensen",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150109",
+      "folderName": "Rep. Kurt Vail",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150110",
+      "folderName": "Rep. Themis Klarides",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150111",
+      "folderName": "Rep. Kathleen McCarty",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150112",
+      "folderName": "Rep. John Scott",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150113",
+      "folderName": "Rep. Dave Rutigliano",
+      "status": 200,
+      "accessible": true,
+      "listCount": 4
+    },
+    {
+      "clientFolderId": "150114",
+      "folderName": "Rep. John Shaban",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150115",
+      "folderName": "Rep. Jesse MacLachlan",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150116",
+      "folderName": "Rep. David Yaccarino",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150117",
+      "folderName": "Rep. Devin Carney",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150118",
+      "folderName": "Rep. Doug Dubitsky",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150119",
+      "folderName": "Rep. Joe Polletta",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150120",
+      "folderName": "Rep. Kimberly Fiorello",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150121",
+      "folderName": "Rep. Jay Case",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150122",
+      "folderName": "Rep. Fred Wilms",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150123",
+      "folderName": "Rep. Amy Romano",
+      "status": 200,
+      "accessible": true,
+      "listCount": 4
+    },
+    {
+      "clientFolderId": "150124",
+      "folderName": "Rep. John Frey",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150125",
+      "folderName": "Rep. Gail Lavielle",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150126",
+      "folderName": "Rep. Tony Scott",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150127",
+      "folderName": "Rep. Laura Hoydick",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150128",
+      "folderName": "Rep. Martin Foncello",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150129",
+      "folderName": "Rep. Jan Giegler",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150130",
+      "folderName": "Rep. Gayle Mulligan",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150131",
+      "folderName": "Rep. Gary Byron",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150135",
+      "folderName": "Rep. Christopher Davis",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150144",
+      "folderName": "Greenwich Delegation",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150156",
+      "folderName": "Rep. Holly Cheeseman",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150157",
+      "folderName": "Rep. Bill Buckbee",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150158",
+      "folderName": "Rep. Stephanie Cummings",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150159",
+      "folderName": "Rep. Anne Dauphinais",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150160",
+      "folderName": "Rep. Tom Delnicki",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150161",
+      "folderName": "Rep. Will Duff",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150162",
+      "folderName": "Rep. Craig Fishbein",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150163",
+      "folderName": "Rep. Adam Dunsby",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150164",
+      "folderName": "Rep. Michael Ferguson",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150165",
+      "folderName": "Rep. John Fusco",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150166",
+      "folderName": "Rep. Steve Weir",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150167",
+      "folderName": "Rep. Carol Hall",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150168",
+      "folderName": "Rep. Nicole Klarides-Ditria",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150169",
+      "folderName": "Rep. Brian Ohler",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150170",
+      "folderName": "Rep. Francis Cooley",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150171",
+      "folderName": "Rep. Robert Siegrist",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150172",
+      "folderName": "Rep. Brian Lanoue",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150173",
+      "folderName": "Rep. Greg Stokes",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150174",
+      "folderName": "Rep. Scott Storms",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150175",
+      "folderName": "Rep. Karen Reddington-Hughes",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150179",
+      "folderName": "Rep. Joe Zullo",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150180",
+      "folderName": "Rep. Chris Stewart",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150187",
+      "folderName": "Rep. Brian Farnen",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150190",
+      "folderName": "Rep. Donna Veach",
+      "status": 200,
+      "accessible": true,
+      "listCount": 1
+    },
+    {
+      "clientFolderId": "150191",
+      "folderName": "Rep. Tammy Nuccio",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150192",
+      "folderName": "Rep. Donna Veach (2)",
+      "status": 403,
+      "accessible": false,
+      "error": {
+        "errors": [
+          "Forbidden"
+        ]
+      }
+    },
+    {
+      "clientFolderId": "150193",
+      "folderName": "Rep. Greg Howard",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150199",
+      "folderName": "Rep. Chris Aniskovich",
+      "status": 200,
+      "accessible": true,
+      "listCount": 1
+    },
+    {
+      "clientFolderId": "150200",
+      "folderName": "Rep. Rachel Chaleski",
+      "status": 200,
+      "accessible": true,
+      "listCount": 1
+    },
+    {
+      "clientFolderId": "150201",
+      "folderName": "Rep. Mark DeCaprio",
+      "status": 200,
+      "accessible": true,
+      "listCount": 1
+    },
+    {
+      "clientFolderId": "150202",
+      "folderName": "Rep. Laura Dancho",
+      "status": 200,
+      "accessible": true,
+      "listCount": 3
+    },
+    {
+      "clientFolderId": "150206",
+      "folderName": "Rep. Joe Canino",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    },
+    {
+      "clientFolderId": "150207",
+      "folderName": "Rep. Tina Courpas",
+      "status": 200,
+      "accessible": true,
+      "listCount": 1
+    },
+    {
+      "clientFolderId": "150209",
+      "folderName": "Outreach",
+      "status": 200,
+      "accessible": true,
+      "listCount": 2
+    }
+  ]
+}

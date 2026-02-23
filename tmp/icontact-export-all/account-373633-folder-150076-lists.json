@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "256511",
+      "name": "Electric Rates",
+      "publicname": "Electric Rates",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "250488",
+      "name": "Rep. Mark Anderson",
+      "publicname": "Rep. Mark Anderson",
+      "description": "",
+      "emailOwnerOnChange": "1",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "254483",
+      "name": "Simanski 2020 cleaned",
+      "publicname": "Simanski 2020 cleaned",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

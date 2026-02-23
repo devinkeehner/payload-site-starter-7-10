@@ -89,7 +89,7 @@ const { tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
         { blockType: 'email', name: 'email', label: 'Email', width: 100, required: true },
         { blockType: 'text', name: 'firstname', label: 'First', width: 40, defaultValue: '' },
         { blockType: 'text', name: 'lastname', label: 'Last', width: 60 },
-        { blockType: 'number', name: 'mobile', label: 'Mobile', width: 65 },
+        { blockType: 'text', name: 'mobile', label: 'Mobile', width: 65 },
         { blockType: 'text', name: 'zip', label: 'Zip', width: 35 },
       ],
       submitButtonLabel: 'Sign Up!',

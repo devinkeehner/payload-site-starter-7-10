@@ -13,6 +13,15 @@ import { searchFields } from '@/lib/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/lib/search/beforeSync'
 import { config } from '@/site.config'
 import { isSuperUser } from '@/lib/access/isSuperUser'
+import {
+  defaultIContactFieldMap,
+  getIContactConfigFromEnv,
+  listIContactClientFolders,
+  listIContactLists,
+  refreshIContactCache,
+  resolveIContactAccountId,
+  syncSubmissionToIContact,
+} from '@/lib/icontact'
 
 import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
@@ -25,6 +34,50 @@ const generateURL: GenerateURL<Post | Page> = ({ doc }) => {
   const url = getServerSideURL()
 
   return doc?.slug ? `${url}/${doc.slug}` : url
+}
+
+const parseRequestBody = async (req: any) => {
+  let raw: any = req?.body
+  if (raw && typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {}
+  } else if (raw && typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
+    try {
+      raw = JSON.parse(raw.toString('utf-8'))
+    } catch {
+      raw = {}
+    }
+  }
+
+  const looksLikeReadableStream =
+    !!raw && typeof raw === 'object' && (typeof raw.getReader === 'function' || typeof raw.tee === 'function')
+
+  if (looksLikeReadableStream || !raw || typeof raw !== 'object') {
+    try {
+      if (typeof req?.json === 'function') {
+        const parsed = await req.json()
+        if (parsed && typeof parsed === 'object') raw = parsed
+      } else if (typeof req?.text === 'function') {
+        const txt = await req.text()
+        raw = txt ? JSON.parse(txt) : raw || {}
+      }
+    } catch {}
+  }
+
+  return raw || {}
+}
+
+const parseRouteId = (req: any, endpointSuffixRegex: RegExp) => {
+  try {
+    const id = req?.params?.id || req?.routeParams?.id || req?.query?.id
+    if (id) return String(id)
+    const url: string = req?.originalUrl || req?.url || ''
+    const match = url.match(endpointSuffixRegex)
+    return match?.[1] ? String(match[1]) : undefined
+  } catch {
+    return undefined
+  }
 }
 
 export const plugins: Plugin[] = [
@@ -279,6 +332,94 @@ export const plugins: Plugin[] = [
         })
 
         fields.push({
+          name: 'enableIContactSync',
+          label: 'Enable iContact Sync',
+          type: 'checkbox',
+          defaultValue: false,
+          admin: {
+            position: 'sidebar',
+          },
+        })
+
+        fields.push({
+          name: 'iContactFolder',
+          label: 'iContact Folder',
+          type: 'relationship',
+          relationTo: 'icontact-folders',
+          admin: {
+            position: 'sidebar',
+            description: 'Search and select a synced iContact folder.',
+            condition: (_, siblingData) => siblingData?.enableIContactSync === true,
+          },
+        })
+
+        fields.push({
+          name: 'iContactLists',
+          label: 'iContact Lists',
+          type: 'relationship',
+          relationTo: 'icontact-lists',
+          hasMany: true,
+          filterOptions: ({ siblingData }) => {
+            const rel = (siblingData as any)?.iContactFolder
+            const folderId =
+              typeof rel === 'string'
+                ? rel
+                : rel && typeof rel === 'object'
+                ? ((rel as any).id || (rel as any)._id || '')
+                : ''
+            if (!folderId) return true
+            return { clientFolder: { equals: folderId } }
+          },
+          admin: {
+            position: 'sidebar',
+            description: 'Search and select one or more lists for the selected folder.',
+            condition: (_, siblingData) => siblingData?.enableIContactSync === true,
+          },
+        })
+
+        fields.push({
+          name: 'iContactFieldMap',
+          label: 'iContact Field Mapping',
+          type: 'group',
+          admin: {
+            position: 'sidebar',
+            condition: (_, siblingData) => siblingData?.enableIContactSync === true,
+          },
+          fields: [
+            {
+              name: 'emailFieldName',
+              label: 'Email Field Name',
+              type: 'text',
+              defaultValue: defaultIContactFieldMap.emailFieldName,
+            },
+            {
+              name: 'firstNameFieldName',
+              label: 'First Name Field Name',
+              type: 'text',
+              defaultValue: defaultIContactFieldMap.firstNameFieldName,
+            },
+            {
+              name: 'lastNameFieldName',
+              label: 'Last Name Field Name',
+              type: 'text',
+              defaultValue: defaultIContactFieldMap.lastNameFieldName,
+            },
+            {
+              name: 'mobileFieldName',
+              label: 'Mobile Field Name',
+              type: 'text',
+              defaultValue: defaultIContactFieldMap.mobileFieldName,
+            },
+            {
+              name: 'zipFieldName',
+              label: 'ZIP Field Name',
+              type: 'text',
+              defaultValue: defaultIContactFieldMap.zipFieldName,
+            },
+          ],
+        })
+
+        fields.push({
           name: 'shareCopy',
           label: 'Share Copy',
           type: 'ui',
@@ -287,6 +428,21 @@ export const plugins: Plugin[] = [
             components: {
               Field: {
                 path: '@/components/admin/FormShareField#FormShareField',
+              },
+            },
+          },
+        })
+
+        fields.push({
+          name: 'iContactBackfill',
+          label: 'iContact Backfill',
+          type: 'ui',
+          admin: {
+            position: 'sidebar',
+            condition: (_, siblingData) => siblingData?.enableIContactSync === true,
+            components: {
+              Field: {
+                path: '@/components/admin/FormIContactBackfillField#FormIContactBackfillField',
               },
             },
           },
@@ -743,6 +899,236 @@ export const plugins: Plugin[] = [
             }
           }) as any,
         },
+        {
+          path: '/icontact/options',
+          method: 'get',
+          handler: (async (req: any, res: any) => {
+            const send = (status: number, body: any) => {
+              if (res?.status && typeof res.status === 'function') {
+                return res.status(status).json(body)
+              }
+              return new Response(JSON.stringify(body), {
+                status,
+                headers: { 'content-type': 'application/json' },
+              })
+            }
+
+            try {
+              if (!req.user) return send(401, { error: 'Unauthorized' })
+
+              const cfg = getIContactConfigFromEnv()
+              if (!cfg) {
+                return send(400, { error: 'iContact credentials are not configured in environment variables.' })
+              }
+
+              const urlText = (req as any)?.originalUrl || (req as any)?.url || ''
+              const urlObj = new URL(urlText, 'http://local')
+              const accountIdRaw = urlObj.searchParams.get('accountId') || undefined
+              const clientFolderIdRaw = urlObj.searchParams.get('clientFolderId') || undefined
+
+              const accountId = await resolveIContactAccountId(cfg, accountIdRaw || undefined)
+              const folderPayload = await listIContactClientFolders(cfg, accountId)
+              const folders = (folderPayload.clientfolders || []).map((f: any) => ({
+                clientFolderId: String(f?.clientFolderId || ''),
+                name: String(f?.name || ''),
+              }))
+
+              const clientFolderId = typeof clientFolderIdRaw === 'string' && clientFolderIdRaw.trim() ? clientFolderIdRaw.trim() : undefined
+              if (!clientFolderId) {
+                return send(200, {
+                  ok: true,
+                  accountId,
+                  totalFolders: folderPayload.total,
+                  folders,
+                  lists: [],
+                })
+              }
+
+              const listsPayload = await listIContactLists(cfg, accountId, clientFolderId)
+              const lists = (listsPayload.lists || []).map((list: any) => ({
+                listId: String(list?.listId || ''),
+                name: String(list?.name || ''),
+                description: typeof list?.description === 'string' ? list.description : '',
+              }))
+
+              return send(200, {
+                ok: true,
+                accountId,
+                totalFolders: folderPayload.total,
+                folders,
+                clientFolderId,
+                totalLists: listsPayload.total,
+                lists,
+              })
+            } catch (err: any) {
+              const body: any = { error: err?.message || 'Server error' }
+              if (process.env.NODE_ENV !== 'production') body.stack = err?.stack
+              return send(500, body)
+            }
+          }) as any,
+        },
+        {
+          path: '/icontact/refresh-cache',
+          method: 'post',
+          handler: (async (req: any, res: any) => {
+            const send = (status: number, body: any) => {
+              if (res?.status && typeof res.status === 'function') {
+                return res.status(status).json(body)
+              }
+              return new Response(JSON.stringify(body), {
+                status,
+                headers: { 'content-type': 'application/json' },
+              })
+            }
+
+            try {
+              if (!req.user) return send(401, { error: 'Unauthorized' })
+              const body = await parseRequestBody(req)
+              const result = await refreshIContactCache({
+                payload: req.payload,
+                req,
+                accountIdOverride: typeof body?.accountId === 'string' ? body.accountId : undefined,
+              })
+              return send(200, { ok: true, ...result })
+            } catch (err: any) {
+              const body: any = { error: err?.message || 'Server error' }
+              if (process.env.NODE_ENV !== 'production') body.stack = err?.stack
+              return send(500, body)
+            }
+          }) as any,
+        },
+        {
+          path: '/:id/icontact-backfill',
+          method: 'post',
+          handler: (async (req: any, res: any) => {
+            const send = (status: number, body: any) => {
+              if (res?.status && typeof res.status === 'function') {
+                return res.status(status).json(body)
+              }
+              return new Response(JSON.stringify(body), {
+                status,
+                headers: { 'content-type': 'application/json' },
+              })
+            }
+
+            try {
+              if (!req.user) return send(401, { error: 'Unauthorized' })
+
+              const id = parseRouteId(req, /\/api\/forms\/([^/]+)\/icontact-backfill/u)
+              if (!id) return send(400, { error: 'Missing form id' })
+
+              const body = await parseRequestBody(req)
+              const dryRun = body?.dryRun === true
+              const maxToProcess =
+                typeof body?.maxToProcess === 'number' && Number.isFinite(body.maxToProcess)
+                  ? Math.max(1, Math.min(5000, Math.trunc(body.maxToProcess)))
+                  : 500
+
+              const formDoc = await req.payload.findByID({
+                collection: 'forms',
+                id,
+                depth: 0,
+                overrideAccess: true,
+                req,
+              })
+
+              if ((formDoc as any)?.enableIContactSync !== true) {
+                return send(400, { error: 'iContact sync is not enabled for this form.' })
+              }
+
+              const all: any[] = []
+              let page = 1
+              let done = false
+              while (!done) {
+                const result = await req.payload.find({
+                  collection: 'form-submissions',
+                  where: { form: { equals: id } },
+                  limit: 100,
+                  page,
+                  depth: 0,
+                  overrideAccess: true,
+                  req,
+                })
+
+                for (const row of result.docs || []) {
+                  all.push(row)
+                  if (all.length >= maxToProcess) {
+                    done = true
+                    break
+                  }
+                }
+
+                if (done || !result.hasNextPage) break
+                page += 1
+              }
+
+              const candidates = all.filter((submission) => {
+                const status = String((submission as any)?.iContactSyncStatus || '')
+                return status !== 'success'
+              })
+
+              const changed: Array<Record<string, unknown>> = []
+              const failed: Array<Record<string, unknown>> = []
+
+              for (const submission of candidates) {
+                const submissionId = String((submission as any)?.id || '')
+                if (!submissionId) continue
+
+                if (dryRun) {
+                  changed.push({ submissionId, dryRun: true, status: 'would-sync' })
+                  continue
+                }
+
+                const syncResult = await syncSubmissionToIContact({
+                  formDoc,
+                  submissionData: (submission as any)?.submissionData,
+                  payload: req.payload,
+                  req,
+                })
+
+                const updateData: any = {
+                  iContactSyncStatus: syncResult.status,
+                  iContactSyncError: syncResult.error || syncResult.reason || undefined,
+                  iContactAccountId: syncResult.accountId || undefined,
+                  iContactClientFolderId: syncResult.clientFolderId || undefined,
+                  iContactListIds: (syncResult.listIds || []).map((listId) => ({ listId })),
+                  iContactContactId: syncResult.contactId || undefined,
+                  iContactSyncedAt: syncResult.status === 'success' ? new Date().toISOString() : undefined,
+                }
+
+                try {
+                  await req.payload.update({
+                    collection: 'form-submissions',
+                    id: submissionId,
+                    data: updateData,
+                    overrideAccess: true,
+                    req,
+                    context: { skipIContactSyncHook: true } as any,
+                  })
+                  changed.push({ submissionId, status: syncResult.status, error: syncResult.error || syncResult.reason || null })
+                } catch (error: any) {
+                  failed.push({ submissionId, error: error?.message || 'Update failed' })
+                }
+              }
+
+              return send(200, {
+                ok: true,
+                dryRun,
+                maxToProcess,
+                scanned: all.length,
+                candidates: candidates.length,
+                changedCount: changed.length,
+                failedCount: failed.length,
+                changed,
+                failed,
+              })
+            } catch (err: any) {
+              const body: any = { error: err?.message || 'Server error' }
+              if (process.env.NODE_ENV !== 'production') body.stack = err?.stack
+              return send(500, body)
+            }
+          }) as any,
+        },
       ],
     },
     formSubmissionOverrides: {
@@ -776,6 +1162,55 @@ export const plugins: Plugin[] = [
             type: 'text',
             admin: { readOnly: true, position: 'sidebar' },
           },
+          {
+            name: 'iContactSyncStatus',
+            label: 'iContact Sync Status',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'iContactSyncError',
+            label: 'iContact Sync Error',
+            type: 'textarea',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'iContactAccountId',
+            label: 'iContact Account ID',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'iContactClientFolderId',
+            label: 'iContact Client Folder ID',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'iContactListIds',
+            label: 'iContact List IDs',
+            type: 'array',
+            admin: { readOnly: true, position: 'sidebar' },
+            fields: [
+              {
+                name: 'listId',
+                label: 'List ID',
+                type: 'text',
+              },
+            ],
+          },
+          {
+            name: 'iContactContactId',
+            label: 'iContact Contact ID',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'iContactSyncedAt',
+            label: 'iContact Synced At',
+            type: 'date',
+            admin: { readOnly: true, position: 'sidebar', date: { pickerAppearance: 'dayAndTime' } },
+          },
         )
 
         return fields
@@ -791,6 +1226,7 @@ export const plugins: Plugin[] = [
 
             const form = await req.payload.findByID({ collection: 'forms', id: formId })
             const turnstileEnabled = (form as { enableTurnstile?: boolean })?.enableTurnstile === true
+            const iContactEnabled = (form as { enableIContactSync?: boolean })?.enableIContactSync === true
             const submissionData = Array.isArray(data?.submissionData) ? [...data.submissionData] : []
 
             const getHeader = (name: string) => {
@@ -935,6 +1371,9 @@ export const plugins: Plugin[] = [
                 submissionData,
                 submitterIP: submitterIP || undefined,
                 submitterEmail: submitterEmail || undefined,
+                iContactSyncStatus: iContactEnabled ? 'pending' : 'skipped',
+                iContactSyncError: undefined,
+                iContactSyncedAt: undefined,
               }
             }
 
@@ -969,7 +1408,72 @@ export const plugins: Plugin[] = [
               submissionData,
               submitterIP: submitterIP || undefined,
               submitterEmail: submitterEmail || undefined,
+              iContactSyncStatus: iContactEnabled ? 'pending' : 'skipped',
+              iContactSyncError: undefined,
+              iContactSyncedAt: undefined,
             }
+          },
+        ],
+        afterChange: [
+          async ({ doc, operation, req, context }) => {
+            if (operation !== 'create') return doc
+            if ((context as any)?.skipIContactSyncHook) return doc
+
+            try {
+              const formId = typeof (doc as any)?.form === 'string' ? (doc as any).form : (doc as any)?.form?.id
+              if (!formId) return doc
+
+              const formDoc = await req.payload.findByID({
+                collection: 'forms',
+                id: formId,
+                depth: 0,
+                overrideAccess: true,
+                req,
+              })
+
+              const syncResult = await syncSubmissionToIContact({
+                formDoc,
+                submissionData: (doc as any)?.submissionData,
+                payload: req.payload,
+                req,
+              })
+
+              await req.payload.update({
+                collection: 'form-submissions',
+                id: String((doc as any).id),
+                data: {
+                  iContactSyncStatus: syncResult.status,
+                  iContactSyncError: syncResult.error || syncResult.reason || undefined,
+                  iContactAccountId: syncResult.accountId || undefined,
+                  iContactClientFolderId: syncResult.clientFolderId || undefined,
+                  iContactListIds: (syncResult.listIds || []).map((listId) => ({ listId })),
+                  iContactContactId: syncResult.contactId || undefined,
+                  iContactSyncedAt: syncResult.status === 'success' ? new Date().toISOString() : undefined,
+                },
+                overrideAccess: true,
+                req,
+                context: { skipIContactSyncHook: true } as any,
+              })
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              try {
+                await req.payload.update({
+                  collection: 'form-submissions',
+                  id: String((doc as any).id),
+                  data: {
+                    iContactSyncStatus: 'failed',
+                    iContactSyncError: message,
+                  },
+                  overrideAccess: true,
+                  req,
+                  context: { skipIContactSyncHook: true } as any,
+                })
+              } catch (updateError) {
+                console.error('[iContact afterChange] Failed to write sync failure state', updateError)
+              }
+            }
+
+            return doc
           },
         ],
       },

@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "256162",
+      "name": "Joe Coss",
+      "publicname": "Joe Coss",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256122",
+      "name": "Rep. Laura Dancho",
+      "publicname": "State Rep. Laura Dancho List",
+      "description": "",
+      "emailOwnerOnChange": "1",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256414",
+      "name": "W/M Biz Contacts",
+      "publicname": "Stratford Businesses",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "generatedAt": "2026-02-20T16:01:12.185Z",
+  "baseUrl": "https://app.icontact.com",
+  "accountFilter": "373633",
+  "clientFolderFilter": "147941",
+  "outputDir": "/home/dkeehner/projects/new-full/backend/tmp/icontact-export",
+  "summary": [
+    {
+      "accountId": "373633",
+      "companyName": "Connecticut House Republicans",
+      "clientFolderCount": 1,
+      "folders": [
+        {
+          "clientFolderId": "147941",
+          "folderName": "Connecticut House Republicans",
+          "listCount": 20
+        }
+      ]
+    }
+  ]
+}

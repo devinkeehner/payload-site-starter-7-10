@@ -1,0 +1,64 @@
+{
+  "lists": [
+    {
+      "listId": "256311",
+      "name": "Candelora Business Lists",
+      "publicname": "Rep. Candelora Business List",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "254438",
+      "name": "Candelora clean 2020",
+      "publicname": "Candelora clean 2020",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "255813",
+      "name": "Candelora Test List",
+      "publicname": "Candelora Test List",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256507",
+      "name": "Electric Rates",
+      "publicname": "Electric Rates",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256548",
+      "name": "EV Information",
+      "publicname": "EV Information",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "250512",
+      "name": "Rep. Candelora",
+      "publicname": "Untitled",
+      "description": "",
+      "emailOwnerOnChange": "1",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "255209",
+      "name": "BAC List",
+      "publicname": "BAC List",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256505",
+      "name": "Electric Rates List",
+      "publicname": "Electric Rates",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "254946",
+      "name": "Rep. Tammy Nuccio",
+      "publicname": "Rep. Tammy Nuccio",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "255298",
+      "name": "Jason Pheasant",
+      "publicname": "jason.pheasant@cga.ct.gov",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "252844",
+      "name": "Petit Newsletter List",
+      "publicname": "Untitled",
+      "description": "",
+      "emailOwnerOnChange": "1",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "254436",
+      "name": "Petitt 2020 cleaned",
+      "publicname": "Petitt 2020 cleaned",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

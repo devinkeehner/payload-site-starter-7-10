@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "254453",
+      "name": "Bolinsky 2020 cleaned",
+      "publicname": "Bolinsky 2020 cleaned",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256528",
+      "name": "Electric Rates",
+      "publicname": "Electric Rates",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "250522",
+      "name": "Rep. Mitch Bolinsky",
+      "publicname": "Untitled",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

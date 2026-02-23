@@ -19,6 +19,8 @@ import { Authors } from './collections/Authors';
 import { Tags } from './collections/Tags';
 import { ArticleTypes } from './collections/ArticleTypes';
 import { WordpressPosts } from './collections/WordpressPosts';
+import { IContactFolders } from './collections/IContactFolders';
+import { IContactLists } from './collections/IContactLists';
 
 // Site settings and other component imports
 import { Navbar } from './components/site/navbar/config';
@@ -33,6 +35,14 @@ import { Footer } from './components/site/footer/config';
 import { plugins } from '@/lib/plugins';
 import { defaultLexical } from '@/collections/fields/defaultLexical';
 import { isSuperUser } from '@/lib/access/isSuperUser';
+import {
+  getIContactConfigFromEnv,
+  listIContactClientFolders,
+  listIContactLists,
+  refreshIContactCache,
+  resolveIContactAccountId,
+  syncSubmissionToIContact,
+} from '@/lib/icontact';
 
 // Inline Global Meta & SEO (Payload Global - site-wide)
 const GlobalMetaSEOGlobal: GlobalConfig = {
@@ -104,6 +114,8 @@ const mcpCollections = {
   'rep-info': { enabled: { find: true, create: true, update: true, delete: true } },
   'standard-media': { enabled: { find: true, create: true, update: true, delete: true } },
   'media-canvas': { enabled: { find: true, create: true, update: true, delete: true } },
+  'icontact-folders': { enabled: { find: true, create: true, update: true, delete: true } },
+  'icontact-lists': { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
 
 const deepEqual = (a: unknown, b: unknown): boolean => {
@@ -161,6 +173,248 @@ const getTenantMeta = (tenantValue: unknown) => {
   }
 
   return { tenantId: null, tenantSlug: null, tenantName: null };
+};
+
+const cloneValue = <T>(value: T): T => {
+  if (typeof globalThis.structuredClone === 'function') {
+    return globalThis.structuredClone(value);
+  }
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+
+const parsePathSegments = (path: string): Array<string | number> => {
+  const trimmed = path.trim();
+  if (!trimmed) throw new Error('Path cannot be empty.');
+
+  const segments: Array<string | number> = [];
+  const parts = trimmed.split('.');
+
+  for (const rawPart of parts) {
+    const part = rawPart.trim();
+    if (!part) throw new Error(`Invalid path segment in "${path}".`);
+
+    const regex = /([^[\]]+)|\[(\d+)\]/g;
+    let hasMatch = false;
+    let match: RegExpExecArray | null = null;
+
+    while ((match = regex.exec(part)) !== null) {
+      hasMatch = true;
+      if (match[1]) {
+        segments.push(match[1]);
+      } else if (match[2]) {
+        segments.push(Number.parseInt(match[2], 10));
+      }
+    }
+
+    if (!hasMatch) {
+      throw new Error(`Invalid path part "${part}" in "${path}".`);
+    }
+  }
+
+  return segments;
+};
+
+const ensureContainer = (
+  current: unknown,
+  nextSegment: string | number | undefined,
+): Record<string, unknown> | Array<unknown> => {
+  if (nextSegment == null) {
+    return (current as Record<string, unknown>) ?? {};
+  }
+  return typeof nextSegment === 'number' ? [] : {};
+};
+
+const setAtPath = (
+  target: Record<string, unknown> | Array<unknown>,
+  segments: Array<string | number>,
+  value: unknown,
+  createMissing: boolean,
+) => {
+  if (segments.length === 0) throw new Error('Path cannot be empty.');
+
+  let cursor: any = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const segment = segments[i]!;
+    const nextSegment = segments[i + 1];
+
+    if (typeof segment === 'string') {
+      if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) {
+        throw new Error(`Cannot traverse "${segment}" on non-object path segment.`);
+      }
+      let nextValue = cursor[segment];
+      if (nextValue == null) {
+        if (!createMissing) {
+          throw new Error(`Path segment "${segment}" does not exist.`);
+        }
+        nextValue = ensureContainer(nextValue, nextSegment);
+        cursor[segment] = nextValue;
+      }
+      cursor = cursor[segment];
+      continue;
+    }
+
+    if (!Array.isArray(cursor)) {
+      throw new Error(`Cannot traverse index [${segment}] on non-array path segment.`);
+    }
+
+    if (cursor[segment] == null) {
+      if (!createMissing) {
+        throw new Error(`Path index [${segment}] does not exist.`);
+      }
+      cursor[segment] = ensureContainer(cursor[segment], nextSegment);
+    }
+    cursor = cursor[segment];
+  }
+
+  const last = segments[segments.length - 1]!;
+  if (typeof last === 'string') {
+    if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) {
+      throw new Error(`Cannot set property "${last}" on non-object value.`);
+    }
+    cursor[last] = value;
+    return;
+  }
+
+  if (!Array.isArray(cursor)) {
+    throw new Error(`Cannot set index [${last}] on non-array value.`);
+  }
+  cursor[last] = value;
+};
+
+const unsetAtPath = (
+  target: Record<string, unknown> | Array<unknown>,
+  segments: Array<string | number>,
+) => {
+  if (segments.length === 0) throw new Error('Path cannot be empty.');
+
+  let cursor: any = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const segment = segments[i]!;
+
+    if (typeof segment === 'string') {
+      if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return;
+      cursor = cursor[segment];
+      continue;
+    }
+
+    if (!Array.isArray(cursor)) return;
+    cursor = cursor[segment];
+  }
+
+  const last = segments[segments.length - 1]!;
+  if (typeof last === 'string') {
+    if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return;
+    delete cursor[last];
+    return;
+  }
+
+  if (!Array.isArray(cursor)) return;
+  if (last >= 0 && last < cursor.length) {
+    cursor[last] = undefined;
+  }
+};
+
+const removeAtPath = (
+  target: Record<string, unknown> | Array<unknown>,
+  segments: Array<string | number>,
+) => {
+  if (segments.length === 0) throw new Error('Path cannot be empty.');
+
+  let cursor: any = target;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    const segment = segments[i]!;
+    if (typeof segment === 'string') {
+      if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return;
+      cursor = cursor[segment];
+      continue;
+    }
+    if (!Array.isArray(cursor)) return;
+    cursor = cursor[segment];
+  }
+
+  const last = segments[segments.length - 1]!;
+  if (typeof last === 'number' && Array.isArray(cursor) && last >= 0 && last < cursor.length) {
+    cursor.splice(last, 1);
+    return;
+  }
+
+  unsetAtPath(target, segments);
+};
+
+const getAtPath = (
+  target: Record<string, unknown> | Array<unknown>,
+  segments: Array<string | number>,
+): unknown => {
+  let cursor: any = target;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i]!;
+    if (typeof segment === 'string') {
+      if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return undefined;
+      cursor = cursor[segment];
+      continue;
+    }
+
+    if (!Array.isArray(cursor)) return undefined;
+    cursor = cursor[segment];
+  }
+  return cursor;
+};
+
+type LexicalNodeLike = Record<string, unknown> & {
+  children?: LexicalNodeLike[];
+  type?: string;
+  text?: string;
+  key?: string;
+  id?: string;
+};
+
+const isLexicalDoc = (value: unknown): value is Record<string, unknown> => {
+  if (!value || typeof value !== 'object') return false;
+  const root = (value as Record<string, unknown>).root;
+  if (!root || typeof root !== 'object') return false;
+  return Array.isArray((root as Record<string, unknown>).children);
+};
+
+const loadCollectionDocument = async (
+  payload: PayloadRequest['payload'],
+  req: PayloadRequest,
+  selector: { collection: 'pages' | 'posts'; docId?: string; slug?: string; tenant?: string },
+) => {
+  const { collection, docId, slug, tenant } = selector;
+  if (!docId && !slug) {
+    throw new Error('Provide `docId` or `slug`.');
+  }
+
+  if (docId) {
+    return (await payload.findByID({
+      collection,
+      id: docId,
+      overrideAccess: true,
+      req,
+    })) as unknown as Record<string, unknown>;
+  }
+
+  const where: Record<string, unknown> = slug
+    ? tenant
+      ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
+      : { slug: { equals: slug } }
+    : {};
+
+  const result = await payload.find({
+    collection,
+    limit: 1,
+    where: where as any,
+    overrideAccess: true,
+    req,
+  });
+
+  return (result.docs?.[0] as unknown as Record<string, unknown>) || null;
+};
+
+const getLexicalNodeKey = (node: LexicalNodeLike): string => {
+  if (typeof node.key === 'string' && node.key.trim().length > 0) return node.key;
+  if (typeof node.id === 'string' && node.id.trim().length > 0) return node.id;
+  return '';
 };
 
 const bulkUpdateFormsByTitleTool = {
@@ -704,6 +958,1419 @@ const reorderContactFormTailFieldsTool = {
   },
 };
 
+const loadPageDocument = async (
+  payload: PayloadRequest['payload'],
+  req: PayloadRequest,
+  selector: { pageId?: string; slug?: string; tenant?: string },
+) => {
+  const { pageId, slug, tenant } = selector;
+  if (!pageId && !slug) {
+    throw new Error('Provide `pageId` or `slug`.');
+  }
+
+  if (pageId) {
+    return (await payload.findByID({
+      collection: 'pages',
+      id: pageId,
+      overrideAccess: true,
+      req,
+    })) as unknown as Record<string, unknown>;
+  }
+
+  const where: Record<string, unknown> = slug
+    ? tenant
+      ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
+      : { slug: { equals: slug } }
+    : {};
+
+  const result = await payload.find({
+    collection: 'pages',
+    limit: 1,
+    where: where as any,
+    overrideAccess: true,
+    req,
+  });
+
+  return (result.docs?.[0] as unknown as Record<string, unknown>) || null;
+};
+
+const findTargetBlock = (
+  layout: Array<Record<string, unknown>>,
+  selector: { blockId?: string; blockType?: string; blockIndex?: number },
+) => {
+  const { blockId, blockType, blockIndex = 0 } = selector;
+
+  if (blockId) {
+    const idx = layout.findIndex((block) => String(block?.id ?? '') === blockId);
+    if (idx < 0) return { block: null, index: -1, occurrence: -1 };
+    return { block: layout[idx], index: idx, occurrence: -1 };
+  }
+
+  if (!blockType) {
+    return { block: null, index: -1, occurrence: -1 };
+  }
+
+  let seen = -1;
+  for (let i = 0; i < layout.length; i += 1) {
+    const block = layout[i];
+    if (String(block?.blockType ?? '') !== blockType) continue;
+    seen += 1;
+    if (seen === blockIndex) {
+      return { block, index: i, occurrence: seen };
+    }
+  }
+
+  return { block: null, index: -1, occurrence: -1 };
+};
+
+const summarizeFieldValue = (value: unknown) => {
+  if (Array.isArray(value)) {
+    return { kind: 'array', length: value.length };
+  }
+  if (value == null) {
+    return { kind: 'null' };
+  }
+  if (typeof value === 'object') {
+    return { kind: 'object', keys: Object.keys(value as Record<string, unknown>).slice(0, 20) };
+  }
+  if (typeof value === 'string') {
+    return { kind: 'string', value: value.length > 140 ? `${value.slice(0, 137)}...` : value };
+  }
+  return { kind: typeof value, value };
+};
+
+const normalizeFieldSchema = (field: Record<string, unknown>): Record<string, unknown> => {
+  const normalized: Record<string, unknown> = {
+    name: field.name ?? null,
+    label: field.label ?? null,
+    type: field.type ?? null,
+    required: Boolean(field.required),
+  };
+
+  if (typeof field.defaultValue !== 'undefined') normalized.defaultValue = field.defaultValue;
+  if (typeof field.localized === 'boolean') normalized.localized = field.localized;
+
+  if (field.type === 'select' && Array.isArray(field.options)) {
+    normalized.options = field.options.map((option) => {
+      if (typeof option === 'string') return { label: option, value: option };
+      if (option && typeof option === 'object') {
+        const rec = option as Record<string, unknown>;
+        return { label: rec.label ?? null, value: rec.value ?? null };
+      }
+      return { label: null, value: null };
+    });
+  }
+
+  if (Array.isArray(field.fields)) {
+    normalized.fields = (field.fields as Array<Record<string, unknown>>).map(normalizeFieldSchema);
+  }
+
+  if (field.type === 'tabs' && Array.isArray(field.tabs)) {
+    normalized.tabs = (field.tabs as Array<Record<string, unknown>>).map((tab) => ({
+      name: tab.name ?? null,
+      label: tab.label ?? null,
+      fields: Array.isArray(tab.fields)
+        ? (tab.fields as Array<Record<string, unknown>>).map(normalizeFieldSchema)
+        : [],
+    }));
+  }
+
+  if (field.type === 'blocks' && Array.isArray(field.blocks)) {
+    normalized.blocks = (field.blocks as Array<Record<string, unknown>>).map((block) => ({
+      slug: block.slug ?? null,
+      labels: block.labels ?? null,
+      fields: Array.isArray(block.fields)
+        ? (block.fields as Array<Record<string, unknown>>).map(normalizeFieldSchema)
+        : [],
+    }));
+  }
+
+  return normalized;
+};
+
+const getPageBlockDefinitions = () => {
+  const pageFields = Pages.fields as Array<unknown>;
+  const tabsField = pageFields.find((field) => {
+    if (!field || typeof field !== 'object') return false;
+    const rec = field as Record<string, unknown>;
+    return rec.type === 'tabs' && Array.isArray(rec.tabs);
+  }) as Record<string, unknown> | undefined;
+
+  if (!tabsField || !Array.isArray(tabsField.tabs)) return [];
+
+  for (const tab of tabsField.tabs as Array<Record<string, unknown>>) {
+    if (!Array.isArray(tab.fields)) continue;
+    for (const field of tab.fields as Array<Record<string, unknown>>) {
+      if (field?.name === 'layout' && field.type === 'blocks' && Array.isArray(field.blocks)) {
+        return field.blocks as Array<Record<string, unknown>>;
+      }
+    }
+  }
+
+  return [];
+};
+
+const refreshIContactCacheTool = {
+  name: 'refreshIContactCache',
+  description: 'Refresh local iContact folder/list cache collections from the live iContact account.',
+  parameters: {
+    accountId: z.string().optional().describe('Optional iContact account ID override.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    try {
+      const result = await refreshIContactCache({
+        payload: req.payload,
+        req,
+        accountIdOverride: typeof args.accountId === 'string' ? args.accountId : undefined,
+      });
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error refreshing iContact cache: ${message}` }],
+      };
+    }
+  },
+};
+
+const listIContactFoldersTool = {
+  name: 'listIContactFolders',
+  description: 'List iContact client folders for the configured account.',
+  parameters: {
+    accountId: z.string().optional().describe('Optional iContact account ID override.'),
+  },
+  handler: async (args: Record<string, unknown>) => {
+    try {
+      const cfg = getIContactConfigFromEnv();
+      if (!cfg) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: iContact credentials are not configured.' }],
+        };
+      }
+      const accountId = await resolveIContactAccountId(cfg, typeof args.accountId === 'string' ? args.accountId : undefined);
+      const folders = await listIContactClientFolders(cfg, accountId);
+      const normalized = (folders.clientfolders || []).map((folder: any) => ({
+        clientFolderId: String(folder?.clientFolderId || ''),
+        name: String(folder?.name || ''),
+      }));
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                accountId,
+                total: folders.total,
+                folders: normalized,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error listing iContact folders: ${message}` }],
+      };
+    }
+  },
+};
+
+const listIContactListsTool = {
+  name: 'listIContactLists',
+  description: 'List iContact lists for a specific client folder.',
+  parameters: {
+    clientFolderId: z.string().min(1).describe('Required iContact client folder ID.'),
+    accountId: z.string().optional().describe('Optional iContact account ID override.'),
+  },
+  handler: async (args: Record<string, unknown>) => {
+    try {
+      const clientFolderId = typeof args.clientFolderId === 'string' ? args.clientFolderId.trim() : '';
+      if (!clientFolderId) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: `clientFolderId` is required.' }],
+        };
+      }
+      const cfg = getIContactConfigFromEnv();
+      if (!cfg) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: iContact credentials are not configured.' }],
+        };
+      }
+      const accountId = await resolveIContactAccountId(cfg, typeof args.accountId === 'string' ? args.accountId : undefined);
+      const lists = await listIContactLists(cfg, accountId, clientFolderId);
+      const normalized = (lists.lists || []).map((list: any) => ({
+        listId: String(list?.listId || ''),
+        name: String(list?.name || ''),
+        description: typeof list?.description === 'string' ? list.description : '',
+      }));
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                accountId,
+                clientFolderId,
+                total: lists.total,
+                lists: normalized,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error listing iContact lists: ${message}` }],
+      };
+    }
+  },
+};
+
+const bulkConfigureIContactFormsTool = {
+  name: 'bulkConfigureIContactForms',
+  description:
+    'Bulk assign iContact sync settings to forms by title and optional tenant filters, including folder/list IDs and field mapping.',
+  parameters: {
+    formTitle: z.string().min(1).describe('Exact form title to match.'),
+    clientFolderId: z.string().min(1).describe('iContact client folder ID to set on matching forms.'),
+    listIds: z.array(z.string().min(1)).min(1).describe('One or more iContact list IDs for matching forms.'),
+    enableIContactSync: z.boolean().optional().default(true).describe('Enable or disable iContact sync.'),
+    tenantIds: z.array(z.union([z.string(), z.number()])).optional().describe('Optional tenant IDs to limit matches.'),
+    tenantSlugs: z.array(z.string()).optional().describe('Optional tenant slugs to limit matches.'),
+    fieldMap: z
+      .object({
+        emailFieldName: z.string().optional(),
+        firstNameFieldName: z.string().optional(),
+        lastNameFieldName: z.string().optional(),
+        mobileFieldName: z.string().optional(),
+        zipFieldName: z.string().optional(),
+      })
+      .optional()
+      .describe('Optional custom field mapping keys.'),
+    dryRun: z.boolean().optional().default(false).describe('When true, report changes without writing.'),
+    maxMatches: z.number().int().min(1).max(5000).optional().default(500).describe('Maximum forms to process.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const formTitle = typeof args.formTitle === 'string' ? args.formTitle.trim() : '';
+    const clientFolderId = typeof args.clientFolderId === 'string' ? args.clientFolderId.trim() : '';
+    const listIds = Array.isArray(args.listIds)
+      ? args.listIds.map((id) => (typeof id === 'string' ? id.trim() : '')).filter(Boolean)
+      : [];
+    const enableIContactSync = typeof args.enableIContactSync === 'boolean' ? args.enableIContactSync : true;
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+    const maxMatches =
+      typeof args.maxMatches === 'number' && Number.isFinite(args.maxMatches)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.maxMatches)))
+        : 500;
+
+    if (!formTitle || !clientFolderId || !listIds.length) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Error: `formTitle`, `clientFolderId`, and at least one `listIds` value are required.',
+          },
+        ],
+      };
+    }
+
+    const rawTenantIds = Array.isArray(args.tenantIds)
+      ? args.tenantIds
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter((id) => id.length > 0)
+      : [];
+    const rawTenantSlugs = Array.isArray(args.tenantSlugs)
+      ? args.tenantSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+          .filter((slug) => slug.length > 0)
+      : [];
+
+    const fieldMapInput = args.fieldMap && typeof args.fieldMap === 'object' ? (args.fieldMap as Record<string, unknown>) : {};
+    const fieldMap = {
+      emailFieldName: typeof fieldMapInput.emailFieldName === 'string' ? fieldMapInput.emailFieldName : 'email',
+      firstNameFieldName: typeof fieldMapInput.firstNameFieldName === 'string' ? fieldMapInput.firstNameFieldName : 'firstname',
+      lastNameFieldName: typeof fieldMapInput.lastNameFieldName === 'string' ? fieldMapInput.lastNameFieldName : 'lastname',
+      mobileFieldName: typeof fieldMapInput.mobileFieldName === 'string' ? fieldMapInput.mobileFieldName : 'mobile',
+      zipFieldName: typeof fieldMapInput.zipFieldName === 'string' ? fieldMapInput.zipFieldName : 'zip',
+    };
+
+    try {
+      const tenantIds = new Set<string>(rawTenantIds);
+      const missingTenantSlugs: string[] = [];
+
+      if (rawTenantSlugs.length > 0) {
+        const tenants = await payload.find({
+          collection: 'tenants',
+          limit: Math.max(rawTenantSlugs.length, 100),
+          overrideAccess: true,
+          req,
+          where: {
+            slug: { in: rawTenantSlugs },
+          },
+        });
+        const foundSlugSet = new Set<string>();
+        for (const tenantDoc of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenantDoc.id) tenantIds.add(String(tenantDoc.id));
+          if (typeof tenantDoc.slug === 'string') foundSlugSet.add(tenantDoc.slug);
+        }
+        for (const slug of rawTenantSlugs) {
+          if (!foundSlugSet.has(slug)) missingTenantSlugs.push(slug);
+        }
+      }
+
+      const whereFilters: Array<Record<string, unknown>> = [{ title: { equals: formTitle } }];
+      if (tenantIds.size > 0) {
+        whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
+      }
+      const where: any = whereFilters.length > 1 ? { and: whereFilters } : whereFilters[0];
+
+      const folderLookup = await payload.find({
+        collection: 'icontact-folders',
+        where: { clientFolderId: { equals: clientFolderId } },
+        limit: 1,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      });
+      const folderDocId = folderLookup.docs?.[0]?.id ? String(folderLookup.docs[0].id) : '';
+      if (!folderDocId) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: iContact folder ${clientFolderId} is not in cache. Refresh iContact cache first.`,
+            },
+          ],
+        };
+      }
+
+      const listLookup = await payload.find({
+        collection: 'icontact-lists',
+        where: {
+          and: [{ clientFolderId: { equals: clientFolderId } }, { listId: { in: listIds } }],
+        },
+        limit: Math.max(listIds.length * 2, 100),
+        depth: 0,
+        overrideAccess: true,
+        req,
+      });
+      const listByListId = new Map<string, string>();
+      for (const row of listLookup.docs as any[]) {
+        const listId = typeof row?.listId === 'string' ? row.listId : '';
+        const docId = row?.id ? String(row.id) : '';
+        if (listId && docId) listByListId.set(listId, docId);
+      }
+      const missingListIds = listIds.filter((listId) => !listByListId.has(listId));
+      if (missingListIds.length > 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: list IDs missing from cache for folder ${clientFolderId}: ${missingListIds.join(', ')}`,
+            },
+          ],
+        };
+      }
+      const listDocIds = listIds.map((listId) => listByListId.get(listId)!).filter(Boolean);
+
+      const changed: Array<Record<string, unknown>> = [];
+      const unchanged: Array<Record<string, unknown>> = [];
+      const failed: Array<Record<string, unknown>> = [];
+
+      let page = 1;
+      let processed = 0;
+      let totalFound = 0;
+      let done = false;
+
+      while (!done) {
+        const result = await payload.find({
+          collection: 'forms',
+          depth: 1,
+          limit: Math.min(100, maxMatches),
+          page,
+          overrideAccess: true,
+          req,
+          where,
+        });
+        if (page === 1) totalFound = result.totalDocs;
+        if (result.docs.length === 0) break;
+
+        for (const formDoc of result.docs as unknown as Array<Record<string, unknown>>) {
+          if (processed >= maxMatches) {
+            done = true;
+            break;
+          }
+          processed += 1;
+
+          const { tenantId, tenantName, tenantSlug } = getTenantMeta(formDoc.tenant);
+          const formId = formDoc.id ? String(formDoc.id) : '';
+          const patch = {
+            enableIContactSync,
+            iContactFolder: folderDocId,
+            iContactLists: listDocIds,
+            iContactFieldMap: fieldMap,
+          };
+          const currentMatchesPatch = Object.entries(patch).every(([field, newValue]) => deepEqual(formDoc[field], newValue));
+          const baseRow = {
+            formId,
+            title: typeof formDoc.title === 'string' ? formDoc.title : null,
+            tenantId,
+            tenantSlug,
+            tenantName,
+          };
+
+          if (currentMatchesPatch) {
+            unchanged.push(baseRow);
+            continue;
+          }
+          if (dryRun) {
+            changed.push({ ...baseRow, dryRun: true });
+            continue;
+          }
+
+          try {
+            await payload.update({
+              collection: 'forms',
+              id: formId,
+              data: patch as any,
+              overrideAccess: true,
+              req,
+            } as any);
+            changed.push({ ...baseRow, dryRun: false });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            failed.push({ ...baseRow, error: message });
+          }
+        }
+        if (done || page >= result.totalPages) break;
+        page += 1;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                formTitle,
+                dryRun,
+                maxMatches,
+                totalFound,
+                processed,
+                changedCount: changed.length,
+                unchangedCount: unchanged.length,
+                failedCount: failed.length,
+                missingTenantSlugs,
+                changed,
+                unchanged,
+                failed,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error bulk configuring iContact forms: ${message}` }],
+      };
+    }
+  },
+};
+
+const backfillIContactUnsyncedTool = {
+  name: 'backfillIContactUnsynced',
+  description:
+    'Sync unsynced form submissions to iContact for forms matching a title, optionally filtered to specific tenants.',
+  parameters: {
+    formTitle: z.string().min(1).describe('Exact form title to match.'),
+    tenantIds: z.array(z.union([z.string(), z.number()])).optional().describe('Optional tenant IDs to limit forms.'),
+    tenantSlugs: z.array(z.string()).optional().describe('Optional tenant slugs to limit forms.'),
+    dryRun: z.boolean().optional().default(false).describe('When true, do not write updates.'),
+    maxForms: z.number().int().min(1).max(5000).optional().default(500).describe('Maximum forms to process.'),
+    maxSubmissionsPerForm: z.number().int().min(1).max(5000).optional().default(500).describe('Max submissions per form to scan.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const formTitle = typeof args.formTitle === 'string' ? args.formTitle.trim() : '';
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+    const maxForms =
+      typeof args.maxForms === 'number' && Number.isFinite(args.maxForms)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.maxForms)))
+        : 500;
+    const maxSubmissionsPerForm =
+      typeof args.maxSubmissionsPerForm === 'number' && Number.isFinite(args.maxSubmissionsPerForm)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.maxSubmissionsPerForm)))
+        : 500;
+
+    if (!formTitle) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `formTitle` is required.' }],
+      };
+    }
+
+    const rawTenantIds = Array.isArray(args.tenantIds)
+      ? args.tenantIds
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter((id) => id.length > 0)
+      : [];
+    const rawTenantSlugs = Array.isArray(args.tenantSlugs)
+      ? args.tenantSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+          .filter((slug) => slug.length > 0)
+      : [];
+
+    try {
+      const tenantIds = new Set<string>(rawTenantIds);
+      const missingTenantSlugs: string[] = [];
+
+      if (rawTenantSlugs.length > 0) {
+        const tenants = await payload.find({
+          collection: 'tenants',
+          limit: Math.max(rawTenantSlugs.length, 100),
+          overrideAccess: true,
+          req,
+          where: { slug: { in: rawTenantSlugs } },
+        });
+        const foundSlugSet = new Set<string>();
+        for (const tenantDoc of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenantDoc.id) tenantIds.add(String(tenantDoc.id));
+          if (typeof tenantDoc.slug === 'string') foundSlugSet.add(tenantDoc.slug);
+        }
+        for (const slug of rawTenantSlugs) {
+          if (!foundSlugSet.has(slug)) missingTenantSlugs.push(slug);
+        }
+      }
+
+      const whereFilters: Array<Record<string, unknown>> = [{ title: { equals: formTitle } }];
+      if (tenantIds.size > 0) whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
+      const where: any = whereFilters.length > 1 ? { and: whereFilters } : whereFilters[0];
+
+      const formLookup = await payload.find({
+        collection: 'forms',
+        depth: 0,
+        where,
+        limit: maxForms,
+        overrideAccess: true,
+        req,
+      });
+
+      const formResults: Array<Record<string, unknown>> = [];
+
+      for (const formDoc of formLookup.docs as any[]) {
+        const formId = String(formDoc?.id || '');
+        if (!formId) continue;
+
+        let page = 1;
+        const submissions: any[] = [];
+        let done = false;
+        while (!done) {
+          const subResult = await payload.find({
+            collection: 'form-submissions',
+            where: { form: { equals: formId } },
+            limit: 100,
+            page,
+            depth: 0,
+            overrideAccess: true,
+            req,
+          });
+          for (const row of subResult.docs || []) {
+            submissions.push(row);
+            if (submissions.length >= maxSubmissionsPerForm) {
+              done = true;
+              break;
+            }
+          }
+          if (done || !subResult.hasNextPage) break;
+          page += 1;
+        }
+
+        const candidates = submissions.filter((submission) => String(submission?.iContactSyncStatus || '') !== 'success');
+        const changed: Array<Record<string, unknown>> = [];
+        const failed: Array<Record<string, unknown>> = [];
+
+        for (const submission of candidates) {
+          const submissionId = String(submission?.id || '');
+          if (!submissionId) continue;
+
+          if (dryRun) {
+            changed.push({ submissionId, status: 'would-sync' });
+            continue;
+          }
+
+          const syncResult = await syncSubmissionToIContact({
+            formDoc,
+            submissionData: submission?.submissionData,
+            payload: req.payload,
+            req,
+          });
+
+          try {
+            await payload.update({
+              collection: 'form-submissions',
+              id: submissionId,
+              data: {
+                iContactSyncStatus: syncResult.status,
+                iContactSyncError: syncResult.error || syncResult.reason || undefined,
+                iContactAccountId: syncResult.accountId || undefined,
+                iContactClientFolderId: syncResult.clientFolderId || undefined,
+                iContactListIds: (syncResult.listIds || []).map((listId) => ({ listId })),
+                iContactContactId: syncResult.contactId || undefined,
+                iContactSyncedAt: syncResult.status === 'success' ? new Date().toISOString() : undefined,
+              },
+              overrideAccess: true,
+              req,
+              context: { skipIContactSyncHook: true } as any,
+            });
+            changed.push({ submissionId, status: syncResult.status, error: syncResult.error || syncResult.reason || null });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            failed.push({ submissionId, error: message });
+          }
+        }
+
+        formResults.push({
+          formId,
+          title: typeof formDoc?.title === 'string' ? formDoc.title : null,
+          scanned: submissions.length,
+          candidates: candidates.length,
+          changedCount: changed.length,
+          failedCount: failed.length,
+          changed,
+          failed,
+        });
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                formTitle,
+                dryRun,
+                formsMatched: formLookup.docs.length,
+                missingTenantSlugs,
+                results: formResults,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error backfilling iContact submissions: ${message}` }],
+      };
+    }
+  },
+};
+
+const listPageBlocksTool = {
+  name: 'listPageBlocks',
+  description: 'List blocks on a page with ids, types, indices, and compact field summaries.',
+  parameters: {
+    pageId: z.union([z.string(), z.number()]).optional().describe('Optional page ID.'),
+    slug: z.string().optional().describe('Page slug (used when pageId is not provided).'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID (recommended when using slug).'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const pageId = args.pageId != null ? String(args.pageId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+
+    try {
+      const pageDoc = await loadPageDocument(payload, req, { pageId, slug, tenant });
+      if (!pageDoc || !pageDoc.id) {
+        return { content: [{ type: 'text' as const, text: 'Error: page not found.' }] };
+      }
+
+      const layout = Array.isArray(pageDoc.layout)
+        ? (pageDoc.layout as Array<Record<string, unknown>>)
+        : [];
+
+      const blocks = layout.map((block, index) => {
+        const blockType = typeof block.blockType === 'string' ? block.blockType : null;
+        const keys = Object.keys(block).filter((key) => !['id', 'blockType'].includes(key));
+        const summary: Record<string, unknown> = {};
+        for (const key of keys.slice(0, 20)) {
+          summary[key] = summarizeFieldValue(block[key]);
+        }
+        return {
+          id: block.id ? String(block.id) : null,
+          blockType,
+          index,
+          summary,
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                pageId: String(pageDoc.id),
+                slug: pageDoc.slug ?? null,
+                status: pageDoc._status ?? null,
+                blockCount: blocks.length,
+                blocks,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text' as const, text: `Error listing page blocks: ${message}` }] };
+    }
+  },
+};
+
+const getBlockShapeTool = {
+  name: 'getBlockShape',
+  description: 'Return editable field schema for one block type or all page block types.',
+  parameters: {
+    blockType: z.string().optional().describe('Optional block type slug, e.g. "policyVoices".'),
+  },
+  handler: async (args: Record<string, unknown>) => {
+    const blockType = typeof args.blockType === 'string' ? args.blockType.trim() : '';
+
+    try {
+      const definitions = getPageBlockDefinitions();
+      if (definitions.length === 0) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: could not resolve page block definitions.' }],
+        };
+      }
+
+      const selected = blockType
+        ? definitions.filter((block) => String(block.slug ?? '') === blockType)
+        : definitions;
+
+      if (selected.length === 0) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: blockType "${blockType}" not found.` }],
+        };
+      }
+
+      const blocks = selected.map((block) => ({
+        slug: block.slug ?? null,
+        labels: block.labels ?? null,
+        fields: Array.isArray(block.fields)
+          ? (block.fields as Array<Record<string, unknown>>).map(normalizeFieldSchema)
+          : [],
+      }));
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                blockCount: blocks.length,
+                blocks,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text' as const, text: `Error getting block shape: ${message}` }] };
+    }
+  },
+};
+
+const updateBlockFieldsTool = {
+  name: 'updateBlockFields',
+  description:
+    'Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax.',
+  parameters: {
+    pageId: z.union([z.string(), z.number()]).optional().describe('Optional page ID.'),
+    slug: z.string().optional().describe('Page slug (used when pageId is not provided).'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID (recommended when using slug).'),
+    blockId: z.union([z.string(), z.number()]).optional().describe('Optional block ID.'),
+    blockType: z.string().optional().describe('Optional block type slug.'),
+    blockIndex: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .default(0)
+      .describe('Occurrence index among blocks of the same blockType.'),
+    updates: z
+      .array(
+        z.object({
+          op: z.enum(['set', 'unset', 'remove']).optional().default('set'),
+          path: z.string().min(1).describe('Path relative to the block object, e.g. "speechBubbles[0].text".'),
+          value: z.any().optional().describe('Required for `set`.'),
+        }),
+      )
+      .min(1),
+    createMissing: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('When true, creates missing objects/arrays while applying `set`.'),
+    dryRun: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('When true, reports resulting block without writing.'),
+    draft: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('When true, writes to draft instead of directly updating the published version.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const pageId = args.pageId != null ? String(args.pageId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+    const blockId = args.blockId != null ? String(args.blockId) : undefined;
+    const blockType = typeof args.blockType === 'string' ? args.blockType.trim() : undefined;
+    const blockIndex = typeof args.blockIndex === 'number' ? Math.max(0, Math.trunc(args.blockIndex)) : 0;
+    const updates = Array.isArray(args.updates) ? args.updates : [];
+    const createMissing = typeof args.createMissing === 'boolean' ? args.createMissing : true;
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+    const draft = typeof args.draft === 'boolean' ? args.draft : true;
+
+    if (!pageId && !slug) {
+      return { content: [{ type: 'text' as const, text: 'Error: provide `pageId` or `slug`.' }] };
+    }
+    if (!blockId && !blockType) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: provide `blockId` or (`blockType` + optional `blockIndex`).' }],
+      };
+    }
+
+    try {
+      const pageDoc = await loadPageDocument(payload, req, { pageId, slug, tenant });
+      if (!pageDoc || !pageDoc.id) {
+        return { content: [{ type: 'text' as const, text: 'Error: page not found.' }] };
+      }
+
+      const layout = Array.isArray(pageDoc.layout)
+        ? [...(pageDoc.layout as Array<Record<string, unknown>>)]
+        : [];
+
+      const target = findTargetBlock(layout, { blockId, blockType, blockIndex });
+      if (!target.block || target.index < 0) {
+        return { content: [{ type: 'text' as const, text: 'Error: target block not found.' }] };
+      }
+
+      const nextBlock = cloneValue(target.block as Record<string, unknown>);
+      const applied: Array<Record<string, unknown>> = [];
+      const failed: Array<Record<string, unknown>> = [];
+
+      for (const rawUpdate of updates) {
+        const update = (rawUpdate ?? {}) as Record<string, unknown>;
+        const op = update.op === 'unset' || update.op === 'remove' ? update.op : 'set';
+        const path = typeof update.path === 'string' ? update.path.trim() : '';
+        if (!path) {
+          failed.push({ ...update, error: 'Missing update path.' });
+          continue;
+        }
+
+        try {
+          const segments = parsePathSegments(path);
+          const first = segments[0];
+          if (first === 'id' || first === 'blockType') {
+            throw new Error(`Path "${path}" is immutable.`);
+          }
+
+          if (op === 'set') {
+            if (!Object.prototype.hasOwnProperty.call(update, 'value')) {
+              throw new Error(`Set operation for "${path}" requires a value.`);
+            }
+            setAtPath(nextBlock, segments, update.value, createMissing);
+          } else if (op === 'unset') {
+            unsetAtPath(nextBlock, segments);
+          } else {
+            removeAtPath(nextBlock, segments);
+          }
+
+          applied.push({ op, path });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          failed.push({ op, path, error: message });
+        }
+      }
+
+      const changed = !deepEqual(target.block, nextBlock);
+      const summary = {
+        pageId: String(pageDoc.id),
+        slug: pageDoc.slug ?? null,
+        blockId: nextBlock.id ? String(nextBlock.id) : null,
+        blockType: nextBlock.blockType ?? null,
+        blockArrayIndex: target.index,
+        changed,
+        dryRun,
+        appliedCount: applied.length,
+        failedCount: failed.length,
+        applied,
+        failed,
+      };
+
+      if (dryRun || !changed) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  ...summary,
+                  resultingBlock: nextBlock,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      layout[target.index] = nextBlock;
+      const updated = (await payload.update({
+        collection: 'pages',
+        id: String(pageDoc.id),
+        data: { layout } as any,
+        draft,
+        overrideAccess: true,
+        req,
+      } as any)) as unknown as Record<string, unknown>;
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                ...summary,
+                action: 'updated',
+                status: updated?._status ?? pageDoc._status ?? null,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text' as const, text: `Error updating block fields: ${message}` }] };
+    }
+  },
+};
+
+const listRichTextNodesTool = {
+  name: 'listRichTextNodes',
+  description:
+    'List Lexical rich-text nodes from a document path with node keys, types, and parent relationships.',
+  parameters: {
+    collection: z.enum(['pages', 'posts']).describe('Collection containing the richText field.'),
+    docId: z.union([z.string(), z.number()]).optional().describe('Optional document ID.'),
+    slug: z.string().optional().describe('Document slug (used when docId is not provided).'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID (recommended when using slug).'),
+    richTextPath: z
+      .string()
+      .min(1)
+      .describe('Path to the richText JSON, e.g. "content" or "layout[0].columns[0].richText".'),
+    maxNodes: z.number().int().min(1).max(5000).optional().default(500),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const collection = args.collection === 'posts' ? 'posts' : 'pages';
+    const docId = args.docId != null ? String(args.docId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+    const richTextPath = typeof args.richTextPath === 'string' ? args.richTextPath.trim() : '';
+    const maxNodes =
+      typeof args.maxNodes === 'number' && Number.isFinite(args.maxNodes)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.maxNodes)))
+        : 500;
+
+    if (!richTextPath) {
+      return { content: [{ type: 'text' as const, text: 'Error: `richTextPath` is required.' }] };
+    }
+
+    try {
+      const doc = await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
+      if (!doc || !doc.id) {
+        return { content: [{ type: 'text' as const, text: 'Error: document not found.' }] };
+      }
+
+      const richTextValue = getAtPath(doc as Record<string, unknown>, parsePathSegments(richTextPath));
+      if (!isLexicalDoc(richTextValue)) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: path "${richTextPath}" is not a Lexical richText value.` }],
+        };
+      }
+
+      const nodes: Array<Record<string, unknown>> = [];
+      const root = (richTextValue.root as Record<string, unknown>) as LexicalNodeLike;
+      const rootChildren = Array.isArray(root.children) ? (root.children as LexicalNodeLike[]) : [];
+
+      type WalkFrame = {
+        node: LexicalNodeLike;
+        parentKey: string | null;
+        path: string;
+        index: number;
+      };
+      const stack: WalkFrame[] = rootChildren.map((node, index) => ({
+        node,
+        parentKey: null,
+        path: `root.children[${index}]`,
+        index,
+      }));
+
+      while (stack.length > 0 && nodes.length < maxNodes) {
+        const current = stack.shift()!;
+        const key = getLexicalNodeKey(current.node);
+        const type = typeof current.node.type === 'string' ? current.node.type : null;
+        const text = typeof current.node.text === 'string' ? current.node.text : null;
+
+        nodes.push({
+          key: key || null,
+          type,
+          textPreview: text ? (text.length > 140 ? `${text.slice(0, 137)}...` : text) : null,
+          parentKey: current.parentKey,
+          index: current.index,
+          path: current.path,
+          childCount: Array.isArray(current.node.children) ? current.node.children.length : 0,
+        });
+
+        if (Array.isArray(current.node.children)) {
+          const parentKeyForChildren = key || current.parentKey;
+          current.node.children.forEach((child, childIndex) => {
+            stack.push({
+              node: child,
+              parentKey: parentKeyForChildren ?? null,
+              index: childIndex,
+              path: `${current.path}.children[${childIndex}]`,
+            });
+          });
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                collection,
+                docId: String(doc.id),
+                slug: doc.slug ?? null,
+                richTextPath,
+                nodeCount: nodes.length,
+                nodes,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text' as const, text: `Error listing rich text nodes: ${message}` }] };
+    }
+  },
+};
+
+const updateRichTextNodesTool = {
+  name: 'updateRichTextNodes',
+  description:
+    'Tree-aware Lexical updates by node key/type/text matching. Supports setProps, replaceText, removeNode, and insertChild.',
+  parameters: {
+    collection: z.enum(['pages', 'posts']).describe('Collection containing the richText field.'),
+    docId: z.union([z.string(), z.number()]).optional().describe('Optional document ID.'),
+    slug: z.string().optional().describe('Document slug (used when docId is not provided).'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID (recommended when using slug).'),
+    richTextPath: z
+      .string()
+      .min(1)
+      .describe('Path to the richText JSON, e.g. "content" or "layout[0].columns[0].richText".'),
+    operations: z
+      .array(
+        z.object({
+          op: z.enum(['setProps', 'replaceText', 'removeNode', 'insertChild']),
+          where: z
+            .object({
+              key: z.string().optional(),
+              type: z.string().optional(),
+              textIncludes: z.string().optional(),
+            })
+            .optional(),
+          props: z.record(z.any()).optional().describe('For setProps.'),
+          text: z.string().optional().describe('For replaceText.'),
+          node: z.record(z.any()).optional().describe('For insertChild.'),
+          index: z.number().int().min(0).optional().describe('For insertChild; default appends.'),
+        }),
+      )
+      .min(1),
+    dryRun: z.boolean().optional().default(false),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const collection = args.collection === 'posts' ? 'posts' : 'pages';
+    const docId = args.docId != null ? String(args.docId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+    const richTextPath = typeof args.richTextPath === 'string' ? args.richTextPath.trim() : '';
+    const operations = Array.isArray(args.operations) ? args.operations : [];
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+
+    if (!richTextPath) {
+      return { content: [{ type: 'text' as const, text: 'Error: `richTextPath` is required.' }] };
+    }
+
+    try {
+      const doc = await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
+      if (!doc || !doc.id) {
+        return { content: [{ type: 'text' as const, text: 'Error: document not found.' }] };
+      }
+
+      const docClone = cloneValue(doc as Record<string, unknown>);
+      const richTextSegments = parsePathSegments(richTextPath);
+      const richTextValue = getAtPath(docClone as Record<string, unknown>, richTextSegments);
+
+      if (!isLexicalDoc(richTextValue)) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: path "${richTextPath}" is not a Lexical richText value.` }],
+        };
+      }
+
+      const root = (richTextValue.root as Record<string, unknown>) as LexicalNodeLike;
+      if (!Array.isArray(root.children)) {
+        root.children = [];
+      }
+
+      type NodeRef = {
+        node: LexicalNodeLike;
+        parent: LexicalNodeLike | null;
+        indexInParent: number;
+      };
+
+      const collectNodeRefs = (): NodeRef[] => {
+        const refs: NodeRef[] = [];
+        const walk = (parent: LexicalNodeLike | null, nodes: LexicalNodeLike[]) => {
+          nodes.forEach((node, index) => {
+            refs.push({ node, parent, indexInParent: index });
+            if (Array.isArray(node.children)) {
+              walk(node, node.children);
+            }
+          });
+        };
+        walk(root, root.children as LexicalNodeLike[]);
+        return refs;
+      };
+
+      const matchesWhere = (node: LexicalNodeLike, where: Record<string, unknown> | undefined) => {
+        if (!where || Object.keys(where).length === 0) return false;
+        const key = getLexicalNodeKey(node);
+        if (typeof where.key === 'string' && where.key.trim().length > 0 && key !== where.key.trim()) return false;
+        if (typeof where.type === 'string' && where.type.trim().length > 0) {
+          if (String(node.type ?? '') !== where.type.trim()) return false;
+        }
+        if (typeof where.textIncludes === 'string' && where.textIncludes.length > 0) {
+          const text = typeof node.text === 'string' ? node.text : '';
+          if (!text.includes(where.textIncludes)) return false;
+        }
+        return true;
+      };
+
+      const applied: Array<Record<string, unknown>> = [];
+      const failed: Array<Record<string, unknown>> = [];
+
+      for (const rawOperation of operations) {
+        const operation = (rawOperation ?? {}) as Record<string, unknown>;
+        const op = operation.op;
+        const where = operation.where && typeof operation.where === 'object'
+          ? (operation.where as Record<string, unknown>)
+          : undefined;
+
+        if (op !== 'insertChild' && (!where || Object.keys(where).length === 0)) {
+          failed.push({ op, error: '`where` is required for non-insert operations.' });
+          continue;
+        }
+
+        try {
+          if (op === 'setProps') {
+            if (!operation.props || typeof operation.props !== 'object' || Array.isArray(operation.props)) {
+              throw new Error('setProps requires `props` object.');
+            }
+            const targets = collectNodeRefs().filter((ref) => matchesWhere(ref.node, where));
+            targets.forEach((ref) => Object.assign(ref.node, operation.props as Record<string, unknown>));
+            applied.push({ op, matched: targets.length });
+            continue;
+          }
+
+          if (op === 'replaceText') {
+            if (typeof operation.text !== 'string') {
+              throw new Error('replaceText requires `text`.');
+            }
+            const targets = collectNodeRefs().filter((ref) => matchesWhere(ref.node, where));
+            targets.forEach((ref) => {
+              ref.node.text = operation.text as string;
+            });
+            applied.push({ op, matched: targets.length });
+            continue;
+          }
+
+          if (op === 'removeNode') {
+            const targets = collectNodeRefs()
+              .filter((ref) => matchesWhere(ref.node, where))
+              .sort((a, b) => b.indexInParent - a.indexInParent);
+
+            let removed = 0;
+            targets.forEach((ref) => {
+              if (!ref.parent || !Array.isArray(ref.parent.children)) return;
+              if (ref.indexInParent < 0 || ref.indexInParent >= ref.parent.children.length) return;
+              ref.parent.children.splice(ref.indexInParent, 1);
+              removed += 1;
+            });
+            applied.push({ op, matched: targets.length, removed });
+            continue;
+          }
+
+          if (op === 'insertChild') {
+            if (!operation.node || typeof operation.node !== 'object' || Array.isArray(operation.node)) {
+              throw new Error('insertChild requires `node` object.');
+            }
+
+            const targetParents = where && Object.keys(where).length > 0
+              ? collectNodeRefs().filter((ref) => matchesWhere(ref.node, where))
+              : [{ node: root } as NodeRef];
+
+            let inserted = 0;
+            targetParents.forEach((ref) => {
+              if (!Array.isArray(ref.node.children)) {
+                ref.node.children = [];
+              }
+              const children = ref.node.children as LexicalNodeLike[];
+              const nextNode = cloneValue(operation.node as Record<string, unknown>) as LexicalNodeLike;
+              const at = typeof operation.index === 'number'
+                ? Math.max(0, Math.min(children.length, Math.trunc(operation.index)))
+                : children.length;
+              children.splice(at, 0, nextNode);
+              inserted += 1;
+            });
+            applied.push({ op, matched: targetParents.length, inserted });
+            continue;
+          }
+
+          throw new Error(`Unsupported op "${String(op)}".`);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          failed.push({ op, error: message });
+        }
+      }
+
+      const changed = !deepEqual(getAtPath(doc as Record<string, unknown>, richTextSegments), richTextValue);
+
+      if (dryRun || !changed) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  collection,
+                  docId: String(doc.id),
+                  slug: doc.slug ?? null,
+                  richTextPath,
+                  dryRun,
+                  changed,
+                  applied,
+                  failed,
+                  resultingRichText: richTextValue,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      setAtPath(docClone as Record<string, unknown>, richTextSegments, richTextValue, true);
+      const isPublished = doc._status === 'published';
+      const updated = (await payload.update({
+        collection,
+        id: String(doc.id),
+        data: docClone as any,
+        draft: !isPublished,
+        overrideAccess: true,
+        req,
+      } as any)) as unknown as Record<string, unknown>;
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                action: 'updated',
+                collection,
+                docId: String(doc.id),
+                slug: updated?.slug ?? doc.slug ?? null,
+                richTextPath,
+                applied,
+                failed,
+                status: updated?._status ?? doc._status ?? null,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return { content: [{ type: 'text' as const, text: `Error updating rich text nodes: ${message}` }] };
+    }
+  },
+};
+
 const upsertPageWithBlocksTool = {
   name: 'upsertPageWithBlocks',
   description:
@@ -879,6 +2546,401 @@ const upsertPageWithBlocksTool = {
   },
 };
 
+const updatePolicyVoicesSpeechBubblesTool = {
+  name: 'updatePolicyVoicesSpeechBubbles',
+  description:
+    'Update only speech bubbles (and their custom #anchor links) for a policyVoices block on a page.',
+  parameters: {
+    pageId: z.union([z.string(), z.number()]).optional().describe('Optional page ID.'),
+    slug: z.string().optional().describe('Page slug (used when pageId is not provided).'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID (recommended when using slug).'),
+    blockId: z.union([z.string(), z.number()]).optional().describe('Optional policyVoices block ID.'),
+    bubbles: z
+      .array(
+        z.object({
+          id: z.union([z.string(), z.number()]).optional(),
+          text: z.string().optional(),
+          side: z.enum(['affordability', 'accountability']).optional(),
+          anchorId: z.string().min(1),
+          useAutoPosition: z.boolean().optional(),
+          floatDelay: z.number().optional(),
+          x: z.number().optional(),
+          y: z.number().optional(),
+        }),
+      )
+      .min(1)
+      .describe('Speech bubbles mapped to cards using anchorId (stored as custom url "#<anchorId>").'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const pageId = args.pageId != null ? String(args.pageId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+    const blockId = args.blockId != null ? String(args.blockId) : undefined;
+    const bubblesInput = Array.isArray(args.bubbles) ? args.bubbles : [];
+
+    if (!pageId && !slug) {
+      return {
+        content: [
+          { type: 'text' as const, text: 'Error: provide `pageId` or `slug`.' },
+        ],
+      };
+    }
+
+    try {
+      let pageDoc: Record<string, unknown> | null = null;
+
+      if (pageId) {
+        pageDoc = (await payload.findByID({
+          collection: 'pages',
+          id: pageId,
+          overrideAccess: true,
+          req,
+        })) as unknown as Record<string, unknown>;
+      } else {
+        const where: Record<string, unknown> = slug
+          ? tenant
+            ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
+            : { slug: { equals: slug } }
+          : {};
+
+        const result = await payload.find({
+          collection: 'pages',
+          limit: 1,
+          where: where as any,
+          overrideAccess: true,
+          req,
+        });
+        pageDoc = (result.docs?.[0] as unknown as Record<string, unknown>) || null;
+      }
+
+      if (!pageDoc || !pageDoc.id) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: page not found.' }],
+        };
+      }
+
+      const layout = Array.isArray(pageDoc.layout) ? [...(pageDoc.layout as Array<Record<string, unknown>>)] : [];
+      const policyBlockIndex = layout.findIndex((block) => {
+        if (!block || typeof block !== 'object') return false;
+        if (blockId) return String(block.id ?? '') === blockId;
+        return block.blockType === 'policyVoices';
+      });
+
+      if (policyBlockIndex < 0) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: policyVoices block not found.' }],
+        };
+      }
+
+      const policyBlock = { ...(layout[policyBlockIndex] || {}) };
+      const existingBubbles = Array.isArray(policyBlock.speechBubbles)
+        ? (policyBlock.speechBubbles as Array<Record<string, unknown>>)
+        : [];
+
+      const nextBubbles = bubblesInput.map((bubble, index) => {
+        const input = bubble as Record<string, unknown>;
+        const existing = existingBubbles[index] || {};
+        const anchorId = String(input.anchorId || '').trim();
+
+        return {
+          ...existing,
+          ...(input.id != null ? { id: String(input.id) } : {}),
+          ...(typeof input.text === 'string' ? { text: input.text } : {}),
+          side: input.side === 'accountability' ? 'accountability' : 'affordability',
+          ...(typeof input.useAutoPosition === 'boolean'
+            ? { useAutoPosition: input.useAutoPosition }
+            : {}),
+          ...(typeof input.floatDelay === 'number' ? { floatDelay: input.floatDelay } : {}),
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          link: {
+            type: 'custom',
+            url: `#${anchorId}`,
+          },
+        };
+      });
+
+      policyBlock.speechBubbles = nextBubbles;
+      layout[policyBlockIndex] = policyBlock;
+
+      const isPublished = pageDoc._status === 'published';
+      const updated = (await payload.update({
+        collection: 'pages',
+        id: String(pageDoc.id),
+        data: {
+          layout,
+        } as any,
+        draft: !isPublished,
+        overrideAccess: true,
+        req,
+      } as any)) as unknown as Record<string, unknown>;
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                action: 'updated',
+                pageId: updated?.id ?? pageDoc.id,
+                slug: updated?.slug ?? pageDoc.slug ?? null,
+                blockId: policyBlock.id ?? null,
+                bubbleCount: nextBubbles.length,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error updating speech bubbles: ${message}` }],
+      };
+    }
+  },
+};
+
+const updatePolicyVoicesCardLinksTool = {
+  name: 'updatePolicyVoicesCardLinks',
+  description:
+    'Update only card links for a policyVoices block using entry selectors (anchorId, entryId, or title).',
+  parameters: {
+    pageId: z.union([z.string(), z.number()]).optional().describe('Optional page ID.'),
+    slug: z.string().optional().describe('Page slug (used when pageId is not provided).'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID (recommended when using slug).'),
+    blockId: z.union([z.string(), z.number()]).optional().describe('Optional policyVoices block ID.'),
+    links: z
+      .array(
+        z.object({
+          side: z.enum(['affordability', 'accountability']).optional(),
+          entryId: z.union([z.string(), z.number()]).optional(),
+          anchorId: z.string().optional(),
+          title: z.string().optional(),
+          label: z.string().optional(),
+          url: z.string().min(1),
+          newTab: z.boolean().optional(),
+        }),
+      )
+      .min(1)
+      .describe(
+        'Link updates. Each update must target an entry by entryId, anchorId, or title. side is recommended.',
+      ),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const pageId = args.pageId != null ? String(args.pageId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+    const blockId = args.blockId != null ? String(args.blockId) : undefined;
+    const linksInput = Array.isArray(args.links) ? args.links : [];
+
+    if (!pageId && !slug) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: provide `pageId` or `slug`.' }],
+      };
+    }
+
+    try {
+      let pageDoc: Record<string, unknown> | null = null;
+
+      if (pageId) {
+        pageDoc = (await payload.findByID({
+          collection: 'pages',
+          id: pageId,
+          overrideAccess: true,
+          req,
+        })) as unknown as Record<string, unknown>;
+      } else {
+        const where: Record<string, unknown> = slug
+          ? tenant
+            ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
+            : { slug: { equals: slug } }
+          : {};
+
+        const result = await payload.find({
+          collection: 'pages',
+          limit: 1,
+          where: where as any,
+          overrideAccess: true,
+          req,
+        });
+        pageDoc = (result.docs?.[0] as unknown as Record<string, unknown>) || null;
+      }
+
+      if (!pageDoc || !pageDoc.id) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: page not found.' }],
+        };
+      }
+
+      const layout = Array.isArray(pageDoc.layout) ? [...(pageDoc.layout as Array<Record<string, unknown>>)] : [];
+      const policyBlockIndex = layout.findIndex((block) => {
+        if (!block || typeof block !== 'object') return false;
+        if (blockId) return String(block.id ?? '') === blockId;
+        return block.blockType === 'policyVoices';
+      });
+
+      if (policyBlockIndex < 0) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: policyVoices block not found.' }],
+        };
+      }
+
+      const policyBlock = { ...(layout[policyBlockIndex] || {}) };
+      const affordabilityEntries = Array.isArray(policyBlock.affordabilityEntries)
+        ? [...(policyBlock.affordabilityEntries as Array<Record<string, unknown>>)]
+        : [];
+      const accountabilityEntries = Array.isArray(policyBlock.accountabilityEntries)
+        ? [...(policyBlock.accountabilityEntries as Array<Record<string, unknown>>)]
+        : [];
+      const legacyCards = Array.isArray(policyBlock.cards)
+        ? [...(policyBlock.cards as Array<Record<string, unknown>>)]
+        : [];
+
+      const matchesEntry = (entry: Record<string, unknown>, update: Record<string, unknown>) => {
+        const entryId = update.entryId != null ? String(update.entryId) : '';
+        const anchorId = typeof update.anchorId === 'string' ? update.anchorId.trim() : '';
+        const title = typeof update.title === 'string' ? update.title.trim().toLowerCase() : '';
+
+        if (entryId) return String(entry.id ?? '') === entryId;
+        if (anchorId) return String(entry.anchorId ?? '').trim() === anchorId;
+        if (title) return String(entry.title ?? '').trim().toLowerCase() === title;
+        return false;
+      };
+
+      let updatedCount = 0;
+      const notFound: Array<Record<string, unknown>> = [];
+      const invalid: Array<Record<string, unknown>> = [];
+
+      const applyUpdateToArray = (arr: Array<Record<string, unknown>>, update: Record<string, unknown>) => {
+        const index = arr.findIndex((entry) => matchesEntry(entry, update));
+        if (index < 0) return false;
+
+        const existing = arr[index] || {};
+        arr[index] = {
+          ...existing,
+          link: {
+            ...(typeof update.label === 'string' ? { label: update.label } : {}),
+            type: 'custom',
+            url: String(update.url),
+            ...(typeof update.newTab === 'boolean' ? { newTab: update.newTab } : {}),
+          },
+        };
+        return true;
+      };
+
+      for (const rawUpdate of linksInput) {
+        const update = (rawUpdate || {}) as Record<string, unknown>;
+        const hasSelector = update.entryId != null || typeof update.anchorId === 'string' || typeof update.title === 'string';
+        if (!hasSelector) {
+          invalid.push(update);
+          continue;
+        }
+
+        const side = update.side === 'accountability' ? 'accountability' : update.side === 'affordability' ? 'affordability' : undefined;
+        let matched = false;
+
+        if (side === 'affordability' || !side) {
+          matched = applyUpdateToArray(affordabilityEntries, update) || matched;
+          matched =
+            legacyCards.some((card, idx) => {
+              if (String(card.side ?? '') !== 'affordability') return false;
+              if (!matchesEntry(card, update)) return false;
+              legacyCards[idx] = {
+                ...card,
+                link: {
+                  ...(typeof update.label === 'string' ? { label: update.label } : {}),
+                  type: 'custom',
+                  url: String(update.url),
+                  ...(typeof update.newTab === 'boolean' ? { newTab: update.newTab } : {}),
+                },
+              };
+              return true;
+            }) || matched;
+        }
+
+        if (side === 'accountability' || !side) {
+          matched = applyUpdateToArray(accountabilityEntries, update) || matched;
+          matched =
+            legacyCards.some((card, idx) => {
+              if (String(card.side ?? '') !== 'accountability') return false;
+              if (!matchesEntry(card, update)) return false;
+              legacyCards[idx] = {
+                ...card,
+                link: {
+                  ...(typeof update.label === 'string' ? { label: update.label } : {}),
+                  type: 'custom',
+                  url: String(update.url),
+                  ...(typeof update.newTab === 'boolean' ? { newTab: update.newTab } : {}),
+                },
+              };
+              return true;
+            }) || matched;
+        }
+
+        if (matched) {
+          updatedCount += 1;
+        } else {
+          notFound.push(update);
+        }
+      }
+
+      policyBlock.affordabilityEntries = affordabilityEntries;
+      policyBlock.accountabilityEntries = accountabilityEntries;
+      policyBlock.cards = legacyCards;
+      layout[policyBlockIndex] = policyBlock;
+
+      const isPublished = pageDoc._status === 'published';
+      const updated = (await payload.update({
+        collection: 'pages',
+        id: String(pageDoc.id),
+        data: {
+          layout,
+        } as any,
+        draft: !isPublished,
+        overrideAccess: true,
+        req,
+      } as any)) as unknown as Record<string, unknown>;
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                action: 'updated',
+                pageId: updated?.id ?? pageDoc.id,
+                slug: updated?.slug ?? pageDoc.slug ?? null,
+                blockId: policyBlock.id ?? null,
+                requested: linksInput.length,
+                updated: updatedCount,
+                notFound,
+                invalid,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error updating policy voices card links: ${message}` }],
+      };
+    }
+  },
+};
+
 export default buildConfig({
   admin: {
     components: {
@@ -952,6 +3014,8 @@ export default buildConfig({
     // Misc
     Authors,
     Tags,
+    IContactFolders,
+    IContactLists,
   ],
 
   cors: {
@@ -967,7 +3031,23 @@ export default buildConfig({
       disabled: process.env.PAYLOAD_ENABLE_MCP !== 'true',
       collections: mcpCollections,
       mcp: {
-        tools: [upsertPageWithBlocksTool, bulkUpdateFormsByTitleTool, reorderContactFormTailFieldsTool],
+        tools: [
+          refreshIContactCacheTool,
+          listIContactFoldersTool,
+          listIContactListsTool,
+          bulkConfigureIContactFormsTool,
+          backfillIContactUnsyncedTool,
+          upsertPageWithBlocksTool,
+          listPageBlocksTool,
+          getBlockShapeTool,
+          updateBlockFieldsTool,
+          listRichTextNodesTool,
+          updateRichTextNodesTool,
+          updatePolicyVoicesSpeechBubblesTool,
+          updatePolicyVoicesCardLinksTool,
+          bulkUpdateFormsByTitleTool,
+          reorderContactFormTailFieldsTool,
+        ],
       },
     }),
 

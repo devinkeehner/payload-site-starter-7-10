@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "256508",
+      "name": "Electric Rates",
+      "publicname": "Electric Rates",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "254447",
+      "name": "Green 2020 cleaned",
+      "publicname": "Green 2020 cleaned",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "252840",
+      "name": "Weir Newsletter List",
+      "publicname": "Untitled",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

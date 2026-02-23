@@ -1,0 +1,302 @@
+{
+  "generatedAt": "2026-02-20T16:11:57.012Z",
+  "baseUrl": "https://app.icontact.com",
+  "accountFilter": "373633",
+  "clientFolderFilter": null,
+  "outputDir": "/home/dkeehner/projects/new-full/backend/tmp/icontact-export-all",
+  "summary": [
+    {
+      "accountId": "373633",
+      "companyName": "Connecticut House Republicans",
+      "clientFolderCount": 101,
+      "folders": [
+        {
+          "clientFolderId": "147941",
+          "folderName": "Connecticut House Republicans",
+          "listCount": 20
+        },
+        {
+          "clientFolderId": "150071",
+          "folderName": "Rep. Jason Buchsbaum",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150074",
+          "folderName": "Rep. Ben McGorty",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150075",
+          "folderName": "Rep. Joe Hoxha",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150076",
+          "folderName": "Rep. Mark Anderson",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150079",
+          "folderName": "Rep. Tracy Marra",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150080",
+          "folderName": "Rep. Tom O'Dea",
+          "listCount": 4
+        },
+        {
+          "clientFolderId": "150081",
+          "folderName": "Rep. Tim Ackert",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150082",
+          "folderName": "Rep. Tami Zawistowski",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150083",
+          "folderName": "Rep. Gale Mastrofrancesco",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150084",
+          "folderName": "Rep. Patrick Callahan",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150085",
+          "folderName": "Rep. Seth Bronko",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150087",
+          "folderName": "Rep. John Piscopo",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150088",
+          "folderName": "Rep. Vincent Candelora",
+          "listCount": 6
+        },
+        {
+          "clientFolderId": "150089",
+          "folderName": "Rep. Kathy Kennedy",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150091",
+          "folderName": "Rep. Cara Pavalock",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150094",
+          "folderName": "Rep. Charles Ferraro",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150095",
+          "folderName": "Rep. Mitch Bolinsky",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150096",
+          "folderName": "Rep. Christie Carpino",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150100",
+          "folderName": "Rep. Bill Pizzuto",
+          "listCount": 4
+        },
+        {
+          "clientFolderId": "150102",
+          "folderName": "Rep. Irene Haines",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150105",
+          "folderName": "Rep. Lezlye Zupkus",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150108",
+          "folderName": "Rep. Arnold Jensen",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150109",
+          "folderName": "Rep. Kurt Vail",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150111",
+          "folderName": "Rep. Kathleen McCarty",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150113",
+          "folderName": "Rep. Dave Rutigliano",
+          "listCount": 4
+        },
+        {
+          "clientFolderId": "150116",
+          "folderName": "Rep. David Yaccarino",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150117",
+          "folderName": "Rep. Devin Carney",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150118",
+          "folderName": "Rep. Doug Dubitsky",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150119",
+          "folderName": "Rep. Joe Polletta",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150121",
+          "folderName": "Rep. Jay Case",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150123",
+          "folderName": "Rep. Amy Romano",
+          "listCount": 4
+        },
+        {
+          "clientFolderId": "150126",
+          "folderName": "Rep. Tony Scott",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150128",
+          "folderName": "Rep. Martin Foncello",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150156",
+          "folderName": "Rep. Holly Cheeseman",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150157",
+          "folderName": "Rep. Bill Buckbee",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150159",
+          "folderName": "Rep. Anne Dauphinais",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150160",
+          "folderName": "Rep. Tom Delnicki",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150162",
+          "folderName": "Rep. Craig Fishbein",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150166",
+          "folderName": "Rep. Steve Weir",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150167",
+          "folderName": "Rep. Carol Hall",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150168",
+          "folderName": "Rep. Nicole Klarides-Ditria",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150170",
+          "folderName": "Rep. Francis Cooley",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150172",
+          "folderName": "Rep. Brian Lanoue",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150175",
+          "folderName": "Rep. Karen Reddington-Hughes",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150179",
+          "folderName": "Rep. Joe Zullo",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150180",
+          "folderName": "Rep. Chris Stewart",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150190",
+          "folderName": "Rep. Donna Veach",
+          "listCount": 1
+        },
+        {
+          "clientFolderId": "150191",
+          "folderName": "Rep. Tammy Nuccio",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150193",
+          "folderName": "Rep. Greg Howard",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150199",
+          "folderName": "Rep. Chris Aniskovich",
+          "listCount": 1
+        },
+        {
+          "clientFolderId": "150200",
+          "folderName": "Rep. Rachel Chaleski",
+          "listCount": 1
+        },
+        {
+          "clientFolderId": "150201",
+          "folderName": "Rep. Mark DeCaprio",
+          "listCount": 1
+        },
+        {
+          "clientFolderId": "150202",
+          "folderName": "Rep. Laura Dancho",
+          "listCount": 3
+        },
+        {
+          "clientFolderId": "150206",
+          "folderName": "Rep. Joe Canino",
+          "listCount": 2
+        },
+        {
+          "clientFolderId": "150207",
+          "folderName": "Rep. Tina Courpas",
+          "listCount": 1
+        },
+        {
+          "clientFolderId": "150209",
+          "folderName": "Outreach",
+          "listCount": 2
+        }
+      ],
+      "inaccessibleFolderCount": 44
+    }
+  ]
+}

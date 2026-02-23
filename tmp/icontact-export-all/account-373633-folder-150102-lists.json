@@ -1,0 +1,34 @@
+{
+  "lists": [
+    {
+      "listId": "254466",
+      "name": "Haines 2020 cleaned",
+      "publicname": "Haines 2020 cleaned",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "250532",
+      "name": "Rep. Irene Haines",
+      "publicname": "Rep. Irene Haines",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    },
+    {
+      "listId": "256183",
+      "name": "Rep. Irene Haines 2023",
+      "publicname": "Rep. Irene Haines 2023",
+      "description": "",
+      "emailOwnerOnChange": "0",
+      "welcomeOnManualAdd": "0",
+      "welcomeOnSignupAdd": "0",
+      "welcomeMessageId": ""
+    }
+  ]
+}

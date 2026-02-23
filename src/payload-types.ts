@@ -85,6 +85,8 @@ export interface Config {
     tenants: Tenant;
     authors: Author;
     tags: Tag;
+    'icontact-folders': IcontactFolder;
+    'icontact-lists': IcontactList;
     'payload-mcp-api-keys': PayloadMcpApiKey;
     redirects: Redirect;
     search: Search;
@@ -113,6 +115,8 @@ export interface Config {
     tenants: TenantsSelect<false> | TenantsSelect<true>;
     authors: AuthorsSelect<false> | AuthorsSelect<true>;
     tags: TagsSelect<false> | TagsSelect<true>;
+    'icontact-folders': IcontactFoldersSelect<false> | IcontactFoldersSelect<true>;
+    'icontact-lists': IcontactListsSelect<false> | IcontactListsSelect<true>;
     'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     search: SearchSelect<false> | SearchSelect<true>;
@@ -932,6 +936,56 @@ export interface Form {
     | null;
   enableHoneypot?: boolean | null;
   enableTurnstile?: boolean | null;
+  enableIContactSync?: boolean | null;
+  /**
+   * Search and select a synced iContact folder.
+   */
+  iContactFolder?: (string | null) | IcontactFolder;
+  /**
+   * Search and select one or more lists for the selected folder.
+   */
+  iContactLists?: (string | IcontactList)[] | null;
+  iContactFieldMap?: {
+    emailFieldName?: string | null;
+    firstNameFieldName?: string | null;
+    lastNameFieldName?: string | null;
+    mobileFieldName?: string | null;
+    zipFieldName?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "icontact-folders".
+ */
+export interface IcontactFolder {
+  id: string;
+  clientFolderId: string;
+  name: string;
+  accountId: string;
+  accessible?: boolean | null;
+  listCount?: number | null;
+  lastSyncStatus?: string | null;
+  lastSyncError?: string | null;
+  lastSyncedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "icontact-lists".
+ */
+export interface IcontactList {
+  id: string;
+  uniqueKey: string;
+  listId: string;
+  name: string;
+  description?: string | null;
+  clientFolder: string | IcontactFolder;
+  clientFolderId: string;
+  accountId: string;
+  lastSyncedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1576,6 +1630,18 @@ export interface FormSubmission {
     | null;
   submitterIP?: string | null;
   submitterEmail?: string | null;
+  iContactSyncStatus?: string | null;
+  iContactSyncError?: string | null;
+  iContactAccountId?: string | null;
+  iContactClientFolderId?: string | null;
+  iContactListIds?:
+    | {
+        listId?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  iContactContactId?: string | null;
+  iContactSyncedAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -1868,11 +1934,95 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  icontactFolders?: {
+    /**
+     * Allow clients to find icontact-folders.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create icontact-folders.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update icontact-folders.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete icontact-folders.
+     */
+    delete?: boolean | null;
+  };
+  icontactLists?: {
+    /**
+     * Allow clients to find icontact-lists.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create icontact-lists.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update icontact-lists.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete icontact-lists.
+     */
+    delete?: boolean | null;
+  };
   'payload-mcp-tool'?: {
+    /**
+     * Refresh local iContact folder/list cache collections from the live iContact account.
+     */
+    refreshIContactCache?: boolean | null;
+    /**
+     * List iContact client folders for the configured account.
+     */
+    listIContactFolders?: boolean | null;
+    /**
+     * List iContact lists for a specific client folder.
+     */
+    listIContactLists?: boolean | null;
+    /**
+     * Bulk assign iContact sync settings to forms by title and optional tenant filters, including folder/list IDs and field mapping.
+     */
+    bulkConfigureIContactForms?: boolean | null;
+    /**
+     * Sync unsynced form submissions to iContact for forms matching a title, optionally filtered to specific tenants.
+     */
+    backfillIContactUnsynced?: boolean | null;
     /**
      * Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation.
      */
     upsertPageWithBlocks?: boolean | null;
+    /**
+     * List blocks on a page with ids, types, indices, and compact field summaries.
+     */
+    listPageBlocks?: boolean | null;
+    /**
+     * Return editable field schema for one block type or all page block types.
+     */
+    getBlockShape?: boolean | null;
+    /**
+     * Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax.
+     */
+    updateBlockFields?: boolean | null;
+    /**
+     * List Lexical rich-text nodes from a document path with node keys, types, and parent relationships.
+     */
+    listRichTextNodes?: boolean | null;
+    /**
+     * Tree-aware Lexical updates by node key/type/text matching. Supports setProps, replaceText, removeNode, and insertChild.
+     */
+    updateRichTextNodes?: boolean | null;
+    /**
+     * Update only speech bubbles (and their custom #anchor links) for a policyVoices block on a page.
+     */
+    updatePolicyVoicesSpeechBubbles?: boolean | null;
+    /**
+     * Update only card links for a policyVoices block using entry selectors (anchorId, entryId, or title).
+     */
+    updatePolicyVoicesCardLinks?: boolean | null;
     /**
      * Update all forms that match a title across tenants and return changed, unchanged, and failed items.
      */
@@ -2127,6 +2277,14 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'tags';
         value: string | Tag;
+      } | null)
+    | ({
+        relationTo: 'icontact-folders';
+        value: string | IcontactFolder;
+      } | null)
+    | ({
+        relationTo: 'icontact-lists';
+        value: string | IcontactList;
       } | null)
     | ({
         relationTo: 'payload-mcp-api-keys';
@@ -3037,6 +3195,18 @@ export interface FormsSelect<T extends boolean = true> {
       };
   enableHoneypot?: T;
   enableTurnstile?: T;
+  enableIContactSync?: T;
+  iContactFolder?: T;
+  iContactLists?: T;
+  iContactFieldMap?:
+    | T
+    | {
+        emailFieldName?: T;
+        firstNameFieldName?: T;
+        lastNameFieldName?: T;
+        mobileFieldName?: T;
+        zipFieldName?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3056,6 +3226,18 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
       };
   submitterIP?: T;
   submitterEmail?: T;
+  iContactSyncStatus?: T;
+  iContactSyncError?: T;
+  iContactAccountId?: T;
+  iContactClientFolderId?: T;
+  iContactListIds?:
+    | T
+    | {
+        listId?: T;
+        id?: T;
+      };
+  iContactContactId?: T;
+  iContactSyncedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3151,6 +3333,38 @@ export interface AuthorsSelect<T extends boolean = true> {
 export interface TagsSelect<T extends boolean = true> {
   slug?: T;
   title?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "icontact-folders_select".
+ */
+export interface IcontactFoldersSelect<T extends boolean = true> {
+  clientFolderId?: T;
+  name?: T;
+  accountId?: T;
+  accessible?: T;
+  listCount?: T;
+  lastSyncStatus?: T;
+  lastSyncError?: T;
+  lastSyncedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "icontact-lists_select".
+ */
+export interface IcontactListsSelect<T extends boolean = true> {
+  uniqueKey?: T;
+  listId?: T;
+  name?: T;
+  description?: T;
+  clientFolder?: T;
+  clientFolderId?: T;
+  accountId?: T;
+  lastSyncedAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -3266,10 +3480,38 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         update?: T;
         delete?: T;
       };
+  icontactFolders?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  icontactLists?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
   'payload-mcp-tool'?:
     | T
     | {
+        refreshIContactCache?: T;
+        listIContactFolders?: T;
+        listIContactLists?: T;
+        bulkConfigureIContactForms?: T;
+        backfillIContactUnsynced?: T;
         upsertPageWithBlocks?: T;
+        listPageBlocks?: T;
+        getBlockShape?: T;
+        updateBlockFields?: T;
+        listRichTextNodes?: T;
+        updateRichTextNodes?: T;
+        updatePolicyVoicesSpeechBubbles?: T;
+        updatePolicyVoicesCardLinks?: T;
         bulkUpdateFormsByTitle?: T;
         reorderContactFormTailFields?: T;
       };
