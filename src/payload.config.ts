@@ -2392,7 +2392,10 @@ const upsertPageWithBlocksTool = {
       .default('draft')
       .describe('Document status.'),
     hero: z.record(z.any()).optional().describe('Raw hero object, e.g. {"type":"none"}.'),
-    layout: z.array(z.any()).optional().describe('Raw block layout array.'),
+    layout: z
+      .array(z.record(z.string(), z.unknown()))
+      .optional()
+      .describe('Raw block layout array.'),
     meta: z.record(z.any()).optional().describe('Optional SEO meta object.'),
     publishedAt: z.string().optional().describe('Optional ISO datetime.'),
     matchBySlugAndTenant: z
