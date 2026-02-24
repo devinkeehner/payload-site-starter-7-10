@@ -1,6 +1,9 @@
 import type { CollectionConfig, CollectionAfterChangeHook, CollectionAfterDeleteHook } from 'payload'
 import { triggerFrontendRevalidate } from '../../lib/utilities/revalidateFrontend'
 
+type TenantDoc = { slug?: string | null }
+type TenantQueryResult = { docs?: TenantDoc[] }
+
 export const StandardMedia: CollectionConfig = {
   labels: {
     singular: 'Banners and Social Images',
@@ -24,13 +27,15 @@ export const StandardMedia: CollectionConfig = {
             collection: 'tenants',
             limit: 1000,
             depth: 0,
-            select: { slug: true } as any,
+            select: { slug: true },
           })
-          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const slugs = (((tenants as TenantQueryResult)?.docs || [])
+            .map((t) => t?.slug)
+            .filter((slug): slug is string => typeof slug === 'string' && slug.length > 0))
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:standard-media', ...slugs.map((s: string) => `tenant:${s}`)] })
-        } catch (e) {
-          payload.logger?.error?.('Failed to revalidate after standard-media change', e as any)
+        } catch (e: unknown) {
+          payload.logger?.error?.(`Failed to revalidate after standard-media change: ${e instanceof Error ? e.message : String(e)}`)
         }
       }) as CollectionAfterChangeHook,
     ],
@@ -42,13 +47,15 @@ export const StandardMedia: CollectionConfig = {
             collection: 'tenants',
             limit: 1000,
             depth: 0,
-            select: { slug: true } as any,
+            select: { slug: true },
           })
-          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const slugs = (((tenants as TenantQueryResult)?.docs || [])
+            .map((t) => t?.slug)
+            .filter((slug): slug is string => typeof slug === 'string' && slug.length > 0))
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:standard-media', ...slugs.map((s: string) => `tenant:${s}`)] })
-        } catch (e) {
-          payload.logger?.error?.('Failed to revalidate after standard-media delete', e as any)
+        } catch (e: unknown) {
+          payload.logger?.error?.(`Failed to revalidate after standard-media delete: ${e instanceof Error ? e.message : String(e)}`)
         }
       }) as CollectionAfterDeleteHook,
     ],

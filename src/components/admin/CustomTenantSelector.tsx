@@ -3,8 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ConfirmationModal,
-  SelectInput,
-  Translation,
   useAuth,
   useModal,
   useTranslation,
@@ -18,6 +16,17 @@ type TenantOption = {
   isDisabled?: boolean
 }
 
+type OptionShape = {
+  label?: unknown
+  value?: unknown
+  isDivider?: unknown
+  isDisabled?: unknown
+}
+
+type TenantAssignment = {
+  tenant?: string | { id?: string; value?: string } | null
+}
+
 type Props = {
   label?: React.ReactNode
   viewType?: 'list' | 'default'
@@ -26,14 +35,7 @@ type Props = {
 const confirmSwitchTenantSlug = 'confirm-switch-tenant'
 const confirmLeaveWithoutSavingSlug = 'confirm-leave-without-saving'
 
-const createDividerOption = (label: string): TenantOption => ({
-  label,
-  value: `__divider__:${label}`,
-  isDivider: true,
-  isDisabled: true,
-})
-
-const normalizeOption = (option: any): TenantOption => ({
+const normalizeOption = (option: OptionShape): TenantOption => ({
   label: typeof option?.label === 'string' ? option.label : String(option?.label ?? ''),
   value: String(option?.value ?? ''),
   isDivider: Boolean(option?.isDivider),
@@ -42,7 +44,7 @@ const normalizeOption = (option: any): TenantOption => ({
 
 const isDividerOption = (option?: TenantOption | null) => Boolean(option?.isDivider)
 
-const CustomTenantSelector: React.FC<Props> = ({ label, viewType }) => {
+const CustomTenantSelector: React.FC<Props> = ({ label, viewType: _viewType }) => {
   const { entityType, modified, options = [], selectedTenantID, setTenant } = useTenantSelection()
   const { closeModal, openModal } = useModal()
   const { t } = useTranslation()
@@ -53,12 +55,12 @@ const CustomTenantSelector: React.FC<Props> = ({ label, viewType }) => {
   const [isHydrated, setIsHydrated] = useState(false)
 
   const { assignedOptions, otherOptions, allOptions } = useMemo(() => {
-    const normalized = (options as any[]).map(normalizeOption)
+    const normalized = (options as OptionShape[]).map(normalizeOption)
     normalized.sort((a, b) => a.label.localeCompare(b.label))
 
     const assignedIDs = new Set<string>()
     if (Array.isArray(user?.tenants)) {
-      user.tenants.forEach((assignment: any) => {
+      user.tenants.forEach((assignment: TenantAssignment) => {
         const relation = assignment?.tenant
         if (!relation) return
         if (typeof relation === 'string') {
@@ -300,19 +302,7 @@ const CustomTenantSelector: React.FC<Props> = ({ label, viewType }) => {
       </div>
 
       <ConfirmationModal
-        body={
-          <Translation
-            elements={{
-              0: ({ children }) => <b>{children}</b>,
-            }}
-            i18nKey={'plugin-multi-tenant:confirm-tenant-switch--body' as any}
-            t={translate as any}
-            variables={{
-              fromTenant: selectedValue?.label,
-              toTenant: pendingSelection?.label,
-            }}
-          />
-        }
+        body={`Switch from ${selectedValue?.label || 'current site'} to ${pendingSelection?.label || 'selected site'}?`}
         heading={translate('plugin-multi-tenant:confirm-tenant-switch--heading', {
           tenantLabel: label ?? undefined,
         })}

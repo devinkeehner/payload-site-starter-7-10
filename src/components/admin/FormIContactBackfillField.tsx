@@ -3,6 +3,27 @@
 import React, { useState } from 'react'
 import { Button, useDocumentInfo, useFormFields } from '@payloadcms/ui'
 
+type FieldState = {
+  value?: unknown
+  initialValue?: unknown
+}
+
+type FormFields = Record<string, FieldState | undefined> & {
+  _id?: FieldState
+}
+
+const asFormFields = (fields: unknown): FormFields =>
+  (typeof fields === 'object' && fields !== null ? (fields as FormFields) : {})
+
+const readIdField = (fields: unknown): string | undefined => {
+  const map = asFormFields(fields)
+  const fromId = map.id?.value ?? map.id?.initialValue
+  if (typeof fromId === 'string') return fromId
+  const fromUnderscoreId = map._id?.value ?? map._id?.initialValue
+  if (typeof fromUnderscoreId === 'string') return fromUnderscoreId
+  return undefined
+}
+
 const deriveIdFromPath = (): string | undefined => {
   if (typeof window === 'undefined') return undefined
   try {
@@ -16,13 +37,7 @@ const deriveIdFromPath = (): string | undefined => {
 const FormIContactBackfillField: React.FC = () => {
   const docInfo = useDocumentInfo() as { id?: string } | null
   const infoId = docInfo?.id
-  const fieldId = useFormFields(
-    ([fields]) =>
-      (fields?.id?.value ??
-        (fields?.id as any)?.initialValue ??
-        (fields as any)?._id?.value ??
-        (fields as any)?._id?.initialValue) as string | undefined,
-  )
+  const fieldId = useFormFields(([fields]) => readIdField(fields))
   const resolvedId = infoId || fieldId || deriveIdFromPath()
 
   const [maxToProcess, setMaxToProcess] = useState('500')
@@ -80,4 +95,3 @@ const FormIContactBackfillField: React.FC = () => {
 }
 
 export { FormIContactBackfillField }
-

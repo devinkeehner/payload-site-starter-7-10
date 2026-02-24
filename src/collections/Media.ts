@@ -14,6 +14,26 @@ import { authenticated } from '@/lib/access/authenticated'
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
 
+type TenantDoc = { slug?: string | null }
+type FileLike = {
+  prefix?: string
+  filename?: string
+  url?: string
+}
+
+const getObject = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+
+const asFileLike = (value: unknown): FileLike | null => {
+  const record = getObject(value)
+  if (!record) return null
+  return {
+    prefix: typeof record.prefix === 'string' ? record.prefix : undefined,
+    filename: typeof record.filename === 'string' ? record.filename : undefined,
+    url: typeof record.url === 'string' ? record.url : undefined,
+  }
+}
+
 export const Media: CollectionConfig = {
   admin: {
     group: 'Content',
@@ -46,14 +66,16 @@ export const Media: CollectionConfig = {
     beforeValidate: [
       async ({ data, req }) => {
         try {
-          const file: any = (req as any)?.file
-          const tenantId = (data as any)?.tenant
+          const reqRecord = getObject(req)
+          const file = reqRecord?.file
+          const dataRecord = getObject(data)
+          const tenantId = typeof dataRecord?.tenant === 'string' ? dataRecord.tenant : undefined
           if (file && typeof file === 'object' && tenantId && req?.payload) {
-            const tenant = await req.payload.findByID({ collection: 'tenants', id: tenantId })
-            const slug = (tenant as any)?.slug
+            const tenant = (await req.payload.findByID({ collection: 'tenants', id: tenantId })) as TenantDoc
+            const slug = tenant?.slug
             if (slug) {
               // Place the upload under /<tenant-slug>/
-              file.prefix = `${slug}/`
+              ;(file as Record<string, unknown>).prefix = `${slug}/`
             }
           }
         } catch {
@@ -77,21 +99,23 @@ export const Media: CollectionConfig = {
           }
         }
 
-        const buildKey = (file: any): string | undefined => {
-          if (!file || typeof file !== 'object') return undefined
-          const prefix = file?.prefix as string | undefined
-          const filename = file?.filename as string | undefined
+        const buildKey = (file: unknown): string | undefined => {
+          const parsedFile = asFileLike(file)
+          if (!parsedFile) return undefined
+          const prefix = parsedFile.prefix
+          const filename = parsedFile.filename
           if (prefix && filename) return `${prefix.replace(/\/+$/, '')}/${filename.replace(/^\/+/, '')}`
           if (filename) return filename
-          const keyFromUrl = getKeyFromUrl(String(file?.url || ''))
+          const keyFromUrl = getKeyFromUrl(String(parsedFile.url || ''))
           return keyFromUrl
         }
 
-        const setAbsUrl = (file: any) => {
-          if (!file) return
+        const setAbsUrl = (file: unknown) => {
+          const fileRecord = getObject(file)
+          if (!fileRecord) return
           const key = buildKey(file)
           if (base && key) {
-            file.url = `${base.replace(/\/+$/, '')}/${key}`
+            fileRecord.url = `${base.replace(/\/+$/, '')}/${key}`
           }
         }
 
@@ -100,7 +124,7 @@ export const Media: CollectionConfig = {
 
         // Generated sizes
         if (doc?.sizes && typeof doc.sizes === 'object') {
-          Object.values(doc.sizes).forEach((size: any) => setAbsUrl(size))
+          Object.values(doc.sizes).forEach((size) => setAbsUrl(size))
         }
 
         return doc

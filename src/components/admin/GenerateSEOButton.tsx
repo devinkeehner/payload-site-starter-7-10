@@ -3,27 +3,45 @@
 import React, { useState } from 'react'
 import { Button, useForm, useFormFields, useDocumentInfo } from '@payloadcms/ui'
 
- type GenerateSeoResponse = {
-   description?: string
-   keyTakeawaysNormalized?: Array<Record<string, unknown>>
-   categoryIDs?: string[]
-   articleTypeID?: string
-   error?: string
- }
- 
+type GenerateSeoResponse = {
+  description?: string
+  keyTakeawaysNormalized?: Array<Record<string, unknown>>
+  categoryIDs?: string[]
+  articleTypeID?: string
+  error?: string
+}
+
+type FieldState = {
+  value?: unknown
+  initialValue?: unknown
+}
+
+type FormFields = Record<string, FieldState | undefined> & {
+  _id?: FieldState
+}
+
+const asFormFields = (fields: unknown): FormFields =>
+  (typeof fields === 'object' && fields !== null ? (fields as FormFields) : {})
+
+const readIdField = (fields: unknown): string | undefined => {
+  const map = asFormFields(fields)
+  const fromId = map.id?.value ?? map.id?.initialValue
+  if (typeof fromId === 'string') return fromId
+  const fromUnderscoreId = map._id?.value ?? map._id?.initialValue
+  if (typeof fromUnderscoreId === 'string') return fromUnderscoreId
+  return undefined
+}
+
 const GenerateSEOButton: React.FC = () => {
   const { dispatchFields } = useForm()
   const docInfo = useDocumentInfo() as { id?: string } | null
   const infoId = docInfo?.id
-  const fieldId = useFormFields(
-    ([fields]) =>
-      (fields?.id?.value ??
-        (fields?.id as any)?.initialValue ??
-        (fields as any)?._id?.value ??
-        (fields as any)?._id?.initialValue) as string | undefined,
-  )
-  const fieldKeys = useFormFields(([fields]) => Object.keys((fields as any) || {}))
-  const slugFromForm = useFormFields(([fields]) => (fields as any)?.slug?.value as string | undefined)
+  const fieldId = useFormFields(([fields]) => readIdField(fields))
+  const fieldKeys = useFormFields(([fields]) => Object.keys(asFormFields(fields)))
+  const slugFromForm = useFormFields(([fields]) => {
+    const slug = asFormFields(fields).slug?.value
+    return typeof slug === 'string' ? slug : undefined
+  })
   const [loading, setLoading] = useState(false)
 
   const disabled = loading
@@ -111,7 +129,7 @@ const GenerateSEOButton: React.FC = () => {
 
       // Persist the generated fields to the server, then refresh the page
       try {
-        const updatePayload: any = {}
+        const updatePayload: Record<string, unknown> = {}
         if (typeof data?.description === 'string') {
           updatePayload.meta = { description: data.description }
         }
@@ -167,4 +185,3 @@ const GenerateSEOButton: React.FC = () => {
 }
 
 export { GenerateSEOButton }
-

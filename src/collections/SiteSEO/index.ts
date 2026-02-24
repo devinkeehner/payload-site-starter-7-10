@@ -18,10 +18,10 @@ export const SiteSEO: CollectionConfig = {
     read: () => true,
   },
   hooks: {
-    beforeChange: [({ req, operation, originalDoc, data }) => {
+    beforeChange: [({ req, operation, originalDoc: _originalDoc, data }) => {
       // enforce singleton per site: block creating additional docs
       if (operation === 'create') {
-        // @ts-ignore
+        // @ts-expect-error tenant may be present on request in multi-tenant plugin context
         const tenant = data?.tenant || req.tenant?.id || req.user?.tenants?.[0]
         return req.payload.find({ collection: 'site-seo', where: { tenant: { equals: tenant } } }).then((existing) => {
           if (existing.docs.length > 0) {

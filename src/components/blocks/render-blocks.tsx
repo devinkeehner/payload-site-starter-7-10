@@ -18,7 +18,7 @@ const blockComponents = {
   banner: BannerBlock,
   richTextBlock: RichTextBlock,
   mediaGallery: MediaGalleryBlock,
-} satisfies Record<string, React.ComponentType<any>>
+}
 
 export const RenderBlocks: React.FC<{
   blocks: Page['layout'][0][]

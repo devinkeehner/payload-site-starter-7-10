@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useTheme } from '@payloadcms/ui'
+import Image from 'next/image'
 
 const resolveEffectiveTheme = (theme: 'light' | 'dark' | 'auto' | undefined): 'light' | 'dark' => {
   if (theme === 'dark') return 'dark'
@@ -14,13 +15,15 @@ const resolveEffectiveTheme = (theme: 'light' | 'dark' | 'auto' | undefined): 'l
 
 export default function Icon() {
   const { theme } = useTheme()
-  const mode = resolveEffectiveTheme(theme as any)
+  const mode = resolveEffectiveTheme(theme as 'light' | 'dark' | 'auto' | undefined)
   const src = mode === 'dark' ? '/brand/icon-dark.svg' : '/brand/icon-light.svg'
 
   return (
-    <img
+    <Image
       src={src}
       alt="Admin Icon"
+      width={28}
+      height={28}
       style={{
         height: 28,
         width: 28,

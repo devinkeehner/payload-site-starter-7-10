@@ -8,22 +8,70 @@ const CANVAS_W = 1200
 const CANVAS_H = 630
 const DEFAULT_TEXT_WIDTH = CANVAS_W - 36 * 2
 
+type UnknownRecord = Record<string, unknown>
+type FormFieldState = { value?: unknown; initialValue?: unknown }
+type FormFieldsState = Record<string, FormFieldState | undefined>
+type TextBlock = {
+  text?: string
+  x?: number
+  y?: number
+  width?: number
+  font?: string
+  color?: string
+  lineHeight?: number
+}
+type LayoutLine = {
+  key?: string
+  x?: number
+  y?: number
+  width?: number
+  lineHeight?: number
+  font?: string
+  color?: string
+  align?: 'left' | 'center' | 'right'
+}
+
+const asRecord = (value: unknown): UnknownRecord =>
+  typeof value === 'object' && value !== null ? (value as UnknownRecord) : {}
+
+const asFormFields = (fields: unknown): FormFieldsState =>
+  (typeof fields === 'object' && fields !== null ? (fields as FormFieldsState) : {})
+
+const readFieldValue = (fields: unknown, name: string): unknown => {
+  const map = asFormFields(fields)
+  return map[name]?.value ?? map[name]?.initialValue
+}
+
+const getAlign = (value: unknown): 'left' | 'center' | 'right' =>
+  value === 'center' || value === 'right' ? value : 'left'
+
+const getTenantValue = (value: unknown): string | undefined => {
+  if (!value) return undefined
+  if (typeof value === 'string') return value
+  const rec = asRecord(value)
+  if (typeof rec.id === 'string') return rec.id
+  if (typeof rec.value === 'string') return rec.value
+  return undefined
+}
+
 // Utility to derive an absolute media URL from a media field value
-const deriveMediaURL = async (val: any): Promise<string | null> => {
+const deriveMediaURL = async (val: unknown): Promise<string | null> => {
   try {
     if (!val) return null
     // If object-like doc with url
     if (typeof val === 'object' && val !== null) {
-      const url = (val as any)?.url || (val as any)?.image?.url
+      const valRecord = asRecord(val)
+      const imageRecord = asRecord(valRecord.image)
+      const url = (typeof valRecord.url === 'string' ? valRecord.url : undefined) || (typeof imageRecord.url === 'string' ? imageRecord.url : undefined)
       if (typeof url === 'string' && url) return url
-      const filename = (val as any)?.filename || (val as any)?.image?.filename
+      const filename = (typeof valRecord.filename === 'string' ? valRecord.filename : undefined) || (typeof imageRecord.filename === 'string' ? imageRecord.filename : undefined)
       if (filename) {
         // Attempt to use public base (server populates url on afterRead in Media)
         const base = '' // server already sets doc.url; fallback only if necessary
         if (base) return `${base}/${filename}`
       }
       // Try nested value/id
-      const id = (val as any)?.id || (val as any)?.value
+      const id = getTenantValue(val)
       if (typeof id === 'string') {
         const res = await fetch(`/api/media/${id}?depth=0`, { credentials: 'include' })
         if (res.ok) {
@@ -174,7 +222,7 @@ const drawTextAlignedDecorated = (
 }
 
 // Compute default font string for an RTLine (honors heading level, bold, italic). Layout font, if provided, wins.
-const fontFromLine = (line: RTLine, lay?: any): string => {
+const fontFromLine = (line: RTLine, lay?: LayoutLine): string => {
   if (lay && typeof lay.font === 'string' && lay.font) return lay.font
   const italic = line.italic ? 'italic ' : ''
   const weight = line.bold || line.kind === 'heading' ? '700 ' : '600 '
@@ -221,37 +269,6 @@ const measureWrappedText = (
   return { width, height, lines }
 }
 
-// Draw wrapped text with alignment relative to an anchor x position
-const drawTextAligned = (
-  ctx: CanvasRenderingContext2D,
-  text: string,
-  opts: { x: number; y: number; maxWidth: number; font: string; color: string; lineHeight: number; align?: 'left' | 'center' | 'right' },
-) => {
-  const { x, y, maxWidth, font, color, lineHeight, align = 'left' } = opts
-  if (!text) return
-  ctx.save()
-  ctx.font = font
-  ctx.fillStyle = color
-  ctx.textAlign = align
-  // Simple wrap identical to drawText
-  const words = text.split(/\s+/)
-  let line = ''
-  let yy = y
-  for (const w of words) {
-    const test = line ? line + ' ' + w : w
-    const { width } = ctx.measureText(test)
-    if (width > maxWidth && line) {
-      ctx.fillText(line, x, yy)
-      line = w
-      yy += lineHeight
-    } else {
-      line = test
-    }
-  }
-  if (line) ctx.fillText(line, x, yy)
-  ctx.restore()
-}
-
 type RTLine = {
   idx: number
   key: string
@@ -269,19 +286,22 @@ type RTLine = {
 }
 
 // Extract paragraphs from Payload Lexical JSON into simple lines, including lists and inline styles
-const extractRTParagraphs = (lex: any): RTLine[] => {
+const extractRTParagraphs = (lex: unknown): RTLine[] => {
   try {
-    const root = lex?.root
-    if (!root || !Array.isArray(root.children)) return []
+    const root = asRecord(lex).root
+    const rootRecord = asRecord(root)
+    const rootChildren = rootRecord.children
+    if (!Array.isArray(rootChildren)) return []
     const lines: RTLine[] = []
     const pushLine = (partial: Omit<RTLine, 'idx'>) => {
       lines.push({ idx: lines.length, ...partial })
     }
-    for (const child of root.children) {
-      const type = child?.type
+    for (const child of rootChildren) {
+      const childRecord = asRecord(child)
+      const type = childRecord.type
       if (!type) continue
-      const nodeKey: string = String((child?.key ?? child?.id ?? 'idx-' + lines.length))
-      const collectInline = (kids: any[]) => {
+      const nodeKey: string = String((childRecord.key ?? childRecord.id ?? 'idx-' + lines.length))
+      const collectInline = (kids: unknown[]) => {
         const parts: string[] = []
         let inlineColor: string | undefined
         let bold = false
@@ -289,13 +309,14 @@ const extractRTParagraphs = (lex: any): RTLine[] => {
         let underline = false
         let strikethrough = false
         for (const k of kids) {
-          if (typeof k?.text === 'string') parts.push(k.text)
-          const styleStr = typeof k?.style === 'string' ? (k.style as string) : ''
+          const kRec = asRecord(k)
+          if (typeof kRec.text === 'string') parts.push(kRec.text)
+          const styleStr = typeof kRec.style === 'string' ? kRec.style : ''
           if (styleStr && !inlineColor) {
             const m = /color\s*:\s*([^;]+)\s*;?/i.exec(styleStr)
             if (m && m[1]) inlineColor = m[1].trim()
           }
-          const fmt = typeof k?.format === 'number' ? k.format : 0
+          const fmt = typeof kRec.format === 'number' ? kRec.format : 0
           // Bitmask heuristic: 1=bold, 2=italic, 4=underline, 8=strike
           if (fmt) {
             if ((fmt & 1) === 1) bold = true
@@ -315,34 +336,36 @@ const extractRTParagraphs = (lex: any): RTLine[] => {
       }
 
       if (type === 'heading') {
-        const kids = Array.isArray(child.children) ? child.children : []
+        const kids = Array.isArray(childRecord.children) ? childRecord.children : []
         const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(kids)
         if (!text) continue
-        const tag = String(child?.tag || '').toLowerCase()
+        const tag = String(childRecord.tag || '').toLowerCase()
         const level = tag.startsWith('h') ? Number(tag.slice(1)) || 2 : 2
-        const align = (child?.format as any) as 'left' | 'center' | 'right' | undefined
+        const align = getAlign(childRecord.format)
         pushLine({ key: nodeKey, text, kind: 'heading', headingLevel: level, align, color: inlineColor, bold: !!bold, italic: !!italic, underline: !!underline, strikethrough: !!strikethrough })
       } else if (type === 'paragraph') {
-        const kids = Array.isArray(child.children) ? child.children : []
+        const kids = Array.isArray(childRecord.children) ? childRecord.children : []
         const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(kids)
         if (!text) continue
-        const align = (child?.format as any) as 'left' | 'center' | 'right' | undefined
+        const align = getAlign(childRecord.format)
         pushLine({ key: nodeKey, text, kind: 'paragraph', align, color: inlineColor, bold: !!bold, italic: !!italic, underline: !!underline, strikethrough: !!strikethrough })
       } else if (type === 'list') {
         // Lexical list with children listitem -> paragraph/text
-        const listType: 'bullet' | 'number' = (child?.listType === 'number') ? 'number' : 'bullet'
-        const items = Array.isArray(child.children) ? child.children : []
+        const listType: 'bullet' | 'number' = (childRecord.listType === 'number') ? 'number' : 'bullet'
+        const items = Array.isArray(childRecord.children) ? childRecord.children : []
         let ordinal = 1
         for (const li of items) {
-          if (!li || li.type !== 'listitem') continue
-          const liKey = String(li?.key ?? li?.id ?? `${nodeKey}-${ordinal}`)
-          const liKids = Array.isArray(li.children) ? li.children : []
+          const liRecord = asRecord(li)
+          if (liRecord.type !== 'listitem') continue
+          const liKey = String(liRecord.key ?? liRecord.id ?? `${nodeKey}-${ordinal}`)
+          const liKids = Array.isArray(liRecord.children) ? liRecord.children : []
           // Usually each list item contains one paragraph
           for (const p of liKids) {
-            if (!p || p.type !== 'paragraph') continue
-            const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(Array.isArray(p.children) ? p.children : [])
+            const pRecord = asRecord(p)
+            if (pRecord.type !== 'paragraph') continue
+            const { text, inlineColor, bold, italic, underline, strikethrough } = collectInline(Array.isArray(pRecord.children) ? pRecord.children : [])
             if (!text) continue
-            const align = (p?.format as any) as 'left' | 'center' | 'right' | undefined
+            const align = getAlign(pRecord.format)
             const prefix = listType === 'number' ? `${ordinal}. ` : '• '
             pushLine({ key: liKey, text: prefix + text, kind: 'paragraph', align, color: inlineColor, bold: !!bold, italic: !!italic, underline: !!underline, strikethrough: !!strikethrough, listType, listIndex: listType === 'number' ? ordinal : undefined })
           }
@@ -358,16 +381,14 @@ const extractRTParagraphs = (lex: any): RTLine[] => {
 
 const MediaCanvasField: React.FC = () => {
   // Read sibling fields from the form
-  const imageField = useFormFields(([fields]) => (fields as any)?.image?.value ?? (fields as any)?.image?.initialValue)
-  const heading = useFormFields(([fields]) => (fields as any)?.heading?.value ?? (fields as any)?.heading?.initialValue ?? '') as string
-  const subheading = useFormFields(([fields]) => (fields as any)?.subheading?.value ?? (fields as any)?.subheading?.initialValue ?? '') as string
-  const title = useFormFields(([fields]) => (fields as any)?.title?.value ?? (fields as any)?.title?.initialValue ?? '') as string
-  const tenantField = useFormFields(([fields]) => (fields as any)?.tenant?.value ?? (fields as any)?.tenant?.initialValue)
-  const richText = useFormFields(([fields]) => (fields as any)?.richText?.value ?? (fields as any)?.richText?.initialValue)
+  const imageField = useFormFields(([fields]) => readFieldValue(fields, 'image'))
+  const heading = useFormFields(([fields]) => (readFieldValue(fields, 'heading') as string | undefined) ?? '')
+  const subheading = useFormFields(([fields]) => (readFieldValue(fields, 'subheading') as string | undefined) ?? '')
+  const title = useFormFields(([fields]) => (readFieldValue(fields, 'title') as string | undefined) ?? '')
+  const tenantField = useFormFields(([fields]) => readFieldValue(fields, 'tenant'))
+  const richText = useFormFields(([fields]) => readFieldValue(fields, 'richText'))
 
-  // Setter for relationship field to media
-  const { setValue: setImageRelation } = useField<any>({ path: 'image' })
-  const { value: rtLayoutVal, setValue: setRtLayout } = useField<any>({ path: 'rtLayout' })
+  const { value: rtLayoutVal, setValue: setRtLayout } = useField<Record<string, LayoutLine>>({ path: 'rtLayout' })
 
   // Persistent numeric fields
   const { value: posX, setValue: setPosX } = useNumberField('posX', 0)
@@ -391,7 +412,7 @@ const MediaCanvasField: React.FC = () => {
   const [selectedRtIndex, setSelectedRtIndex] = useState<number | null>(null)
 
   // Dynamic additional text blocks array (robust live reconstruction from form field store)
-  const fieldsState = useFormFields(([fields]) => fields) as any
+  const fieldsState = useFormFields(([fields]) => asFormFields(fields))
   const { dispatchFields } = useForm()
   const { blocks: textBlocks, keys: textBlockKeys } = useMemo(() => {
     if (!fieldsState) return { blocks: [], keys: [] as string[] }
@@ -408,38 +429,46 @@ const MediaCanvasField: React.FC = () => {
       const m = /^textBlocks\.([^\.]+)\./.exec(k)
       if (m && m[1]) segSet.add(m[1])
     }
-    const result: any[] = []
+    const result: TextBlock[] = []
     const segs = Array.from(segSet).sort((a, b) => {
       const ai = Number.isFinite(Number(a)) ? Number(a) : Number.POSITIVE_INFINITY
       const bi = Number.isFinite(Number(b)) ? Number(b) : Number.POSITIVE_INFINITY
       if (ai !== bi) return ai - bi
       return a.localeCompare(b)
     })
-    const getVal = (path: string, def: any) => {
-      const node = (fieldsState as any)[path]
+    const getVal = (path: string, def: unknown) => {
+      const node = fieldsState[path]
       const v = node?.value ?? node?.initialValue
       return v !== undefined ? v : def
     }
+    const getStringVal = (path: string, def: string) => {
+      const value = getVal(path, def)
+      return typeof value === 'string' ? value : def
+    }
+    const getNumberVal = (path: string, def: number) => {
+      const value = getVal(path, def)
+      return typeof value === 'number' && !Number.isNaN(value) ? value : def
+    }
     const pad = 36
     for (const seg of segs) {
-      const blk: any = {}
-      blk.text = getVal(`textBlocks.${seg}.text`, 'New text') || 'New text'
-      blk.x = getVal(`textBlocks.${seg}.x`, pad)
-      blk.y = getVal(`textBlocks.${seg}.y`, 630 - pad - 48)
-      blk.width = getVal(`textBlocks.${seg}.width`, DEFAULT_TEXT_WIDTH)
-      blk.font = getVal(`textBlocks.${seg}.font`, '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial')
-      blk.color = getVal(`textBlocks.${seg}.color`, '#f1f5f9')
-      blk.lineHeight = getVal(`textBlocks.${seg}.lineHeight`, 36)
+      const blk: TextBlock = {}
+      blk.text = getStringVal(`textBlocks.${seg}.text`, 'New text')
+      blk.x = getNumberVal(`textBlocks.${seg}.x`, pad)
+      blk.y = getNumberVal(`textBlocks.${seg}.y`, 630 - pad - 48)
+      blk.width = getNumberVal(`textBlocks.${seg}.width`, DEFAULT_TEXT_WIDTH)
+      blk.font = getStringVal(`textBlocks.${seg}.font`, '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial')
+      blk.color = getStringVal(`textBlocks.${seg}.color`, '#f1f5f9')
+      blk.lineHeight = getNumberVal(`textBlocks.${seg}.lineHeight`, 36)
       result.push(blk)
     }
     return { blocks: result, keys: segs }
   }, [fieldsState])
-  const textBlocksRef = useRef<any[]>(textBlocks)
+  const textBlocksRef = useRef<TextBlock[]>(textBlocks)
   const textBlockKeysRef = useRef<string[]>(textBlockKeys)
   useEffect(() => {
     textBlocksRef.current = textBlocks
     textBlockKeysRef.current = textBlockKeys
-  }, [JSON.stringify(textBlocks), JSON.stringify(textBlockKeys)])
+  }, [textBlocks, textBlockKeys])
 
   // Load image whenever field changes
   useEffect(() => {
@@ -462,7 +491,9 @@ const MediaCanvasField: React.FC = () => {
           setLoading(false)
           // If scale is uninitialized or too small, fit to cover
           const minScale = Math.max(CANVAS_W / im.width, CANVAS_H / im.height)
-          if (!(scale > 0)) setScale(minScale)
+          if (!(typeof scale === 'number' && scale > 0)) {
+            setScale(minScale)
+          }
         }
         im.onerror = () => {
           if (!ignore) {
@@ -472,10 +503,10 @@ const MediaCanvasField: React.FC = () => {
           }
         }
         im.src = buildProxiedURL(url)
-      } catch (e: any) {
+      } catch (e: unknown) {
         if (!ignore) {
           setImg(null)
-          setError(e?.message || 'Failed to resolve media URL')
+          setError(typeof asRecord(e).message === 'string' ? String(asRecord(e).message) : 'Failed to resolve media URL')
           setLoading(false)
         }
       }
@@ -484,10 +515,10 @@ const MediaCanvasField: React.FC = () => {
     return () => {
       ignore = true
     }
-  }, [JSON.stringify(imageField)])
+  }, [imageField, scale, setScale])
 
   // Build list of Lexical paragraphs and a corresponding effective layout
-  const rtLines = useMemo<RTLine[]>(() => extractRTParagraphs(richText), [JSON.stringify(richText)])
+  const rtLines = useMemo<RTLine[]>(() => extractRTParagraphs(richText), [richText])
 
   // Ensure rtLayout exists for each line; default to a stacked right-column layout (only for missing entries) keyed by Lexical node key.
   useEffect(() => {
@@ -495,7 +526,7 @@ const MediaCanvasField: React.FC = () => {
     const baseX = 680
     const baseW = 480
     const startY = 300
-    const current = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+    const current: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? { ...rtLayoutVal } : {}
     let changed = false
     let accY = startY
     for (let i = 0; i < rtLines.length; i++) {
@@ -510,7 +541,7 @@ const MediaCanvasField: React.FC = () => {
       }
     }
     if (changed) setRtLayout(current)
-  }, [JSON.stringify(rtLines)])
+  }, [rtLayoutVal, rtLines, setRtLayout])
 
   // Draw whenever deps change
   useEffect(() => {
@@ -593,7 +624,7 @@ const MediaCanvasField: React.FC = () => {
 
     // Lexical-driven lines (draw in reverse so earlier paragraphs end up on top)
     if (rtLines.length) {
-      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+      const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? rtLayoutVal : {}
       for (let i = rtLines.length - 1; i >= 0; i--) {
         const line = rtLines[i] as RTLine
         const lay = layout[line.key] || {}
@@ -603,7 +634,7 @@ const MediaCanvasField: React.FC = () => {
         const lineHeight = typeof lay.lineHeight === 'number' && lay.lineHeight > 0 ? lay.lineHeight : (line.kind === 'heading' ? 56 : 36)
         const font = fontFromLine(line, lay)
         const color = typeof lay.color === 'string' && lay.color ? lay.color : (line.color || '#f1f5f9')
-        const align = (lay.align as any) || line.align || 'left'
+        const align = getAlign(lay.align || line.align)
         const anchorX = align === 'left' ? x : align === 'center' ? x + w / 2 : x + w
         drawTextAlignedDecorated(ctx, line.text, { x: anchorX, y, maxWidth: w, font, color, lineHeight, align, underline: !!line.underline, strikethrough: !!line.strikethrough })
       }
@@ -662,7 +693,7 @@ const MediaCanvasField: React.FC = () => {
         ctx.strokeRect(handleX, handleY, handleSize, handleSize)
       } else if (hoverTarget?.startsWith('block')) {
         const idx = parseInt(hoverTarget.split('-').pop() || '0', 10)
-        const b = (textBlocks && textBlocks[idx]) ? (textBlocks[idx] as any) : {}
+        const b = (textBlocks && textBlocks[idx]) ? textBlocks[idx] : {}
         const bText = typeof b.text === 'string' && b.text !== undefined ? (b.text || 'New text') : ''
         if (bText) {
           const bx = typeof b.x === 'number' ? b.x : pad
@@ -686,7 +717,7 @@ const MediaCanvasField: React.FC = () => {
         }
       } else if (hoverTarget?.startsWith('rt')) {
         const idx = parseInt(hoverTarget.split('-').pop() || '0', 10)
-        const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+        const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? rtLayoutVal : {}
         const line = rtLines[idx] as RTLine
         if (line) {
           const lay = layout[line.key] || {}
@@ -698,7 +729,7 @@ const MediaCanvasField: React.FC = () => {
           const mb = measureWrappedText(ctx, line.text, { maxWidth: w, font, lineHeight })
           const top = y - 0.8 * lineHeight
           const bottom = y + mb.height
-          const align = (lay.align as any) || line.align || 'left'
+          const align = getAlign(lay.align || line.align)
           const anchorX = align === 'left' ? x : align === 'center' ? x + w / 2 : x + w
           const left = align === 'left' ? anchorX : align === 'center' ? anchorX - mb.width / 2 : anchorX - mb.width
           const margin = 6
@@ -714,7 +745,24 @@ const MediaCanvasField: React.FC = () => {
         }
       }
     }
-  }, [img, posX, posY, scale, heading, subheading, headingX, headingY, subheadingX, subheadingY, headingWidth, subheadingWidth, JSON.stringify(textBlocks), hoverTarget, JSON.stringify(rtLayoutVal), JSON.stringify(richText)])
+  }, [
+    heading,
+    headingWidth,
+    headingX,
+    headingY,
+    hoverTarget,
+    img,
+    posX,
+    posY,
+    rtLayoutVal,
+    rtLines,
+    scale,
+    subheading,
+    subheadingWidth,
+    subheadingX,
+    subheadingY,
+    textBlocks,
+  ])
 
   // Pointer interactions
   const dragState = useRef<
@@ -802,7 +850,7 @@ const MediaCanvasField: React.FC = () => {
 
     // RT lines (document order so earlier paragraphs are treated as topmost)
     if (rtLines && rtLines.length) {
-      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+      const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? rtLayoutVal : {}
       for (let i = 0; i < rtLines.length; i++) {
         const line = rtLines[i] as RTLine
         const lay = layout[line.key] || {}
@@ -814,7 +862,7 @@ const MediaCanvasField: React.FC = () => {
         const mb = measureWrappedText(ctx, line.text, { maxWidth: w, font, lineHeight })
         const top = y - 0.8 * lineHeight
         const bottom = y + mb.height
-        const align = (lay.align as any) || line.align || 'left'
+        const align = getAlign(lay.align || line.align)
         const anchorX = align === 'left' ? x : align === 'center' ? x + w / 2 : x + w
         const left = align === 'left' ? anchorX : align === 'center' ? anchorX - mb.width / 2 : anchorX - mb.width
         const handleSize = 14
@@ -860,7 +908,7 @@ const MediaCanvasField: React.FC = () => {
       setSelectedRtIndex(null)
     } else if (hit?.startsWith('rt-resize-')) {
       const idx = parseInt(hit.split('-').pop() || '0', 10)
-      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+      const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? { ...rtLayoutVal } : {}
       const line = rtLines[idx] as RTLine
       const lay = layout[line.key] || {}
       const baseWidth = typeof lay.width === 'number' ? lay.width : DEFAULT_TEXT_WIDTH
@@ -868,7 +916,7 @@ const MediaCanvasField: React.FC = () => {
       setSelectedRtIndex(idx)
     } else if (hit?.startsWith('rt-')) {
       const idx = parseInt(hit.split('-').pop() || '0', 10)
-      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+      const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? rtLayoutVal : {}
       const line = rtLines[idx] as RTLine
       const lay = layout[line.key] || {}
       const baseX = typeof lay.x === 'number' ? lay.x : 0
@@ -924,7 +972,7 @@ const MediaCanvasField: React.FC = () => {
       dispatchFields({ type: 'UPDATE', path: `textBlocks.${seg}.width`, value: newW })
     } else if (dragState.current.mode === 'rt') {
       const i = dragState.current.index
-      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+      const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? { ...rtLayoutVal } : {}
       const newX = dragState.current.baseX + dx
       const newY = dragState.current.baseY + dy
       const line = rtLines[i] as RTLine
@@ -933,7 +981,7 @@ const MediaCanvasField: React.FC = () => {
       setRtLayout(layout)
     } else if (dragState.current.mode === 'rt-resize') {
       const i = dragState.current.index
-      const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? { ...(rtLayoutVal as any) } : {}
+      const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? { ...rtLayoutVal } : {}
       const minW = 100
       const maxW = DEFAULT_TEXT_WIDTH
       const newW = clamp(dragState.current.baseWidth + dx, minW, maxW)
@@ -943,7 +991,7 @@ const MediaCanvasField: React.FC = () => {
       setRtLayout(layout)
     }
   }
-  const onPointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  const onPointerUp = (_e: React.PointerEvent<HTMLCanvasElement>) => {
     dragState.current = null
   }
 
@@ -966,7 +1014,7 @@ const MediaCanvasField: React.FC = () => {
     setScale(minScale)
     setPosX(0)
     setPosY(0)
-  }, [img])
+  }, [img, setPosX, setPosY, setScale])
 
   const downloadPNG = () => {
     const canvas = canvasRef.current
@@ -1056,9 +1104,7 @@ const MediaCanvasField: React.FC = () => {
         const dataPayload: Record<string, unknown> = { alt: altText, caption: captionLexical }
         // Pass current tenant for multi-tenant scoping
         try {
-          const tenantVal = typeof tenantField === 'object' && tenantField !== null
-            ? ((tenantField as any).id || (tenantField as any).value || (tenantField as any))
-            : tenantField
+          const tenantVal = getTenantValue(tenantField) || (typeof tenantField === 'string' ? tenantField : undefined)
           if (tenantVal) {
             dataPayload.tenant = String(tenantVal)
           }
@@ -1068,25 +1114,21 @@ const MediaCanvasField: React.FC = () => {
         try {
           fd.append('data[alt]', altText)
           fd.append('data[caption]', JSON.stringify(captionLexical))
-          if ((dataPayload as any).tenant) {
-            fd.append('data[tenant]', String((dataPayload as any).tenant))
+          if (dataPayload.tenant) {
+            fd.append('data[tenant]', String(dataPayload.tenant))
           }
         } catch {}
         // Also append flat field for compatibility with certain REST parsers
         fd.append('alt', altText)
         // Pass current tenant for multi-tenant scoping
         try {
-          const tenantVal = typeof tenantField === 'object' && tenantField !== null
-            ? ((tenantField as any).id || (tenantField as any).value || (tenantField as any))
-            : tenantField
+          const tenantVal = getTenantValue(tenantField) || (typeof tenantField === 'string' ? tenantField : undefined)
           if (tenantVal) fd.append('tenant', String(tenantVal))
         } catch {}
 
         const headers: Record<string, string> = {}
         try {
-          const tenantVal = typeof tenantField === 'object' && tenantField !== null
-            ? ((tenantField as any).id || (tenantField as any).value || (tenantField as any))
-            : tenantField
+          const tenantVal = getTenantValue(tenantField) || (typeof tenantField === 'string' ? tenantField : undefined)
           if (tenantVal) headers['X-Payload-Tenant'] = String(tenantVal)
         } catch {}
 
@@ -1104,11 +1146,12 @@ const MediaCanvasField: React.FC = () => {
           } catch {}
           throw new Error(`Upload failed (${res.status})${detail ? `: ${detail}` : ''}`)
         }
-        const doc = await res.json()
+        await res.json()
         // Do not auto-link to this Media Canvas entry; just inform the user
         setSaveMsg('Saved to Media')
-      } catch (e: any) {
-        setSaveMsg(e?.message || 'Failed to save to Media')
+      } catch (e: unknown) {
+        const message = asRecord(e).message
+        setSaveMsg(typeof message === 'string' ? message : 'Failed to save to Media')
       } finally {
         setSaving(false)
       }
@@ -1175,11 +1218,11 @@ const MediaCanvasField: React.FC = () => {
       {selectedRtIndex !== null && rtLines[selectedRtIndex] ? (
         (() => {
           const i = selectedRtIndex as number
-          const layout = (typeof rtLayoutVal === 'object' && rtLayoutVal) ? (rtLayoutVal as any) : {}
+          const layout: Record<string, LayoutLine> = rtLayoutVal && typeof rtLayoutVal === 'object' ? rtLayoutVal : {}
           const line = rtLines[i] as RTLine
           const lay = layout[line.key] || {}
           const currentColor = typeof lay.color === 'string' && lay.color ? lay.color : (line.color || '#f1f5f9')
-          const currentAlign = (lay.align as any) || line.align || 'left'
+          const currentAlign = getAlign(lay.align || line.align)
           return (
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 8 }}>
               <small style={{ opacity: 0.8 }}>Selected line:</small>
@@ -1191,7 +1234,7 @@ const MediaCanvasField: React.FC = () => {
                   value={/^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(currentColor) ? currentColor : '#f1f5f9'}
                   onChange={(ev) => {
                     const color = ev.target.value
-                    const next = { ...(layout as any) }
+                    const next: Record<string, LayoutLine> = { ...layout }
                     const prev = next[line.key] || {}
                     next[line.key] = { ...prev, key: line.key, color }
                     setRtLayout(next)
@@ -1205,7 +1248,7 @@ const MediaCanvasField: React.FC = () => {
                   value={currentAlign}
                   onChange={(ev) => {
                     const align = ev.target.value as 'left' | 'center' | 'right'
-                    const next = { ...(layout as any) }
+                    const next: Record<string, LayoutLine> = { ...layout }
                     const prev = next[line.key] || {}
                     next[line.key] = { ...prev, key: line.key, align }
                     setRtLayout(next)

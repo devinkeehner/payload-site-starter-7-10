@@ -2,7 +2,7 @@ import { mongooseAdapter } from '@payloadcms/db-mongodb';
 import { resendAdapter } from '@payloadcms/email-resend';
 import sharp from 'sharp';
 import path from 'path';
-import { buildConfig, PayloadRequest, type GlobalConfig } from 'payload';
+import { buildConfig, PayloadRequest, type GlobalConfig, type Where } from 'payload';
 import { fileURLToPath } from 'url';
 import { s3Storage } from '@payloadcms/storage-s3';
 import { mcpPlugin } from '@payloadcms/plugin-mcp';
@@ -232,7 +232,7 @@ const setAtPath = (
 ) => {
   if (segments.length === 0) throw new Error('Path cannot be empty.');
 
-  let cursor: any = target;
+  let cursor: Record<string, unknown> | Array<unknown> = target;
   for (let i = 0; i < segments.length - 1; i += 1) {
     const segment = segments[i]!;
     const nextSegment = segments[i + 1];
@@ -241,15 +241,15 @@ const setAtPath = (
       if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) {
         throw new Error(`Cannot traverse "${segment}" on non-object path segment.`);
       }
-      let nextValue = cursor[segment];
+      let nextValue = (cursor as Record<string, unknown>)[segment];
       if (nextValue == null) {
         if (!createMissing) {
           throw new Error(`Path segment "${segment}" does not exist.`);
         }
         nextValue = ensureContainer(nextValue, nextSegment);
-        cursor[segment] = nextValue;
+        (cursor as Record<string, unknown>)[segment] = nextValue;
       }
-      cursor = cursor[segment];
+      cursor = (cursor as Record<string, unknown>)[segment] as Record<string, unknown> | Array<unknown>;
       continue;
     }
 
@@ -257,13 +257,13 @@ const setAtPath = (
       throw new Error(`Cannot traverse index [${segment}] on non-array path segment.`);
     }
 
-    if (cursor[segment] == null) {
+    if ((cursor as Array<unknown>)[segment] == null) {
       if (!createMissing) {
         throw new Error(`Path index [${segment}] does not exist.`);
       }
-      cursor[segment] = ensureContainer(cursor[segment], nextSegment);
+      (cursor as Array<unknown>)[segment] = ensureContainer((cursor as Array<unknown>)[segment], nextSegment);
     }
-    cursor = cursor[segment];
+    cursor = (cursor as Array<unknown>)[segment] as Record<string, unknown> | Array<unknown>;
   }
 
   const last = segments[segments.length - 1]!;
@@ -271,14 +271,14 @@ const setAtPath = (
     if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) {
       throw new Error(`Cannot set property "${last}" on non-object value.`);
     }
-    cursor[last] = value;
+    (cursor as Record<string, unknown>)[last] = value;
     return;
   }
 
   if (!Array.isArray(cursor)) {
     throw new Error(`Cannot set index [${last}] on non-array value.`);
   }
-  cursor[last] = value;
+  (cursor as Array<unknown>)[last] = value;
 };
 
 const unsetAtPath = (
@@ -287,30 +287,30 @@ const unsetAtPath = (
 ) => {
   if (segments.length === 0) throw new Error('Path cannot be empty.');
 
-  let cursor: any = target;
+  let cursor: Record<string, unknown> | Array<unknown> | undefined = target;
   for (let i = 0; i < segments.length - 1; i += 1) {
     const segment = segments[i]!;
 
     if (typeof segment === 'string') {
       if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return;
-      cursor = cursor[segment];
+      cursor = (cursor as Record<string, unknown>)[segment] as Record<string, unknown> | Array<unknown> | undefined;
       continue;
     }
 
     if (!Array.isArray(cursor)) return;
-    cursor = cursor[segment];
+    cursor = (cursor as Array<unknown>)[segment] as Record<string, unknown> | Array<unknown> | undefined;
   }
 
   const last = segments[segments.length - 1]!;
   if (typeof last === 'string') {
     if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return;
-    delete cursor[last];
+    delete (cursor as Record<string, unknown>)[last];
     return;
   }
 
   if (!Array.isArray(cursor)) return;
-  if (last >= 0 && last < cursor.length) {
-    cursor[last] = undefined;
+  if (last >= 0 && last < (cursor as Array<unknown>).length) {
+    (cursor as Array<unknown>)[last] = undefined;
   }
 };
 
@@ -320,16 +320,16 @@ const removeAtPath = (
 ) => {
   if (segments.length === 0) throw new Error('Path cannot be empty.');
 
-  let cursor: any = target;
+  let cursor: Record<string, unknown> | Array<unknown> | undefined = target;
   for (let i = 0; i < segments.length - 1; i += 1) {
     const segment = segments[i]!;
     if (typeof segment === 'string') {
       if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return;
-      cursor = cursor[segment];
+      cursor = (cursor as Record<string, unknown>)[segment] as Record<string, unknown> | Array<unknown> | undefined;
       continue;
     }
     if (!Array.isArray(cursor)) return;
-    cursor = cursor[segment];
+    cursor = (cursor as Array<unknown>)[segment] as Record<string, unknown> | Array<unknown> | undefined;
   }
 
   const last = segments[segments.length - 1]!;
@@ -345,17 +345,17 @@ const getAtPath = (
   target: Record<string, unknown> | Array<unknown>,
   segments: Array<string | number>,
 ): unknown => {
-  let cursor: any = target;
+  let cursor: Record<string, unknown> | Array<unknown> | undefined = target;
   for (let i = 0; i < segments.length; i += 1) {
     const segment = segments[i]!;
     if (typeof segment === 'string') {
       if (typeof cursor !== 'object' || cursor == null || Array.isArray(cursor)) return undefined;
-      cursor = cursor[segment];
+      cursor = (cursor as Record<string, unknown>)[segment] as Record<string, unknown> | Array<unknown> | undefined;
       continue;
     }
 
     if (!Array.isArray(cursor)) return undefined;
-    cursor = cursor[segment];
+    cursor = (cursor as Array<unknown>)[segment] as Record<string, unknown> | Array<unknown> | undefined;
   }
   return cursor;
 };
@@ -394,7 +394,7 @@ const loadCollectionDocument = async (
     })) as unknown as Record<string, unknown>;
   }
 
-  const where: Record<string, unknown> = slug
+  const where: Where = slug
     ? tenant
       ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
       : { slug: { equals: slug } }
@@ -403,7 +403,7 @@ const loadCollectionDocument = async (
   const result = await payload.find({
     collection,
     limit: 1,
-    where: where as any,
+    where,
     overrideAccess: true,
     req,
   });
@@ -424,7 +424,7 @@ const bulkUpdateFormsByTitleTool = {
   parameters: {
     formTitle: z.string().min(1).describe('Exact form title to match.'),
     patch: z
-      .record(z.any())
+      .record(z.unknown())
       .describe('Raw form fields to update, e.g. {"submitButtonLabel":"Send","enableTurnstile":true}.'),
     tenantIds: z
       .array(z.union([z.string(), z.number()]))
@@ -533,7 +533,10 @@ const bulkUpdateFormsByTitleTool = {
         whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
       }
 
-      const where: any = whereFilters.length > 1 ? { and: whereFilters } : whereFilters[0];
+      const where: Where =
+        whereFilters.length > 1
+          ? ({ and: whereFilters } as Where)
+          : ((whereFilters[0] ?? {}) as Where);
 
       const changed: Array<Record<string, unknown>> = [];
       const unchanged: Array<Record<string, unknown>> = [];
@@ -598,10 +601,10 @@ const bulkUpdateFormsByTitleTool = {
             await payload.update({
               collection: 'forms',
               id: formId as string,
-              data: patch as any,
+              data: patch,
               overrideAccess: true,
               req,
-            } as any);
+            });
 
             changed.push({ ...baseRow, dryRun: false });
           } catch (error) {
@@ -900,10 +903,10 @@ const reorderContactFormTailFieldsTool = {
             await payload.update({
               collection: 'forms',
               id: formId,
-              data: { fields: rebuiltFields } as any,
+              data: { fields: rebuiltFields },
               overrideAccess: true,
               req,
-            } as any);
+            });
             changed.push(changedRow);
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -977,7 +980,7 @@ const loadPageDocument = async (
     })) as unknown as Record<string, unknown>;
   }
 
-  const where: Record<string, unknown> = slug
+  const where: Where = slug
     ? tenant
       ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
       : { slug: { equals: slug } }
@@ -986,7 +989,7 @@ const loadPageDocument = async (
   const result = await payload.find({
     collection: 'pages',
     limit: 1,
-    where: where as any,
+    where,
     overrideAccess: true,
     req,
   });
@@ -1156,10 +1159,13 @@ const listIContactFoldersTool = {
       }
       const accountId = await resolveIContactAccountId(cfg, typeof args.accountId === 'string' ? args.accountId : undefined);
       const folders = await listIContactClientFolders(cfg, accountId);
-      const normalized = (folders.clientfolders || []).map((folder: any) => ({
-        clientFolderId: String(folder?.clientFolderId || ''),
-        name: String(folder?.name || ''),
-      }));
+      const normalized = (folders.clientfolders || []).map((folder: unknown) => {
+        const folderRecord = folder && typeof folder === 'object' ? (folder as Record<string, unknown>) : {};
+        return {
+          clientFolderId: String(folderRecord.clientFolderId || ''),
+          name: String(folderRecord.name || ''),
+        };
+      });
       return {
         content: [
           {
@@ -1208,11 +1214,14 @@ const listIContactListsTool = {
       }
       const accountId = await resolveIContactAccountId(cfg, typeof args.accountId === 'string' ? args.accountId : undefined);
       const lists = await listIContactLists(cfg, accountId, clientFolderId);
-      const normalized = (lists.lists || []).map((list: any) => ({
-        listId: String(list?.listId || ''),
-        name: String(list?.name || ''),
-        description: typeof list?.description === 'string' ? list.description : '',
-      }));
+      const normalized = (lists.lists || []).map((list: unknown) => {
+        const listRecord = list && typeof list === 'object' ? (list as Record<string, unknown>) : {};
+        return {
+          listId: String(listRecord.listId || ''),
+          name: String(listRecord.name || ''),
+          description: typeof listRecord.description === 'string' ? listRecord.description : '',
+        };
+      });
       return {
         content: [
           {
@@ -1336,7 +1345,10 @@ const bulkConfigureIContactFormsTool = {
       if (tenantIds.size > 0) {
         whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
       }
-      const where: any = whereFilters.length > 1 ? { and: whereFilters } : whereFilters[0];
+      const where: Where =
+        whereFilters.length > 1
+          ? ({ and: whereFilters } as Where)
+          : ((whereFilters[0] ?? {}) as Where);
 
       const folderLookup = await payload.find({
         collection: 'icontact-folders',
@@ -1369,9 +1381,10 @@ const bulkConfigureIContactFormsTool = {
         req,
       });
       const listByListId = new Map<string, string>();
-      for (const row of listLookup.docs as any[]) {
-        const listId = typeof row?.listId === 'string' ? row.listId : '';
-        const docId = row?.id ? String(row.id) : '';
+      for (const row of listLookup.docs as unknown[]) {
+        const rowRecord = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
+        const listId = typeof rowRecord.listId === 'string' ? rowRecord.listId : '';
+        const docId = rowRecord.id ? String(rowRecord.id) : '';
         if (listId && docId) listByListId.set(listId, docId);
       }
       const missingListIds = listIds.filter((listId) => !listByListId.has(listId));
@@ -1446,10 +1459,10 @@ const bulkConfigureIContactFormsTool = {
             await payload.update({
               collection: 'forms',
               id: formId,
-              data: patch as any,
+              data: patch,
               overrideAccess: true,
               req,
-            } as any);
+            });
             changed.push({ ...baseRow, dryRun: false });
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Unknown error';
@@ -1560,7 +1573,10 @@ const backfillIContactUnsyncedTool = {
 
       const whereFilters: Array<Record<string, unknown>> = [{ title: { equals: formTitle } }];
       if (tenantIds.size > 0) whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
-      const where: any = whereFilters.length > 1 ? { and: whereFilters } : whereFilters[0];
+      const where: Where =
+        whereFilters.length > 1
+          ? ({ and: whereFilters } as Where)
+          : ((whereFilters[0] ?? {}) as Where);
 
       const formLookup = await payload.find({
         collection: 'forms',
@@ -1573,12 +1589,13 @@ const backfillIContactUnsyncedTool = {
 
       const formResults: Array<Record<string, unknown>> = [];
 
-      for (const formDoc of formLookup.docs as any[]) {
-        const formId = String(formDoc?.id || '');
+      for (const formDoc of formLookup.docs as unknown[]) {
+        const formDocRecord = formDoc && typeof formDoc === 'object' ? (formDoc as Record<string, unknown>) : {};
+        const formId = String(formDocRecord.id || '');
         if (!formId) continue;
 
         let page = 1;
-        const submissions: any[] = [];
+        const submissions: unknown[] = [];
         let done = false;
         while (!done) {
           const subResult = await payload.find({
@@ -1601,12 +1618,15 @@ const backfillIContactUnsyncedTool = {
           page += 1;
         }
 
-        const candidates = submissions.filter((submission) => String(submission?.iContactSyncStatus || '') !== 'success');
+        const candidates = submissions.filter(
+          (submission) => String((submission as Record<string, unknown> | undefined)?.iContactSyncStatus || '') !== 'success',
+        );
         const changed: Array<Record<string, unknown>> = [];
         const failed: Array<Record<string, unknown>> = [];
 
         for (const submission of candidates) {
-          const submissionId = String(submission?.id || '');
+          const submissionRecord = submission as Record<string, unknown> | undefined;
+          const submissionId = String(submissionRecord?.id || '');
           if (!submissionId) continue;
 
           if (dryRun) {
@@ -1616,7 +1636,7 @@ const backfillIContactUnsyncedTool = {
 
           const syncResult = await syncSubmissionToIContact({
             formDoc,
-            submissionData: submission?.submissionData,
+            submissionData: submissionRecord?.submissionData,
             payload: req.payload,
             req,
           });
@@ -1636,7 +1656,7 @@ const backfillIContactUnsyncedTool = {
               },
               overrideAccess: true,
               req,
-              context: { skipIContactSyncHook: true } as any,
+              context: { skipIContactSyncHook: true },
             });
             changed.push({ submissionId, status: syncResult.status, error: syncResult.error || syncResult.reason || null });
           } catch (error) {
@@ -1647,7 +1667,7 @@ const backfillIContactUnsyncedTool = {
 
         formResults.push({
           formId,
-          title: typeof formDoc?.title === 'string' ? formDoc.title : null,
+          title: typeof formDocRecord.title === 'string' ? formDocRecord.title : null,
           scanned: submissions.length,
           candidates: candidates.length,
           changedCount: changed.length,
@@ -1834,7 +1854,7 @@ const updateBlockFieldsTool = {
         z.object({
           op: z.enum(['set', 'unset', 'remove']).optional().default('set'),
           path: z.string().min(1).describe('Path relative to the block object, e.g. "speechBubbles[0].text".'),
-          value: z.any().optional().describe('Required for `set`.'),
+          value: z.unknown().optional().describe('Required for `set`.'),
         }),
       )
       .min(1),
@@ -1966,11 +1986,11 @@ const updateBlockFieldsTool = {
       const updated = (await payload.update({
         collection: 'pages',
         id: String(pageDoc.id),
-        data: { layout } as any,
+        data: { layout },
         draft,
         overrideAccess: true,
         req,
-      } as any)) as unknown as Record<string, unknown>;
+      })) as unknown as Record<string, unknown>;
 
       return {
         content: [
@@ -2141,9 +2161,9 @@ const updateRichTextNodesTool = {
               textIncludes: z.string().optional(),
             })
             .optional(),
-          props: z.record(z.any()).optional().describe('For setProps.'),
+          props: z.record(z.unknown()).optional().describe('For setProps.'),
           text: z.string().optional().describe('For replaceText.'),
-          node: z.record(z.any()).optional().describe('For insertChild.'),
+          node: z.record(z.unknown()).optional().describe('For insertChild.'),
           index: z.number().int().min(0).optional().describe('For insertChild; default appends.'),
         }),
       )
@@ -2338,11 +2358,11 @@ const updateRichTextNodesTool = {
       const updated = (await payload.update({
         collection,
         id: String(doc.id),
-        data: docClone as any,
+        data: docClone,
         draft: !isPublished,
         overrideAccess: true,
         req,
-      } as any)) as unknown as Record<string, unknown>;
+      })) as unknown as Record<string, unknown>;
 
       return {
         content: [
@@ -2413,12 +2433,12 @@ const upsertPageWithBlocksTool = {
       .optional()
       .default('draft')
       .describe('Document status. Defaults to draft; use published only when explicitly requested.'),
-    hero: z.record(z.any()).optional().describe('Raw hero object, e.g. {"type":"none"}.'),
+    hero: z.record(z.unknown()).optional().describe('Raw hero object, e.g. {"type":"none"}.'),
     layout: z
       .array(z.record(z.string(), z.unknown()))
       .optional()
       .describe('Raw block layout array.'),
-    meta: z.record(z.any()).optional().describe('Optional SEO meta object.'),
+    meta: z.record(z.unknown()).optional().describe('Optional SEO meta object.'),
     publishedAt: z.string().optional().describe('Optional ISO datetime.'),
     matchBySlugAndTenant: z
       .boolean()
@@ -2507,11 +2527,12 @@ const upsertPageWithBlocksTool = {
 
         if (targetId) {
           action = 'updated';
+          const draftMode = status !== 'published';
           result = (await payload.update({
             collection: 'pages',
             id: targetId,
             data,
-            draft: status !== 'published',
+            ...(draftMode ? { draft: true as const } : {}),
             overrideAccess: true,
             req,
           })) as unknown as Record<string, unknown>;
@@ -2536,10 +2557,10 @@ const upsertPageWithBlocksTool = {
           result = (await payload.create({
             collection: 'pages',
             data: createData,
-            draft: status !== 'published',
+            draft: true,
             overrideAccess: true,
             req,
-          } as any)) as unknown as Record<string, unknown>;
+          })) as unknown as Record<string, unknown>;
         }
       }
 
@@ -2626,7 +2647,7 @@ const updatePolicyVoicesSpeechBubblesTool = {
           req,
         })) as unknown as Record<string, unknown>;
       } else {
-        const where: Record<string, unknown> = slug
+        const where: Where = slug
           ? tenant
             ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
             : { slug: { equals: slug } }
@@ -2635,7 +2656,7 @@ const updatePolicyVoicesSpeechBubblesTool = {
         const result = await payload.find({
           collection: 'pages',
           limit: 1,
-          where: where as any,
+          where,
           overrideAccess: true,
           req,
         });
@@ -2698,11 +2719,11 @@ const updatePolicyVoicesSpeechBubblesTool = {
         id: String(pageDoc.id),
         data: {
           layout,
-        } as any,
+        },
         draft: !isPublished,
         overrideAccess: true,
         req,
-      } as any)) as unknown as Record<string, unknown>;
+      })) as unknown as Record<string, unknown>;
 
       return {
         content: [
@@ -2785,7 +2806,7 @@ const updatePolicyVoicesCardLinksTool = {
           req,
         })) as unknown as Record<string, unknown>;
       } else {
-        const where: Record<string, unknown> = slug
+        const where: Where = slug
           ? tenant
             ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
             : { slug: { equals: slug } }
@@ -2794,7 +2815,7 @@ const updatePolicyVoicesCardLinksTool = {
         const result = await payload.find({
           collection: 'pages',
           limit: 1,
-          where: where as any,
+          where,
           overrideAccess: true,
           req,
         });
@@ -2930,11 +2951,11 @@ const updatePolicyVoicesCardLinksTool = {
         id: String(pageDoc.id),
         data: {
           layout,
-        } as any,
+        },
         draft: !isPublished,
         overrideAccess: true,
         req,
-      } as any)) as unknown as Record<string, unknown>;
+      })) as unknown as Record<string, unknown>;
 
       return {
         content: [

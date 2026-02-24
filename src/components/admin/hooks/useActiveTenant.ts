@@ -8,6 +8,12 @@ export type TenantInfo = {
   slug?: string | null
 }
 
+type StorageTenantShape = {
+  id?: unknown
+  value?: unknown
+  slug?: unknown
+}
+
 const ID_KEYS = ['payload-tenant', 'payload-tenant-id', 'tenant', 'tenantId', 'selectedTenant', 'currentTenant']
 
 export const readSelectedTenantIDFromCookies = (): string | undefined => {
@@ -41,7 +47,8 @@ export const readSelectedTenantIDFromStorage = (): string | undefined => {
         const parsed = JSON.parse(raw)
         if (typeof parsed === 'string' && parsed.trim()) return parsed.trim()
         if (parsed && typeof parsed === 'object') {
-          const candidate = (parsed as any).id || (parsed as any).value || (parsed as any).slug
+          const typed = parsed as StorageTenantShape
+          const candidate = typed.id || typed.value || typed.slug
           if (typeof candidate === 'string' && candidate.trim()) return candidate.trim()
         }
       } catch {

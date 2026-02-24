@@ -13,6 +13,39 @@ type ShareResponse = {
   error?: string
 }
 
+type FieldState = {
+  value?: unknown
+  initialValue?: unknown
+}
+
+type FormFields = Record<string, FieldState | undefined> & {
+  _id?: FieldState
+}
+
+type TenantAssignment = {
+  tenant?: string | { id?: string; value?: string } | null
+}
+
+type MeUser = {
+  roles?: unknown
+  tenants?: TenantAssignment[]
+}
+
+const asFormFields = (fields: unknown): FormFields =>
+  (typeof fields === 'object' && fields !== null ? (fields as FormFields) : {})
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {})
+
+const readIdField = (fields: unknown): string | undefined => {
+  const map = asFormFields(fields)
+  const fromId = map.id?.value ?? map.id?.initialValue
+  if (typeof fromId === 'string') return fromId
+  const fromUnderscoreId = map._id?.value ?? map._id?.initialValue
+  if (typeof fromUnderscoreId === 'string') return fromUnderscoreId
+  return undefined
+}
+
 const deriveIdFromPath = (): string | undefined => {
   if (typeof window === 'undefined') return undefined
   try {
@@ -46,21 +79,25 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
   const effectiveCollectionSlug = collectionSlug || deriveCollectionSlugFromPath() || 'posts'
   const docInfo = useDocumentInfo() as { id?: string } | null
   const infoId = docInfo?.id
-  const fieldId = useFormFields(
-    ([fields]) =>
-      (fields?.id?.value ?? (fields?.id as any)?.initialValue ?? (fields as any)?._id?.value ?? (fields as any)?._id?.initialValue) as
-        | string
-        | undefined,
-  )
+  const fieldId = useFormFields(([fields]) => readIdField(fields))
   const resolvedId = infoId || fieldId || deriveIdFromPath()
   // Pull the source post's tenant from the form (added by multi-tenant plugin)
   const tenantField = useFormFields(
-    ([fields]) => ((fields as any)?.tenant?.value ?? (fields as any)?.tenant?.initialValue) as any,
+    ([fields]) => {
+      const map = asFormFields(fields)
+      return map.tenant?.value ?? map.tenant?.initialValue
+    },
   )
   const sourceTenantID = useMemo(() => {
     if (!tenantField) return undefined
     if (typeof tenantField === 'string') return tenantField
-    if (typeof tenantField === 'object') return tenantField?.id || tenantField?.value
+    if (typeof tenantField === 'object') {
+      const tenantRecord = asRecord(tenantField)
+      const id = tenantRecord.id
+      const value = tenantRecord.value
+      if (typeof id === 'string') return id
+      if (typeof value === 'string') return value
+    }
     return undefined
   }, [tenantField])
 
@@ -80,16 +117,16 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
         try {
           const meRes = await fetch('/api/users/me?depth=1', { credentials: 'include' })
           const meJson = await meRes.json()
-          const user = (meJson?.user ?? meJson) as any
+          const user = (asRecord(meJson).user ?? meJson) as MeUser
           const roles = Array.isArray(user?.roles) ? (user.roles as string[]) : []
           if (!ignore) setIsSuper(roles.includes('super'))
           const assigned: string[] = Array.isArray(user?.tenants)
             ? user.tenants
-                .map((t: any) => (typeof t?.tenant === 'string' ? t.tenant : t?.tenant?.id))
-                .filter(Boolean)
+                .map((t) => (typeof t?.tenant === 'string' ? t.tenant : t?.tenant?.id))
+                .filter((tenantId): tenantId is string => typeof tenantId === 'string' && tenantId.length > 0)
             : []
           if (!ignore) setMyTenantIDs(assigned)
-        } catch (e) {
+        } catch (_e) {
           // proceed without filtering if /me fails
           if (!ignore) {
             setIsSuper(false)
@@ -138,7 +175,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
   // Keep selection in sync with filtered list
   useEffect(() => {
     setSelected((prev) => prev.filter((id) => allSelectableIDs.includes(id)))
-  }, [allSelectableIDs.join(',')])
+  }, [allSelectableIDs])
 
   const toggleSelectAll = () => {
     if (allSelected) setSelected([])
@@ -229,7 +266,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
     } catch (e) {
       console.error(e)
       setStatus('Unexpected error while sharing')
-      setStatusDetails([String((e as any)?.message || e)])
+      setStatusDetails([String(asRecord(e).message || e)])
     } finally {
       setLoading(false)
     }

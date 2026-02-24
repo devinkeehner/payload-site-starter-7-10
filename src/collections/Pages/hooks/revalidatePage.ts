@@ -3,23 +3,29 @@ import type { CollectionAfterChangeHook, CollectionAfterDeleteHook } from 'paylo
 import type { Page } from '../../../payload-types'
 import { triggerFrontendRevalidate } from '../../../lib/utilities/revalidateFrontend'
 
+type TenantRelation = string | { id?: string; _id?: string } | null | undefined
+type TenantDoc = { slug?: string | null }
+
+const getTenantId = (tenantVal: TenantRelation): string | undefined =>
+  typeof tenantVal === 'string' ? tenantVal : tenantVal?.id || tenantVal?._id
+
 export const revalidatePage: CollectionAfterChangeHook<Page> = async ({
   doc,
   previousDoc,
   req: { payload, context },
 }) => {
   // Helper to resolve tenant slug from relation
-  const resolveTenantSlug = async (tenantVal: any): Promise<string | undefined> => {
+  const resolveTenantSlug = async (tenantVal: TenantRelation): Promise<string | undefined> => {
     try {
-      const id = typeof tenantVal === 'string' ? tenantVal : tenantVal?.id || tenantVal?._id
+      const id = getTenantId(tenantVal)
       if (!id) return undefined
-      const tenant = await payload.findByID({
+      const tenant = (await payload.findByID({
         collection: 'tenants',
         id,
         depth: 0,
-        select: { slug: true } as any,
-      })
-      return (tenant as any)?.slug || undefined
+        select: { slug: true },
+      })) as TenantDoc
+      return tenant?.slug || undefined
     } catch {
       return undefined
     }
@@ -28,7 +34,7 @@ export const revalidatePage: CollectionAfterChangeHook<Page> = async ({
   if (!context.disableRevalidate) {
     if (doc._status === 'published') {
       const paths: string[] = []
-      const tenantSlug = await resolveTenantSlug((doc as any)?.tenant)
+      const tenantSlug = await resolveTenantSlug(doc?.tenant as TenantRelation)
       // Tenant-aware path
       if (tenantSlug) {
         paths.push(doc.slug === 'home' ? `/${tenantSlug}` : `/${tenantSlug}/${doc.slug}`)
@@ -46,7 +52,7 @@ export const revalidatePage: CollectionAfterChangeHook<Page> = async ({
     // If the page was previously published, also revalidate the old paths
     if (previousDoc?._status === 'published' && doc._status !== 'published') {
       const oldPaths: string[] = []
-      const prevTenantSlug = await resolveTenantSlug((previousDoc as any)?.tenant)
+      const prevTenantSlug = await resolveTenantSlug(previousDoc?.tenant as TenantRelation)
       if (prevTenantSlug) {
         oldPaths.push(previousDoc.slug === 'home' ? `/${prevTenantSlug}` : `/${prevTenantSlug}/${previousDoc.slug}`)
       }
@@ -67,11 +73,11 @@ export const revalidateDelete: CollectionAfterDeleteHook<Page> = async ({ doc, r
     const paths: string[] = []
     // Tenant-aware delete path
     try {
-      const id = typeof (doc as any)?.tenant === 'string' ? (doc as any).tenant : (doc as any)?.tenant?.id
+      const id = getTenantId(doc?.tenant as TenantRelation)
       if (id) {
         try {
-          const t = await payload.findByID({ collection: 'tenants', id, depth: 0, select: { slug: true } as any })
-          const tenantSlug = (t as any)?.slug
+          const t = (await payload.findByID({ collection: 'tenants', id, depth: 0, select: { slug: true } })) as TenantDoc
+          const tenantSlug = t?.slug
           if (tenantSlug) paths.push(doc?.slug === 'home' ? `/${tenantSlug}` : `/${tenantSlug}/${doc?.slug}`)
           await triggerFrontendRevalidate({
             paths: [...paths, doc?.slug === 'home' ? '/' : `/${doc?.slug}`],

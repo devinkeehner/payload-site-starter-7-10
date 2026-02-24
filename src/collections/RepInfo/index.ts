@@ -6,12 +6,16 @@ import type {
 } from 'payload'
 import { triggerFrontendRevalidate } from '../../lib/utilities/revalidateFrontend'
 
+type TenantDoc = { slug?: string | null }
+type TenantQueryResult = { docs?: TenantDoc[] }
+const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
+
 const fetchPageAccessToken: CollectionBeforeChangeHook = async ({ data, req, operation, originalDoc }) => {
-  const previousDoc = originalDoc as Record<string, any> | undefined
-  const currentPageId = (data.facebookPageId ?? previousDoc?.facebookPageId)?.trim()
+  const previousDoc = originalDoc as Record<string, unknown> | undefined
+  const currentPageId = getString(data.facebookPageId ?? previousDoc?.facebookPageId)?.trim()
   if (!currentPageId) return data
 
-  const previousPageId = previousDoc?.facebookPageId?.trim()
+  const previousPageId = getString(previousDoc?.facebookPageId)?.trim()
   const existingToken = data.facebookPageAccessToken ?? previousDoc?.facebookPageAccessToken
 
   const shouldRefresh =
@@ -79,13 +83,15 @@ export const RepInfo: CollectionConfig = {
             collection: 'tenants',
             limit: 1000,
             depth: 0,
-            select: { slug: true } as any,
+            select: { slug: true },
           })
-          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const slugs = (((tenants as TenantQueryResult)?.docs || [])
+            .map((t) => t?.slug)
+            .filter((slug): slug is string => typeof slug === 'string' && slug.length > 0))
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:rep-info', ...slugs.map((s: string) => `tenant:${s}`)] })
-        } catch (e) {
-          payload.logger?.error?.('Failed to revalidate after rep-info change', e as any)
+        } catch (e: unknown) {
+          payload.logger?.error?.(`Failed to revalidate after rep-info change: ${e instanceof Error ? e.message : String(e)}`)
         }
       }) as CollectionAfterChangeHook,
     ],
@@ -97,13 +103,15 @@ export const RepInfo: CollectionConfig = {
             collection: 'tenants',
             limit: 1000,
             depth: 0,
-            select: { slug: true } as any,
+            select: { slug: true },
           })
-          const slugs = (tenants?.docs || []).map((t: any) => t?.slug).filter(Boolean)
+          const slugs = (((tenants as TenantQueryResult)?.docs || [])
+            .map((t) => t?.slug)
+            .filter((slug): slug is string => typeof slug === 'string' && slug.length > 0))
           const paths = ['/', ...slugs.map((s: string) => `/${s}`)]
           await triggerFrontendRevalidate({ paths, tags: ['payload:rep-info', ...slugs.map((s: string) => `tenant:${s}`)] })
-        } catch (e) {
-          payload.logger?.error?.('Failed to revalidate after rep-info delete', e as any)
+        } catch (e: unknown) {
+          payload.logger?.error?.(`Failed to revalidate after rep-info delete: ${e instanceof Error ? e.message : String(e)}`)
         }
       }) as CollectionAfterDeleteHook,
     ],
@@ -151,7 +159,7 @@ export const RepInfo: CollectionConfig = {
               return 'Enter a valid URL (example: https://www.example.com)'
             }
             try {
-              // eslint-disable-next-line no-new
+               
               new URL(value)
               return true
             } catch (_) {

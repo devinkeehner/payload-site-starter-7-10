@@ -20,19 +20,23 @@ const buildFilename = (sourceName: string | undefined, fallbackType: string | un
   return `form-video-${Date.now()}.${extension}`
 }
 
-const extractKey = (doc: any): string | undefined => {
-  if (!doc) return undefined
-  if (typeof doc.key === 'string' && doc.key) return doc.key
-  const prefix = typeof doc.prefix === 'string' ? doc.prefix.replace(/\/+$/u, '') : ''
-  const filename = typeof doc.filename === 'string' ? doc.filename.replace(/^\/+/, '') : ''
+const getObject = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
+
+const extractKey = (doc: unknown): string | undefined => {
+  const record = getObject(doc)
+  if (!record) return undefined
+  if (typeof record.key === 'string' && record.key) return record.key
+  const prefix = typeof record.prefix === 'string' ? record.prefix.replace(/\/+$/u, '') : ''
+  const filename = typeof record.filename === 'string' ? record.filename.replace(/^\/+/, '') : ''
   if (prefix && filename) return `${prefix}/${filename}`
   if (filename) return filename
-  if (typeof doc.url === 'string') {
+  if (typeof record.url === 'string') {
     try {
-      const parsed = new URL(doc.url)
+      const parsed = new URL(record.url)
       return parsed.pathname.replace(/^\/+/, '')
     } catch {
-      return doc.url.replace(/^\/+/, '')
+      return record.url.replace(/^\/+/, '')
     }
   }
   return undefined
@@ -42,9 +46,12 @@ export async function POST(req: Request): Promise<Response> {
   const payload = await getPayload({ config: configPromise })
 
   // Authenticate either via existing Payload session or shared token header
-  let user: any
+  let user: PayloadRequest['user'] = null
   try {
-    user = await payload.auth({ req: req as unknown as PayloadRequest, headers: req.headers })
+    const authResult = await payload.auth({ req: req as unknown as PayloadRequest, headers: req.headers })
+    const authRecord = getObject(authResult)
+    const resolvedUser = authRecord?.user ?? authResult
+    user = (resolvedUser as PayloadRequest['user']) ?? null
   } catch (err) {
     payload.logger.debug({ err }, 'Video upload auth attempt failed')
   }
@@ -120,7 +127,7 @@ export async function POST(req: Request): Promise<Response> {
   const durationStr = (formData.get('duration') as string) || undefined
   const duration = durationStr ? Number.parseInt(durationStr, 10) : undefined
 
-  const filename = buildFilename((file as any)?.name, file.type)
+  const filename = buildFilename(file.name, file.type)
 
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
@@ -139,7 +146,8 @@ export async function POST(req: Request): Promise<Response> {
           limit: 1,
           overrideAccess: true,
         })
-        tenantId = (found?.docs?.[0] as any)?.id || undefined
+        const firstDoc = getObject(found?.docs?.[0])
+        tenantId = typeof firstDoc?.id === 'string' ? firstDoc.id : undefined
       } catch {}
     }
 
@@ -159,31 +167,31 @@ export async function POST(req: Request): Promise<Response> {
       file: {
         data: buffer,
         name: filename,
-        filename,
         size: buffer.length,
-        mimeType: file.type || 'video/webm',
         mimetype: file.type || 'video/webm',
-      } as any,
-      req: (tenantId ? ({ ...payloadReq, tenant: tenantId } as any) : payloadReq),
+      },
+      req: tenantId ? ({ ...payloadReq, tenant: tenantId } as PayloadRequest) : payloadReq,
       overrideAccess: !user,
     })
 
+    const createdDoc = getObject(created)
     const responseBody = {
-      url: (created as any)?.url ?? undefined,
+      url: typeof createdDoc?.url === 'string' ? createdDoc.url : undefined,
       key: extractKey(created),
       size: buffer.length,
       mimeType: file.type || 'video/webm',
       duration: duration || undefined,
-      mediaId: (created as any)?.id ?? undefined,
+      mediaId: typeof createdDoc?.id === 'string' ? createdDoc.id : undefined,
     }
 
     return new Response(JSON.stringify(responseBody), {
       status: 201,
       headers: { 'content-type': 'application/json', ...createCorsHeaders(origin) },
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     payload.logger.error({ err }, 'Error uploading video from public form')
-    const message = typeof err?.message === 'string' ? err.message : 'Upload failed'
+    const errRecord = getObject(err)
+    const message = typeof errRecord?.message === 'string' ? errRecord.message : 'Upload failed'
     return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { 'content-type': 'application/json', ...createCorsHeaders(origin) },

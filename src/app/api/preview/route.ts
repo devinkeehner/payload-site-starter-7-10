@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
         const key = collection as keyof typeof collectionPrefixMap
         path = `${collectionPrefixMap[key]}/${slug}`
       }
-    } catch (e) {
+    } catch (_e) {
       const key = collection as keyof typeof collectionPrefixMap
       path = `${collectionPrefixMap[key]}/${slug}`
     }

@@ -27,6 +27,14 @@ import {
   PreviewField,
 } from '@payloadcms/plugin-seo/fields'
 
+const resolveTenantId = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value
+  if (typeof value === 'object' && value !== null && 'id' in value && typeof value.id === 'string') {
+    return value.id
+  }
+  return undefined
+}
+
 export const Pages: CollectionConfig<'pages'> = {
   slug: 'pages',
   access: {
@@ -47,10 +55,7 @@ export const Pages: CollectionConfig<'pages'> = {
         const path = generatePreviewAPIUrl({
           slug: typeof data?.slug === 'string' ? data.slug : '',
           collection: 'pages',
-          tenantId:
-            (typeof (data as any)?.tenant === 'string'
-              ? ((data as any).tenant as string)
-              : (data as any)?.tenant?.id) || undefined,
+          tenantId: resolveTenantId(data?.tenant),
         })
 
         return path
@@ -61,10 +66,7 @@ export const Pages: CollectionConfig<'pages'> = {
         slug: typeof data?.slug === 'string' ? data.slug : '',
         collection: 'pages',
         req,
-        tenantId:
-          (typeof (data as any)?.tenant === 'string'
-            ? ((data as any).tenant as string)
-            : (data as any)?.tenant?.id) || undefined,
+        tenantId: resolveTenantId(data?.tenant),
       }),
     useAsTitle: 'title',
   },

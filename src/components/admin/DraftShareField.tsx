@@ -3,6 +3,27 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Button, useDocumentInfo, useForm, useFormFields } from '@payloadcms/ui'
 
+type FieldState = {
+  value?: unknown
+  initialValue?: unknown
+}
+
+type FormFields = Record<string, FieldState | undefined> & {
+  _id?: FieldState
+}
+
+const asFormFields = (fields: unknown): FormFields =>
+  (typeof fields === 'object' && fields !== null ? (fields as FormFields) : {})
+
+const readIdField = (fields: unknown): string | undefined => {
+  const map = asFormFields(fields)
+  const fromId = map.id?.value ?? map.id?.initialValue
+  if (typeof fromId === 'string') return fromId
+  const fromUnderscoreId = map._id?.value ?? map._id?.initialValue
+  if (typeof fromUnderscoreId === 'string') return fromUnderscoreId
+  return undefined
+}
+
 const deriveIdFromPath = (): string | undefined => {
   if (typeof window === 'undefined') return undefined
   try {
@@ -31,6 +52,8 @@ const normalizeSlug = (value: unknown): string | undefined => {
   if (typeof value === 'string' && value.trim()) return value.trim()
   return undefined
 }
+const asRecord = (value: unknown): Record<string, unknown> =>
+  (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {})
 
 const buildSiteBase = (): string => {
   const fromEnv =
@@ -47,20 +70,26 @@ const DraftShareField: React.FC = () => {
   const { dispatchFields } = useForm()
   const docInfo = useDocumentInfo() as { id?: string } | null
   const infoId = docInfo?.id
-  const fieldId = useFormFields(
-    ([fields]) =>
-      (fields?.id?.value ?? (fields?.id as any)?.initialValue ?? (fields as any)?._id?.value ?? (fields as any)?._id?.initialValue) as
-        | string
-        | undefined,
-  )
+  const fieldId = useFormFields(([fields]) => readIdField(fields))
   const slugFromForm = useFormFields(
-    ([fields]) => (fields as any)?.slug?.value ?? (fields as any)?.slug?.initialValue,
+    ([fields]) => {
+      const map = asFormFields(fields)
+      const slug = map.slug?.value ?? map.slug?.initialValue
+      return typeof slug === 'string' ? slug : undefined
+    },
   ) as string | undefined
   const tenantField = useFormFields(
-    ([fields]) => ((fields as any)?.tenant?.value ?? (fields as any)?.tenant?.initialValue) as any,
+    ([fields]) => {
+      const map = asFormFields(fields)
+      return map.tenant?.value ?? map.tenant?.initialValue
+    },
   )
   const tokenFromForm = useFormFields(
-    ([fields]) => (fields as any)?.draftShareToken?.value ?? (fields as any)?.draftShareToken?.initialValue,
+    ([fields]) => {
+      const map = asFormFields(fields)
+      const token = map.draftShareToken?.value ?? map.draftShareToken?.initialValue
+      return typeof token === 'string' ? token : undefined
+    },
   ) as string | undefined
 
   const [status, setStatus] = useState<string | null>(null)
@@ -82,7 +111,13 @@ const DraftShareField: React.FC = () => {
   const tenantId = useMemo(() => {
     if (!tenantField) return undefined
     if (typeof tenantField === 'string') return tenantField
-    if (typeof tenantField === 'object') return tenantField?.id || tenantField?.value
+    if (typeof tenantField === 'object') {
+      const tenantRecord = asRecord(tenantField)
+      const id = tenantRecord.id
+      const value = tenantRecord.value
+      if (typeof id === 'string') return id
+      if (typeof value === 'string') return value
+    }
     return undefined
   }, [tenantField])
 

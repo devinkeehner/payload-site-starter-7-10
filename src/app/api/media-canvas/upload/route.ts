@@ -1,14 +1,18 @@
 import type { PayloadRequest } from 'payload'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
+import type { Media } from '@/payload-types'
 
 export const runtime = 'nodejs'
+
+const getObject = (value: unknown): Record<string, unknown> | null =>
+  typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 
 export async function POST(req: Request): Promise<Response> {
   const payload = await getPayload({ config: configPromise })
 
   // Authenticate user (admin UI will include cookies/headers)
-  let user: any
+  let user: unknown
   try {
     user = await payload.auth({ req: req as unknown as PayloadRequest, headers: req.headers })
   } catch (err) {
@@ -30,9 +34,12 @@ export async function POST(req: Request): Promise<Response> {
   const rawAlt = (form.get('alt') as string) || ''
   const rawData = (form.get('data') as string) || ''
 
-  let data: any = {}
+  let data: Record<string, unknown> = {}
   try {
-    if (rawData) data = JSON.parse(rawData)
+    if (rawData) {
+      const parsed = JSON.parse(rawData)
+      data = getObject(parsed) ?? {}
+    }
   } catch {
     // ignore, we'll rely on flat fields
   }
@@ -40,7 +47,7 @@ export async function POST(req: Request): Promise<Response> {
   const alt = (data?.alt as string) || rawAlt || 'Media Canvas'
 
   // caption can be stringified JSON or pre-built Lexical JSON
-  let caption: any = data?.caption
+  let caption: unknown = data.caption
   if (typeof caption === 'string') {
     try { caption = JSON.parse(caption) } catch { /* keep as string */ }
   }
@@ -55,7 +62,7 @@ export async function POST(req: Request): Promise<Response> {
   // no canvas linking in this route
 
   // Build filename (keep the original if provided)
-  let originalName = (file as any).name || 'media-canvas.png'
+  let originalName = file.name || 'media-canvas.png'
   if (!/\.[a-z0-9]+$/i.test(originalName)) originalName = `${originalName}.png`
 
   // Convert File to Buffer
@@ -64,25 +71,28 @@ export async function POST(req: Request): Promise<Response> {
   const size = buffer.length
 
   try {
+    const mediaData: Partial<Media> = {
+      alt,
+      ...(tenant ? { tenant } : {}),
+    }
+    const captionRecord = getObject(caption)
+    if (captionRecord && 'root' in captionRecord) {
+      mediaData.caption = captionRecord as Media['caption']
+    }
+
     const created = await payload.create({
       collection: 'media',
-      data: {
-        alt,
-        ...(caption ? { caption } : {}),
-        ...(tenant ? { tenant } : {}),
-      },
+      data: mediaData,
+      draft: true,
       // Use Payload local API file shape
       file: {
         data: buffer,
         // include both names for maximum compatibility
         name: originalName,
-        filename: originalName,
         size,
-        // Some adapters expect `mimeType` (camelCase)
-        mimeType: file.type || 'image/png',
         // Others accept `mimetype` (lowercase); harmless to include both
         mimetype: file.type || 'image/png',
-      } as any,
+      },
       req: req as unknown as PayloadRequest,
     })
     
@@ -90,10 +100,11 @@ export async function POST(req: Request): Promise<Response> {
       status: 201,
       headers: { 'content-type': 'application/json' },
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     payload.logger.error({ err, meta: { originalName, type: file.type, size } }, 'Error creating media from Media Canvas')
-    const message = typeof err?.message === 'string' ? err.message : 'Upload failed'
-    const stack = typeof err?.stack === 'string' ? err.stack : undefined
+    const errRecord = getObject(err)
+    const message = typeof errRecord?.message === 'string' ? errRecord.message : 'Upload failed'
+    const stack = typeof errRecord?.stack === 'string' ? errRecord.stack : undefined
     const detail = { message, stack, file: { originalName, type: file.type, size } }
     return new Response(JSON.stringify(detail), { status: 400, headers: { 'content-type': 'application/json' } })
   }

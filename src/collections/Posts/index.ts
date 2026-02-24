@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, PayloadHandler, PayloadRequest } from 'payload'
 
 import {
   BlocksFeature,
@@ -31,6 +31,49 @@ import {
 import { slugField } from '@/collections/fields/slug'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 
+type UnknownRecord = Record<string, unknown>
+type TenantLike = string | { id?: string | null } | null | undefined
+
+type EndpointReq = PayloadRequest & {
+  body?: unknown
+  json?: () => Promise<unknown>
+  originalUrl?: string
+  params?: Record<string, string | undefined>
+  query?: Record<string, unknown>
+  routeParams?: Record<string, string | undefined>
+  text?: () => Promise<string>
+  url?: string
+}
+
+type EndpointRes = {
+  status?: (status: number) => {
+    json: (body: unknown) => unknown
+  }
+}
+
+const asRecord = (value: unknown): UnknownRecord =>
+  typeof value === 'object' && value !== null ? (value as UnknownRecord) : {}
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' ? value : undefined
+
+const resolveTenantId = (value: TenantLike): string | undefined => {
+  if (typeof value === 'string') return value
+  if (value && typeof value === 'object' && typeof value.id === 'string') return value.id
+  return undefined
+}
+
+const getErrorData = (err: unknown): { message?: string; code?: string; type?: string; name?: string; stack?: string } => {
+  const record = asRecord(err)
+  return {
+    message: getString(record.message),
+    code: getString(record.code),
+    type: getString(record.type),
+    name: getString(record.name),
+    stack: getString(record.stack),
+  }
+}
+
 export const Posts: CollectionConfig<'posts'> = {
   slug: 'posts',
   access: {
@@ -59,10 +102,7 @@ export const Posts: CollectionConfig<'posts'> = {
           slug: typeof data?.slug === 'string' ? data.slug : '',
           collection: 'posts',
           req,
-          tenantId:
-            (typeof (data as any)?.tenant === 'string'
-              ? ((data as any).tenant as string)
-              : (data as any)?.tenant?.id) || undefined,
+          tenantId: resolveTenantId(data?.tenant as TenantLike),
         })
 
         return path
@@ -73,10 +113,7 @@ export const Posts: CollectionConfig<'posts'> = {
         slug: typeof data?.slug === 'string' ? data.slug : '',
         collection: 'posts',
         req,
-        tenantId:
-          (typeof (data as any)?.tenant === 'string'
-            ? ((data as any).tenant as string)
-            : (data as any)?.tenant?.id) || undefined,
+        tenantId: resolveTenantId(data?.tenant as TenantLike),
       }),
     useAsTitle: 'title',
   },
@@ -84,8 +121,8 @@ export const Posts: CollectionConfig<'posts'> = {
     {
       path: '/:id/generate-seo',
       method: 'post',
-      handler: (async (req: any, res: any, _next: any) => {
-        const send = (status: number, body: any) => {
+      handler: (async (req: EndpointReq, res: EndpointRes | undefined, _next: unknown) => {
+        const send = (status: number, body: unknown) => {
           if (res?.status && typeof res.status === 'function') {
             return res.status(status).json(body)
           }
@@ -106,9 +143,9 @@ export const Posts: CollectionConfig<'posts'> = {
 
           let id: string | undefined
           try {
-            id = (req as any)?.params?.id || (req as any)?.routeParams?.id || (req as any)?.query?.id
+            id = req?.params?.id || req?.routeParams?.id || getString(req?.query?.id)
             if (!id) {
-              const url: string = (req as any)?.url || (req as any)?.originalUrl || ''
+              const url: string = req?.url || req?.originalUrl || ''
               const match = url.match(/\/api\/posts\/([^\/]+)\/generate-seo/)
               if (match?.[1]) id = match[1]
             }
@@ -128,7 +165,9 @@ export const Posts: CollectionConfig<'posts'> = {
           const title: string = post?.title || ''
           const content = post?.content
           const contentHTML =
-            typeof content === 'string' ? content : convertLexicalToHTML(content || [])
+            typeof content === 'string'
+              ? content
+              : convertLexicalToHTML({ data: Array.isArray(content) ? content : content || {} })
 
           // Gather options the model must choose from
           const [categories, articleTypes] = await Promise.all([
@@ -136,16 +175,22 @@ export const Posts: CollectionConfig<'posts'> = {
             req.payload.find({ collection: 'article-types', limit: 1000 }),
           ])
 
-          const categoryOptions = (categories?.docs || []).map((c: any) => ({
-            id: c.id,
-            slug: c.slug,
-            title: c.title,
-          }))
-          const articleTypeOptions = (articleTypes?.docs || []).map((a: any) => ({
-            id: a.id,
-            slug: a.slug,
-            title: a.title,
-          }))
+          const categoryOptions = (categories?.docs || []).map((c) => {
+            const item = asRecord(c)
+            return {
+              id: getString(item.id),
+              slug: getString(item.slug),
+              title: getString(item.title),
+            }
+          })
+          const articleTypeOptions = (articleTypes?.docs || []).map((a) => {
+            const item = asRecord(a)
+            return {
+              id: getString(item.id),
+              slug: getString(item.slug),
+              title: getString(item.title),
+            }
+          })
           if (!categoryOptions.length) {
             return send(400, { error: 'No categories available' })
           }
@@ -155,10 +200,10 @@ export const Posts: CollectionConfig<'posts'> = {
 
           // Prepare summaries to feed into the hosted prompt
           const categoriesList = categoryOptions
-            .map((c: any) => `${c.slug || ''} | ${c.title || ''}`.trim())
+            .map((c) => `${c.slug || ''} | ${c.title || ''}`.trim())
             .join('\n')
           const articleTypesList = articleTypeOptions
-            .map((a: any) => `${a.slug || ''} | ${a.title || ''}`.trim())
+            .map((a) => `${a.slug || ''} | ${a.title || ''}`.trim())
             .join('\n')
 
           const client = new OpenAI({ apiKey })
@@ -183,41 +228,42 @@ export const Posts: CollectionConfig<'posts'> = {
               // Simple instruction as a plain string satisfies ResponseInput
               input: 'Respond only with valid json.',
             })
-          } catch (e: any) {
+          } catch (e: unknown) {
+            const errorData = getErrorData(e)
             return send(502, {
-              error: e?.message || 'OpenAI request failed',
-              code: e?.code,
-              type: e?.type,
+              error: errorData.message || 'OpenAI request failed',
+              code: errorData.code,
+              type: errorData.type,
             })
           }
 
           // Extract text output
-          const textOut = (response as any)?.output_text || ''
-          let parsed: any
+          const textOut = getString(asRecord(response).output_text) || ''
+          let parsed: UnknownRecord
           try {
-            parsed = JSON.parse(textOut)
-          } catch (e) {
+            parsed = asRecord(JSON.parse(textOut))
+          } catch (_e) {
             return send(502, { error: 'Invalid model JSON', raw: textOut })
           }
 
-          const description: string = parsed?.description || ''
+          const description: string = getString(parsed.description) || ''
           const keyTakeaways: string[] = Array.isArray(parsed?.keyTakeaways)
-            ? parsed.keyTakeaways
+            ? parsed.keyTakeaways.map((item) => String(item)).filter((item) => item.length > 0)
             : []
           const categoryInputs: string[] = Array.isArray(parsed?.categorySlugs)
-            ? parsed.categorySlugs
+            ? parsed.categorySlugs.map((item) => String(item))
             : Array.isArray(parsed?.categories)
-            ? parsed.categories
+            ? parsed.categories.map((item) => String(item))
             : []
           const articleTypeInput: string | undefined =
-            parsed?.articleTypeSlug ?? parsed?.articleType
+            getString(parsed.articleTypeSlug) ?? getString(parsed.articleType)
 
           // Map slugs to IDs
           const categoryIDs = categoryInputs
             .map((s: string) => String(s).trim().toLowerCase())
             .map((s: string) =>
               categoryOptions.find(
-                (c: any) => c.slug?.toLowerCase() === s || c.title?.toLowerCase() === s,
+                (c) => c.slug?.toLowerCase() === s || c.title?.toLowerCase() === s,
               )?.id,
             )
             .filter(Boolean)
@@ -226,7 +272,7 @@ export const Posts: CollectionConfig<'posts'> = {
             const s = String(val).trim().toLowerCase()
             return (
               articleTypeOptions.find(
-                (a: any) => a.slug?.toLowerCase() === s || a.title?.toLowerCase() === s,
+                (a) => a.slug?.toLowerCase() === s || a.title?.toLowerCase() === s,
               )?.id || undefined
             )
           }
@@ -238,23 +284,24 @@ export const Posts: CollectionConfig<'posts'> = {
             categoryIDs,
             articleTypeID,
           })
-        } catch (err: any) {
+        } catch (err: unknown) {
           // Log to server for diagnosis
           console.error('[generate-seo] Unhandled error', err)
-          const body: any = { error: err?.message || 'Server error' }
+          const errorData = getErrorData(err)
+          const body: UnknownRecord = { error: errorData.message || 'Server error' }
           if (process.env.NODE_ENV !== 'production') {
-            body.name = err?.name
-            body.stack = err?.stack
+            body.name = errorData.name
+            body.stack = errorData.stack
           }
           return send(500, body)
         }
-      }) as any,
+      }) as unknown as PayloadHandler,
     },
     {
       path: '/:id/share',
       method: 'post',
-      handler: (async (req: any, res: any) => {
-        const send = (status: number, body: any) => {
+      handler: (async (req: EndpointReq, res: EndpointRes | undefined) => {
+        const send = (status: number, body: unknown) => {
           if (res?.status && typeof res.status === 'function') {
             return res.status(status).json(body)
           }
@@ -268,16 +315,16 @@ export const Posts: CollectionConfig<'posts'> = {
           // Resolve ID from params or URL
           let id: string | undefined
           try {
-            id = (req as any)?.params?.id || (req as any)?.routeParams?.id || (req as any)?.query?.id
+            id = req?.params?.id || req?.routeParams?.id || getString(req?.query?.id)
             if (!id) {
-              const url: string = (req as any)?.originalUrl || (req as any)?.url || ''
+              const url: string = req?.originalUrl || req?.url || ''
               const match = url.match(/\/api\/posts\/([^\/]+)\/share/)
               if (match?.[1]) id = match[1]
             }
           } catch {}
           if (!id) return send(400, { error: 'Missing post id' })
           // Robustly parse body across adapters (Express vs Next)
-          let raw: any = (req as any)?.body
+          let raw: unknown = req?.body
           // If body is a string or Buffer, try to parse JSON
           if (raw && typeof raw === 'string') {
             try { raw = JSON.parse(raw) } catch { /* keep as-is */ }
@@ -285,15 +332,20 @@ export const Posts: CollectionConfig<'posts'> = {
             try { raw = JSON.parse(raw.toString('utf-8')) } catch { raw = {} }
           }
           // Heuristic: Next.js Request body may be a ReadableStream, or body may be present but not parsed
-          const looksLikeReadableStream = !!raw && typeof raw === 'object' && (typeof raw.getReader === 'function' || typeof raw.tee === 'function')
-          const rawMissingKeys = !raw || typeof raw !== 'object' || (!('tenantIDs' in raw) && !('tenantIds' in raw) && !('tenant_ids' in raw) && !('tenants' in raw) && !('sourceTenantID' in raw) && !('sourceTenantId' in raw))
+          const rawObj = asRecord(raw)
+          const looksLikeReadableStream =
+            !!raw &&
+            typeof raw === 'object' &&
+            (typeof rawObj.getReader === 'function' || typeof rawObj.tee === 'function')
+          const rawRecord = asRecord(raw)
+          const rawMissingKeys = !raw || typeof raw !== 'object' || (!('tenantIDs' in rawRecord) && !('tenantIds' in rawRecord) && !('tenant_ids' in rawRecord) && !('tenants' in rawRecord) && !('sourceTenantID' in rawRecord) && !('sourceTenantId' in rawRecord))
           if (looksLikeReadableStream || rawMissingKeys) {
             try {
-              if (typeof (req as any)?.json === 'function') {
-                const parsed = await (req as any).json()
+              if (typeof req?.json === 'function') {
+                const parsed = await req.json()
                 if (parsed && typeof parsed === 'object') raw = parsed
-              } else if (typeof (req as any)?.text === 'function') {
-                const txt = await (req as any).text()
+              } else if (typeof req?.text === 'function') {
+                const txt = await req.text()
                 raw = txt ? JSON.parse(txt) : raw || {}
               }
             } catch {
@@ -301,36 +353,44 @@ export const Posts: CollectionConfig<'posts'> = {
             }
           }
           // Extract tenantIDs from body or query in multiple shapes
-          const extractIDs = (val: any): string[] => {
+          const extractIDs = (val: unknown): string[] => {
             if (!val) return []
-            if (Array.isArray(val)) return val.map((v) => (typeof v === 'string' ? v : v?.id || v?.value)).filter(Boolean)
+            if (Array.isArray(val)) {
+              return val
+                .map((v) => (typeof v === 'string' ? v : getString(asRecord(v).id) || getString(asRecord(v).value)))
+                .filter((v): v is string => typeof v === 'string' && v.length > 0)
+            }
             if (typeof val === 'string') return val.split(',').map((s) => s.trim()).filter(Boolean)
             if (typeof val === 'object') {
               // Support bracket syntax: tenantIDs[0]=idA&tenantIDs[1]=idB
-              const keys = Object.keys(val).filter((k) => k.startsWith('tenantIDs['))
-              if (keys.length) return keys.map((k) => val[k]).filter(Boolean)
+              const valRecord = asRecord(val)
+              const keys = Object.keys(valRecord).filter((k) => k.startsWith('tenantIDs['))
+              if (keys.length) {
+                return keys.map((k) => getString(valRecord[k])).filter((v): v is string => Boolean(v))
+              }
             }
             return []
           }
+          const rawResolved = asRecord(raw)
           let tenantIDs: string[] = []
-          tenantIDs = extractIDs(raw?.tenantIDs)
-          if (!tenantIDs.length) tenantIDs = extractIDs(raw?.tenantIds)
-          if (!tenantIDs.length) tenantIDs = extractIDs(raw?.tenant_ids)
-          if (!tenantIDs.length) tenantIDs = extractIDs(raw?.tenants)
+          tenantIDs = extractIDs(rawResolved.tenantIDs)
+          if (!tenantIDs.length) tenantIDs = extractIDs(rawResolved.tenantIds)
+          if (!tenantIDs.length) tenantIDs = extractIDs(rawResolved.tenant_ids)
+          if (!tenantIDs.length) tenantIDs = extractIDs(rawResolved.tenants)
           // Source tenant id (the tenant of the post being copied from)
           const sourceTenantID: string | undefined =
-            typeof raw?.sourceTenantID === 'string'
-              ? raw.sourceTenantID
-              : typeof raw?.sourceTenantId === 'string'
-              ? raw.sourceTenantId
+            typeof rawResolved.sourceTenantID === 'string'
+              ? rawResolved.sourceTenantID
+              : typeof rawResolved.sourceTenantId === 'string'
+              ? rawResolved.sourceTenantId
               : undefined
           // Query param fallback
           if (!tenantIDs.length) {
-            const q: any = (req as any)?.query || {}
+            const q = req?.query || {}
             tenantIDs = extractIDs(q?.tenantIDs) || extractIDs(q?.tenantIds)
-            if (!tenantIDs.length && (typeof (req as any)?.originalUrl === 'string' || typeof (req as any)?.url === 'string')) {
+            if (!tenantIDs.length && (typeof req?.originalUrl === 'string' || typeof req?.url === 'string')) {
               try {
-                const urlStr: string = (req as any).originalUrl || (req as any).url
+                const urlStr: string = req.originalUrl || req.url || ''
                 const u = new URL(urlStr, 'http://local')
                 const all = u.searchParams.getAll('tenantIDs')
                 if (all && all.length) {
@@ -343,28 +403,32 @@ export const Posts: CollectionConfig<'posts'> = {
             }
           }
           if (!tenantIDs.length) {
-            const debug: any = {}
+            const debug: UnknownRecord = {}
             try {
-              debug.bodyType = typeof (req as any)?.body
+              debug.bodyType = typeof req?.body
               debug.rawType = typeof raw
               debug.rawKeys = raw && typeof raw === 'object' ? Object.keys(raw) : undefined
-              debug.queryKeys = (req as any)?.query ? Object.keys((req as any).query) : undefined
-              debug.url = (req as any)?.originalUrl || (req as any)?.url
+              debug.queryKeys = req?.query ? Object.keys(req.query) : undefined
+              debug.url = req?.originalUrl || req?.url
             } catch {}
-            const body: any = { error: 'No tenantIDs provided' }
+            const body: UnknownRecord = { error: 'No tenantIDs provided' }
             if (process.env.NODE_ENV !== 'production') body.debug = debug
             return send(400, body)
           }
           const isSuper = isSuperUser(req.user)
-          const userTenantIDs: string[] = Array.isArray(req.user?.tenants)
-            ? (req.user.tenants as any[])
-                .map((t) => (typeof t?.tenant === 'string' ? t.tenant : t?.tenant?.id))
-                .filter(Boolean)
+          const userTenants = asRecord(req.user).tenants
+          const userTenantIDs: string[] = Array.isArray(userTenants)
+            ? (userTenants as unknown[])
+                .map((t) => {
+                  const tenant = asRecord(t).tenant
+                  return typeof tenant === 'string' ? tenant : getString(asRecord(tenant).id)
+                })
+                .filter((tenantId): tenantId is string => typeof tenantId === 'string' && tenantId.length > 0)
             : []
           const allowedTenantIDs = isSuper ? tenantIDs : tenantIDs.filter((t) => userTenantIDs.includes(t))
           if (!allowedTenantIDs.length) return send(403, { error: 'You do not have access to the selected tenants' })
           // Load source post (draft-aware), scoping to the source tenant if provided
-          let source: any
+          let source: unknown
           try {
             if (sourceTenantID) {
               source = await req.payload.findByID({
@@ -372,7 +436,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 id,
                 draft: true,
                 depth: 0,
-                req: { ...(req as any), tenant: sourceTenantID } as any,
+                req: { ...req, tenant: sourceTenantID } as EndpointReq & { tenant: string },
               })
             } else {
               source = await req.payload.findByID({
@@ -382,39 +446,42 @@ export const Posts: CollectionConfig<'posts'> = {
                 depth: 0,
               })
             }
-          } catch (e: any) {
+          } catch (_e: unknown) {
             return send(404, { error: 'Post not found or inaccessible for the current tenant scope' })
           }
           if (!source) return send(404, { error: 'Post not found' })
+          const sourceRecord = asRecord(source)
           const sourceTenantId: string | undefined =
-            typeof (source as any)?.tenant === 'string' ? (source as any).tenant : (source as any)?.tenant?.id
+            typeof sourceRecord.tenant === 'string' ? sourceRecord.tenant : getString(asRecord(sourceRecord.tenant).id)
 
           const tenantCache = new Map<string, { id: string; slug?: string | null }>()
-          const mediaDocCache = new Map<string, any>()
+          const mediaDocCache = new Map<string, unknown>()
           const mediaCloneCache = new Map<string, string>()
-          const formDocCache = new Map<string, any>()
+          const formDocCache = new Map<string, unknown>()
           const formCloneCache = new Map<string, string>()
 
-          const extractMediaId = (value: any): string | undefined => {
+          const extractMediaId = (value: unknown): string | undefined => {
             if (!value) return undefined
             if (typeof value === 'string') return value
             if (typeof value === 'object') {
-              if (typeof value.id === 'string') return value.id
-              if (typeof value._id === 'string') return value._id
-              if (typeof value.value === 'string') return value.value
-              if (typeof value.value === 'object') return extractMediaId(value.value)
+              const valueRecord = asRecord(value)
+              if (typeof valueRecord.id === 'string') return valueRecord.id
+              if (typeof valueRecord._id === 'string') return valueRecord._id
+              if (typeof valueRecord.value === 'string') return valueRecord.value
+              if (typeof valueRecord.value === 'object') return extractMediaId(valueRecord.value)
             }
             return undefined
           }
 
-          const extractFormId = (value: any): string | undefined => {
+          const extractFormId = (value: unknown): string | undefined => {
             if (!value) return undefined
             if (typeof value === 'string') return value
             if (typeof value === 'object') {
-              if (typeof value.id === 'string') return value.id
-              if (typeof value._id === 'string') return value._id
-              if (typeof value.value === 'string') return value.value
-              if (typeof value.value === 'object') return extractFormId(value.value)
+              const valueRecord = asRecord(value)
+              if (typeof valueRecord.id === 'string') return valueRecord.id
+              if (typeof valueRecord._id === 'string') return valueRecord._id
+              if (typeof valueRecord.value === 'string') return valueRecord.value
+              if (typeof valueRecord.value === 'object') return extractFormId(valueRecord.value)
             }
             return undefined
           }
@@ -427,17 +494,18 @@ export const Posts: CollectionConfig<'posts'> = {
               depth: 0,
               overrideAccess: true,
             })
-            const info = { id: tenantId, slug: (tenantDoc as any)?.slug ?? undefined }
+            const info = { id: tenantId, slug: getString(asRecord(tenantDoc).slug) ?? undefined }
             tenantCache.set(tenantId, info)
             return info
           }
 
-          const buildMediaUrl = (doc: any): string | undefined => {
-            if (typeof doc?.url === 'string' && doc.url) return doc.url
+          const buildMediaUrl = (doc: unknown): string | undefined => {
+            const docRecord = asRecord(doc)
+            if (typeof docRecord.url === 'string' && docRecord.url) return docRecord.url
             const base = process.env.R2_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_MEDIA_BASE_URL
             if (!base) return undefined
-            const prefix = typeof doc?.prefix === 'string' ? doc.prefix.replace(/\/+$/u, '') : ''
-            const filename = typeof doc?.filename === 'string' ? doc.filename.replace(/^\/+/, '') : ''
+            const prefix = typeof docRecord.prefix === 'string' ? docRecord.prefix.replace(/\/+$/u, '') : ''
+            const filename = typeof docRecord.filename === 'string' ? docRecord.filename.replace(/^\/+/, '') : ''
             if (!filename) return undefined
             const key = prefix ? `${prefix}/${filename}` : filename
             return `${base.replace(/\/+$/u, '')}/${key.replace(/^\/+/, '')}`
@@ -446,8 +514,8 @@ export const Posts: CollectionConfig<'posts'> = {
           const fetchMediaDoc = async (mediaId: string) => {
             if (mediaDocCache.has(mediaId)) return mediaDocCache.get(mediaId)!
             const scopedSourceReq = sourceTenantId
-              ? ({ ...(req as any), tenant: sourceTenantId } as any)
-              : (req as any)
+              ? ({ ...req, tenant: sourceTenantId } as EndpointReq & { tenant: string })
+              : req
             const doc = await req.payload.findByID({
               collection: 'media',
               id: mediaId,
@@ -459,13 +527,14 @@ export const Posts: CollectionConfig<'posts'> = {
             return doc
           }
 
-          const ensureMediaClone = async (mediaId: string | undefined, tenantId: string, scopedReq: any): Promise<string | undefined> => {
+          const ensureMediaClone = async (mediaId: string | undefined, tenantId: string, scopedReq: EndpointReq | (EndpointReq & { tenant: string })): Promise<string | undefined> => {
             if (!mediaId) return undefined
             const cacheKey = `${mediaId}:${tenantId}`
             if (mediaCloneCache.has(cacheKey)) return mediaCloneCache.get(cacheKey)!
 
-            const mediaDoc = await fetchMediaDoc(mediaId).catch((error: any) => {
-              throw new Error(`Failed to load media ${mediaId}: ${error?.message || error}`)
+            const mediaDoc = await fetchMediaDoc(mediaId).catch((error: unknown) => {
+              const errorData = getErrorData(error)
+              throw new Error(`Failed to load media ${mediaId}: ${errorData.message || String(error)}`)
             })
             if (!mediaDoc) throw new Error(`Media ${mediaId} not found`)
 
@@ -480,12 +549,13 @@ export const Posts: CollectionConfig<'posts'> = {
             const fileBuffer = Buffer.from(arrayBuffer)
 
             const tenantInfo = await getTenantInfo(tenantId)
+            const mediaDocRecord = asRecord(mediaDoc)
             const filename =
-              typeof mediaDoc?.filename === 'string' && mediaDoc.filename
-                ? mediaDoc.filename.replace(/\\/gu, '/').split('/').pop() || mediaDoc.filename
+              typeof mediaDocRecord.filename === 'string' && mediaDocRecord.filename
+                ? mediaDocRecord.filename.replace(/\\/gu, '/').split('/').pop() || mediaDocRecord.filename
                 : `${mediaId}`
-            const mimeType = typeof mediaDoc?.mimeType === 'string' ? mediaDoc.mimeType : 'application/octet-stream'
-            const captionClone = mediaDoc?.caption ? JSON.parse(JSON.stringify(mediaDoc.caption)) : undefined
+            const mimeType = typeof mediaDocRecord.mimeType === 'string' ? mediaDocRecord.mimeType : 'application/octet-stream'
+            const captionClone = mediaDocRecord.caption ? JSON.parse(JSON.stringify(mediaDocRecord.caption)) : undefined
 
             const dot = filename.lastIndexOf('.')
             const base = dot > 0 ? filename.slice(0, dot) : filename
@@ -494,13 +564,13 @@ export const Posts: CollectionConfig<'posts'> = {
             const safeTenant = (tenantSlug || tenantId).replace(/[^a-z0-9_-]+/giu, '-')
             const preferredFilename = `${safeTenant}-${base}-${mediaId}${ext}`
 
-            let createdMedia: any
+            let createdMedia: unknown
             try {
               const createWithName = async (name: string) =>
                 await req.payload.create({
                   collection: 'media',
                   data: {
-                    alt: (mediaDoc as any)?.alt || name,
+                    alt: getString(mediaDocRecord.alt) || name,
                     caption: captionClone,
                     tenant: tenantId,
                   },
@@ -509,16 +579,16 @@ export const Posts: CollectionConfig<'posts'> = {
                     size: fileBuffer.length,
                     name,
                     mimetype: mimeType,
-                  } as any,
+                  },
                   req: scopedReq,
                   overrideAccess: true,
-                  context: { disableRevalidate: true } as any,
+                  context: { disableRevalidate: true },
                 })
 
               try {
                 createdMedia = await createWithName(preferredFilename)
-              } catch (error: any) {
-                const message = String(error?.message || error)
+              } catch (error: unknown) {
+                const message = String(getErrorData(error).message || error)
 
                 if (message.includes('filename')) {
                   const nonce = Date.now().toString(36)
@@ -528,14 +598,15 @@ export const Posts: CollectionConfig<'posts'> = {
                   throw error
                 }
               }
-            } catch (error: any) {
+            } catch (error: unknown) {
               const fileKeys = ['data', 'size', 'name', 'mimetype']
+              const errorData = getErrorData(error)
               throw new Error(
-                `Failed to clone media ${mediaId} for tenant ${tenantId}: ${error?.message || error}. Media URL: ${mediaUrl}. File keys: ${fileKeys.join(', ')}`,
+                `Failed to clone media ${mediaId} for tenant ${tenantId}: ${errorData.message || String(error)}. Media URL: ${mediaUrl}. File keys: ${fileKeys.join(', ')}`,
               )
             }
 
-            const newId = (createdMedia as any)?.id
+            const newId = getString(asRecord(createdMedia).id)
             if (typeof newId !== 'string') throw new Error(`Cloned media for ${mediaId} did not return an ID`)
 
             mediaCloneCache.set(cacheKey, newId)
@@ -545,8 +616,8 @@ export const Posts: CollectionConfig<'posts'> = {
           const fetchFormDoc = async (formId: string) => {
             if (formDocCache.has(formId)) return formDocCache.get(formId)!
             const scopedSourceReq = sourceTenantId
-              ? ({ ...(req as any), tenant: sourceTenantId } as any)
-              : (req as any)
+              ? ({ ...req, tenant: sourceTenantId } as EndpointReq & { tenant: string })
+              : req
             const doc = await req.payload.findByID({
               collection: 'forms',
               id: formId,
@@ -558,12 +629,12 @@ export const Posts: CollectionConfig<'posts'> = {
             return doc
           }
 
-          const cloneFormFieldOptions = async (options: any[], tenantId: string, scopedReq: any) => {
+          const cloneFormFieldOptions = async (options: unknown[], tenantId: string, scopedReq: EndpointReq | (EndpointReq & { tenant: string })) => {
             if (!Array.isArray(options)) return options
-            const clonedOptions: any[] = []
+            const clonedOptions: UnknownRecord[] = []
             for (const option of options) {
               if (!option) continue
-              const nextOption: Record<string, any> = { ...option }
+              const nextOption: Record<string, unknown> = { ...asRecord(option) }
               delete nextOption.id
               delete nextOption._id
               if (nextOption.image) {
@@ -575,31 +646,33 @@ export const Posts: CollectionConfig<'posts'> = {
             return clonedOptions
           }
 
-          const cloneFormFields = async (fields: any[], tenantId: string, scopedReq: any) => {
+          const cloneFormFields = async (fields: unknown[], tenantId: string, scopedReq: EndpointReq | (EndpointReq & { tenant: string })) => {
             if (!Array.isArray(fields)) return fields
-            const clonedFields: any[] = []
+            const clonedFields: UnknownRecord[] = []
             for (const field of fields) {
               if (!field) continue
-              const nextField: Record<string, any> = JSON.parse(JSON.stringify(field))
+              const nextField: Record<string, unknown> = JSON.parse(JSON.stringify(field))
               delete nextField.id
               delete nextField._id
-              if (Array.isArray(nextField.options)) {
-                nextField.options = await cloneFormFieldOptions(nextField.options, tenantId, scopedReq)
+              if (Array.isArray(nextField.options as unknown[])) {
+                nextField.options = await cloneFormFieldOptions(nextField.options as unknown[], tenantId, scopedReq)
               }
               clonedFields.push(nextField)
             }
             return clonedFields
           }
 
-          const ensureFormClone = async (formId: string | undefined, tenantId: string, scopedReq: any): Promise<string | undefined> => {
+          const ensureFormClone = async (formId: string | undefined, tenantId: string, scopedReq: EndpointReq | (EndpointReq & { tenant: string })): Promise<string | undefined> => {
             if (!formId) return undefined
             const cacheKey = `${formId}:${tenantId}`
             if (formCloneCache.has(cacheKey)) return formCloneCache.get(cacheKey)!
 
-            const formDoc = await fetchFormDoc(formId).catch((error: any) => {
-              throw new Error(`Failed to load form ${formId}: ${error?.message || error}`)
+            const formDoc = await fetchFormDoc(formId).catch((error: unknown) => {
+              const errorData = getErrorData(error)
+              throw new Error(`Failed to load form ${formId}: ${errorData.message || String(error)}`)
             })
             if (!formDoc) throw new Error(`Form ${formId} not found`)
+            const formDocRecord = asRecord(formDoc)
 
             const cloneKeys = [
               'title',
@@ -611,18 +684,18 @@ export const Posts: CollectionConfig<'posts'> = {
               'emails',
             ]
 
-            const data: Record<string, any> = {}
+            const data: Record<string, unknown> = {}
             for (const key of cloneKeys) {
-              if (typeof formDoc[key] !== 'undefined') {
-                data[key] = JSON.parse(JSON.stringify(formDoc[key]))
+              if (typeof formDocRecord[key] !== 'undefined') {
+                data[key] = JSON.parse(JSON.stringify(formDocRecord[key]))
               }
             }
 
-            data.fields = await cloneFormFields(data.fields, tenantId, scopedReq)
-            if (Array.isArray(data.emails)) {
-              data.emails = data.emails.map((email: any) => {
+            data.fields = await cloneFormFields((data.fields as unknown[]) || [], tenantId, scopedReq)
+            if (Array.isArray(data.emails as unknown[])) {
+              data.emails = (data.emails as unknown[]).map((email: unknown) => {
                 if (!email) return email
-                const nextEmail = { ...email }
+                const nextEmail: UnknownRecord = { ...asRecord(email) }
                 delete nextEmail.id
                 delete nextEmail._id
                 return nextEmail
@@ -636,37 +709,38 @@ export const Posts: CollectionConfig<'posts'> = {
               data,
               draft: true,
               depth: 0,
-              req: scopedReq as any,
+              req: scopedReq,
               overrideAccess: true,
-              context: { disableRevalidate: true } as any,
+              context: { disableRevalidate: true },
             })
 
-            const newId = (createdForm as any)?.id
+            const newId = getString(asRecord(createdForm).id)
             if (typeof newId !== 'string') throw new Error(`Cloned form for ${formId} did not return an ID`)
 
             formCloneCache.set(cacheKey, newId)
             return newId
           }
 
-          const cloneRichTextUploads = async (value: any, tenantId: string, scopedReq: any): Promise<any> => {
-            const walk = async (node: any): Promise<any> => {
+          const cloneRichTextUploads = async (value: unknown, tenantId: string, scopedReq: EndpointReq | (EndpointReq & { tenant: string })): Promise<unknown> => {
+            const walk = async (node: unknown): Promise<unknown> => {
               if (Array.isArray(node)) {
-                const next: any[] = []
+                const next: unknown[] = []
                 for (const item of node) {
                   next.push(await walk(item))
                 }
                 return next
               }
               if (!node || typeof node !== 'object') return node
+              const nodeRecord = asRecord(node)
 
-              if (node.type === 'upload' && node.relationTo === 'media') {
-                const uploadId = extractMediaId(node.value)
+              if (nodeRecord.type === 'upload' && nodeRecord.relationTo === 'media') {
+                const uploadId = extractMediaId(nodeRecord.value)
                 const clonedId = await ensureMediaClone(uploadId, tenantId, scopedReq)
-                return { ...node, value: clonedId }
+                return { ...nodeRecord, value: clonedId }
               }
 
-              const entries = Object.entries(node)
-              const updated: Record<string, any> = Array.isArray(node) ? [] : { ...node }
+              const entries = Object.entries(nodeRecord)
+              const updated: Record<string, unknown> = { ...nodeRecord }
               for (const [key, val] of entries) {
                 if (!val) {
                   updated[key] = val
@@ -688,7 +762,7 @@ export const Posts: CollectionConfig<'posts'> = {
                   }
                 }
                 if (!Array.isArray(val) && typeof val === 'object') {
-                  const relationTo = (val as any)?.relationTo
+                  const relationTo = asRecord(val).relationTo
                   if (relationTo === 'media') {
                     const relationId = extractMediaId(val)
                     if (relationId) {
@@ -713,51 +787,48 @@ export const Posts: CollectionConfig<'posts'> = {
           }
 
           const toCreate = allowedTenantIDs
-          const results: any[] = []
+          const results: UnknownRecord[] = []
           for (const tID of toCreate) {
             if (tID && sourceTenantId && tID === sourceTenantId) {
               results.push({ tenantID: tID, skipped: true, reason: 'same-tenant' })
               continue
             }
-            const scopedReq = { ...(req as any), tenant: tID }
+            const scopedReq = { ...req, tenant: tID } as EndpointReq & { tenant: string }
             try {
               // Normalize relationships to IDs and strip system fields
-              const categories = Array.isArray((source as any)?.categories)
-                ? (source as any).categories.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
+              const categories = Array.isArray(sourceRecord.categories)
+                ? sourceRecord.categories.map((c: unknown) => (typeof c === 'string' ? c : getString(asRecord(c).id))).filter(Boolean)
                 : []
-              const tags = Array.isArray((source as any)?.tags)
-                ? (source as any).tags.map((c: any) => (typeof c === 'string' ? c : c?.id)).filter(Boolean)
+              const tags = Array.isArray(sourceRecord.tags)
+                ? sourceRecord.tags.map((c: unknown) => (typeof c === 'string' ? c : getString(asRecord(c).id))).filter(Boolean)
                 : []
-              const relatedPosts = Array.isArray((source as any)?.relatedPosts)
-                ? (source as any).relatedPosts.map((p: any) => (typeof p === 'string' ? p : p?.id)).filter(Boolean)
-                : undefined
-              const heroImageId = extractMediaId((source as any)?.heroImage)
-              const metaImageId = extractMediaId((source as any)?.meta?.image)
-              const keyTakeaways = Array.isArray((source as any)?.keyTakeaways)
-                ? (source as any).keyTakeaways
-                    .map((k: any) => ({ point: String(k?.point || '') }))
-                    .filter((k: any) => k.point)
+              const heroImageId = extractMediaId(sourceRecord.heroImage)
+              const metaImageId = extractMediaId(asRecord(sourceRecord.meta).image)
+              const keyTakeaways = Array.isArray(sourceRecord.keyTakeaways)
+                ? sourceRecord.keyTakeaways
+                    .map((k: unknown) => ({ point: String(asRecord(k).point || '') }))
+                    .filter((k: { point: string }) => k.point)
                 : []
               const articleType =
-                typeof (source as any)?.articleType === 'string'
-                  ? (source as any).articleType
-                  : (source as any)?.articleType?.id
+                typeof sourceRecord.articleType === 'string'
+                  ? sourceRecord.articleType
+                  : getString(asRecord(sourceRecord.articleType).id)
 
               const [clonedHeroImage, clonedMetaImage, clonedContent] = await Promise.all([
                 ensureMediaClone(heroImageId, tID, scopedReq),
                 ensureMediaClone(metaImageId, tID, scopedReq),
-                cloneRichTextUploads((source as any)?.content, tID, scopedReq),
+                cloneRichTextUploads(sourceRecord.content, tID, scopedReq),
               ])
 
-              const data: any = {
-                title: (source as any)?.title,
-                heroSource: (source as any)?.heroSource,
+              const data: Record<string, unknown> = {
+                title: sourceRecord.title,
+                heroSource: sourceRecord.heroSource,
                 heroImage: clonedHeroImage,
-                heroExternalURL: (source as any)?.heroExternalURL,
+                heroExternalURL: sourceRecord.heroExternalURL,
                 content: clonedContent,
                 meta: {
-                  title: (source as any)?.meta?.title,
-                  description: (source as any)?.meta?.description,
+                  title: asRecord(sourceRecord.meta).title,
+                  description: asRecord(sourceRecord.meta).description,
                   image: clonedMetaImage,
                 },
                 categories,
@@ -766,8 +837,8 @@ export const Posts: CollectionConfig<'posts'> = {
                 tags,
                 relatedPosts: undefined,
                 publishedAt: null,
-                slug: (source as any)?.slug,
-                slugLock: (source as any)?.slugLock,
+                slug: sourceRecord.slug,
+                slugLock: sourceRecord.slugLock,
                 tenant: tID,
                 _status: 'draft',
               }
@@ -777,23 +848,25 @@ export const Posts: CollectionConfig<'posts'> = {
                 data,
                 draft: true,
                 depth: 0,
-                req: scopedReq as any,
+                req: scopedReq,
               })
               results.push({ tenantID: tID, id: created?.id, slug: created?.slug, _status: created?._status || 'draft' })
-            } catch (e: any) {
-              results.push({ tenantID: tID, error: e?.message || 'create failed' })
+            } catch (_e: unknown) {
+              const errorData = getErrorData(_e)
+              results.push({ tenantID: tID, error: errorData.message || 'create failed' })
             }
           }
           return send(200, { ok: true, count: results.filter((r) => !r.skipped && !r.error).length, results })
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error('[posts/:id/share] error', err)
-          const body: any = { error: err?.message || 'Server error' }
+          const errorData = getErrorData(err)
+          const body: UnknownRecord = { error: errorData.message || 'Server error' }
           if (process.env.NODE_ENV !== 'production') {
-            body.stack = err?.stack
+            body.stack = errorData.stack
           }
           return send(500, body)
         }
-      }) as any,
+      }) as unknown as PayloadHandler,
     },
   ],
   fields: [
@@ -884,7 +957,7 @@ export const Posts: CollectionConfig<'posts'> = {
                   type: 'checkbox',
                   required: true,
                   validate: (value, { data }) => {
-                    const status = (data as Record<string, any> | undefined)?.['_status'] ?? (data as Record<string, any> | undefined)?.status
+                    const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
                     if (status === 'published' && !value) {
                       return 'Description must be approved before publishing.'
                     }
@@ -924,7 +997,7 @@ export const Posts: CollectionConfig<'posts'> = {
               type: 'checkbox',
               required: true,
               validate: (value, { data }) => {
-                const status = (data as Record<string, any> | undefined)?.['_status'] ?? (data as Record<string, any> | undefined)?.status
+                const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
                 if (status === 'published' && !value) {
                   return 'Key takeaways must be approved before publishing.'
                 }

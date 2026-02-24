@@ -2003,11 +2003,11 @@ export interface PayloadMcpApiKey {
      */
     backfillIContactUnsynced?: boolean | null;
     /**
-     * Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation.
+     * Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation. Prefer draft unless publish is explicitly requested.
      */
     upsertPageWithBlocks?: boolean | null;
     /**
-     * List blocks on a page with ids, types, indices, and compact field summaries.
+     * List blocks on a page with ids, types, indices, and compact field summaries. If pageId is omitted, provide slug and tenant.
      */
     listPageBlocks?: boolean | null;
     /**
@@ -2015,7 +2015,7 @@ export interface PayloadMcpApiKey {
      */
     getBlockShape?: boolean | null;
     /**
-     * Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax.
+     * Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax. Default behavior writes to draft.
      */
     updateBlockFields?: boolean | null;
     /**
@@ -2026,6 +2026,10 @@ export interface PayloadMcpApiKey {
      * Tree-aware Lexical updates by node key/type/text matching. Supports setProps, replaceText, removeNode, and insertChild.
      */
     updateRichTextNodes?: boolean | null;
+    /**
+     * Return preferred editing conventions for this CMS workspace (tenant targeting, slug interpretation, and draft-first publishing behavior).
+     */
+    getEditingDefaults?: boolean | null;
     /**
      * Update only speech bubbles (and their custom #anchor links) for a policyVoices block on a page.
      */
@@ -3529,6 +3533,7 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         updateBlockFields?: T;
         listRichTextNodes?: T;
         updateRichTextNodes?: T;
+        getEditingDefaults?: T;
         updatePolicyVoicesSpeechBubbles?: T;
         updatePolicyVoicesCardLinks?: T;
         bulkUpdateFormsByTitle?: T;

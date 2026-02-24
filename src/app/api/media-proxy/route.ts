@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
         'Cache-Control': 'public, max-age=60, s-maxage=60',
       },
     })
-  } catch (e) {
+  } catch (_e) {
     return new Response('Proxy fetch error', { status: 502 })
   }
 }
