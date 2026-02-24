@@ -55,7 +55,13 @@ function buildResponseHeaders(upstream: Response) {
 
 async function forwardToMcp(req: NextRequest) {
   try {
-    const upstreamURL = new URL('/api/mcp', req.nextUrl.origin)
+    const configuredOrigin =
+      process.env.PAYLOAD_MCP_PROXY_TARGET_ORIGIN ||
+      process.env.NEXT_PUBLIC_SERVER_URL ||
+      process.env.PAYLOAD_PUBLIC_SERVER_URL ||
+      req.nextUrl.origin
+    const normalizedOrigin = configuredOrigin.replace(/\/$/, '')
+    const upstreamURL = new URL('/api/mcp', normalizedOrigin)
 
     const headers = getForwardHeaders(req)
     const method = req.method.toUpperCase()
