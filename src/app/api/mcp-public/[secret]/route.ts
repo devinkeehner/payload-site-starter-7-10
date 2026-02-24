@@ -27,7 +27,8 @@ function getForwardHeaders(req: NextRequest) {
   const lastEventId = req.headers.get('last-event-id')
   const mcpSessionId = req.headers.get('mcp-session-id')
 
-  if (accept) headers.set('accept', accept)
+  // Payload MCP requires clients to accept both JSON and SSE for streamable HTTP.
+  headers.set('accept', accept || 'application/json, text/event-stream')
   if (contentType) headers.set('content-type', contentType)
   if (lastEventId) headers.set('last-event-id', lastEventId)
   if (mcpSessionId) headers.set('mcp-session-id', mcpSessionId)
@@ -53,23 +54,31 @@ function buildResponseHeaders(upstream: Response) {
 }
 
 async function forwardToMcp(req: NextRequest) {
-  const upstreamURL = new URL('/api/mcp', req.nextUrl.origin)
+  try {
+    const upstreamURL = new URL('/api/mcp', req.nextUrl.origin)
 
-  const headers = getForwardHeaders(req)
-  const method = req.method.toUpperCase()
-  const body = method === 'POST' ? await req.text() : undefined
+    const headers = getForwardHeaders(req)
+    const method = req.method.toUpperCase()
+    const body = method === 'POST' ? await req.text() : undefined
 
-  const upstream = await fetch(upstreamURL.toString(), {
-    method,
-    headers,
-    body,
-    cache: 'no-store',
-  })
+    const upstream = await fetch(upstreamURL.toString(), {
+      method,
+      headers,
+      body,
+      cache: 'no-store',
+    })
 
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: buildResponseHeaders(upstream),
-  })
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: buildResponseHeaders(upstream),
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown MCP proxy error'
+    return new Response(JSON.stringify({ message: 'MCP proxy failed', error: message }), {
+      status: 502,
+      headers: { 'content-type': 'application/json' },
+    })
+  }
 }
 
 function requireEnabled() {
@@ -90,11 +99,18 @@ function requireEnabled() {
   return null
 }
 
-export async function GET(req: NextRequest, context: { params: { secret: string } }) {
+type RouteContext = { params: { secret: string } | Promise<{ secret: string }> }
+
+async function resolveSecretFromContext(context: RouteContext) {
+  const params = await Promise.resolve(context.params)
+  return params?.secret || ''
+}
+
+export async function GET(req: NextRequest, context: RouteContext) {
   const guard = requireEnabled()
   if (guard) return guard
 
-  const { secret } = context.params
+  const secret = await resolveSecretFromContext(context)
   if (!isAuthorizedPathSecret(secret)) {
     return new Response(JSON.stringify({ message: 'Not found' }), {
       status: 404,
@@ -105,11 +121,11 @@ export async function GET(req: NextRequest, context: { params: { secret: string 
   return forwardToMcp(req)
 }
 
-export async function POST(req: NextRequest, context: { params: { secret: string } }) {
+export async function POST(req: NextRequest, context: RouteContext) {
   const guard = requireEnabled()
   if (guard) return guard
 
-  const { secret } = context.params
+  const secret = await resolveSecretFromContext(context)
   if (!isAuthorizedPathSecret(secret)) {
     return new Response(JSON.stringify({ message: 'Not found' }), {
       status: 404,
