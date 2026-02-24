@@ -1686,14 +1686,15 @@ const backfillIContactUnsyncedTool = {
 
 const listPageBlocksTool = {
   name: 'listPageBlocks',
-  description: 'List blocks on a page with ids, types, indices, and compact field summaries.',
+  description:
+    'List blocks on a page with ids, types, indices, and compact field summaries. If pageId is omitted, provide slug and tenant.',
   parameters: {
     pageId: z.union([z.string(), z.number()]).optional().describe('Optional page ID.'),
     slug: z.string().optional().describe('Page slug (used when pageId is not provided).'),
     tenant: z
       .union([z.string(), z.number()])
       .optional()
-      .describe('Tenant ID (recommended when using slug).'),
+      .describe('Tenant ID (recommended when using slug). For best results, always include tenant.'),
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
     const payload = req.payload;
@@ -1811,14 +1812,14 @@ const getBlockShapeTool = {
 const updateBlockFieldsTool = {
   name: 'updateBlockFields',
   description:
-    'Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax.',
+    'Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax. Default behavior writes to draft.',
   parameters: {
     pageId: z.union([z.string(), z.number()]).optional().describe('Optional page ID.'),
     slug: z.string().optional().describe('Page slug (used when pageId is not provided).'),
     tenant: z
       .union([z.string(), z.number()])
       .optional()
-      .describe('Tenant ID (recommended when using slug).'),
+      .describe('Tenant ID (recommended when using slug). If slug is ambiguous, tenant is required.'),
     blockId: z.union([z.string(), z.number()]).optional().describe('Optional block ID.'),
     blockType: z.string().optional().describe('Optional block type slug.'),
     blockIndex: z
@@ -1851,7 +1852,7 @@ const updateBlockFieldsTool = {
       .boolean()
       .optional()
       .default(true)
-      .describe('When true, writes to draft instead of directly updating the published version.'),
+      .describe('When true, writes to draft instead of directly updating published content. Defaults to true.'),
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
     const payload = req.payload;
@@ -2371,10 +2372,31 @@ const updateRichTextNodesTool = {
   },
 };
 
+const getEditingDefaultsTool = {
+  name: 'getEditingDefaults',
+  description:
+    'Return preferred editing conventions for this CMS workspace (tenant targeting, slug interpretation, and draft-first publishing behavior).',
+  parameters: {},
+  handler: async () => {
+    const guidance = [
+      'Editing defaults for this workspace:',
+      '1) Tenant targeting: If pageId is not provided, include both slug and tenant whenever possible.',
+      '2) Slug shorthand preference: When a user provides a value like "/xyz" and the intent is tenant context, treat it as tenant slug xyz unless explicitly overridden.',
+      '3) Draft-first behavior: Prefer draft writes by default. Only publish when the user explicitly requests publishing.',
+      '4) Safe page-block workflow: listPageBlocks -> getBlockShape -> updateBlockFields.',
+      '5) Scope minimization: Update only required fields/paths; avoid broad full-document rewrites unless explicitly requested.',
+    ].join('\n');
+
+    return {
+      content: [{ type: 'text' as const, text: guidance }],
+    };
+  },
+};
+
 const upsertPageWithBlocksTool = {
   name: 'upsertPageWithBlocks',
   description:
-    'Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation.',
+    'Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation. Prefer draft unless publish is explicitly requested.',
   parameters: {
     id: z
       .union([z.string(), z.number()])
@@ -2390,7 +2412,7 @@ const upsertPageWithBlocksTool = {
       .enum(['draft', 'published'])
       .optional()
       .default('draft')
-      .describe('Document status.'),
+      .describe('Document status. Defaults to draft; use published only when explicitly requested.'),
     hero: z.record(z.any()).optional().describe('Raw hero object, e.g. {"type":"none"}.'),
     layout: z
       .array(z.record(z.string(), z.unknown()))
@@ -3046,6 +3068,7 @@ export default buildConfig({
           updateBlockFieldsTool,
           listRichTextNodesTool,
           updateRichTextNodesTool,
+          getEditingDefaultsTool,
           updatePolicyVoicesSpeechBubblesTool,
           updatePolicyVoicesCardLinksTool,
           bulkUpdateFormsByTitleTool,
