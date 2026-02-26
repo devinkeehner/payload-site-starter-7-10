@@ -7,6 +7,8 @@ export async function GET(req: NextRequest) {
   const { disable } = await draftMode()
   disable()
 
-  const redirectURL = new URL('/', req.nextUrl.origin)
+  const externalOrigin = process.env.PREVIEW_FRONTEND_ORIGIN
+  const redirectPath = externalOrigin ? '/' : '/admin'
+  const redirectURL = new URL(redirectPath, externalOrigin || req.nextUrl.origin)
   return NextResponse.redirect(redirectURL)
 }
