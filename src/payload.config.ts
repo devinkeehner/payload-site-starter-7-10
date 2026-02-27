@@ -118,81 +118,6 @@ const mcpCollections = {
   'icontact-lists': { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
 
-const payloadChangeSummaryWidgetUri = 'ui://widget/payload-change-summary.html';
-
-const payloadChangeSummaryWidgetResource = {
-  name: 'payloadChangeSummaryWidget',
-  title: 'Payload Change Summary Widget',
-  description: 'Widget template for reviewing content edits and triggering publish.',
-  mimeType: 'text/html',
-  uri: payloadChangeSummaryWidgetUri,
-  handler: async () => ({
-    contents: [
-      {
-        uri: payloadChangeSummaryWidgetUri,
-        text: `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Payload Change Summary</title>
-    <style>
-      :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
-      body { margin: 0; padding: 14px; }
-      .card { border: 1px solid #9ca3af55; border-radius: 10px; padding: 12px; }
-      h2 { margin: 0 0 6px; font-size: 16px; }
-      p { margin: 6px 0; }
-      ul { margin: 6px 0; padding-left: 18px; }
-      button { margin-top: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #0f766e; color: #fff; font-weight: 600; cursor: pointer; width: 100%; }
-      small { opacity: 0.75; display: block; margin-top: 8px; }
-    </style>
-  </head>
-  <body>
-    <article class="card">
-      <h2 id="title">Change Summary</h2>
-      <p id="description">No description provided.</p>
-      <ul id="takeaways"></ul>
-      <button id="publish">Publish</button>
-      <small id="meta"></small>
-    </article>
-    <script>
-      const openai = window.openai
-      const output = openai?.toolOutput || {}
-      const summary = output.summary || output.structuredContent || output || {}
-      const title = summary.title || 'Payload Change Summary'
-      const description = summary.description || 'No description provided.'
-      const points = Array.isArray(summary.keyTakeaways) ? summary.keyTakeaways : []
-
-      document.getElementById('title').textContent = title
-      document.getElementById('description').textContent = description
-      document.getElementById('meta').textContent = 'Collection: ' + (summary.collection || 'pages') + ' | Doc: ' + (summary.docId || 'unknown')
-
-      const list = document.getElementById('takeaways')
-      list.innerHTML = ''
-      for (const point of points) {
-        const li = document.createElement('li')
-        li.textContent = String(point)
-        list.appendChild(li)
-      }
-      if (!points.length) {
-        const li = document.createElement('li')
-        li.textContent = 'No key takeaways.'
-        list.appendChild(li)
-      }
-
-      document.getElementById('publish').addEventListener('click', async () => {
-        if (!openai?.callTool) return
-        const action = summary.publishAction || { args: { collection: summary.collection || 'pages', docId: summary.docId } }
-        await openai.callTool('publishDocument', action.args || {})
-      })
-    </script>
-  </body>
-</html>`,
-      },
-    ],
-  }),
-};
-
 const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
@@ -2225,52 +2150,6 @@ const publishDocumentTool = {
   },
 };
 
-const summarizePayloadChangeTool = {
-  name: 'summarizePayloadChange',
-  description:
-    'Returns a structured change summary for widget rendering and provides publish action arguments.',
-  parameters: {
-    collection: z.enum(['pages', 'posts']).optional().default('pages'),
-    docId: z.union([z.string(), z.number()]),
-    title: z.string(),
-    description: z.string().optional().default(''),
-    keyTakeaways: z.array(z.string()).optional().default([]),
-  },
-  handler: async (args: Record<string, unknown>) => {
-    const collection = args.collection === 'posts' ? 'posts' : 'pages';
-    const docId = String(args.docId ?? '');
-    const title = typeof args.title === 'string' ? args.title : 'Payload Change Summary';
-    const description = typeof args.description === 'string' ? args.description : '';
-    const keyTakeaways = Array.isArray(args.keyTakeaways)
-      ? args.keyTakeaways.filter((value): value is string => typeof value === 'string')
-      : [];
-
-    const summary = {
-      collection,
-      docId,
-      title,
-      description,
-      keyTakeaways,
-      widget: {
-        resourceUri: payloadChangeSummaryWidgetUri,
-      },
-      publishAction: {
-        tool: 'publishDocument',
-        args: { collection, docId },
-      },
-    };
-
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text: JSON.stringify(summary, null, 2),
-        },
-      ],
-    };
-  },
-};
-
 const listRichTextNodesTool = {
   name: 'listRichTextNodes',
   description:
@@ -3343,7 +3222,6 @@ export default buildConfig({
           listPageBlocksTool,
           getBlockShapeTool,
           updateBlockFieldsTool,
-          summarizePayloadChangeTool,
           publishDocumentTool,
           listRichTextNodesTool,
           updateRichTextNodesTool,
@@ -3353,7 +3231,6 @@ export default buildConfig({
           bulkUpdateFormsByTitleTool,
           reorderContactFormTailFieldsTool,
         ],
-        resources: [payloadChangeSummaryWidgetResource],
       },
     }),
 
