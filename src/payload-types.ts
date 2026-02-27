@@ -2019,6 +2019,14 @@ export interface PayloadMcpApiKey {
      */
     updateBlockFields?: boolean | null;
     /**
+     * Returns a structured change summary for widget rendering and provides publish action arguments.
+     */
+    summarizePayloadChange?: boolean | null;
+    /**
+     * Publish a draft page or post. Returns document status and metadata suitable for a UI confirm step/button.
+     */
+    publishDocument?: boolean | null;
+    /**
      * List Lexical rich-text nodes from a document path with node keys, types, and parent relationships.
      */
     listRichTextNodes?: boolean | null;
@@ -2046,6 +2054,12 @@ export interface PayloadMcpApiKey {
      * For contact forms, move the `other` textarea and `image-select` field into the final two positions in a configurable order across tenants.
      */
     reorderContactFormTailFields?: boolean | null;
+  };
+  'payload-mcp-resource'?: {
+    /**
+     * Widget template for reviewing content edits and triggering publish.
+     */
+    payloadChangeSummaryWidget?: boolean | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -3531,6 +3545,8 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         listPageBlocks?: T;
         getBlockShape?: T;
         updateBlockFields?: T;
+        summarizePayloadChange?: T;
+        publishDocument?: T;
         listRichTextNodes?: T;
         updateRichTextNodes?: T;
         getEditingDefaults?: T;
@@ -3538,6 +3554,11 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         updatePolicyVoicesCardLinks?: T;
         bulkUpdateFormsByTitle?: T;
         reorderContactFormTailFields?: T;
+      };
+  'payload-mcp-resource'?:
+    | T
+    | {
+        payloadChangeSummaryWidget?: T;
       };
   updatedAt?: T;
   createdAt?: T;

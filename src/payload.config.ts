@@ -118,6 +118,81 @@ const mcpCollections = {
   'icontact-lists': { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
 
+const payloadChangeSummaryWidgetUri = 'ui://widget/payload-change-summary.html';
+
+const payloadChangeSummaryWidgetResource = {
+  name: 'payloadChangeSummaryWidget',
+  title: 'Payload Change Summary Widget',
+  description: 'Widget template for reviewing content edits and triggering publish.',
+  mimeType: 'text/html',
+  uri: payloadChangeSummaryWidgetUri,
+  handler: async () => ({
+    contents: [
+      {
+        uri: payloadChangeSummaryWidgetUri,
+        text: `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payload Change Summary</title>
+    <style>
+      :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; padding: 14px; }
+      .card { border: 1px solid #9ca3af55; border-radius: 10px; padding: 12px; }
+      h2 { margin: 0 0 6px; font-size: 16px; }
+      p { margin: 6px 0; }
+      ul { margin: 6px 0; padding-left: 18px; }
+      button { margin-top: 10px; padding: 8px 12px; border: 0; border-radius: 8px; background: #0f766e; color: #fff; font-weight: 600; cursor: pointer; width: 100%; }
+      small { opacity: 0.75; display: block; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <article class="card">
+      <h2 id="title">Change Summary</h2>
+      <p id="description">No description provided.</p>
+      <ul id="takeaways"></ul>
+      <button id="publish">Publish</button>
+      <small id="meta"></small>
+    </article>
+    <script>
+      const openai = window.openai
+      const output = openai?.toolOutput || {}
+      const summary = output.summary || output.structuredContent || output || {}
+      const title = summary.title || 'Payload Change Summary'
+      const description = summary.description || 'No description provided.'
+      const points = Array.isArray(summary.keyTakeaways) ? summary.keyTakeaways : []
+
+      document.getElementById('title').textContent = title
+      document.getElementById('description').textContent = description
+      document.getElementById('meta').textContent = 'Collection: ' + (summary.collection || 'pages') + ' | Doc: ' + (summary.docId || 'unknown')
+
+      const list = document.getElementById('takeaways')
+      list.innerHTML = ''
+      for (const point of points) {
+        const li = document.createElement('li')
+        li.textContent = String(point)
+        list.appendChild(li)
+      }
+      if (!points.length) {
+        const li = document.createElement('li')
+        li.textContent = 'No key takeaways.'
+        list.appendChild(li)
+      }
+
+      document.getElementById('publish').addEventListener('click', async () => {
+        if (!openai?.callTool) return
+        const action = summary.publishAction || { args: { collection: summary.collection || 'pages', docId: summary.docId } }
+        await openai.callTool('publishDocument', action.args || {})
+      })
+    </script>
+  </body>
+</html>`,
+      },
+    ],
+  }),
+};
+
 const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
@@ -1962,6 +2037,13 @@ const updateBlockFieldsTool = {
         failedCount: failed.length,
         applied,
         failed,
+        publishAction: {
+          tool: 'publishDocument',
+          args: {
+            collection: 'pages',
+            docId: String(pageDoc.id),
+          },
+        },
       };
 
       if (dryRun || !changed) {
@@ -2012,6 +2094,180 @@ const updateBlockFieldsTool = {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return { content: [{ type: 'text' as const, text: `Error updating block fields: ${message}` }] };
     }
+  },
+};
+
+const publishDocumentTool = {
+  name: 'publishDocument',
+  description:
+    'Publish a draft page or post. Returns document status and metadata suitable for a UI confirm step/button.',
+  parameters: {
+    collection: z.enum(['pages', 'posts']).describe('Target collection.'),
+    docId: z.union([z.string(), z.number()]).optional().describe('Document ID.'),
+    slug: z.string().optional().describe('Document slug when docId is not provided.'),
+    tenant: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Tenant ID recommended when publishing by slug.'),
+    dryRun: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('When true, returns what would be published without writing.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const collection = args.collection === 'posts' ? 'posts' : 'pages';
+    const docId = args.docId != null ? String(args.docId) : undefined;
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
+    const tenant = args.tenant != null ? String(args.tenant) : undefined;
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+
+    if (!docId && !slug) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: provide `docId` or `slug`.' }],
+      };
+    }
+
+    try {
+      const doc = await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
+      if (!doc || !doc.id) {
+        return { content: [{ type: 'text' as const, text: 'Error: document not found.' }] };
+      }
+
+      const beforeStatus = typeof doc._status === 'string' ? doc._status : null;
+      const responseBase = {
+        collection,
+        docId: String(doc.id),
+        slug: typeof doc.slug === 'string' ? doc.slug : null,
+        title: typeof doc.title === 'string' ? doc.title : null,
+        beforeStatus,
+        dryRun,
+      };
+
+      if (beforeStatus === 'published') {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  ...responseBase,
+                  changed: false,
+                  action: 'noop',
+                  afterStatus: 'published',
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      if (dryRun) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  ...responseBase,
+                  changed: true,
+                  action: 'would_publish',
+                  afterStatus: 'published',
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      const updated = (await payload.update({
+        collection,
+        id: String(doc.id),
+        data: {
+          _status: 'published',
+          ...(doc.publishedAt ? {} : { publishedAt: new Date().toISOString() }),
+        } as Record<string, unknown>,
+        draft: false,
+        overrideAccess: true,
+        req,
+      })) as unknown as Record<string, unknown>;
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                ...responseBase,
+                changed: true,
+                action: 'published',
+                afterStatus: updated?._status ?? null,
+                updatedAt: updated?.updatedAt ?? null,
+                publishedAt: updated?.publishedAt ?? null,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error publishing document: ${message}` }],
+      };
+    }
+  },
+};
+
+const summarizePayloadChangeTool = {
+  name: 'summarizePayloadChange',
+  description:
+    'Returns a structured change summary for widget rendering and provides publish action arguments.',
+  parameters: {
+    collection: z.enum(['pages', 'posts']).optional().default('pages'),
+    docId: z.union([z.string(), z.number()]),
+    title: z.string(),
+    description: z.string().optional().default(''),
+    keyTakeaways: z.array(z.string()).optional().default([]),
+  },
+  handler: async (args: Record<string, unknown>) => {
+    const collection = args.collection === 'posts' ? 'posts' : 'pages';
+    const docId = String(args.docId ?? '');
+    const title = typeof args.title === 'string' ? args.title : 'Payload Change Summary';
+    const description = typeof args.description === 'string' ? args.description : '';
+    const keyTakeaways = Array.isArray(args.keyTakeaways)
+      ? args.keyTakeaways.filter((value): value is string => typeof value === 'string')
+      : [];
+
+    const summary = {
+      collection,
+      docId,
+      title,
+      description,
+      keyTakeaways,
+      widget: {
+        resourceUri: payloadChangeSummaryWidgetUri,
+      },
+      publishAction: {
+        tool: 'publishDocument',
+        args: { collection, docId },
+      },
+    };
+
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify(summary, null, 2),
+        },
+      ],
+    } as Record<string, unknown>;
   },
 };
 
@@ -3087,6 +3343,8 @@ export default buildConfig({
           listPageBlocksTool,
           getBlockShapeTool,
           updateBlockFieldsTool,
+          summarizePayloadChangeTool,
+          publishDocumentTool,
           listRichTextNodesTool,
           updateRichTextNodesTool,
           getEditingDefaultsTool,
@@ -3095,6 +3353,7 @@ export default buildConfig({
           bulkUpdateFormsByTitleTool,
           reorderContactFormTailFieldsTool,
         ],
+        resources: [payloadChangeSummaryWidgetResource],
       },
     }),
 
