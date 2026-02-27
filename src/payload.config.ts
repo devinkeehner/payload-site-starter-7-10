@@ -2267,7 +2267,7 @@ const summarizePayloadChangeTool = {
           text: JSON.stringify(summary, null, 2),
         },
       ],
-    } as Record<string, unknown>;
+    };
   },
 };
 
