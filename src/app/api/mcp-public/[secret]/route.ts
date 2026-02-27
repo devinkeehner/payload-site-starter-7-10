@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server'
+import { GET as getChatgptMcp, POST as postChatgptMcp } from '../../mcp-chatgpt/route'
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -63,6 +64,32 @@ async function forwardToMcp(req: NextRequest) {
     const normalizedOrigin = configuredOrigin.replace(/\/$/, '')
     const targetPathRaw = (process.env.PAYLOAD_MCP_PROXY_TARGET_PATH || '/api/mcp').trim()
     const targetPath = targetPathRaw.startsWith('/') ? targetPathRaw : `/${targetPathRaw}`
+
+    if (targetPath === '/api/mcp-chatgpt') {
+      const headers = getForwardHeaders(req)
+      const method = req.method.toUpperCase()
+      const rewrittenURL = new URL(targetPath, req.nextUrl.origin)
+      const body = method === 'POST' ? await req.text() : undefined
+
+      const proxiedRequest = new Request(rewrittenURL.toString(), {
+        method,
+        headers,
+        body,
+      })
+
+      if (method === 'POST') {
+        return postChatgptMcp(proxiedRequest)
+      }
+      if (method === 'GET') {
+        return getChatgptMcp(proxiedRequest)
+      }
+
+      return new Response(JSON.stringify({ message: 'Method not allowed' }), {
+        status: 405,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
     const upstreamURL = new URL(targetPath, normalizedOrigin)
 
     const headers = getForwardHeaders(req)
@@ -82,7 +109,7 @@ async function forwardToMcp(req: NextRequest) {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown MCP proxy error'
-    return new Response(JSON.stringify({ message: 'MCP proxy failed', error: message }), {
+    return new Response(JSON.stringify({ message: 'MCP proxy failed', target: process.env.PAYLOAD_MCP_PROXY_TARGET_PATH || '/api/mcp', error: message }), {
       status: 502,
       headers: { 'content-type': 'application/json' },
     })
