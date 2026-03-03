@@ -2047,6 +2047,10 @@ export interface PayloadMcpApiKey {
      */
     bulkUpdateFormsByTitle?: boolean | null;
     /**
+     * Bulk normalize Contact Form fields across tenants: rename mobile->phone, ensure Street Address/Town/ZIP required, and add missing Town/ZIP fields.
+     */
+    bulkNormalizeContactForms?: boolean | null;
+    /**
      * For contact forms, move the `other` textarea and `image-select` field into the final two positions in a configurable order across tenants.
      */
     reorderContactFormTailFields?: boolean | null;
@@ -3542,6 +3546,7 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         updatePolicyVoicesSpeechBubbles?: T;
         updatePolicyVoicesCardLinks?: T;
         bulkUpdateFormsByTitle?: T;
+        bulkNormalizeContactForms?: T;
         reorderContactFormTailFields?: T;
       };
   updatedAt?: T;

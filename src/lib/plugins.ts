@@ -141,6 +141,73 @@ const normalizeChoiceValue = (value: unknown): string => {
   return ''
 }
 
+const toChoiceItems = (value: unknown): string[] => {
+  if (value == null) return []
+  if (Array.isArray(value)) return value.flatMap((entry) => toChoiceItems(entry))
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed ? [trimmed] : []
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') return [String(value)]
+  if (typeof value === 'object') {
+    const normalized = normalizeChoiceValue(value)
+    return normalized ? [normalized] : []
+  }
+  return []
+}
+
+const parseChoiceItemsFromSerializedText = (text: string): string[] | null => {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) return null
+  if (trimmed === '[object Object]') return null
+
+  const maybeJSON =
+    (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+    (trimmed.startsWith('{') && trimmed.endsWith('}'))
+
+  if (maybeJSON) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      const items = toChoiceItems(parsed).filter(Boolean)
+      return items.length > 1 ? items : null
+    } catch {
+      return null
+    }
+  }
+
+  const maybeParenList = trimmed.startsWith('(') && trimmed.endsWith(')') && trimmed.includes(',')
+  if (maybeParenList) {
+    const items = trimmed
+      .slice(1, -1)
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    return items.length > 1 ? items : null
+  }
+
+  if (trimmed.includes(',')) {
+    const items = trimmed
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+    return items.length > 1 ? items : null
+  }
+
+  return null
+}
+
+const renderChoiceItemsAsThreeColumns = (items: string[]) => {
+  return `<div style="margin:2px 0 4px; font-size:0;">${items
+    .map(
+      (item) =>
+        `<span style="display:inline-block; width:31%; margin:0 2% 10px 0; padding:8px 10px; border:1px solid #dbe3ef; border-radius:8px; background:#f8fafc; color:#111827; font-size:13px; line-height:1.35; vertical-align:top; box-sizing:border-box;">${escapeHTML(
+          item,
+        )}</span>`,
+    )
+    .join('')}</div>`
+}
+
 const prettifySerializedChoiceText = (text: string): string | null => {
   const trimmed = text.trim()
   if (!trimmed) return null
@@ -177,9 +244,77 @@ const prettifySerializedChoiceText = (text: string): string | null => {
 
 const prettifyChoiceValuesInTableCells = (html: string) => {
   return html.replace(/<td(\s[^>]*)?>([\s\S]*?)<\/td>/gi, (full, attrs = '', inner = '') => {
+    const asChoiceItems = parseChoiceItemsFromSerializedText(inner)
+    if (asChoiceItems && asChoiceItems.length > 1) {
+      return `<td${attrs}>${renderChoiceItemsAsThreeColumns(asChoiceItems)}</td>`
+    }
+
     const pretty = prettifySerializedChoiceText(inner)
     if (!pretty) return full
     return `<td${attrs}>${escapeHTML(pretty)}</td>`
+  })
+}
+
+const decodeHTMLEntities = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+
+const getTableRowFieldKey = (rowHtml: string): string => {
+  const firstCellMatch = rowHtml.match(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/i)
+  if (!firstCellMatch?.[1]) return ''
+  const stripped = firstCellMatch[1].replace(/<[^>]+>/g, '')
+  return decodeHTMLEntities(stripped).trim()
+}
+
+const reorderTableRowsByFieldOrder = (html: string, fieldOrder: string[]) => {
+  if (!Array.isArray(fieldOrder) || fieldOrder.length === 0) return html
+
+  const orderMap = new Map<string, number>()
+  fieldOrder.forEach((name, index) => {
+    if (!name || typeof name !== 'string') return
+    const key = name.trim()
+    if (!key || orderMap.has(key)) return
+    orderMap.set(key, index)
+  })
+
+  if (orderMap.size === 0) return html
+
+  return html.replace(/<table\b[\s\S]*?<\/table>/gi, (tableHtml) => {
+    const rowRegex = /<tr(\s[^>]*)?>[\s\S]*?<\/tr>/gi
+    const rowMatches = Array.from(tableHtml.matchAll(rowRegex))
+    if (rowMatches.length < 2) return tableHtml
+
+    const firstRowIndex = rowMatches[0]?.index ?? -1
+    const lastRow = rowMatches[rowMatches.length - 1]
+    const lastRowIndex = lastRow?.index ?? -1
+    if (firstRowIndex < 0 || lastRowIndex < 0) return tableHtml
+
+    const rows = rowMatches.map((match, idx) => {
+      const rowHtml = match[0]
+      const hasHeaderCells = /<th\b/i.test(rowHtml)
+      const key = getTableRowFieldKey(rowHtml)
+      const orderIndex = orderMap.has(key) ? (orderMap.get(key) as number) : Number.POSITIVE_INFINITY
+      return { idx, rowHtml, hasHeaderCells, orderIndex }
+    })
+
+    const hasSortableRows = rows.some((row) => Number.isFinite(row.orderIndex))
+    if (!hasSortableRows) return tableHtml
+
+    const sortedRows = [...rows].sort((a, b) => {
+      if (a.hasHeaderCells && !b.hasHeaderCells) return -1
+      if (!a.hasHeaderCells && b.hasHeaderCells) return 1
+      if (a.orderIndex !== b.orderIndex) return a.orderIndex - b.orderIndex
+      return a.idx - b.idx
+    })
+
+    const prefix = tableHtml.slice(0, firstRowIndex)
+    const suffix = tableHtml.slice(lastRowIndex + (lastRow?.[0]?.length ?? 0))
+    return `${prefix}${sortedRows.map((row) => row.rowHtml).join('')}${suffix}`
   })
 }
 
@@ -214,10 +349,11 @@ const applyAlternatingTableRowColors = (html: string) => {
   })
 }
 
-const formatFormEmailHTML = (input: string) => {
+const formatFormEmailHTML = (input: string, fieldOrder: string[] = []) => {
   let html = typeof input === 'string' ? input : ''
   if (!html.trim()) return html
 
+  html = reorderTableRowsByFieldOrder(html, fieldOrder)
   html = prettifyChoiceValuesInTableCells(html)
   html = appendInlineStyle(
     html,
@@ -237,7 +373,7 @@ const formatFormEmailHTML = (input: string) => {
   html = appendInlineStyle(
     html,
     'td',
-    'padding:12px 14px; border-bottom:1px solid #e5e7eb; color:#111827; font-size:14px; line-height:1.5; vertical-align:top;',
+    'padding:12px 14px; border-bottom:1px solid #e5e7eb; color:#111827; font-size:14px; line-height:1.5; vertical-align:top; white-space:pre-line; word-break:break-word;',
   )
   html = appendInlineStyle(
     html,
@@ -295,10 +431,38 @@ export const plugins: Plugin[] = [
     generateURL,
   }),
   formBuilderPlugin({
-    beforeEmail: async (emails) => {
+    beforeEmail: async (emails, beforeChangeParams: any) => {
+      const formRef = beforeChangeParams?.data?.form
+      const formID =
+        typeof formRef === 'string'
+          ? formRef
+          : formRef && typeof formRef === 'object' && typeof formRef.id === 'string'
+          ? formRef.id
+          : ''
+      const payload = beforeChangeParams?.req?.payload
+
+      let fieldOrder: string[] = []
+      if (payload && formID) {
+        try {
+          const formDoc = await payload.findByID({
+            collection: 'forms',
+            id: formID,
+            depth: 0,
+            overrideAccess: true,
+            req: beforeChangeParams.req,
+          })
+          const fields = Array.isArray((formDoc as any)?.fields) ? (formDoc as any).fields : []
+          fieldOrder = fields
+            .map((field: any) => (typeof field?.name === 'string' ? field.name.trim() : ''))
+            .filter(Boolean)
+        } catch {
+          fieldOrder = []
+        }
+      }
+
       return (emails || []).map((email) => ({
         ...email,
-        html: formatFormEmailHTML(email?.html || ''),
+        html: formatFormEmailHTML(email?.html || '', fieldOrder),
       }))
     },
     fields: {

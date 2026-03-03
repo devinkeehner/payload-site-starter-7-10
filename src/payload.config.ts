@@ -653,6 +653,353 @@ const bulkUpdateFormsByTitleTool = {
   },
 };
 
+const bulkNormalizeContactFormsTool = {
+  name: 'bulkNormalizeContactForms',
+  description:
+    'Bulk normalize Contact Form fields across tenants: rename mobile->phone, ensure Street Address/Town/ZIP required, and add missing Town/ZIP fields.',
+  parameters: {
+    formTitle: z.string().optional().default('Contact Form').describe('Exact form title to match.'),
+    tenantIds: z
+      .array(z.union([z.string(), z.number()]))
+      .optional()
+      .describe('Optional tenant IDs to limit updates.'),
+    tenantSlugs: z
+      .array(z.string())
+      .optional()
+      .describe('Optional tenant slugs to limit updates.'),
+    dryRun: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('When true, reports what would change without writing updates.'),
+    maxMatches: z
+      .number()
+      .int()
+      .min(1)
+      .max(5000)
+      .optional()
+      .default(500)
+      .describe('Maximum forms to scan and process.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const formTitle =
+      typeof args.formTitle === 'string' && args.formTitle.trim().length > 0
+        ? args.formTitle.trim()
+        : 'Contact Form';
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+    const maxMatches =
+      typeof args.maxMatches === 'number' && Number.isFinite(args.maxMatches)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.maxMatches)))
+        : 500;
+
+    const rawTenantIds = Array.isArray(args.tenantIds)
+      ? args.tenantIds
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter((id) => id.length > 0)
+      : [];
+
+    const rawTenantSlugs = Array.isArray(args.tenantSlugs)
+      ? args.tenantSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+          .filter((slug) => slug.length > 0)
+      : [];
+
+    try {
+      const tenantIds = new Set<string>(rawTenantIds);
+      const missingTenantSlugs: string[] = [];
+
+      if (rawTenantSlugs.length > 0) {
+        const tenants = await payload.find({
+          collection: 'tenants',
+          limit: Math.max(rawTenantSlugs.length, 100),
+          overrideAccess: true,
+          req,
+          where: {
+            slug: { in: rawTenantSlugs },
+          },
+        });
+
+        const foundSlugSet = new Set<string>();
+        for (const tenantDoc of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenantDoc.id) {
+            tenantIds.add(String(tenantDoc.id));
+          }
+          if (typeof tenantDoc.slug === 'string') {
+            foundSlugSet.add(tenantDoc.slug);
+          }
+        }
+
+        for (const slug of rawTenantSlugs) {
+          if (!foundSlugSet.has(slug)) {
+            missingTenantSlugs.push(slug);
+          }
+        }
+      }
+
+      const whereFilters: Array<Record<string, unknown>> = [{ title: { equals: formTitle } }];
+      if (tenantIds.size > 0) {
+        whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
+      }
+
+      const where: Where =
+        whereFilters.length > 1
+          ? ({ and: whereFilters } as Where)
+          : ((whereFilters[0] ?? {}) as Where);
+
+      const changed: Array<Record<string, unknown>> = [];
+      const unchanged: Array<Record<string, unknown>> = [];
+      const failed: Array<Record<string, unknown>> = [];
+
+      let page = 1;
+      let processed = 0;
+      let totalFound = 0;
+      let done = false;
+
+      while (!done) {
+        const result = await payload.find({
+          collection: 'forms',
+          depth: 1,
+          limit: Math.min(100, maxMatches),
+          page,
+          overrideAccess: true,
+          req,
+          where,
+        });
+
+        if (page === 1) {
+          totalFound = result.totalDocs;
+        }
+
+        if (result.docs.length === 0) {
+          break;
+        }
+
+        for (const formDoc of result.docs as unknown as Array<Record<string, unknown>>) {
+          if (processed >= maxMatches) {
+            done = true;
+            break;
+          }
+          processed += 1;
+
+          const { tenantId, tenantName, tenantSlug } = getTenantMeta(formDoc.tenant);
+          const formId = formDoc.id ? String(formDoc.id) : null;
+          const baseRow = {
+            formId,
+            title: typeof formDoc.title === 'string' ? formDoc.title : null,
+            tenantId,
+            tenantSlug,
+            tenantName,
+          };
+
+          if (!formId) {
+            failed.push({ ...baseRow, error: 'Missing form ID.' });
+            continue;
+          }
+
+          const originalFields = Array.isArray(formDoc.fields)
+            ? (formDoc.fields as Array<Record<string, unknown>>)
+            : [];
+          const nextFields = cloneValue(originalFields);
+          const changes: string[] = [];
+
+          const findFieldIndex = (fieldName: string) =>
+            nextFields.findIndex((field) => {
+              if (!field || typeof field !== 'object') return false;
+              return String((field as Record<string, unknown>).name ?? '') === fieldName;
+            });
+
+          const ensureRequired = (index: number, fieldLabel?: string) => {
+            if (index < 0) return;
+            const field = (nextFields[index] ?? {}) as Record<string, unknown>;
+            const nextField = { ...field };
+            let touched = false;
+
+            if (nextField.required !== true) {
+              nextField.required = true;
+              touched = true;
+            }
+
+            if (fieldLabel && String(nextField.label ?? '') !== fieldLabel) {
+              nextField.label = fieldLabel;
+              touched = true;
+            }
+
+            if (touched) {
+              nextFields[index] = nextField;
+            }
+          };
+
+          const mobileIndex = findFieldIndex('mobile');
+          const phoneIndex = findFieldIndex('phone');
+          if (mobileIndex >= 0 && phoneIndex < 0) {
+            const mobileField = (nextFields[mobileIndex] ?? {}) as Record<string, unknown>;
+            nextFields[mobileIndex] = {
+              ...mobileField,
+              name: 'phone',
+              label: 'Phone',
+              required: true,
+            };
+            changes.push('renamed mobile -> phone and set required');
+          } else if (phoneIndex >= 0) {
+            ensureRequired(phoneIndex, 'Phone');
+            if (phoneIndex >= 0) {
+              changes.push('enforced phone required');
+            }
+          }
+
+          const addressIndex = findFieldIndex('address');
+          if (addressIndex >= 0) {
+            ensureRequired(addressIndex, 'Street Address');
+            changes.push('enforced street address required');
+          }
+
+          let townIndex = findFieldIndex('town');
+          if (townIndex >= 0) {
+            ensureRequired(townIndex, 'Town');
+            changes.push('enforced town required');
+          } else {
+            const newTownField: Record<string, unknown> = {
+              blockType: 'text',
+              name: 'town',
+              label: 'Town',
+              width: 50,
+              required: true,
+            };
+            const insertAfter = addressIndex >= 0 ? addressIndex : findFieldIndex('phone');
+            if (insertAfter >= 0) {
+              nextFields.splice(insertAfter + 1, 0, newTownField);
+            } else {
+              nextFields.push(newTownField);
+            }
+            townIndex = findFieldIndex('town');
+            changes.push('added town field (required)');
+          }
+
+          let zipIndex = findFieldIndex('zip');
+          if (zipIndex >= 0) {
+            ensureRequired(zipIndex, 'Zip');
+            changes.push('enforced zip required');
+          } else {
+            const newZipField: Record<string, unknown> = {
+              blockType: 'text',
+              name: 'zip',
+              label: 'Zip',
+              width: 50,
+              required: true,
+            };
+            const townInsertIndex = townIndex >= 0 ? townIndex : findFieldIndex('address');
+            if (townInsertIndex >= 0) {
+              nextFields.splice(townInsertIndex + 1, 0, newZipField);
+            } else {
+              nextFields.push(newZipField);
+            }
+            zipIndex = findFieldIndex('zip');
+            changes.push('added zip field (required)');
+          }
+
+          const originalMap =
+            formDoc.iContactFieldMap &&
+            typeof formDoc.iContactFieldMap === 'object' &&
+            !Array.isArray(formDoc.iContactFieldMap)
+              ? (formDoc.iContactFieldMap as Record<string, unknown>)
+              : null;
+
+          let nextMap = originalMap ? cloneValue(originalMap) : null;
+          const hasPhone = findFieldIndex('phone') >= 0;
+          if (hasPhone) {
+            if (!nextMap) nextMap = {};
+            if (String(nextMap.mobileFieldName ?? '') !== 'phone') {
+              nextMap.mobileFieldName = 'phone';
+              changes.push('set iContact mobileFieldName -> phone');
+            }
+          }
+
+          const fieldsChanged = !deepEqual(originalFields, nextFields);
+          const mapChanged = !deepEqual(originalMap, nextMap);
+          const changedDoc = fieldsChanged || mapChanged;
+
+          if (!changedDoc) {
+            unchanged.push(baseRow);
+            continue;
+          }
+
+          if (dryRun) {
+            changed.push({
+              ...baseRow,
+              dryRun: true,
+              changes,
+            });
+            continue;
+          }
+
+          try {
+            const data: Record<string, unknown> = {
+              fields: nextFields,
+            };
+            if (nextMap) {
+              data.iContactFieldMap = nextMap;
+            }
+
+            await payload.update({
+              collection: 'forms',
+              id: formId,
+              data,
+              overrideAccess: true,
+              req,
+            });
+
+            changed.push({
+              ...baseRow,
+              dryRun: false,
+              changes,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
+            failed.push({ ...baseRow, error: message });
+          }
+        }
+
+        if (done || page >= result.totalPages) {
+          break;
+        }
+        page += 1;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                formTitle,
+                dryRun,
+                maxMatches,
+                totalFound,
+                processed,
+                changedCount: changed.length,
+                unchangedCount: unchanged.length,
+                failedCount: failed.length,
+                missingTenantSlugs,
+                changed,
+                unchanged,
+                failed,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error normalizing contact forms: ${message}` }],
+      };
+    }
+  },
+};
+
 const reorderContactFormTailFieldsTool = {
   name: 'reorderContactFormTailFields',
   description:
@@ -3229,6 +3576,7 @@ export default buildConfig({
           updatePolicyVoicesSpeechBubblesTool,
           updatePolicyVoicesCardLinksTool,
           bulkUpdateFormsByTitleTool,
+          bulkNormalizeContactFormsTool,
           reorderContactFormTailFieldsTool,
         ],
       },
