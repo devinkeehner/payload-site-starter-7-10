@@ -349,12 +349,29 @@ const applyAlternatingTableRowColors = (html: string) => {
   })
 }
 
+const stackLabelAndValueRows = (html: string) => {
+  return html.replace(/<table\b[\s\S]*?<\/table>/gi, (tableHtml) => {
+    return tableHtml.replace(/<tr(\s[^>]*)?>[\s\S]*?<\/tr>/gi, (rowHtml) => {
+      if (/<th\b/i.test(rowHtml)) return rowHtml
+
+      const tdMatches = Array.from(rowHtml.matchAll(/<td(\s[^>]*)?>([\s\S]*?)<\/td>/gi))
+      if (tdMatches.length !== 2) return rowHtml
+
+      const labelHTML = tdMatches[0]?.[2] ?? ''
+      const valueHTML = tdMatches[1]?.[2] ?? ''
+
+      return `<tr><td colspan="2"><div style="margin:0 0 6px; font-size:12px; font-weight:600; color:#475467; line-height:1.35;">${labelHTML}</div><div style="margin:0;">${valueHTML}</div></td></tr>`
+    })
+  })
+}
+
 const formatFormEmailHTML = (input: string, fieldOrder: string[] = []) => {
   let html = typeof input === 'string' ? input : ''
   if (!html.trim()) return html
 
   html = reorderTableRowsByFieldOrder(html, fieldOrder)
   html = prettifyChoiceValuesInTableCells(html)
+  html = stackLabelAndValueRows(html)
   html = appendInlineStyle(
     html,
     'table',
