@@ -80,6 +80,101 @@ const parseRouteId = (req: any, endpointSuffixRegex: RegExp) => {
   }
 }
 
+const appendInlineStyle = (html: string, tagName: string, styleToAdd: string) => {
+  const openingTagPattern = new RegExp(`<${tagName}(\\s[^>]*)?>`, 'gi')
+
+  return html.replace(openingTagPattern, (match, attrs = '') => {
+    const styleAttrPattern = /style\s*=\s*(['"])(.*?)\1/i
+    const hasStyle = styleAttrPattern.test(attrs)
+
+    if (hasStyle) {
+      return `<${tagName}${attrs.replace(styleAttrPattern, (_full: string, quote: string, existing: string) => {
+        const nextStyle = existing.trim().endsWith(';')
+          ? `${existing.trim()} ${styleToAdd}`
+          : `${existing.trim()}; ${styleToAdd}`
+        return `style=${quote}${nextStyle}${quote}`
+      })}>`
+    }
+
+    return `<${tagName}${attrs} style="${styleToAdd}">`
+  })
+}
+
+const appendStyleToOpeningTag = (openingTag: string, styleToAdd: string) => {
+  const styleAttrPattern = /style\s*=\s*(['"])(.*?)\1/i
+  const match = openingTag.match(styleAttrPattern)
+
+  if (!match) {
+    return openingTag.replace(/>$/, ` style="${styleToAdd}">`)
+  }
+
+  const quote = match[1] || '"'
+  const existing = (match[2] || '').trim()
+  const nextStyle = existing.endsWith(';') ? `${existing} ${styleToAdd}` : `${existing}; ${styleToAdd}`
+  return openingTag.replace(styleAttrPattern, `style=${quote}${nextStyle}${quote}`)
+}
+
+const applyAlternatingTableRowColors = (html: string) => {
+  return html.replace(/<table\b[\s\S]*?<\/table>/gi, (tableHtml) => {
+    let bodyRowIndex = 0
+
+    return tableHtml.replace(/<tr(\s[^>]*)?>[\s\S]*?<\/tr>/gi, (rowHtml) => {
+      const containsHeaderCells = /<th\b/i.test(rowHtml)
+      if (containsHeaderCells) return rowHtml
+
+      const color = bodyRowIndex % 2 === 0 ? '#ffffff' : '#f8fafc'
+      bodyRowIndex += 1
+      return rowHtml.replace(/<tr(\s[^>]*)?>/i, (openingTag) =>
+        appendStyleToOpeningTag(openingTag, `background-color:${color};`),
+      )
+    })
+  })
+}
+
+const formatFormEmailHTML = (input: string) => {
+  let html = typeof input === 'string' ? input : ''
+  if (!html.trim()) return html
+
+  html = appendInlineStyle(
+    html,
+    'table',
+    'width:100%; border-collapse:separate; border-spacing:0; margin:16px 0; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden;',
+  )
+  html = appendInlineStyle(
+    html,
+    'tr',
+    'background-color:#ffffff;',
+  )
+  html = appendInlineStyle(
+    html,
+    'th',
+    'padding:12px 14px; text-align:left; border-bottom:1px solid #e5e7eb; background:#f8fafc; color:#111827; font-weight:600; font-size:13px; vertical-align:top;',
+  )
+  html = appendInlineStyle(
+    html,
+    'td',
+    'padding:12px 14px; border-bottom:1px solid #e5e7eb; color:#111827; font-size:14px; line-height:1.5; vertical-align:top;',
+  )
+  html = appendInlineStyle(
+    html,
+    'p',
+    'margin:0 0 12px; line-height:1.6;',
+  )
+  html = appendInlineStyle(
+    html,
+    'li',
+    'margin:0 0 8px; line-height:1.6;',
+  )
+  html = appendInlineStyle(
+    html,
+    'blockquote',
+    'margin:12px 0; padding:10px 14px; border-left:4px solid #d1d5db; background:#f9fafb;',
+  )
+  html = applyAlternatingTableRowColors(html)
+
+  return `<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; color:#111827; font-size:14px; line-height:1.6;">${html}</div>`
+}
+
 export const plugins: Plugin[] = [
   redirectsPlugin({
     collections: ['pages', 'posts'],
@@ -116,6 +211,12 @@ export const plugins: Plugin[] = [
     generateURL,
   }),
   formBuilderPlugin({
+    beforeEmail: async (emails) => {
+      return (emails || []).map((email) => ({
+        ...email,
+        html: formatFormEmailHTML(email?.html || ''),
+      }))
+    },
     fields: {
       payment: false,
       radio: true,
