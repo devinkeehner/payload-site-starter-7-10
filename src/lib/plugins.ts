@@ -198,14 +198,24 @@ const parseChoiceItemsFromSerializedText = (text: string): string[] | null => {
 }
 
 const renderChoiceItemsAsThreeColumns = (items: string[]) => {
-  return `<div style="margin:2px 0 4px; font-size:0;">${items
-    .map(
-      (item) =>
-        `<span style="display:inline-block; width:31%; margin:0 2% 10px 0; padding:8px 10px; border:1px solid #dbe3ef; border-radius:8px; background:#f8fafc; color:#111827; font-size:13px; line-height:1.35; vertical-align:top; box-sizing:border-box;">${escapeHTML(
-          item,
-        )}</span>`,
+  let rows = ''
+  for (let i = 0; i < items.length; i += 3) {
+    const chunk = items.slice(i, i + 3)
+    const cells = chunk
+      .map(
+        (item) =>
+          `<td style="width:33.33%; padding:0 8px 10px 0; vertical-align:top;"><div style="padding:8px 10px; border:1px solid #dbe3ef; border-radius:8px; background:#f8fafc; color:#111827; font-size:13px; line-height:1.35;">${escapeHTML(
+            item,
+          )}</div></td>`,
+      )
+      .join('')
+    const filler = '<td style="width:33.33%; padding:0 8px 10px 0; vertical-align:top;"></td>'.repeat(
+      Math.max(0, 3 - chunk.length),
     )
-    .join('')}</div>`
+    rows += `<tr>${cells}${filler}</tr>`
+  }
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:2px 0 4px;">${rows}</table>`
 }
 
 const prettifySerializedChoiceText = (text: string): string | null => {
@@ -250,8 +260,21 @@ const prettifyChoiceValuesInTableCells = (html: string) => {
     }
 
     const pretty = prettifySerializedChoiceText(inner)
-    if (!pretty) return full
-    return `<td${attrs}>${escapeHTML(pretty)}</td>`
+    if (pretty) {
+      return `<td${attrs}>${escapeHTML(pretty)}</td>`
+    }
+
+    if (!/<[^>]+>/.test(inner)) {
+      const normalized = decodeHTMLEntities(inner).replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim()
+      if (normalized.includes('\n')) {
+        const withParagraphBreaks = escapeHTML(normalized)
+          .replace(/\n{2,}/g, '<br><br>')
+          .replace(/\n/g, '<br>')
+        return `<td${attrs}>${withParagraphBreaks}</td>`
+      }
+    }
+
+    return full
   })
 }
 
