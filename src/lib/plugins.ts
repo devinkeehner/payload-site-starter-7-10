@@ -186,36 +186,13 @@ const parseChoiceItemsFromSerializedText = (text: string): string[] | null => {
     return items.length > 1 ? items : null
   }
 
-  if (trimmed.includes(',')) {
-    const items = trimmed
-      .split(',')
-      .map((part) => part.trim())
-      .filter(Boolean)
-    return items.length > 1 ? items : null
-  }
-
   return null
 }
 
-const renderChoiceItemsAsThreeColumns = (items: string[]) => {
-  let rows = ''
-  for (let i = 0; i < items.length; i += 3) {
-    const chunk = items.slice(i, i + 3)
-    const cells = chunk
-      .map(
-        (item) =>
-          `<td style="width:33.33%; padding:0 8px 10px 0; vertical-align:top;"><div style="padding:8px 10px; border:1px solid #dbe3ef; border-radius:8px; background:#f8fafc; color:#111827; font-size:13px; line-height:1.35;">${escapeHTML(
-            item,
-          )}</div></td>`,
-      )
-      .join('')
-    const filler = '<td style="width:33.33%; padding:0 8px 10px 0; vertical-align:top;"></td>'.repeat(
-      Math.max(0, 3 - chunk.length),
-    )
-    rows += `<tr>${cells}${filler}</tr>`
-  }
-
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%; border-collapse:collapse; margin:2px 0 4px;">${rows}</table>`
+const renderChoiceItemsAsBulletList = (items: string[]) => {
+  return `<ul style="margin:0; padding-left:20px; line-height:1.6;">${items
+    .map((item) => `<li style="margin:0 0 4px;">${escapeHTML(item)}</li>`)
+    .join('')}</ul>`
 }
 
 const prettifySerializedChoiceText = (text: string): string | null => {
@@ -256,7 +233,7 @@ const prettifyChoiceValuesInTableCells = (html: string) => {
   return html.replace(/<td(\s[^>]*)?>([\s\S]*?)<\/td>/gi, (full, attrs = '', inner = '') => {
     const asChoiceItems = parseChoiceItemsFromSerializedText(inner)
     if (asChoiceItems && asChoiceItems.length > 1) {
-      return `<td${attrs}>${renderChoiceItemsAsThreeColumns(asChoiceItems)}</td>`
+      return `<td${attrs}>${renderChoiceItemsAsBulletList(asChoiceItems)}</td>`
     }
 
     const pretty = prettifySerializedChoiceText(inner)
