@@ -100,6 +100,89 @@ const appendInlineStyle = (html: string, tagName: string, styleToAdd: string) =>
   })
 }
 
+const escapeHTML = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const normalizeChoiceValue = (value: unknown): string => {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+
+  if (Array.isArray(value)) {
+    return value
+      .map((entry) => normalizeChoiceValue(entry))
+      .filter(Boolean)
+      .join(', ')
+  }
+
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>
+
+    const preferredKeys = ['label', 'text', 'name', 'title', 'value']
+    for (const key of preferredKeys) {
+      const candidate = record[key]
+      const normalized = normalizeChoiceValue(candidate)
+      if (normalized) return normalized
+    }
+
+    const primitiveValues = Object.values(record)
+      .filter((entry) => ['string', 'number', 'boolean'].includes(typeof entry))
+      .map((entry) => normalizeChoiceValue(entry))
+      .filter(Boolean)
+
+    if (primitiveValues.length) return primitiveValues.join(', ')
+  }
+
+  return ''
+}
+
+const prettifySerializedChoiceText = (text: string): string | null => {
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) return null
+  if (trimmed === '[object Object]') return null
+
+  const maybeJSON =
+    (trimmed.startsWith('[') && trimmed.endsWith(']')) ||
+    (trimmed.startsWith('{') && trimmed.endsWith('}'))
+
+  if (maybeJSON) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      const normalized = normalizeChoiceValue(parsed)
+      if (normalized) return normalized
+    } catch {
+      return null
+    }
+  }
+
+  const maybeParenList = trimmed.startsWith('(') && trimmed.endsWith(')') && trimmed.includes(',')
+  if (maybeParenList) {
+    const normalized = trimmed
+      .slice(1, -1)
+      .split(',')
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .join(', ')
+    return normalized || null
+  }
+
+  return null
+}
+
+const prettifyChoiceValuesInTableCells = (html: string) => {
+  return html.replace(/<td(\s[^>]*)?>([\s\S]*?)<\/td>/gi, (full, attrs = '', inner = '') => {
+    const pretty = prettifySerializedChoiceText(inner)
+    if (!pretty) return full
+    return `<td${attrs}>${escapeHTML(pretty)}</td>`
+  })
+}
+
 const appendStyleToOpeningTag = (openingTag: string, styleToAdd: string) => {
   const styleAttrPattern = /style\s*=\s*(['"])(.*?)\1/i
   const match = openingTag.match(styleAttrPattern)
@@ -135,6 +218,7 @@ const formatFormEmailHTML = (input: string) => {
   let html = typeof input === 'string' ? input : ''
   if (!html.trim()) return html
 
+  html = prettifyChoiceValuesInTableCells(html)
   html = appendInlineStyle(
     html,
     'table',
