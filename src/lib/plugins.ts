@@ -350,6 +350,10 @@ const applyAlternatingTableRowColors = (html: string) => {
 }
 
 const stackLabelAndValueRows = (html: string) => {
+  const shouldKeepStackedLayout = (valueHTML: string) => {
+    return /<(ul|ol|li|div|p|table|blockquote|br)\b/i.test(valueHTML)
+  }
+
   return html.replace(/<table\b[\s\S]*?<\/table>/gi, (tableHtml) => {
     return tableHtml.replace(/<tr(\s[^>]*)?>[\s\S]*?<\/tr>/gi, (rowHtml) => {
       if (/<th\b/i.test(rowHtml)) return rowHtml
@@ -359,6 +363,10 @@ const stackLabelAndValueRows = (html: string) => {
 
       const labelHTML = tdMatches[0]?.[2] ?? ''
       const valueHTML = tdMatches[1]?.[2] ?? ''
+
+      if (!shouldKeepStackedLayout(valueHTML)) {
+        return `<tr><td colspan="2"><div style="margin:0; line-height:1.35;"><span style="font-size:12px; font-weight:600; color:#475467;">${labelHTML}:</span>&nbsp;<span style="color:#111827;">${valueHTML}</span></div></td></tr>`
+      }
 
       return `<tr><td colspan="2"><div style="margin:0 0 2px; font-size:12px; font-weight:600; color:#475467; line-height:1.3;">${labelHTML}</div><div style="margin:0;">${valueHTML}</div></td></tr>`
     })

@@ -2047,6 +2047,10 @@ export interface PayloadMcpApiKey {
      */
     bulkUpdateFormsByTitle?: boolean | null;
     /**
+     * List email routing configured on forms that match an exact title, including tenant metadata and bcc values.
+     */
+    listFormRecipientsByTitle?: boolean | null;
+    /**
      * Bulk normalize Contact Form fields across tenants: rename mobile->phone, ensure Street Address/Town/ZIP required, and add missing Town/ZIP fields.
      */
     bulkNormalizeContactForms?: boolean | null;
@@ -3546,6 +3550,7 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         updatePolicyVoicesSpeechBubbles?: T;
         updatePolicyVoicesCardLinks?: T;
         bulkUpdateFormsByTitle?: T;
+        listFormRecipientsByTitle?: T;
         bulkNormalizeContactForms?: T;
         reorderContactFormTailFields?: T;
       };

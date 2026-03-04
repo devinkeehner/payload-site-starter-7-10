@@ -653,6 +653,193 @@ const bulkUpdateFormsByTitleTool = {
   },
 };
 
+const listFormRecipientsByTitleTool = {
+  name: 'listFormRecipientsByTitle',
+  description:
+    'List email routing configured on forms that match an exact title, including tenant metadata and bcc values.',
+  parameters: {
+    formTitle: z.string().min(1).describe('Exact form title to match.'),
+    tenantIds: z
+      .array(z.union([z.string(), z.number()]))
+      .optional()
+      .describe('Optional tenant IDs to limit results.'),
+    tenantSlugs: z
+      .array(z.string())
+      .optional()
+      .describe('Optional tenant slugs to limit results.'),
+    maxMatches: z
+      .number()
+      .int()
+      .min(1)
+      .max(5000)
+      .optional()
+      .default(500)
+      .describe('Maximum forms to scan and return.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const formTitle = typeof args.formTitle === 'string' ? args.formTitle.trim() : '';
+    const maxMatches =
+      typeof args.maxMatches === 'number' && Number.isFinite(args.maxMatches)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.maxMatches)))
+        : 500;
+
+    if (!formTitle) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `formTitle` is required.' }],
+      };
+    }
+
+    const rawTenantIds = Array.isArray(args.tenantIds)
+      ? args.tenantIds
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter((id) => id.length > 0)
+      : [];
+
+    const rawTenantSlugs = Array.isArray(args.tenantSlugs)
+      ? args.tenantSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+          .filter((slug) => slug.length > 0)
+      : [];
+
+    try {
+      const tenantIds = new Set<string>(rawTenantIds);
+      const missingTenantSlugs: string[] = [];
+
+      if (rawTenantSlugs.length > 0) {
+        const tenants = await payload.find({
+          collection: 'tenants',
+          limit: Math.max(rawTenantSlugs.length, 100),
+          overrideAccess: true,
+          req,
+          where: {
+            slug: { in: rawTenantSlugs },
+          },
+        });
+
+        const foundSlugSet = new Set<string>();
+        for (const tenantDoc of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenantDoc.id) {
+            tenantIds.add(String(tenantDoc.id));
+          }
+          if (typeof tenantDoc.slug === 'string') {
+            foundSlugSet.add(tenantDoc.slug);
+          }
+        }
+
+        for (const slug of rawTenantSlugs) {
+          if (!foundSlugSet.has(slug)) {
+            missingTenantSlugs.push(slug);
+          }
+        }
+      }
+
+      const whereFilters: Array<Record<string, unknown>> = [{ title: { equals: formTitle } }];
+      if (tenantIds.size > 0) {
+        whereFilters.push({ tenant: { in: Array.from(tenantIds) } });
+      }
+
+      const where: Where =
+        whereFilters.length > 1
+          ? ({ and: whereFilters } as Where)
+          : ((whereFilters[0] ?? {}) as Where);
+
+      const rows: Array<Record<string, unknown>> = [];
+      let page = 1;
+      let processed = 0;
+      let totalFound = 0;
+      let done = false;
+
+      while (!done) {
+        const result = await payload.find({
+          collection: 'forms',
+          depth: 1,
+          limit: Math.min(100, maxMatches),
+          page,
+          overrideAccess: true,
+          req,
+          where,
+        });
+
+        if (page === 1) {
+          totalFound = result.totalDocs;
+        }
+
+        if (result.docs.length === 0) break;
+
+        for (const formDoc of result.docs as unknown as Array<Record<string, unknown>>) {
+          if (processed >= maxMatches) {
+            done = true;
+            break;
+          }
+          processed += 1;
+
+          const { tenantId, tenantName, tenantSlug } = getTenantMeta(formDoc.tenant);
+          const formId = formDoc.id ? String(formDoc.id) : null;
+          const parseCsvEmails = (value: unknown) => {
+            if (typeof value !== 'string') return [] as string[];
+            return value
+              .split(',')
+              .map((entry) => entry.trim())
+              .filter((entry) => entry.length > 0);
+          };
+
+          const emailTargets = Array.isArray(formDoc.emails)
+            ? (formDoc.emails as Array<Record<string, unknown>>)
+            : [];
+
+          const recipients = emailTargets
+            .flatMap((email) => parseCsvEmails(email.emailTo))
+            .filter((emailTo) => emailTo.length > 0);
+
+          const bccRecipients = emailTargets
+            .flatMap((email) => parseCsvEmails(email.bcc))
+            .filter((emailTo) => emailTo.length > 0);
+
+          rows.push({
+            formId,
+            title: typeof formDoc.title === 'string' ? formDoc.title : null,
+            tenantId,
+            tenantSlug,
+            tenantName,
+            recipientCount: Array.from(new Set(recipients)).length,
+            recipients: Array.from(new Set(recipients)),
+            bccCount: Array.from(new Set(bccRecipients)).length,
+            bccRecipients: Array.from(new Set(bccRecipients)),
+          });
+        }
+
+        if (done || page >= result.totalPages) break;
+        page += 1;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                formTitle,
+                totalFound,
+                processed,
+                missingTenantSlugs,
+                rows,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error listing form recipients: ${message}` }],
+      };
+    }
+  },
+};
+
 const bulkNormalizeContactFormsTool = {
   name: 'bulkNormalizeContactForms',
   description:
@@ -3576,6 +3763,7 @@ export default buildConfig({
           updatePolicyVoicesSpeechBubblesTool,
           updatePolicyVoicesCardLinksTool,
           bulkUpdateFormsByTitleTool,
+          listFormRecipientsByTitleTool,
           bulkNormalizeContactFormsTool,
           reorderContactFormTailFieldsTool,
         ],
