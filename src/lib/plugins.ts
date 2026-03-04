@@ -191,7 +191,7 @@ const parseChoiceItemsFromSerializedText = (text: string): string[] | null => {
 
 const renderChoiceItemsAsBulletList = (items: string[]) => {
   return `<ul style="margin:0; padding-left:20px; line-height:1.6;">${items
-    .map((item) => `<li style="margin:0 0 2px;">${escapeHTML(item)}</li>`)
+    .map((item) => `<li style="margin:0 0 1px;">${escapeHTML(item)}</li>`)
     .join('')}</ul>`
 }
 
@@ -360,7 +360,7 @@ const stackLabelAndValueRows = (html: string) => {
       const labelHTML = tdMatches[0]?.[2] ?? ''
       const valueHTML = tdMatches[1]?.[2] ?? ''
 
-      return `<tr><td colspan="2"><div style="margin:0 0 3px; font-size:12px; font-weight:600; color:#475467; line-height:1.3;">${labelHTML}</div><div style="margin:0;">${valueHTML}</div></td></tr>`
+      return `<tr><td colspan="2"><div style="margin:0 0 2px; font-size:12px; font-weight:600; color:#475467; line-height:1.3;">${labelHTML}</div><div style="margin:0;">${valueHTML}</div></td></tr>`
     })
   })
 }
@@ -375,7 +375,7 @@ const formatFormEmailHTML = (input: string, fieldOrder: string[] = []) => {
   html = appendInlineStyle(
     html,
     'table',
-    'width:100%; border-collapse:separate; border-spacing:0; margin:10px 0; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden;',
+    'width:100%; border-collapse:separate; border-spacing:0; margin:8px 0; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden;',
   )
   html = appendInlineStyle(
     html,
@@ -385,12 +385,12 @@ const formatFormEmailHTML = (input: string, fieldOrder: string[] = []) => {
   html = appendInlineStyle(
     html,
     'th',
-    'padding:9px 12px; text-align:left; border-bottom:1px solid #e5e7eb; background:#f8fafc; color:#111827; font-weight:600; font-size:13px; vertical-align:top;',
+    'padding:8px 10px; text-align:left; border-bottom:1px solid #e5e7eb; background:#f8fafc; color:#111827; font-weight:600; font-size:13px; vertical-align:top;',
   )
   html = appendInlineStyle(
     html,
     'td',
-    'padding:9px 12px; border-bottom:1px solid #e5e7eb; color:#111827; font-size:14px; line-height:1.45; vertical-align:top; white-space:pre-line; word-break:break-word;',
+    'padding:8px 10px; border-bottom:1px solid #e5e7eb; color:#111827; font-size:14px; line-height:1.45; vertical-align:top; white-space:pre-line; word-break:break-word;',
   )
   html = appendInlineStyle(
     html,
