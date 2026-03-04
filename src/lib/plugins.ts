@@ -365,7 +365,7 @@ const stackLabelAndValueRows = (html: string) => {
       const valueHTML = tdMatches[1]?.[2] ?? ''
 
       if (!shouldKeepStackedLayout(valueHTML)) {
-        return `<tr><td colspan="2"><div style="margin:0; line-height:1.35;"><span style="font-size:12px; font-weight:600; color:#475467;">${labelHTML}:</span>&nbsp;<span style="color:#111827;">${valueHTML}</span></div></td></tr>`
+        return `<tr><td colspan="2" style="padding:4px 10px; line-height:1.2; mso-line-height-rule:exactly;"><div style="margin:0; line-height:1.2; mso-line-height-rule:exactly;"><span style="font-size:12px; font-weight:600; color:#475467; line-height:1.2; mso-line-height-rule:exactly;">${labelHTML}:</span>&nbsp;&nbsp;<span style="color:#111827; line-height:1.2; mso-line-height-rule:exactly;">${valueHTML}</span></div></td></tr>`
       }
 
       return `<tr><td colspan="2"><div style="margin:0 0 2px; font-size:12px; font-weight:600; color:#475467; line-height:1.3;">${labelHTML}</div><div style="margin:0;">${valueHTML}</div></td></tr>`
