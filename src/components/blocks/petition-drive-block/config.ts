@@ -228,7 +228,20 @@ export const PetitionDriveBlockConfig: Block = {
     },
     {
       name: 'sideText',
-      type: 'textarea',
+      type: 'richText',
+      editor: defaultLexical,
+      hooks: {
+        afterRead: [
+          ({ value }) => {
+            return normalizeLexicalValue(value)
+          },
+        ],
+        beforeValidate: [
+          ({ value }) => {
+            return normalizeLexicalValue(value)
+          },
+        ],
+      },
       admin: {
         condition: (_data, siblingData) => siblingData?.sideContentType === 'text',
       },

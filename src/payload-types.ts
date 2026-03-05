@@ -1326,7 +1326,21 @@ export interface PetitionDriveBlock {
     [k: string]: unknown;
   } | null;
   sideImage?: (string | null) | Media;
-  sideText?: string | null;
+  sideText?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
   id?: string | null;
   blockName?: string | null;
   blockType: 'petitionDrive';
