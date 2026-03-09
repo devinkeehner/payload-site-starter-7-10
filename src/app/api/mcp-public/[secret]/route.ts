@@ -54,6 +54,11 @@ function buildResponseHeaders(upstream: Response) {
   return headers
 }
 
+function truncateForLog(value: string, max = 600) {
+  if (value.length <= max) return value
+  return `${value.slice(0, max)}...`
+}
+
 async function forwardToMcp(req: NextRequest) {
   try {
     const configuredOrigin =
@@ -64,44 +69,77 @@ async function forwardToMcp(req: NextRequest) {
     const normalizedOrigin = configuredOrigin.replace(/\/$/, '')
     const targetPathRaw = (process.env.PAYLOAD_MCP_PROXY_TARGET_PATH || '/api/mcp').trim()
     const targetPath = targetPathRaw.startsWith('/') ? targetPathRaw : `/${targetPathRaw}`
+    const method = req.method.toUpperCase()
+    const requestBody = method === 'POST' ? await req.text() : undefined
+
+    console.info('[mcp-public] forwarding request', {
+      method,
+      targetPath,
+      targetOrigin: normalizedOrigin,
+      accept: req.headers.get('accept'),
+      contentType: req.headers.get('content-type'),
+      hasSessionId: Boolean(req.headers.get('mcp-session-id')),
+    })
 
     if (targetPath === '/api/mcp-chatgpt') {
       const headers = getForwardHeaders(req)
-      const method = req.method.toUpperCase()
       const rewrittenURL = new URL(targetPath, req.nextUrl.origin)
-      const body = method === 'POST' ? await req.text() : undefined
 
       const proxiedRequest = new Request(rewrittenURL.toString(), {
         method,
         headers,
-        body,
+        body: requestBody,
       })
 
+      let response: Response
       if (method === 'POST') {
-        return postChatgptMcp(proxiedRequest)
-      }
-      if (method === 'GET') {
-        return getChatgptMcp(proxiedRequest)
+        response = await postChatgptMcp(proxiedRequest)
+      } else if (method === 'GET') {
+        response = await getChatgptMcp(proxiedRequest)
+      } else {
+        return new Response(JSON.stringify({ message: 'Method not allowed' }), {
+          status: 405,
+          headers: { 'content-type': 'application/json' },
+        })
       }
 
-      return new Response(JSON.stringify({ message: 'Method not allowed' }), {
-        status: 405,
-        headers: { 'content-type': 'application/json' },
-      })
+      if (!response.ok) {
+        const responseText = await response.clone().text()
+        console.error('[mcp-public] chatgpt upstream returned error', {
+          method,
+          targetPath,
+          status: response.status,
+          statusText: response.statusText,
+          requestBodyPreview: truncateForLog(requestBody || ''),
+          responseBodyPreview: truncateForLog(responseText),
+        })
+      }
+
+      return response
     }
 
     const upstreamURL = new URL(targetPath, normalizedOrigin)
 
     const headers = getForwardHeaders(req)
-    const method = req.method.toUpperCase()
-    const body = method === 'POST' ? await req.text() : undefined
 
     const upstream = await fetch(upstreamURL.toString(), {
       method,
       headers,
-      body,
+      body: requestBody,
       cache: 'no-store',
     })
+
+    if (!upstream.ok) {
+      const responseText = await upstream.clone().text()
+      console.error('[mcp-public] upstream returned error', {
+        method,
+        upstreamURL: upstreamURL.toString(),
+        status: upstream.status,
+        statusText: upstream.statusText,
+        requestBodyPreview: truncateForLog(requestBody || ''),
+        responseBodyPreview: truncateForLog(responseText),
+      })
+    }
 
     return new Response(upstream.body, {
       status: upstream.status,
@@ -109,6 +147,12 @@ async function forwardToMcp(req: NextRequest) {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown MCP proxy error'
+    console.error('[mcp-public] proxy failed', {
+      method: req.method,
+      target: process.env.PAYLOAD_MCP_PROXY_TARGET_PATH || '/api/mcp',
+      error: message,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return new Response(JSON.stringify({ message: 'MCP proxy failed', target: process.env.PAYLOAD_MCP_PROXY_TARGET_PATH || '/api/mcp', error: message }), {
       status: 502,
       headers: { 'content-type': 'application/json' },

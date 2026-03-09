@@ -1358,7 +1358,11 @@ export interface MediaCanva {
    */
   image: string | Media;
   /**
-   * Add paragraphs/headings here — each paragraph becomes a movable line on the canvas
+   * Optional. If selected, the editor can pull the post title into the main headline area automatically.
+   */
+  sourcePost?: (string | null) | Post;
+  /**
+   * Legacy field. No longer used by the current canvas editor.
    */
   richText?: {
     root: {
@@ -1376,6 +1380,9 @@ export interface MediaCanva {
     [k: string]: unknown;
   } | null;
   heading?: string | null;
+  /**
+   * Leave blank to use the selected Source Post title in the main headline area.
+   */
   subheading?: string | null;
   posX?: number | null;
   posY?: number | null;
@@ -1387,7 +1394,7 @@ export interface MediaCanva {
   headingWidth?: number | null;
   subheadingWidth?: number | null;
   /**
-   * Auto-managed positions for Lexical paragraphs
+   * Legacy auto-managed positions for older Lexical-based canvas content.
    */
   rtLayout?:
     | {
@@ -1399,10 +1406,25 @@ export interface MediaCanva {
     | boolean
     | null;
   /**
-   * Add optional text boxes rendered on the canvas
+   * Auto-managed editor selection and layer locks
+   */
+  editorState?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Auto-managed by the canvas editor.
    */
   textBlocks?:
     | {
+        id?: string | null;
+        label?: string | null;
+        source?: ('manual' | 'postTitle') | null;
         text?: string | null;
         x?: number | null;
         y?: number | null;
@@ -1410,7 +1432,9 @@ export interface MediaCanva {
         font?: string | null;
         color?: string | null;
         lineHeight?: number | null;
-        id?: string | null;
+        align?: ('left' | 'center' | 'right') | null;
+        stylePreset?: string | null;
+        locked?: boolean | null;
       }[]
     | null;
   updatedAt: string;
@@ -2871,6 +2895,7 @@ export interface MediaCanvasSelect<T extends boolean = true> {
   tenant?: T;
   title?: T;
   image?: T;
+  sourcePost?: T;
   richText?: T;
   heading?: T;
   subheading?: T;
@@ -2884,9 +2909,13 @@ export interface MediaCanvasSelect<T extends boolean = true> {
   headingWidth?: T;
   subheadingWidth?: T;
   rtLayout?: T;
+  editorState?: T;
   textBlocks?:
     | T
     | {
+        id?: T;
+        label?: T;
+        source?: T;
         text?: T;
         x?: T;
         y?: T;
@@ -2894,7 +2923,9 @@ export interface MediaCanvasSelect<T extends boolean = true> {
         font?: T;
         color?: T;
         lineHeight?: T;
-        id?: T;
+        align?: T;
+        stylePreset?: T;
+        locked?: T;
       };
   updatedAt?: T;
   createdAt?: T;

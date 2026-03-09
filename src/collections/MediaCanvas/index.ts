@@ -44,6 +44,15 @@ export const MediaCanvas: CollectionConfig = {
         description: 'Upload or select an image to compose into a 1200×630 canvas',
       },
     },
+    {
+      name: 'sourcePost',
+      label: 'Source Post',
+      type: 'relationship',
+      relationTo: 'posts',
+      admin: {
+        description: 'Optional. If selected, the editor can pull the post title into the main headline area automatically.',
+      },
+    },
     // Prototype: Lexical editor as the source of canvas text lines
     {
       name: 'richText',
@@ -60,18 +69,26 @@ export const MediaCanvas: CollectionConfig = {
         },
       }),
       admin: {
-        description: 'Add paragraphs/headings here — each paragraph becomes a movable line on the canvas',
+        description: 'Legacy field. No longer used by the current canvas editor.',
+        hidden: true,
       },
     },
     {
       name: 'heading',
       type: 'text',
       label: 'Heading',
+      admin: {
+        hidden: true,
+      },
     },
     {
       name: 'subheading',
       type: 'text',
-      label: 'Subheading',
+      label: 'Headline Override',
+      admin: {
+        description: 'Leave blank to use the selected Source Post title in the main headline area.',
+        hidden: true,
+      },
     },
     // Hidden state fields persisted for the editor
     {
@@ -143,7 +160,13 @@ export const MediaCanvas: CollectionConfig = {
       name: 'rtLayout',
       label: 'Rich Text Layout',
       type: 'json',
-      admin: { hidden: true, description: 'Auto-managed positions for Lexical paragraphs' },
+      admin: { hidden: true, description: 'Legacy auto-managed positions for older Lexical-based canvas content.' },
+    },
+    {
+      name: 'editorState',
+      label: 'Editor State',
+      type: 'json',
+      admin: { hidden: true, description: 'Auto-managed editor selection and layer locks' },
     },
     {
       name: 'textBlocks',
@@ -151,14 +174,39 @@ export const MediaCanvas: CollectionConfig = {
       type: 'array',
       labels: { singular: 'Text Block', plural: 'Text Blocks' },
       admin: {
-        description: 'Add optional text boxes rendered on the canvas',
+        description: 'Auto-managed by the canvas editor.',
+        hidden: true,
       },
       fields: [
+        {
+          name: 'id',
+          type: 'text',
+          label: 'Layer ID',
+          admin: { hidden: true },
+        },
+        {
+          name: 'label',
+          type: 'text',
+          label: 'Layer Label',
+          defaultValue: 'Text',
+          admin: { hidden: true },
+        },
+        {
+          name: 'source',
+          type: 'select',
+          label: 'Source',
+          defaultValue: 'manual',
+          options: [
+            { label: 'Manual', value: 'manual' },
+            { label: 'Post Title', value: 'postTitle' },
+          ],
+          admin: { hidden: true },
+        },
         {
           name: 'text',
           type: 'text',
           label: 'Text',
-          defaultValue: 'New text',
+          defaultValue: 'Text here',
         },
         {
           name: 'x',
@@ -185,21 +233,47 @@ export const MediaCanvas: CollectionConfig = {
           name: 'font',
           type: 'text',
           label: 'Font (CSS)',
-          defaultValue: '600 28px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
+          defaultValue: '600 24px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial',
           admin: { hidden: true },
         },
         {
           name: 'color',
           type: 'text',
           label: 'Color',
-          defaultValue: '#f1f5f9',
+          defaultValue: '#111111',
           admin: { hidden: true },
         },
         {
           name: 'lineHeight',
           type: 'number',
           label: 'Line Height',
-          defaultValue: 36,
+          defaultValue: 38,
+          admin: { hidden: true },
+        },
+        {
+          name: 'align',
+          type: 'select',
+          label: 'Align',
+          defaultValue: 'left',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' },
+          ],
+          admin: { hidden: true },
+        },
+        {
+          name: 'stylePreset',
+          type: 'text',
+          label: 'Style Preset',
+          defaultValue: 'byline',
+          admin: { hidden: true },
+        },
+        {
+          name: 'locked',
+          type: 'checkbox',
+          label: 'Locked',
+          defaultValue: false,
           admin: { hidden: true },
         },
       ],
