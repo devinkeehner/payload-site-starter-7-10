@@ -41,6 +41,15 @@ const cloneValue = <T,>(value: T): T => {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+const parseJsonToolValue = (raw: string) => {
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Invalid JSON value.'
+    throw new Error(`Invalid JSON for update value: ${message}`)
+  }
+}
+
 const parsePathSegments = (path: string): Array<string | number> => {
   const trimmed = path.trim()
   if (!trimmed) throw new Error('Path cannot be empty.')
@@ -719,7 +728,10 @@ const mcpHandler = createMcpHandler(
               z.object({
                 op: z.enum(['set', 'unset', 'remove']).default('set'),
                 path: z.string().min(1),
-                value: z.unknown().optional(),
+                value: z
+                  .string()
+                  .optional()
+                  .describe('JSON-encoded value for set operations. Use quoted JSON strings for text values.'),
               }),
             )
             .min(1),
@@ -785,7 +797,10 @@ const mcpHandler = createMcpHandler(
                 if (!Object.prototype.hasOwnProperty.call(update, 'value')) {
                   throw new Error(`Set operation for "${path}" requires a value.`)
                 }
-                setAtPath(nextBlock, segments, update.value, createMissing)
+                if (typeof update.value !== 'string') {
+                  throw new Error(`Set operation for "${path}" requires a JSON string value.`)
+                }
+                setAtPath(nextBlock, segments, parseJsonToolValue(update.value), createMissing)
               } else if (op === 'unset') {
                 unsetAtPath(nextBlock, segments)
               } else {
@@ -1039,7 +1054,17 @@ export async function POST(req: Request) {
   const guard = requireAuth(req)
   if (guard) return guard
   try {
-    return await mcpHandler(req)
+    const response = await mcpHandler(req)
+    if (!response.ok) {
+      console.error('[mcp-chatgpt] non-ok response', {
+        method: req.method,
+        url: req.url,
+        status: response.status,
+        statusText: response.statusText,
+        responseBodyPreview: truncateForLog(await response.clone().text()),
+      })
+    }
+    return response
   } catch (error) {
     await logMcpHandlerError(req, error)
     throw error
@@ -1050,7 +1075,17 @@ export async function GET(req: Request) {
   const guard = requireAuth(req)
   if (guard) return guard
   try {
-    return await mcpHandler(req)
+    const response = await mcpHandler(req)
+    if (!response.ok) {
+      console.error('[mcp-chatgpt] non-ok response', {
+        method: req.method,
+        url: req.url,
+        status: response.status,
+        statusText: response.statusText,
+        responseBodyPreview: truncateForLog(await response.clone().text()),
+      })
+    }
+    return response
   } catch (error) {
     await logMcpHandlerError(req, error)
     throw error
