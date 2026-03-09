@@ -1000,7 +1000,7 @@ const mcpHandler = createMcpHandler(
     )
   },
   { serverInfo: { name: 'payload-chatgpt-mcp', version: '1.0.0' } },
-  { streamableHttpEndpoint: '/api/mcp-chatgpt', disableSse: true, verboseLogs: false },
+  { streamableHttpEndpoint: '/api/mcp-chatgpt', disableSse: true, verboseLogs: true },
 )
 
 function requireAuth(req: Request) {
