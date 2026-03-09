@@ -370,7 +370,16 @@ const findTargetBlock = (
 
 const mcpHandler = createMcpHandler(
   (server) => {
-    server.registerTool(
+    const enabledToolNames = new Set(
+      (process.env.MCP_CHATGPT_TOOL_FILTER || '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean),
+    )
+    const shouldRegisterTool = (name: string) =>
+      enabledToolNames.size === 0 || enabledToolNames.has(name)
+
+    if (shouldRegisterTool('listTenants')) server.registerTool(
       'listTenants',
       {
         title: 'List Tenants',
@@ -423,7 +432,7 @@ const mcpHandler = createMcpHandler(
       },
     )
 
-    server.registerTool(
+    if (shouldRegisterTool('getEditingDefaults')) server.registerTool(
       'getEditingDefaults',
       {
         title: 'Get Editing Defaults',
@@ -452,7 +461,7 @@ const mcpHandler = createMcpHandler(
       }),
     )
 
-    server.registerTool(
+    if (shouldRegisterTool('listPageBlocks')) server.registerTool(
       'listPageBlocks',
       {
         title: 'List Page Blocks',
@@ -525,7 +534,7 @@ const mcpHandler = createMcpHandler(
       },
     )
 
-    server.registerTool(
+    if (shouldRegisterTool('getBlockShape')) server.registerTool(
       'getBlockShape',
       {
         title: 'Get Block Shape',
@@ -578,7 +587,7 @@ const mcpHandler = createMcpHandler(
       },
     )
 
-    server.registerTool(
+    if (shouldRegisterTool('updateBlockFields')) server.registerTool(
       'updateBlockFields',
       {
         title: 'Update Block Fields',
@@ -751,7 +760,7 @@ const mcpHandler = createMcpHandler(
       },
     )
 
-    server.registerTool(
+    if (shouldRegisterTool('publishDocument')) server.registerTool(
       'publishDocument',
       {
         title: 'Publish Document',
