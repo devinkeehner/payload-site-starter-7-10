@@ -48,6 +48,136 @@ const parseJsonToolValue = (raw: string) => {
   }
 }
 
+const CHATGPT_TOOL_LIST = [
+  {
+    name: 'listTenants',
+    title: 'List Tenants',
+    description: 'Lists tenants so ChatGPT can target the right site when editing content.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        search: { type: 'string' },
+        limit: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+      },
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+  {
+    name: 'getEditingDefaults',
+    title: 'Get Editing Defaults',
+    description: 'Returns preferred editing conventions for this multi-tenant Payload workspace.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+  {
+    name: 'listPageBlocks',
+    title: 'List Page Blocks',
+    description: 'Lists blocks on a page with ids, types, indices, and compact summaries.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: { type: 'string' },
+        slug: { type: 'string' },
+        tenant: { type: 'string' },
+      },
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+  {
+    name: 'getBlockShape',
+    title: 'Get Block Shape',
+    description: 'Returns editable field schema for one page block type or all page block types.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        blockType: { type: 'string' },
+      },
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+  {
+    name: 'updateBlockFields',
+    title: 'Update Block Fields',
+    description:
+      'Updates any page block fields using path operations. Works for petitionDrive and other page blocks. Defaults to draft writes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        pageId: { type: 'string' },
+        slug: { type: 'string' },
+        tenant: { type: 'string' },
+        blockId: { type: 'string' },
+        blockType: { type: 'string' },
+        blockIndex: { type: 'integer', minimum: 0, default: 0 },
+        updates: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              op: { type: 'string', enum: ['set', 'unset', 'remove'], default: 'set' },
+              path: { type: 'string', minLength: 1 },
+              value: {
+                type: 'string',
+                description: 'JSON-encoded value for set operations. Use quoted JSON strings for text values.',
+              },
+            },
+            required: ['path'],
+            additionalProperties: false,
+          },
+          minItems: 1,
+        },
+        createMissing: { type: 'boolean', default: true },
+        dryRun: { type: 'boolean', default: false },
+        draft: { type: 'boolean', default: true },
+      },
+      required: ['updates'],
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+  {
+    name: 'publishDocument',
+    title: 'Publish Document',
+    description: 'Publishes a page or post by id (or slug) in Payload.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        collection: { type: 'string', enum: ['pages', 'posts'] },
+        docId: { type: 'string' },
+        slug: { type: 'string' },
+        tenant: { type: 'string' },
+        dryRun: { type: 'boolean', default: false },
+      },
+      required: ['collection'],
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+] as const
+
+function buildStreamableJsonRpcResult(id: string | number | null, result: Record<string, unknown>) {
+  const payload = JSON.stringify({ result, jsonrpc: '2.0', id })
+  return new Response(`event: message\ndata: ${payload}\n\n`, {
+    status: 200,
+    headers: {
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+    },
+  })
+}
+
 const parsePathSegments = (path: string): Array<string | number> => {
   const trimmed = path.trim()
   if (!trimmed) throw new Error('Path cannot be empty.')
@@ -931,6 +1061,18 @@ export async function POST(req: Request) {
   const guard = requireAuth(req)
   if (guard) return guard
   try {
+    const requestBody = await req.clone().json().catch(() => null)
+    if (
+      requestBody &&
+      typeof requestBody === 'object' &&
+      requestBody.method === 'tools/list'
+    ) {
+      return buildStreamableJsonRpcResult(
+        typeof requestBody.id === 'string' || typeof requestBody.id === 'number' ? requestBody.id : null,
+        { tools: CHATGPT_TOOL_LIST as unknown as Record<string, unknown>[] },
+      )
+    }
+
     const response = await mcpHandler(req)
     if (!response.ok) {
       console.error('[mcp-chatgpt] non-ok response', {
