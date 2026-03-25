@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { isSuperUser } from '@/lib/access/isSuperUser'
+import { rebuildSitemapsAfterTenantChange, rebuildSitemapsAfterTenantDelete } from '@/lib/hooks/rebuildSitemaps'
 
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
@@ -37,6 +38,10 @@ export const Tenants: CollectionConfig = {
     },
     // add more site-level metadata here (e.g., domain, theme)
   ],
+  hooks: {
+    afterChange: [rebuildSitemapsAfterTenantChange],
+    afterDelete: [rebuildSitemapsAfterTenantDelete],
+  },
 }
 
 export default Tenants;

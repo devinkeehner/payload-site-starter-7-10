@@ -21,6 +21,7 @@ import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { VideoBlockConfig } from '@/components/blocks/video-block/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
+import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
 
 import {
   MetaDescriptionField,
@@ -1075,8 +1076,8 @@ export const Posts: CollectionConfig<'posts'> = {
     ...slugField(),
   ],
   hooks: {
-    afterChange: [revalidatePost],
-    afterDelete: [revalidateDelete],
+    afterChange: [revalidatePost, rebuildSitemapsAfterPublishedChange],
+    afterDelete: [revalidateDelete, rebuildSitemapsAfterPublishedDelete],
   },
   versions: {
     drafts: {

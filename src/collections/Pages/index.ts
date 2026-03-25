@@ -18,6 +18,7 @@ import { populatePublishedAt } from '@/lib/hooks/populatePublishedAt'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { generatePreviewAPIUrl } from '@/lib/utilities/generatePreviewAPIUrl'
 import { revalidateDelete, revalidatePage } from './hooks/revalidatePage'
+import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
 
 import {
   MetaDescriptionField,
@@ -168,9 +169,9 @@ export const Pages: CollectionConfig<'pages'> = {
     ...slugField(),
   ],
   hooks: {
-    afterChange: [revalidatePage],
+    afterChange: [revalidatePage, rebuildSitemapsAfterPublishedChange],
     beforeChange: [populatePublishedAt],
-    afterDelete: [revalidateDelete],
+    afterDelete: [revalidateDelete, rebuildSitemapsAfterPublishedDelete],
   },
   versions: {
     drafts: {

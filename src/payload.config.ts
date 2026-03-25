@@ -21,6 +21,7 @@ import { ArticleTypes } from './collections/ArticleTypes';
 import { WordpressPosts } from './collections/WordpressPosts';
 import { IContactFolders } from './collections/IContactFolders';
 import { IContactLists } from './collections/IContactLists';
+import { SitemapArtifacts } from './collections/SitemapArtifacts';
 
 // Site settings and other component imports
 import { Navbar } from './components/site/navbar/config';
@@ -3731,6 +3732,7 @@ export default buildConfig({
     Tags,
     IContactFolders,
     IContactLists,
+    SitemapArtifacts,
   ],
 
   cors: {

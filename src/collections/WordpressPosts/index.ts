@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
+import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
 
 // Collection for legacy WordPress posts. These documents are site-enabled by the
 // multi-tenant plugin, so a hidden `tenant` field will be injected automatically.
@@ -97,4 +98,8 @@ export const WordpressPosts: CollectionConfig<'wordpress-posts'> = {
       relationTo: 'media',
     },
   ],
+  hooks: {
+    afterChange: [rebuildSitemapsAfterPublishedChange],
+    afterDelete: [rebuildSitemapsAfterPublishedDelete],
+  },
 }
