@@ -36,19 +36,33 @@ async function revalidateGeneratedPaths(paths: string[]): Promise<void> {
   }
 }
 
+const artifactLooksStale = (xml: string | null | undefined): boolean => typeof xml === 'string' && xml.includes('.xml.xml')
+
 async function bootstrapSitemaps(): Promise<void> {
   if (!shouldBootstrapSitemaps()) return
 
   const payload = await getPayload({ config: configPromise })
 
   try {
-    const existing = await getSitemapArtifact(payload, 'sitemap.xml', false)
-    if (existing?.xml) {
+    const [rootArtifact, pagesArtifact, postsArtifact] = await Promise.all([
+      getSitemapArtifact(payload, 'sitemap.xml', false),
+      getSitemapArtifact(payload, 'pages-sitemap.xml', false),
+      getSitemapArtifact(payload, 'posts-sitemap.xml', false),
+    ])
+
+    const needsRepair =
+      artifactLooksStale(rootArtifact?.xml) || artifactLooksStale(pagesArtifact?.xml) || artifactLooksStale(postsArtifact?.xml)
+
+    if (rootArtifact?.xml && pagesArtifact?.xml && postsArtifact?.xml && !needsRepair) {
       payload.logger.info('[sitemaps] startup bootstrap skipped; sitemap artifacts already exist')
       return
     }
 
-    payload.logger.info('[sitemaps] startup bootstrap generating sitemap artifacts')
+    payload.logger.info(
+      needsRepair
+        ? '[sitemaps] startup bootstrap regenerating stale sitemap artifacts'
+        : '[sitemaps] startup bootstrap generating sitemap artifacts',
+    )
     const paths = await regenerateAndPersistSitemaps(payload)
     await revalidateGeneratedPaths(paths)
     payload.logger.info('[sitemaps] startup bootstrap completed')

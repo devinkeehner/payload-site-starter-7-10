@@ -9,13 +9,15 @@ const cacheHeaders = {
   'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
 }
 
+const normalizeSitemapKey = (key: string): string => key.replace(/^\/+/, '').replace(/(?:\.xml)+$/, '.xml')
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ path?: string[] }> },
 ) {
   const resolvedParams = await params
   const pathSegments = Array.isArray(resolvedParams.path) ? resolvedParams.path : []
-  const key = pathSegments.join('/').replace(/^\/+/, '')
+  const key = normalizeSitemapKey(pathSegments.join('/'))
 
   if (!key) {
     return new Response('Not found', { status: 404 })
