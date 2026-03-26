@@ -1,6 +1,7 @@
 import configPromise from '@payload-config'
 import { getPayload } from 'payload'
 
+import { triggerSitemapBootstrapOnStartup } from '@/lib/sitemap-bootstrap'
 import { getSitemapArtifact } from '@/lib/sitemaps'
 
 const cacheHeaders = {
@@ -24,7 +25,16 @@ export async function GET(
   const artifact = await getSitemapArtifact(payload, key, false)
 
   if (!artifact?.xml) {
-    return new Response('Not found', { status: 404 })
+    void triggerSitemapBootstrapOnStartup()
+
+    return new Response('Not found', {
+      status: 404,
+      headers: {
+        'Cache-Control': 'no-store',
+        'Retry-After': '5',
+        'X-Sitemap-Status': 'missing-bootstrap-triggered',
+      },
+    })
   }
 
   return new Response(artifact.xml, {
