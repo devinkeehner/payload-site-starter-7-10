@@ -49,6 +49,7 @@ export const SitemapArtifacts: CollectionConfig = {
       name: 'xml',
       type: 'textarea',
       required: true,
+      maxLength: 2_000_000,
       admin: {
         rows: 20,
       },
