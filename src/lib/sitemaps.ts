@@ -140,11 +140,15 @@ async function fetchAllPublishedDocs(
   while (hasNextPage) {
     const result = (await payload.find({
       collection,
-      depth: 1,
+      depth: 0,
       limit: SITEMAP_CHUNK_SIZE,
       overrideAccess: true,
       page,
-      sort: '-updatedAt',
+      select: {
+        slug: true,
+        tenant: true,
+        updatedAt: true,
+      },
       where: {
         [statusField]: {
           equals: 'published',
