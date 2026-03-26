@@ -21,7 +21,7 @@ export async function GET(
   }
 
   const payload = await getPayload({ config: configPromise })
-  const artifact = await getSitemapArtifact(payload, key, true)
+  const artifact = await getSitemapArtifact(payload, key, false)
 
   if (!artifact?.xml) {
     return new Response('Not found', { status: 404 })
