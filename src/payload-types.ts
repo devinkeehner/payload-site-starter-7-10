@@ -677,6 +677,7 @@ export interface ArchiveBlock {
 export interface FormBlock {
   form: string | Form;
   enableIntro?: boolean | null;
+  displayMode?: ('standard' | 'previewReveal') | null;
   introContent?: {
     root: {
       type: string;
@@ -1356,12 +1357,15 @@ export interface PetitionDriveBlock {
  * via the `definition` "LunchComparisonGraphicBlock".
  */
 export interface LunchComparisonGraphicBlock {
+  source?: ('upload' | 'link') | null;
   media?: (string | null) | Media;
+  externalURL?: string | null;
   headline: string;
   subheadline?: string | null;
   bottleLabel?: string | null;
   plateLabel?: string | null;
   sliceLabel?: string | null;
+  form?: (string | null) | Form;
   id?: string | null;
   blockName?: string | null;
   blockType: 'lunchComparisonGraphic';
@@ -2729,6 +2733,7 @@ export interface ArchiveBlockSelect<T extends boolean = true> {
 export interface FormBlockSelect<T extends boolean = true> {
   form?: T;
   enableIntro?: T;
+  displayMode?: T;
   introContent?: T;
   id?: T;
   blockName?: T;
@@ -2903,12 +2908,15 @@ export interface PetitionDriveBlockSelect<T extends boolean = true> {
  * via the `definition` "LunchComparisonGraphicBlock_select".
  */
 export interface LunchComparisonGraphicBlockSelect<T extends boolean = true> {
+  source?: T;
   media?: T;
+  externalURL?: T;
   headline?: T;
   subheadline?: T;
   bottleLabel?: T;
   plateLabel?: T;
   sliceLabel?: T;
+  form?: T;
   id?: T;
   blockName?: T;
 }

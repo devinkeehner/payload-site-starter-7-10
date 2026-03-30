@@ -4,10 +4,55 @@ import { getPayload } from 'payload'
 import type { Where } from 'payload'
 import configPromise from '@payload-config'
 import { Pages } from '@/collections/Pages'
-import type { Page } from '@/payload-types'
+import type { Page, Post } from '@/payload-types'
 
 type PageLayout = Page['layout']
 type PageLayoutBlock = PageLayout[number]
+type PostContent = Post['content']
+
+const slugify = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 180)
+
+const richTextFromText = (value: string): PostContent => {
+  const paragraphs = value
+    .split(/\n{2,}/)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+
+  return {
+    root: {
+      type: 'root',
+      version: 1,
+      direction: null,
+      format: '',
+      indent: 0,
+      children: paragraphs.map((paragraph) => ({
+        type: 'paragraph',
+        version: 1,
+        direction: null,
+        format: '',
+        indent: 0,
+        textFormat: 0,
+        textStyle: '',
+        children: [
+          {
+            type: 'text',
+            version: 1,
+            text: paragraph,
+            detail: 0,
+            format: 0,
+            mode: 'normal',
+            style: '',
+          },
+        ],
+      })),
+    },
+  }
+}
 
 const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true
@@ -184,6 +229,47 @@ const CHATGPT_TOOL_LIST = [
         draft: { type: 'boolean', default: true },
       },
       required: ['title', 'slug', 'tenant'],
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
+  {
+    name: 'createPost',
+    title: 'Create Post',
+    description: 'Creates a draft post for a tenant, resolving category and article type by slug.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        tenant: { type: 'string' },
+        content: { type: 'string' },
+        keyTakeaways: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+        },
+        categorySlugs: {
+          type: 'array',
+          items: { type: 'string' },
+          minItems: 1,
+        },
+        articleTypeSlug: { type: 'string' },
+        metaDescription: { type: 'string' },
+        metaImageId: { type: 'string' },
+        slug: { type: 'string' },
+        draft: { type: 'boolean', default: true },
+      },
+      required: [
+        'title',
+        'tenant',
+        'content',
+        'keyTakeaways',
+        'categorySlugs',
+        'articleTypeSlug',
+        'metaDescription',
+        'metaImageId',
+      ],
       additionalProperties: false,
       $schema: 'http://json-schema.org/draft-07/schema#',
     },
@@ -1224,6 +1310,157 @@ const mcpHandler = createMcpHandler(
           return {
             isError: true,
             content: [{ type: 'text', text: `Error creating page: ${message}` }],
+          }
+        }
+      },
+    )
+
+    if (shouldRegisterTool('createPost')) server.registerTool(
+      'createPost',
+      {
+        title: 'Create Post',
+        description: 'Creates a draft post for a tenant, resolving category and article type by slug.',
+        inputSchema: {
+          title: z.string().min(1),
+          tenant: z.string().min(1),
+          content: z.string().min(1),
+          keyTakeaways: z.array(z.string().min(1)).min(1),
+          categorySlugs: z.array(z.string().min(1)).min(1),
+          articleTypeSlug: z.string().min(1),
+          metaDescription: z.string().min(1),
+          metaImageId: z.string().min(1),
+          slug: z.string().min(1).optional(),
+          draft: z.boolean().default(true),
+        },
+      },
+      async ({
+        title,
+        tenant,
+        content,
+        keyTakeaways,
+        categorySlugs,
+        articleTypeSlug,
+        metaDescription,
+        metaImageId,
+        slug,
+        draft,
+      }) => {
+        try {
+          const payload = await getPayload({ config: configPromise })
+          const tenantId = await resolveTenantId(payload, tenant)
+          if (!tenantId) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: 'Error: tenant is required.' }],
+            }
+          }
+
+          const normalizedSlug = (slug || slugify(title)).trim()
+          const existing = await payload.find({
+            collection: 'posts',
+            depth: 0,
+            limit: 1,
+            overrideAccess: true,
+            where: {
+              and: [
+                { slug: { equals: normalizedSlug } },
+                { tenant: { equals: tenantId } },
+              ],
+            } as unknown as Where,
+          })
+
+          if (existing.docs?.[0]?.id) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Error: post "${normalizedSlug}" already exists for tenant "${tenant}".` }],
+            }
+          }
+
+          const [categoriesResult, articleTypesResult] = await Promise.all([
+            payload.find({
+              collection: 'categories',
+              depth: 0,
+              limit: 100,
+              overrideAccess: true,
+              where: {
+                slug: { in: categorySlugs },
+              } as unknown as Where,
+            }),
+            payload.find({
+              collection: 'article-types',
+              depth: 0,
+              limit: 10,
+              overrideAccess: true,
+              where: {
+                slug: { equals: articleTypeSlug },
+              } as unknown as Where,
+            }),
+          ])
+
+          const categoryIds = categoriesResult.docs.map((doc) => String(doc.id))
+          if (categoryIds.length !== categorySlugs.length) {
+            const found = new Set(categoriesResult.docs.map((doc) => String(doc.slug)))
+            const missing = categorySlugs.filter((value) => !found.has(value))
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Error: category slug(s) not found: ${missing.join(', ')}` }],
+            }
+          }
+
+          const articleTypeId = articleTypesResult.docs?.[0]?.id
+          if (!articleTypeId) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Error: article type slug "${articleTypeSlug}" not found.` }],
+            }
+          }
+
+          const created = (await payload.create({
+            collection: 'posts',
+            depth: 0,
+            overrideAccess: true,
+            draft,
+            data: {
+              title,
+              slug: normalizedSlug,
+              tenant: tenantId,
+              content: richTextFromText(content),
+              categories: categoryIds,
+              articleType: String(articleTypeId),
+              keyTakeaways: keyTakeaways.map((point) => ({ point })),
+              keyTakeawaysApproved: true,
+              meta: {
+                title,
+                description: metaDescription,
+                descriptionApproved: true,
+                image: metaImageId,
+              },
+            },
+          })) as unknown as Record<string, unknown>
+
+          return {
+            structuredContent: {
+              collection: 'posts',
+              id: created?.id ? String(created.id) : null,
+              slug: typeof created?.slug === 'string' ? created.slug : normalizedSlug,
+              title: typeof created?.title === 'string' ? created.title : title,
+              status: typeof created?._status === 'string' ? created._status : draft ? 'draft' : null,
+              tenant: tenantId,
+              categorySlugs,
+              articleTypeSlug,
+            },
+            content: [
+              {
+                type: 'text',
+                text: `Created post "${title}" (${normalizedSlug}) for tenant "${tenant}".`,
+              },
+            ],
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Error creating post: ${message}` }],
           }
         }
       },

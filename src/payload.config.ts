@@ -2437,6 +2437,12 @@ const updateBlockFieldsTool = {
         return { content: [{ type: 'text' as const, text: 'Error: page not found.' }] };
       }
 
+      const pageTenantId = getTenantMeta(pageDoc.tenant).tenantId;
+      const scopedReq =
+        tenant || pageTenantId
+          ? ({ ...req, tenant: tenant || pageTenantId } as PayloadRequest & { tenant: string })
+          : req;
+
       const layout = Array.isArray(pageDoc.layout)
         ? [...(pageDoc.layout as Array<Record<string, unknown>>)]
         : [];
@@ -2531,7 +2537,7 @@ const updateBlockFieldsTool = {
         data: { layout },
         draft,
         overrideAccess: true,
-        req,
+        req: scopedReq,
       })) as unknown as Record<string, unknown>;
 
       return {
