@@ -4,6 +4,10 @@ import { getPayload } from 'payload'
 import type { Where } from 'payload'
 import configPromise from '@payload-config'
 import { Pages } from '@/collections/Pages'
+import type { Page } from '@/payload-types'
+
+type PageLayout = Page['layout']
+type PageLayoutBlock = PageLayout[number]
 
 const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true
@@ -491,7 +495,7 @@ const loadPageDocument = async (
   return (result.docs?.[0] as unknown as Record<string, unknown>) || null
 }
 
-const buildGraphicsSampleLayout = (): Array<Record<string, unknown>> => [
+const buildGraphicsSampleLayout = (): PageLayout => [
   {
     blockType: 'lunchComparisonGraphic',
     headline: 'New York is eating our lunch.',
@@ -608,7 +612,7 @@ const buildGraphicsSampleLayout = (): Array<Record<string, unknown>> => [
 ]
 
 const findTargetBlock = (
-  layout: Array<Record<string, unknown>>,
+  layout: PageLayout,
   selector: { blockId?: string; blockType?: string; blockIndex?: number },
 ) => {
   const { blockId, blockType, blockIndex = 0 } = selector
@@ -907,7 +911,7 @@ const mcpHandler = createMcpHandler(
             }
           }
 
-          const layout = Array.isArray(pageDoc.layout) ? [...(pageDoc.layout as Array<Record<string, unknown>>)] : []
+          const layout = Array.isArray(pageDoc.layout) ? [...(pageDoc.layout as PageLayout)] : []
           const target = findTargetBlock(layout, { blockId, blockType, blockIndex })
           if (!target.block || target.index < 0) {
             return {
@@ -916,7 +920,7 @@ const mcpHandler = createMcpHandler(
             }
           }
 
-          const nextBlock = cloneValue(target.block as Record<string, unknown>)
+          const nextBlock = cloneValue(target.block as PageLayoutBlock)
           const applied: Array<Record<string, unknown>> = []
           const failed: Array<Record<string, unknown>> = []
 
@@ -943,11 +947,11 @@ const mcpHandler = createMcpHandler(
                 if (typeof update.value !== 'string') {
                   throw new Error(`Set operation for "${path}" requires a JSON string value.`)
                 }
-                setAtPath(nextBlock, segments, parseJsonToolValue(update.value), createMissing)
+                setAtPath(nextBlock as unknown as Record<string, unknown>, segments, parseJsonToolValue(update.value), createMissing)
               } else if (op === 'unset') {
-                unsetAtPath(nextBlock, segments)
+                unsetAtPath(nextBlock as unknown as Record<string, unknown>, segments)
               } else {
-                removeAtPath(nextBlock, segments)
+                removeAtPath(nextBlock as unknown as Record<string, unknown>, segments)
               }
 
               applied.push({ op, path })
