@@ -73,5 +73,21 @@ export const LunchComparisonGraphicBlockConfig: Block = {
         return tenantID ? { tenant: { equals: tenantID } } : true
       },
     },
+    {
+      name: 'formHeading',
+      type: 'text',
+      defaultValue: 'Get updates directly from House Republicans',
+      admin: {
+        condition: (_data, siblingData) => Boolean(siblingData?.form),
+      },
+    },
+    {
+      name: 'formButtonText',
+      type: 'text',
+      defaultValue: 'Get Updates',
+      admin: {
+        condition: (_data, siblingData) => Boolean(siblingData?.form),
+      },
+    },
   ],
 }
