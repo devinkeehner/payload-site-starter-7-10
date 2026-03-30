@@ -9,10 +9,33 @@ export const LunchComparisonGraphicBlockConfig: Block = {
   },
   fields: [
     {
+      name: 'source',
+      type: 'radio',
+      defaultValue: 'upload',
+      options: [
+        { label: 'Upload', value: 'upload' },
+        { label: 'Link', value: 'link' },
+      ],
+      admin: {
+        layout: 'horizontal',
+      },
+    },
+    {
       name: 'media',
       label: 'Foreground Image',
       type: 'upload',
       relationTo: 'media',
+      admin: {
+        condition: (_data, siblingData) => (siblingData?.source ?? 'upload') === 'upload',
+      },
+    },
+    {
+      name: 'externalURL',
+      label: 'External Image/Video URL',
+      type: 'text',
+      admin: {
+        condition: (_data, siblingData) => siblingData?.source === 'link',
+      },
     },
     {
       name: 'headline',
@@ -39,6 +62,16 @@ export const LunchComparisonGraphicBlockConfig: Block = {
       name: 'sliceLabel',
       type: 'text',
       defaultValue: 'Remote Worker Convenience Tax',
+    },
+    {
+      name: 'form',
+      type: 'relationship',
+      relationTo: 'forms',
+      filterOptions: ({ req }) => {
+        const t = (req as { tenant?: unknown })?.tenant
+        const tenantID = typeof t === 'string' ? t : (t as { id?: string | null } | null)?.id
+        return tenantID ? { tenant: { equals: tenantID } } : true
+      },
     },
   ],
 }

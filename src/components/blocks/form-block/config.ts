@@ -35,6 +35,22 @@ export const FormBlockConfig: Block = {
       label: 'Enable Intro Content',
     },
     {
+      name: 'displayMode',
+      type: 'select',
+      label: 'Display Mode',
+      defaultValue: 'standard',
+      options: [
+        {
+          label: 'Standard',
+          value: 'standard',
+        },
+        {
+          label: 'Preview Reveal',
+          value: 'previewReveal',
+        },
+      ],
+    },
+    {
       name: 'introContent',
       type: 'richText',
       admin: {
