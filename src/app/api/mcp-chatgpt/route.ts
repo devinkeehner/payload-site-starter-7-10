@@ -165,6 +165,26 @@ const CHATGPT_TOOL_LIST = [
     },
     execution: { taskSupport: 'forbidden' },
   },
+  {
+    name: 'createPage',
+    title: 'Create Page',
+    description:
+      'Creates a draft page in Payload. Supports a graphics-sample preset that seeds the four sample political graphics blocks.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        slug: { type: 'string' },
+        tenant: { type: 'string' },
+        layoutPreset: { type: 'string', enum: ['graphics-sample'] },
+        draft: { type: 'boolean', default: true },
+      },
+      required: ['title', 'slug', 'tenant'],
+      additionalProperties: false,
+      $schema: 'http://json-schema.org/draft-07/schema#',
+    },
+    execution: { taskSupport: 'forbidden' },
+  },
 ] as const
 
 function buildStreamableJsonRpcResult(id: string | number | null, result: Record<string, unknown>) {
@@ -470,6 +490,122 @@ const loadPageDocument = async (
 
   return (result.docs?.[0] as unknown as Record<string, unknown>) || null
 }
+
+const buildGraphicsSampleLayout = (): Array<Record<string, unknown>> => [
+  {
+    blockType: 'lunchComparisonGraphic',
+    headline: 'New York is eating our lunch.',
+    subheadline: 'CT taxpayers are picking up the tab.',
+    bottleLabel: 'Bottle Deposit Chaos',
+    plateLabel: 'Natural Gas Expansion',
+    sliceLabel: 'Remote Worker Convenience Tax',
+  },
+  {
+    blockType: 'solutionTimelineGraphic',
+    headline: 'PERMANENT SOLUTIONS',
+    items: [
+      {
+        outlet: 'wshu | Public Radio',
+        quote: 'House GOP budget: Boost K-12, cut care for undocumented',
+        date: 'April 26, 2024',
+        position: 'topLeft',
+      },
+      {
+        outlet: 'ct mirror',
+        quote: 'Plan would trim electric rates, bolster schools, freeze wages and cut care for undocumented residents',
+        date: 'May 1, 2025',
+        position: 'topRight',
+      },
+      {
+        outlet: 'NEWS8 wtnh.com',
+        quote: 'House GOP “aiming for $1.16 billion in total tax cuts.”',
+        date: 'May 2, 2023',
+        position: 'bottomLeft',
+      },
+      {
+        outlet: 'Inside Investigator',
+        quote: '“Roughly $60 million in new proposed spending for special education.”',
+        date: 'April 25, 2024',
+        position: 'bottomRight',
+      },
+    ],
+  },
+  {
+    blockType: 'taxReliefHighlightGraphic',
+    amountLine: '$275 Million',
+    subtitle: 'in permanent tax relief',
+    highlights: [
+      { label: 'BROAD-BASED TAX CREDIT INCREASES' },
+      { label: 'MAX. CREDIT OF $650 PER PERSON' },
+      { label: 'MORE THAN DOUBLE THE CURRENT AMOUNT' },
+    ],
+  },
+  {
+    blockType: 'propertyTaxCreditTable',
+    eyebrow: 'Connecticut House Republicans | March 30, 2026',
+    title: 'Connecticut State Property Tax Credit',
+    subtitle: 'Proposed $650 Maximum',
+    caption: 'House Republican Proposal – All figures in dollars ($)',
+    sections: [
+      {
+        title: 'Single AGI',
+        rows: [
+          { incomeRange: '$1 – $70,000', credit: '$650' },
+          { incomeRange: '$70,001 – $80,000', credit: '$550' },
+          { incomeRange: '$80,001 – $90,000', credit: '$460' },
+          { incomeRange: '$90,001 – $100,000', credit: '$360' },
+          { incomeRange: '$100,001 – $110,000', credit: '$260' },
+          { incomeRange: '$110,001 – $120,000', credit: '$200' },
+          { incomeRange: '$120,001 – $130,000', credit: '$200' },
+          { incomeRange: '$130,001 and up', credit: '–' },
+        ],
+      },
+      {
+        title: 'Joint AGI',
+        rows: [
+          { incomeRange: '$1 – $100,000', credit: '$650' },
+          { incomeRange: '$100,001 – $110,000', credit: '$550' },
+          { incomeRange: '$110,001 – $120,000', credit: '$460' },
+          { incomeRange: '$120,001 – $130,000', credit: '$360' },
+          { incomeRange: '$130,001 – $140,000', credit: '$260' },
+          { incomeRange: '$140,001 – $150,000', credit: '$200' },
+          { incomeRange: '$150,001 – $200,000', credit: '$200' },
+          { incomeRange: '$200,001 and up', credit: '–' },
+        ],
+      },
+      {
+        title: 'Married Separate AGI',
+        rows: [
+          { incomeRange: '$1 – $50,000', credit: '$650' },
+          { incomeRange: '$50,001 – $55,000', credit: '$550' },
+          { incomeRange: '$55,001 – $60,000', credit: '$460' },
+          { incomeRange: '$60,001 – $65,000', credit: '$360' },
+          { incomeRange: '$65,001 – $70,000', credit: '$260' },
+          { incomeRange: '$70,001 – $75,000', credit: '$200' },
+          { incomeRange: '$75,001 – $80,000', credit: '$200' },
+          { incomeRange: '$80,001 and up', credit: '–' },
+        ],
+      },
+      {
+        title: 'Head of Household AGI',
+        rows: [
+          { incomeRange: '$1 – $80,000', credit: '$650' },
+          { incomeRange: '$80,001 – $90,000', credit: '$550' },
+          { incomeRange: '$90,001 – $100,000', credit: '$460' },
+          { incomeRange: '$100,001 – $110,000', credit: '$360' },
+          { incomeRange: '$110,001 – $120,000', credit: '$260' },
+          { incomeRange: '$120,001 – $130,000', credit: '$200' },
+          { incomeRange: '$130,001 – $140,000', credit: '$200' },
+          { incomeRange: '$140,001 and up', credit: '–' },
+        ],
+      },
+    ],
+    footnote:
+      'Eligible property: primary residence and/or owned or leased motor vehicle. Credit applied against state income tax; does not affect municipal revenue.',
+    footerLeft: '@cthousegop',
+    footerRight: 'cthousegop.com',
+  },
+]
 
 const findTargetBlock = (
   layout: Array<Record<string, unknown>>,
@@ -1001,6 +1137,89 @@ const mcpHandler = createMcpHandler(
           return {
             isError: true,
             content: [{ type: 'text', text: `Error publishing document: ${message}` }],
+          }
+        }
+      },
+    )
+
+    if (shouldRegisterTool('createPage')) server.registerTool(
+      'createPage',
+      {
+        title: 'Create Page',
+        description:
+          'Creates a draft page in Payload. Supports a graphics-sample preset that seeds the four sample political graphics blocks.',
+        inputSchema: {
+          title: z.string().min(1),
+          slug: z.string().min(1),
+          tenant: z.string().min(1),
+          layoutPreset: z.enum(['graphics-sample']).optional(),
+          draft: z.boolean().default(true),
+        },
+      },
+      async ({ title, slug, tenant, layoutPreset, draft }) => {
+        try {
+          const payload = await getPayload({ config: configPromise })
+          const tenantId = await resolveTenantId(payload, tenant)
+          if (!tenantId) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: 'Error: tenant is required.' }],
+            }
+          }
+
+          const existing = await loadPageDocument(payload, { slug, tenant })
+          if (existing?.id) {
+            return {
+              isError: true,
+              content: [{ type: 'text', text: `Error: page "${slug}" already exists for tenant "${tenant}".` }],
+            }
+          }
+
+          const layout =
+            layoutPreset === 'graphics-sample'
+              ? buildGraphicsSampleLayout()
+              : []
+
+          const created = (await payload.create({
+            collection: 'pages',
+            depth: 0,
+            overrideAccess: true,
+            draft,
+            data: {
+              title,
+              slug,
+              tenant: tenantId,
+              hero: {
+                type: 'none',
+                links: [],
+              },
+              layout,
+            },
+          })) as unknown as Record<string, unknown>
+
+          return {
+            structuredContent: {
+              collection: 'pages',
+              id: created?.id ? String(created.id) : null,
+              slug: typeof created?.slug === 'string' ? created.slug : slug,
+              title: typeof created?.title === 'string' ? created.title : title,
+              status: typeof created?._status === 'string' ? created._status : draft ? 'draft' : null,
+              tenant: tenantId,
+              blockCount: layout.length,
+              layoutPreset: layoutPreset ?? null,
+            },
+            content: [
+              {
+                type: 'text',
+                text: `Created page "${title}" (${slug}) for tenant "${tenant}" with ${layout.length} blocks${layoutPreset ? ` using preset "${layoutPreset}"` : ''}.`,
+              },
+            ],
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          return {
+            isError: true,
+            content: [{ type: 'text', text: `Error creating page: ${message}` }],
           }
         }
       },

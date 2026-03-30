@@ -87,6 +87,7 @@ export interface Config {
     tags: Tag;
     'icontact-folders': IcontactFolder;
     'icontact-lists': IcontactList;
+    'sitemap-artifacts': SitemapArtifact;
     'payload-mcp-api-keys': PayloadMcpApiKey;
     redirects: Redirect;
     search: Search;
@@ -117,6 +118,7 @@ export interface Config {
     tags: TagsSelect<false> | TagsSelect<true>;
     'icontact-folders': IcontactFoldersSelect<false> | IcontactFoldersSelect<true>;
     'icontact-lists': IcontactListsSelect<false> | IcontactListsSelect<true>;
+    'sitemap-artifacts': SitemapArtifactsSelect<false> | SitemapArtifactsSelect<true>;
     'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     search: SearchSelect<false> | SearchSelect<true>;
@@ -465,6 +467,10 @@ export interface Page {
     | BannerBlock
     | PolicyVoicesBlock
     | PetitionDriveBlock
+    | LunchComparisonGraphicBlock
+    | SolutionTimelineGraphicBlock
+    | TaxReliefHighlightGraphicBlock
+    | PropertyTaxCreditTableBlock
   )[];
   meta?: {
     title?: string | null;
@@ -1347,6 +1353,84 @@ export interface PetitionDriveBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LunchComparisonGraphicBlock".
+ */
+export interface LunchComparisonGraphicBlock {
+  media?: (string | null) | Media;
+  headline: string;
+  subheadline?: string | null;
+  bottleLabel?: string | null;
+  plateLabel?: string | null;
+  sliceLabel?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'lunchComparisonGraphic';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SolutionTimelineGraphicBlock".
+ */
+export interface SolutionTimelineGraphicBlock {
+  headline: string;
+  items?:
+    | {
+        outlet: string;
+        quote: string;
+        date: string;
+        position: 'topLeft' | 'topRight' | 'bottomLeft' | 'bottomRight';
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'solutionTimelineGraphic';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaxReliefHighlightGraphicBlock".
+ */
+export interface TaxReliefHighlightGraphicBlock {
+  amountLine: string;
+  subtitle: string;
+  highlights?:
+    | {
+        label: string;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'taxReliefHighlightGraphic';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PropertyTaxCreditTableBlock".
+ */
+export interface PropertyTaxCreditTableBlock {
+  eyebrow?: string | null;
+  title: string;
+  subtitle?: string | null;
+  caption?: string | null;
+  sections?:
+    | {
+        title: string;
+        rows: {
+          incomeRange: string;
+          credit: string;
+          id?: string | null;
+        }[];
+        id?: string | null;
+      }[]
+    | null;
+  footnote?: string | null;
+  footerLeft?: string | null;
+  footerRight?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'propertyTaxCreditTable';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media-canvas".
  */
 export interface MediaCanva {
@@ -1728,6 +1812,20 @@ export interface User {
       }[]
     | null;
   password?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sitemap-artifacts".
+ */
+export interface SitemapArtifact {
+  id: string;
+  key: string;
+  contentType: string;
+  itemCount: number;
+  generatedAt: string;
+  xml: string;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * API keys control which collections, resources, tools, and prompts MCP clients can access
@@ -2352,6 +2450,10 @@ export interface PayloadLockedDocument {
         value: string | IcontactList;
       } | null)
     | ({
+        relationTo: 'sitemap-artifacts';
+        value: string | SitemapArtifact;
+      } | null)
+    | ({
         relationTo: 'payload-mcp-api-keys';
         value: string | PayloadMcpApiKey;
       } | null)
@@ -2503,6 +2605,10 @@ export interface PagesSelect<T extends boolean = true> {
         banner?: T | BannerBlockSelect<T>;
         policyVoices?: T | PolicyVoicesBlockSelect<T>;
         petitionDrive?: T | PetitionDriveBlockSelect<T>;
+        lunchComparisonGraphic?: T | LunchComparisonGraphicBlockSelect<T>;
+        solutionTimelineGraphic?: T | SolutionTimelineGraphicBlockSelect<T>;
+        taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
+        propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
       };
   meta?:
     | T
@@ -2789,6 +2895,82 @@ export interface PetitionDriveBlockSelect<T extends boolean = true> {
   sideFollowupContent?: T;
   sideImage?: T;
   sideText?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "LunchComparisonGraphicBlock_select".
+ */
+export interface LunchComparisonGraphicBlockSelect<T extends boolean = true> {
+  media?: T;
+  headline?: T;
+  subheadline?: T;
+  bottleLabel?: T;
+  plateLabel?: T;
+  sliceLabel?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "SolutionTimelineGraphicBlock_select".
+ */
+export interface SolutionTimelineGraphicBlockSelect<T extends boolean = true> {
+  headline?: T;
+  items?:
+    | T
+    | {
+        outlet?: T;
+        quote?: T;
+        date?: T;
+        position?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaxReliefHighlightGraphicBlock_select".
+ */
+export interface TaxReliefHighlightGraphicBlockSelect<T extends boolean = true> {
+  amountLine?: T;
+  subtitle?: T;
+  highlights?:
+    | T
+    | {
+        label?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PropertyTaxCreditTableBlock_select".
+ */
+export interface PropertyTaxCreditTableBlockSelect<T extends boolean = true> {
+  eyebrow?: T;
+  title?: T;
+  subtitle?: T;
+  caption?: T;
+  sections?:
+    | T
+    | {
+        title?: T;
+        rows?:
+          | T
+          | {
+              incomeRange?: T;
+              credit?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  footnote?: T;
+  footerLeft?: T;
+  footerRight?: T;
   id?: T;
   blockName?: T;
 }
@@ -3445,6 +3627,19 @@ export interface IcontactListsSelect<T extends boolean = true> {
   clientFolderId?: T;
   accountId?: T;
   lastSyncedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "sitemap-artifacts_select".
+ */
+export interface SitemapArtifactsSelect<T extends boolean = true> {
+  key?: T;
+  contentType?: T;
+  itemCount?: T;
+  generatedAt?: T;
+  xml?: T;
   updatedAt?: T;
   createdAt?: T;
 }

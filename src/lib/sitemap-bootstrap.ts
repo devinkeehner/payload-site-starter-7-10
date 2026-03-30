@@ -1,6 +1,3 @@
-import configPromise from '@payload-config'
-import { getPayload } from 'payload'
-
 import { regenerateAndPersistSitemaps, getSitemapArtifact } from '@/lib/sitemaps'
 import { triggerFrontendRevalidate } from '@/lib/utilities/revalidateFrontend'
 
@@ -41,6 +38,10 @@ const artifactLooksStale = (xml: string | null | undefined): boolean => typeof x
 async function bootstrapSitemaps(): Promise<void> {
   if (!shouldBootstrapSitemaps()) return
 
+  const [{ default: configPromise }, { getPayload }] = await Promise.all([
+    import('@payload-config'),
+    import('payload'),
+  ])
   const payload = await getPayload({ config: configPromise })
 
   try {
