@@ -1366,6 +1366,8 @@ export interface LunchComparisonGraphicBlock {
   plateLabel?: string | null;
   sliceLabel?: string | null;
   form?: (string | null) | Form;
+  formHeading?: string | null;
+  formButtonText?: string | null;
   id?: string | null;
   blockName?: string | null;
   blockType: 'lunchComparisonGraphic';
@@ -2917,6 +2919,8 @@ export interface LunchComparisonGraphicBlockSelect<T extends boolean = true> {
   plateLabel?: T;
   sliceLabel?: T;
   form?: T;
+  formHeading?: T;
+  formButtonText?: T;
   id?: T;
   blockName?: T;
 }

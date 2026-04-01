@@ -19,6 +19,8 @@ import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { MediaGalleryBlockConfig } from '@/components/blocks/media-gallery-block/config'
 import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { VideoBlockConfig } from '@/components/blocks/video-block/config'
+import { LunchComparisonGraphicBlockConfig } from '@/components/blocks/lunch-comparison-graphic/config'
+import { PropertyTaxCreditTableBlockConfig } from '@/components/blocks/property-tax-credit-table/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
@@ -916,7 +918,18 @@ export const Posts: CollectionConfig<'posts'> = {
                   return [
                     ...rootFeatures,
                     HeadingFeature({ enabledHeadingSizes: ['h1', 'h2', 'h3', 'h4'] }),
-                    BlocksFeature({ blocks: [BannerConfig, CodeBlockConfig, MediaBlockConfig, VideoBlockConfig, MediaGalleryBlockConfig, FormBlockConfig] }),
+                    BlocksFeature({
+                      blocks: [
+                        BannerConfig,
+                        CodeBlockConfig,
+                        MediaBlockConfig,
+                        VideoBlockConfig,
+                        MediaGalleryBlockConfig,
+                        FormBlockConfig,
+                        LunchComparisonGraphicBlockConfig,
+                        PropertyTaxCreditTableBlockConfig,
+                      ],
+                    }),
                     FixedToolbarFeature(),
                     InlineToolbarFeature(),
                     HorizontalRuleFeature(),

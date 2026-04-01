@@ -1,0 +1,21 @@
+{
+  "source": "/home/dkeehner/projects/new-full/backend/tmp/contact-form-submissions-all-tenants-except-main-candelora-2026-04-01T15-51-41-461Z.csv",
+  "rows_all_time_with_usable_email": 1008,
+  "candidate_groups": 49,
+  "strong_pairs": 9,
+  "possible_pairs": 0,
+  "strong_by_tenant": {
+    "lanoue": 1,
+    "haines": 1,
+    "ackert": 1,
+    "bolinsky": 1,
+    "vail": 1,
+    "anderson": 1,
+    "pizzuto": 1,
+    "klarides-ditria": 1,
+    "bronko": 1
+  },
+  "possible_by_tenant": {},
+  "strong_output": "/home/dkeehner/projects/new-full/backend/tmp/duplicate-audit-full-strong-20260401-125502.csv",
+  "possible_output": "/home/dkeehner/projects/new-full/backend/tmp/duplicate-audit-full-possible-20260401-125502.csv"
+}
