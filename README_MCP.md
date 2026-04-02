@@ -1,10 +1,10 @@
-# Payload MCP Setup (Local)
+# Payload MCP Setup
 
 This backend exposes three MCP routes:
 
-- Official Payload MCP route: `http://localhost:3000/api/mcp`
+- Official Payload MCP route: `https://admin.cthousegop.com/api/mcp`
 - Curated ChatGPT route: `http://localhost:3000/api/mcp-chatgpt`
-- Secret-path proxy route: `http://localhost:3000/api/mcp-public/<secret>`
+- Secret-path proxy route: `https://admin.cthousegop.com/api/mcp-public/<secret>`
 
 They do not all authenticate the same way.
 
@@ -46,7 +46,7 @@ Example Codex registration:
 
 ```bash
 export PAYLOAD_MCP_TOKEN='your-official-payload-mcp-api-key'
-codex mcp add payload --url http://localhost:3000/api/mcp --bearer-token-env-var PAYLOAD_MCP_TOKEN
+codex mcp add payload --url https://admin.cthousegop.com/api/mcp --bearer-token-env-var PAYLOAD_MCP_TOKEN
 ```
 
 If Codex hits `/api/mcp` without a valid bearer token, startup will fail with a `401` and the client may report an initialize or response-decoding error.
@@ -71,6 +71,8 @@ PAYLOAD_MCP_PUBLIC_SECRET=...
 ```
 
 By default the proxy forwards to `/api/mcp` and injects `PAYLOAD_MCP_API_KEY` upstream.
+
+Use this route primarily for ChatGPT consumer connector testing. For routine Codex and backend work, use the direct live endpoint above.
 
 ## 4. Local troubleshooting
 

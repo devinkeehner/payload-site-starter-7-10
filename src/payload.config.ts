@@ -182,6 +182,104 @@ const getTenantMeta = (tenantValue: unknown) => {
   return { tenantId: null, tenantSlug: null, tenantName: null };
 };
 
+const getUserTenantIDs = (userValue: unknown): string[] => {
+  if (!userValue || typeof userValue !== 'object') return [];
+
+  const userRecord = userValue as Record<string, unknown>;
+  const tenantsValue = userRecord.tenants;
+  if (!Array.isArray(tenantsValue)) return [];
+
+  return tenantsValue
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return undefined;
+      const relation = (entry as Record<string, unknown>).tenant;
+      if (typeof relation === 'string') return relation;
+      if (relation && typeof relation === 'object') {
+        const relationRecord = relation as Record<string, unknown>;
+        return typeof relationRecord.id === 'string' ? relationRecord.id : undefined;
+      }
+      return undefined;
+    })
+    .filter((tenantId): tenantId is string => typeof tenantId === 'string' && tenantId.length > 0);
+};
+
+const resolveTenantIDs = async (
+  req: PayloadRequest,
+  options: {
+    tenantIDs?: unknown;
+    tenantSlugs?: unknown;
+  },
+) => {
+  const rawTenantIDs = Array.isArray(options.tenantIDs)
+    ? options.tenantIDs
+        .map((id) => (id == null ? '' : String(id).trim()))
+        .filter((id) => id.length > 0)
+    : [];
+  const rawTenantSlugs = Array.isArray(options.tenantSlugs)
+    ? options.tenantSlugs
+        .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+        .filter((slug) => slug.length > 0)
+    : [];
+
+  const tenantIDs = new Set<string>(rawTenantIDs);
+  const missingTenantSlugs: string[] = [];
+
+  if (rawTenantSlugs.length > 0) {
+    const tenants = await req.payload.find({
+      collection: 'tenants',
+      limit: Math.max(rawTenantSlugs.length, 100),
+      overrideAccess: true,
+      req,
+      where: {
+        slug: { in: rawTenantSlugs },
+      },
+    });
+
+    const foundSlugSet = new Set<string>();
+    for (const tenantDoc of tenants.docs as unknown as Array<Record<string, unknown>>) {
+      if (tenantDoc.id) tenantIDs.add(String(tenantDoc.id));
+      if (typeof tenantDoc.slug === 'string') foundSlugSet.add(tenantDoc.slug);
+    }
+
+    for (const slug of rawTenantSlugs) {
+      if (!foundSlugSet.has(slug)) missingTenantSlugs.push(slug);
+    }
+  }
+
+  return {
+    tenantIDs: Array.from(tenantIDs),
+    missingTenantSlugs,
+  };
+};
+
+const normalizeUserForMcp = (userValue: unknown) => {
+  const user = userValue && typeof userValue === 'object' ? (userValue as Record<string, unknown>) : {};
+  const tenants = Array.isArray(user.tenants) ? user.tenants : [];
+
+  return {
+    id: user.id ? String(user.id) : null,
+    name: typeof user.name === 'string' ? user.name : null,
+    email: typeof user.email === 'string' ? user.email : null,
+    roles: Array.isArray(user.roles)
+      ? user.roles.filter((role): role is string => typeof role === 'string')
+      : [],
+    tenants: tenants.map((entry) => {
+      const tenantValue = entry && typeof entry === 'object' ? (entry as Record<string, unknown>).tenant : null;
+      const tenantMeta = getTenantMeta(tenantValue);
+      return {
+        id: entry && typeof entry === 'object' && (entry as Record<string, unknown>).id
+          ? String((entry as Record<string, unknown>).id)
+          : null,
+        tenantId: tenantMeta.tenantId,
+        tenantSlug: tenantMeta.tenantSlug,
+        tenantName: tenantMeta.tenantName,
+      };
+    }),
+    updatedAt: typeof user.updatedAt === 'string' ? user.updatedAt : null,
+    createdAt: typeof user.createdAt === 'string' ? user.createdAt : null,
+  };
+};
+
 const cloneValue = <T>(value: T): T => {
   if (typeof globalThis.structuredClone === 'function') {
     return globalThis.structuredClone(value);
@@ -1847,6 +1945,238 @@ const listTenantsTool = {
       const message = error instanceof Error ? error.message : 'Unknown error';
       return {
         content: [{ type: 'text' as const, text: `Error listing tenants: ${message}` }],
+      };
+    }
+  },
+};
+
+const findUsersTool = {
+  name: 'findUsers',
+  description: 'Find user records and include current tenant assignments.',
+  parameters: {
+    id: z.union([z.string(), z.number()]).optional().describe('Optional exact user ID match.'),
+    email: z.string().optional().describe('Optional exact email match.'),
+    query: z
+      .string()
+      .optional()
+      .describe('Optional free-text search against name or email. Ignored when `id` or `email` is provided.'),
+    limit: z.number().int().min(1).max(100).optional().default(25).describe('Maximum users to return.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const id = args.id != null ? String(args.id).trim() : '';
+    const email = typeof args.email === 'string' ? args.email.trim() : '';
+    const query = typeof args.query === 'string' ? args.query.trim() : '';
+    const limit =
+      typeof args.limit === 'number' && Number.isFinite(args.limit)
+        ? Math.max(1, Math.min(100, Math.trunc(args.limit)))
+        : 25;
+
+    try {
+      const where: Where | undefined = id
+        ? ({ id: { equals: id } } as Where)
+        : email
+          ? ({ email: { equals: email } } as Where)
+          : query
+            ? ({
+                or: [{ name: { contains: query } }, { email: { contains: query } }],
+              } as Where)
+            : undefined;
+
+      const result = await req.payload.find({
+        collection: 'users',
+        depth: 1,
+        limit,
+        overrideAccess: true,
+        req,
+        where,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                filters: {
+                  id: id || null,
+                  email: email || null,
+                  query: query || null,
+                  limit,
+                },
+                totalFound: result.totalDocs,
+                users: (result.docs as unknown[]).map(normalizeUserForMcp),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error finding users: ${message}` }],
+      };
+    }
+  },
+};
+
+const updateUsersTool = {
+  name: 'updateUsers',
+  description:
+    'Update a user record by id or email, including adding or removing tenant assignments for multi-tenant access.',
+  parameters: {
+    id: z.union([z.string(), z.number()]).optional().describe('Target user ID.'),
+    email: z.string().optional().describe('Target user email. Used when `id` is not provided.'),
+    name: z.string().optional().describe('Optional replacement display name.'),
+    roles: z.array(z.enum(['super'])).optional().describe('Optional replacement role list.'),
+    addTenantIDs: z.array(z.union([z.string(), z.number()])).optional().describe('Tenant IDs to add to the user.'),
+    addTenantSlugs: z.array(z.string()).optional().describe('Tenant slugs to add to the user.'),
+    removeTenantIDs: z.array(z.union([z.string(), z.number()])).optional().describe('Tenant IDs to remove from the user.'),
+    removeTenantSlugs: z.array(z.string()).optional().describe('Tenant slugs to remove from the user.'),
+    replaceTenantIDs: z
+      .array(z.union([z.string(), z.number()]))
+      .optional()
+      .describe('Optional full replacement tenant ID list.'),
+    replaceTenantSlugs: z.array(z.string()).optional().describe('Optional full replacement tenant slug list.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const id = args.id != null ? String(args.id).trim() : '';
+    const email = typeof args.email === 'string' ? args.email.trim() : '';
+
+    if (!id && !email) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: provide `id` or `email`.' }],
+      };
+    }
+
+    const hasTenantMutation =
+      Array.isArray(args.addTenantIDs) ||
+      Array.isArray(args.addTenantSlugs) ||
+      Array.isArray(args.removeTenantIDs) ||
+      Array.isArray(args.removeTenantSlugs) ||
+      Array.isArray(args.replaceTenantIDs) ||
+      Array.isArray(args.replaceTenantSlugs);
+    const hasFieldMutation =
+      typeof args.name === 'string' ||
+      Array.isArray(args.roles);
+
+    if (!hasTenantMutation && !hasFieldMutation) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: no user changes were provided.' }],
+      };
+    }
+
+    try {
+      const lookup = await req.payload.find({
+        collection: 'users',
+        depth: 1,
+        limit: 1,
+        overrideAccess: true,
+        req,
+        where: id ? ({ id: { equals: id } } as Where) : ({ email: { equals: email } } as Where),
+      });
+
+      const existing = lookup.docs?.[0] as Record<string, unknown> | undefined;
+      if (!existing?.id) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: user ${id || email} was not found.` }],
+        };
+      }
+
+      const patch: Record<string, unknown> = {};
+      if (typeof args.name === 'string') patch.name = args.name;
+      if (Array.isArray(args.roles)) {
+        patch.roles = args.roles.filter((role): role is 'super' => role === 'super');
+      }
+
+      const currentTenantIDs = new Set<string>(getUserTenantIDs(existing));
+      const replacementRequested = Array.isArray(args.replaceTenantIDs) || Array.isArray(args.replaceTenantSlugs);
+
+      if (replacementRequested) {
+        const { tenantIDs, missingTenantSlugs } = await resolveTenantIDs(req, {
+          tenantIDs: args.replaceTenantIDs,
+          tenantSlugs: args.replaceTenantSlugs,
+        });
+        if (missingTenantSlugs.length > 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Error: tenant slugs not found: ${missingTenantSlugs.join(', ')}`,
+              },
+            ],
+          };
+        }
+        currentTenantIDs.clear();
+        for (const tenantID of tenantIDs) currentTenantIDs.add(tenantID);
+      }
+
+      const addResolved = await resolveTenantIDs(req, {
+        tenantIDs: args.addTenantIDs,
+        tenantSlugs: args.addTenantSlugs,
+      });
+      if (addResolved.missingTenantSlugs.length > 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: tenant slugs not found: ${addResolved.missingTenantSlugs.join(', ')}`,
+            },
+          ],
+        };
+      }
+
+      const removeResolved = await resolveTenantIDs(req, {
+        tenantIDs: args.removeTenantIDs,
+        tenantSlugs: args.removeTenantSlugs,
+      });
+      if (removeResolved.missingTenantSlugs.length > 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: tenant slugs not found: ${removeResolved.missingTenantSlugs.join(', ')}`,
+            },
+          ],
+        };
+      }
+
+      for (const tenantID of addResolved.tenantIDs) currentTenantIDs.add(tenantID);
+      for (const tenantID of removeResolved.tenantIDs) currentTenantIDs.delete(tenantID);
+
+      if (hasTenantMutation) {
+        patch.tenants = Array.from(currentTenantIDs).map((tenantID) => ({ tenant: tenantID }));
+      }
+
+      const updated = await req.payload.update({
+        collection: 'users',
+        id: String(existing.id),
+        data: patch,
+        depth: 1,
+        overrideAccess: true,
+        req,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                before: normalizeUserForMcp(existing),
+                after: normalizeUserForMcp(updated),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error updating user: ${message}` }],
       };
     }
   },
@@ -4283,6 +4613,8 @@ export default buildConfig({
           backfillIContactUnsyncedTool,
           describeEntityShapeTool,
           listTenantsTool,
+          findUsersTool,
+          updateUsersTool,
           getGlobalDocumentTool,
           updateGlobalDocumentTool,
           shareDocumentToTenantsTool,
