@@ -44,6 +44,7 @@ import {
   resolveIContactAccountId,
   syncSubmissionToIContact,
 } from '@/lib/icontact';
+import { shareDocumentToTenants } from '@/lib/mcp-tenant-shares';
 
 // Inline Global Meta & SEO (Payload Global - site-wide)
 const GlobalMetaSEOGlobal: GlobalConfig = {
@@ -117,6 +118,11 @@ const mcpCollections = {
   'media-canvas': { enabled: { find: true, create: true, update: true, delete: true } },
   'icontact-folders': { enabled: { find: true, create: true, update: true, delete: true } },
   'icontact-lists': { enabled: { find: true, create: true, update: true, delete: true } },
+  tenants: { enabled: { find: true, create: true, update: true, delete: true } },
+  users: { enabled: { find: true, create: true, update: true, delete: true } },
+  'wordpress-posts': { enabled: { find: true, create: true, update: true, delete: true } },
+  'sitemap-artifacts': { enabled: { find: true, create: true, update: true, delete: true } },
+  navbars: { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
 
 const deepEqual = (a: unknown, b: unknown): boolean => {
@@ -384,6 +390,46 @@ const loadCollectionDocument = async (
   const { collection, docId, slug, tenant } = selector;
   if (!docId && !slug) {
     throw new Error('Provide `docId` or `slug`.');
+  }
+
+  if (docId) {
+    return (await payload.findByID({
+      collection,
+      id: docId,
+      overrideAccess: true,
+      req,
+    })) as unknown as Record<string, unknown>;
+  }
+
+  const where: Where = slug
+    ? tenant
+      ? { and: [{ slug: { equals: slug } }, { tenant: { equals: tenant } }] }
+      : { slug: { equals: slug } }
+    : {};
+
+  const result = await payload.find({
+    collection,
+    limit: 1,
+    where,
+    overrideAccess: true,
+    req,
+  });
+
+  return (result.docs?.[0] as unknown as Record<string, unknown>) || null;
+};
+
+const loadEditableDocument = async (
+  payload: PayloadRequest['payload'],
+  req: PayloadRequest,
+  selector: { collection: 'pages' | 'posts' | 'forms'; docId?: string; slug?: string; tenant?: string },
+) => {
+  const { collection, docId, slug, tenant } = selector;
+  if (!docId && !slug) {
+    throw new Error('Provide `docId` or `slug`.');
+  }
+
+  if (collection === 'forms' && slug) {
+    throw new Error('Forms do not support slug lookup here. Provide `docId` instead.');
   }
 
   if (docId) {
@@ -1648,6 +1694,164 @@ const getPageBlockDefinitions = () => {
   return [];
 };
 
+const describeEntityShapeTool = {
+  name: 'describeEntityShape',
+  description:
+    'Inspect a collection or global field schema as normalized JSON so MCP clients can work without the admin UI.',
+  parameters: {
+    kind: z.enum(['collection', 'global']).describe('Whether to inspect a collection or a global.'),
+    slug: z.string().min(1).describe('Collection or global slug to inspect.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const kind = args.kind === 'global' ? 'global' : 'collection';
+    const slug = typeof args.slug === 'string' ? args.slug.trim() : '';
+
+    if (!slug) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `slug` is required.' }],
+      };
+    }
+
+    try {
+      const source = kind === 'collection' ? req.payload.config.collections : req.payload.config.globals;
+      const config = Array.isArray(source)
+        ? source.find((entry) => String(((entry as unknown) as Record<string, unknown>).slug ?? '') === slug)
+        : undefined;
+
+      if (!config || typeof config !== 'object') {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Error: ${kind} "${slug}" not found.`,
+            },
+          ],
+        };
+      }
+
+      const configRecord = config as unknown as Record<string, unknown>;
+      const fields = Array.isArray(configRecord.fields)
+        ? (configRecord.fields as Array<Record<string, unknown>>).map(normalizeFieldSchema)
+        : [];
+
+      const meta =
+        kind === 'collection'
+          ? {
+              labels: configRecord.labels ?? null,
+              adminGroup: typeof configRecord.admin === 'object' && configRecord.admin && !Array.isArray(configRecord.admin) ? (configRecord.admin as Record<string, unknown>).group ?? null : null,
+              useAsTitle: typeof configRecord.admin === 'object' && configRecord.admin && !Array.isArray(configRecord.admin) ? (configRecord.admin as Record<string, unknown>).useAsTitle ?? null : null,
+              versions: configRecord.versions ?? null,
+              timestamps: configRecord.timestamps ?? null,
+            }
+          : {
+              label: configRecord.label ?? null,
+              adminGroup: typeof configRecord.admin === 'object' && configRecord.admin && !Array.isArray(configRecord.admin) ? (configRecord.admin as Record<string, unknown>).group ?? null : null,
+              versions: configRecord.versions ?? null,
+            };
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                kind,
+                slug,
+                ...meta,
+                fieldCount: fields.length,
+                fields,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error describing ${kind} "${slug}": ${message}` }],
+      };
+    }
+  },
+};
+
+const listTenantsTool = {
+  name: 'listTenants',
+  description: 'List tenant records for targeting, filtering, and share workflows.',
+  parameters: {
+    query: z.string().optional().describe('Optional search string matching tenant name or slug.'),
+    includeArchived: z.boolean().optional().default(false).describe('When true, include archived tenants.'),
+    limit: z.number().int().min(1).max(5000).optional().default(100).describe('Maximum tenants to return.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const query = typeof args.query === 'string' ? args.query.trim() : '';
+    const includeArchived = typeof args.includeArchived === 'boolean' ? args.includeArchived : false;
+    const limit =
+      typeof args.limit === 'number' && Number.isFinite(args.limit)
+        ? Math.max(1, Math.min(5000, Math.trunc(args.limit)))
+        : 100;
+
+    try {
+      const whereFilters: Array<Record<string, unknown>> = [];
+      if (!includeArchived) {
+        whereFilters.push({ archived: { equals: false } });
+      }
+      if (query) {
+        whereFilters.push({
+          or: [{ name: { contains: query } }, { slug: { contains: query } }],
+        });
+      }
+
+      const where: Where =
+        whereFilters.length > 1
+          ? ({ and: whereFilters } as Where)
+          : ((whereFilters[0] ?? {}) as Where);
+
+      const result = await req.payload.find({
+        collection: 'tenants',
+        depth: 0,
+        limit,
+        overrideAccess: true,
+        req,
+        select: { name: true, slug: true, archived: true } as const,
+        where,
+      });
+
+      const tenants = (result.docs as unknown as Array<Record<string, unknown>>).map((tenant) => ({
+        id: tenant.id ? String(tenant.id) : null,
+        name: typeof tenant.name === 'string' ? tenant.name : null,
+        slug: typeof tenant.slug === 'string' ? tenant.slug : null,
+        archived: Boolean(tenant.archived),
+      }));
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                query: query || null,
+                includeArchived,
+                limit,
+                totalFound: result.totalDocs,
+                tenants,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error listing tenants: ${message}` }],
+      };
+    }
+  },
+};
+
 const refreshIContactCacheTool = {
   name: 'refreshIContactCache',
   description: 'Refresh local iContact folder/list cache collections from the live iContact account.',
@@ -2696,7 +2900,7 @@ const listRichTextNodesTool = {
   description:
     'List Lexical rich-text nodes from a document path with node keys, types, and parent relationships.',
   parameters: {
-    collection: z.enum(['pages', 'posts']).describe('Collection containing the richText field.'),
+    collection: z.enum(['pages', 'posts', 'forms']).describe('Collection containing the richText field.'),
     docId: z.union([z.string(), z.number()]).optional().describe('Optional document ID.'),
     slug: z.string().optional().describe('Document slug (used when docId is not provided).'),
     tenant: z
@@ -2711,7 +2915,7 @@ const listRichTextNodesTool = {
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
     const payload = req.payload;
-    const collection = args.collection === 'posts' ? 'posts' : 'pages';
+    const collection = args.collection === 'posts' ? 'posts' : args.collection === 'forms' ? 'forms' : 'pages';
     const docId = args.docId != null ? String(args.docId) : undefined;
     const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
     const tenant = args.tenant != null ? String(args.tenant) : undefined;
@@ -2726,7 +2930,10 @@ const listRichTextNodesTool = {
     }
 
     try {
-      const doc = await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
+      const doc =
+        collection === 'forms'
+          ? await loadEditableDocument(payload, req, { collection, docId, slug, tenant })
+          : await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
       if (!doc || !doc.id) {
         return { content: [{ type: 'text' as const, text: 'Error: document not found.' }] };
       }
@@ -2815,7 +3022,7 @@ const updateRichTextNodesTool = {
   description:
     'Tree-aware Lexical updates by node key/type/text matching. Supports setProps, replaceText, removeNode, and insertChild.',
   parameters: {
-    collection: z.enum(['pages', 'posts']).describe('Collection containing the richText field.'),
+    collection: z.enum(['pages', 'posts', 'forms']).describe('Collection containing the richText field.'),
     docId: z.union([z.string(), z.number()]).optional().describe('Optional document ID.'),
     slug: z.string().optional().describe('Document slug (used when docId is not provided).'),
     tenant: z
@@ -2848,7 +3055,7 @@ const updateRichTextNodesTool = {
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
     const payload = req.payload;
-    const collection = args.collection === 'posts' ? 'posts' : 'pages';
+    const collection = args.collection === 'posts' ? 'posts' : args.collection === 'forms' ? 'forms' : 'pages';
     const docId = args.docId != null ? String(args.docId) : undefined;
     const slug = typeof args.slug === 'string' ? args.slug.trim() : undefined;
     const tenant = args.tenant != null ? String(args.tenant) : undefined;
@@ -2861,7 +3068,10 @@ const updateRichTextNodesTool = {
     }
 
     try {
-      const doc = await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
+      const doc =
+        collection === 'forms'
+          ? await loadEditableDocument(payload, req, { collection, docId, slug, tenant })
+          : await loadCollectionDocument(payload, req, { collection, docId, slug, tenant });
       if (!doc || !doc.id) {
         return { content: [{ type: 'text' as const, text: 'Error: document not found.' }] };
       }
@@ -3081,11 +3291,322 @@ const getEditingDefaultsTool = {
       '3) Draft-first behavior: Prefer draft writes by default. Only publish when the user explicitly requests publishing.',
       '4) Safe page-block workflow: listPageBlocks -> getBlockShape -> updateBlockFields.',
       '5) Scope minimization: Update only required fields/paths; avoid broad full-document rewrites unless explicitly requested.',
+      '6) Collection inspection: use describeEntityShape for collections and globals before changing unfamiliar schemas.',
+      '7) Forms rich text is editable through listRichTextNodes/updateRichTextNodes on forms.confirmationMessage, forms.emails[*].message, and message field blocks.',
+      '8) Tenant cloning: use shareDocumentToTenants for posts and forms instead of the admin UI share buttons.',
+      '9) Globals: use getGlobal and updateGlobal for header, footer, and global-meta-seo.',
     ].join('\n');
 
     return {
       content: [{ type: 'text' as const, text: guidance }],
     };
+  },
+};
+
+const getGlobalDocumentTool = {
+  name: 'getGlobal',
+  description: 'Read a global document by slug.',
+  parameters: {
+    slug: z.enum(['header', 'footer', 'global-meta-seo']).describe('Global slug to read.'),
+    depth: z.number().int().min(0).max(10).optional().default(0).describe('Depth for nested relationships.'),
+    draft: z.boolean().optional().default(true).describe('When true, read the draft version when available.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const slug = args.slug === 'header' || args.slug === 'footer' || args.slug === 'global-meta-seo' ? args.slug : null;
+    const depth = typeof args.depth === 'number' && Number.isFinite(args.depth) ? Math.max(0, Math.trunc(args.depth)) : 0;
+    const draft = typeof args.draft === 'boolean' ? args.draft : true;
+
+    if (!slug) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `slug` is required.' }],
+      };
+    }
+
+    try {
+      const doc = await req.payload.findGlobal({
+        slug,
+        depth,
+        draft,
+        overrideAccess: true,
+        req,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                slug,
+                depth,
+                draft,
+                doc,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error reading global "${slug}": ${message}` }],
+      };
+    }
+  },
+};
+
+const updateGlobalDocumentTool = {
+  name: 'updateGlobal',
+  description: 'Update a global document with draft-first behavior.',
+  parameters: {
+    slug: z.enum(['header', 'footer', 'global-meta-seo']).describe('Global slug to update.'),
+    data: z.record(z.unknown()).describe('Partial global data to merge into the document.'),
+    depth: z.number().int().min(0).max(10).optional().default(0).describe('Depth for nested relationships in the returned document.'),
+    draft: z.boolean().optional().default(true).describe('When true, keep the update in draft mode.'),
+    dryRun: z.boolean().optional().default(false).describe('When true, return the current document and patch without writing.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const slug = args.slug === 'header' || args.slug === 'footer' || args.slug === 'global-meta-seo' ? args.slug : null;
+    const patch =
+      args.data && typeof args.data === 'object' && !Array.isArray(args.data)
+        ? (args.data as Record<string, unknown>)
+        : null;
+    const depth = typeof args.depth === 'number' && Number.isFinite(args.depth) ? Math.max(0, Math.trunc(args.depth)) : 0;
+    const draft = typeof args.draft === 'boolean' ? args.draft : true;
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : false;
+
+    if (!slug) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `slug` is required.' }],
+      };
+    }
+
+    if (!patch || Object.keys(patch).length === 0) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `data` must be a non-empty object.' }],
+      };
+    }
+
+    try {
+      if (dryRun) {
+        const current = await req.payload.findGlobal({
+          slug,
+          depth,
+          draft,
+          overrideAccess: true,
+          req,
+        });
+
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify(
+                {
+                  slug,
+                  depth,
+                  draft,
+                  dryRun: true,
+                  current,
+                  patch,
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        };
+      }
+
+      const updated = await req.payload.updateGlobal({
+        slug,
+        data: patch,
+        depth,
+        draft,
+        overrideAccess: true,
+        req,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                slug,
+                depth,
+                draft,
+                updated,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error updating global "${slug}": ${message}` }],
+      };
+    }
+  },
+};
+
+const shareDocumentToTenantsTool = {
+  name: 'shareDocumentToTenants',
+  description:
+    'Clone a post or form into selected tenants, preserving nested media, nested forms, and tenant scoping.',
+  parameters: {
+    collection: z.enum(['posts', 'forms']).describe('Document type to share.'),
+    docId: z.union([z.string(), z.number()]).describe('Source document ID to clone.'),
+    tenantIDs: z.array(z.union([z.string(), z.number()])).optional().describe('Target tenant IDs to clone into.'),
+    tenantSlugs: z.array(z.string()).optional().describe('Target tenant slugs to clone into.'),
+    sourceTenantID: z.union([z.string(), z.number()]).optional().describe('Optional source tenant ID scope.'),
+    sourceTenantSlug: z.string().optional().describe('Optional source tenant slug scope.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const collection = args.collection === 'forms' ? 'forms' : 'posts';
+    const docId = args.docId != null ? String(args.docId).trim() : '';
+    const rawTenantIds = Array.isArray(args.tenantIDs)
+      ? args.tenantIDs
+          .map((id) => (id == null ? '' : String(id).trim()))
+          .filter((id) => id.length > 0)
+      : [];
+    const rawTenantSlugs = Array.isArray(args.tenantSlugs)
+      ? args.tenantSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+          .filter((slug) => slug.length > 0)
+      : [];
+    const sourceTenantID = args.sourceTenantID != null ? String(args.sourceTenantID).trim() : '';
+    const sourceTenantSlug = typeof args.sourceTenantSlug === 'string' ? args.sourceTenantSlug.trim() : '';
+
+    if (!docId) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `docId` is required.' }],
+      };
+    }
+
+    try {
+      const tenantIds = new Set<string>(rawTenantIds);
+      const missingTenantSlugs: string[] = [];
+
+      if (rawTenantSlugs.length > 0) {
+        const tenants = await req.payload.find({
+          collection: 'tenants',
+          limit: Math.max(rawTenantSlugs.length, 100),
+          overrideAccess: true,
+          req,
+          where: {
+            slug: { in: rawTenantSlugs },
+          },
+        });
+
+        const foundSlugSet = new Set<string>();
+        for (const tenantDoc of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenantDoc.id) {
+            tenantIds.add(String(tenantDoc.id));
+          }
+          if (typeof tenantDoc.slug === 'string') {
+            foundSlugSet.add(tenantDoc.slug);
+          }
+        }
+
+        for (const slug of rawTenantSlugs) {
+          if (!foundSlugSet.has(slug)) {
+            missingTenantSlugs.push(slug);
+          }
+        }
+      }
+
+      let resolvedSourceTenantID = sourceTenantID || undefined;
+      if (!resolvedSourceTenantID && sourceTenantSlug) {
+        const sourceTenant = await req.payload.find({
+          collection: 'tenants',
+          limit: 1,
+          overrideAccess: true,
+          req,
+          where: {
+            slug: { equals: sourceTenantSlug },
+          },
+        });
+        const sourceTenantDoc = sourceTenant.docs?.[0] as Record<string, unknown> | undefined;
+        resolvedSourceTenantID = sourceTenantDoc?.id ? String(sourceTenantDoc.id) : undefined;
+        if (!resolvedSourceTenantID) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Error: source tenant slug "${sourceTenantSlug}" was not found.`,
+              },
+            ],
+          };
+        }
+      }
+
+      const isSuper = isSuperUser(req.user);
+      const userTenantsValue = (req.user as unknown as Record<string, unknown> | undefined)?.tenants;
+      const userTenantIDs: string[] = Array.isArray(userTenantsValue)
+        ? (userTenantsValue as Array<Record<string, unknown>>)
+            .map((tenant) => {
+              const relation = tenant.tenant;
+              if (typeof relation === 'string') return relation;
+              if (relation && typeof relation === 'object') {
+                const relationRecord = relation as Record<string, unknown>;
+                return typeof relationRecord.id === 'string' ? relationRecord.id : undefined;
+              }
+              return undefined;
+            })
+            .filter((tenantId): tenantId is string => typeof tenantId === 'string' && tenantId.length > 0)
+        : [];
+
+      const allowedTenantIDs = isSuper
+        ? Array.from(tenantIds)
+        : Array.from(tenantIds).filter((tenantId) => userTenantIDs.includes(tenantId));
+
+      if (!allowedTenantIDs.length) {
+        return {
+          content: [{ type: 'text' as const, text: 'Error: you do not have access to the selected tenants.' }],
+        };
+      }
+
+      const shareResult = await shareDocumentToTenants({
+        collection,
+        docId,
+        tenantIDs: allowedTenantIDs,
+        sourceTenantID: resolvedSourceTenantID,
+        req,
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                collection,
+                docId,
+                sourceTenantID: resolvedSourceTenantID ?? null,
+                requestedTenantIDs: Array.from(tenantIds),
+                missingTenantSlugs,
+                allowedTenantIDs,
+                count: shareResult.count,
+                results: shareResult.results,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error sharing ${collection}: ${message}` }],
+      };
+    }
   },
 };
 
@@ -3760,6 +4281,11 @@ export default buildConfig({
           listIContactListsTool,
           bulkConfigureIContactFormsTool,
           backfillIContactUnsyncedTool,
+          describeEntityShapeTool,
+          listTenantsTool,
+          getGlobalDocumentTool,
+          updateGlobalDocumentTool,
+          shareDocumentToTenantsTool,
           upsertPageWithBlocksTool,
           listPageBlocksTool,
           getBlockShapeTool,

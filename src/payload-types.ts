@@ -2123,6 +2123,96 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  tenants?: {
+    /**
+     * Allow clients to find tenants.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create tenants.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update tenants.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete tenants.
+     */
+    delete?: boolean | null;
+  };
+  users?: {
+    /**
+     * Allow clients to find users.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create users.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update users.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete users.
+     */
+    delete?: boolean | null;
+  };
+  wordpressPosts?: {
+    /**
+     * Allow clients to find wordpress-posts.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create wordpress-posts.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update wordpress-posts.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete wordpress-posts.
+     */
+    delete?: boolean | null;
+  };
+  sitemapArtifacts?: {
+    /**
+     * Allow clients to find sitemap-artifacts.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create sitemap-artifacts.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update sitemap-artifacts.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete sitemap-artifacts.
+     */
+    delete?: boolean | null;
+  };
+  navbars?: {
+    /**
+     * Allow clients to find navbars.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create navbars.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update navbars.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete navbars.
+     */
+    delete?: boolean | null;
+  };
   'payload-mcp-tool'?: {
     /**
      * Refresh local iContact folder/list cache collections from the live iContact account.
@@ -2144,6 +2234,26 @@ export interface PayloadMcpApiKey {
      * Sync unsynced form submissions to iContact for forms matching a title, optionally filtered to specific tenants.
      */
     backfillIContactUnsynced?: boolean | null;
+    /**
+     * Inspect a collection or global field schema as normalized JSON so MCP clients can work without the admin UI.
+     */
+    describeEntityShape?: boolean | null;
+    /**
+     * List tenant records for targeting, filtering, and share workflows.
+     */
+    listTenants?: boolean | null;
+    /**
+     * Read a global document by slug.
+     */
+    getGlobal?: boolean | null;
+    /**
+     * Update a global document with draft-first behavior.
+     */
+    updateGlobal?: boolean | null;
+    /**
+     * Clone a post or form into selected tenants, preserving nested media, nested forms, and tenant scoping.
+     */
+    shareDocumentToTenants?: boolean | null;
     /**
      * Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation. Prefer draft unless publish is explicitly requested.
      */
@@ -3783,6 +3893,46 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         update?: T;
         delete?: T;
       };
+  tenants?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  users?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  wordpressPosts?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  sitemapArtifacts?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  navbars?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
   'payload-mcp-tool'?:
     | T
     | {
@@ -3791,6 +3941,11 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         listIContactLists?: T;
         bulkConfigureIContactForms?: T;
         backfillIContactUnsynced?: T;
+        describeEntityShape?: T;
+        listTenants?: T;
+        getGlobal?: T;
+        updateGlobal?: T;
+        shareDocumentToTenants?: T;
         upsertPageWithBlocks?: T;
         listPageBlocks?: T;
         getBlockShape?: T;

@@ -1,3 +1,36 @@
+# Backend Notes
+
+This backend is a Payload CMS app with MCP enabled.
+
+## Preferred MCP endpoint
+
+- Default MCP target for routine work: `https://admin.cthousegop.com/api/mcp`
+- Local development fallback: `http://localhost:3000/api/mcp`
+- If local dev is running on a different port, use the real backend port instead of assuming `3000`
+
+## MCP auth
+
+- Direct MCP calls use `PAYLOAD_MCP_API_KEY`
+- Send:
+- `Authorization: Bearer <PAYLOAD_MCP_API_KEY>`
+- `Content-Type: application/json`
+- `Accept: application/json, text/event-stream`
+
+## Secret-path public proxy
+
+- Public proxy pattern: `https://admin.cthousegop.com/api/mcp-public/<secret>`
+- `<secret>` is `PAYLOAD_MCP_PUBLIC_SECRET`
+- Use this primarily for testing App/connector flows for the ChatGPT consumer product
+- Do not treat this as the default backend MCP endpoint
+
+## Local MCP behavior
+
+- `/api/mcp` is available only when `PAYLOAD_ENABLE_MCP=true`
+- In `next dev`, the first hit to `/api/mcp` can be slow because the route compiles on demand
+- If local MCP looks broken, warm it with an authenticated `tools/list` call before concluding the route is down
+
+---
+
 # WORK IN PROGRESS 🏗️
 
 ---
