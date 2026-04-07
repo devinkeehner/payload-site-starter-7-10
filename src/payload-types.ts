@@ -2243,6 +2243,14 @@ export interface PayloadMcpApiKey {
      */
     listTenants?: boolean | null;
     /**
+     * Find user records and include current tenant assignments.
+     */
+    findUsers?: boolean | null;
+    /**
+     * Update a user record by id or email, including adding or removing tenant assignments for multi-tenant access.
+     */
+    updateUsers?: boolean | null;
+    /**
      * Read a global document by slug.
      */
     getGlobal?: boolean | null;
@@ -3943,6 +3951,8 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         backfillIContactUnsynced?: T;
         describeEntityShape?: T;
         listTenants?: T;
+        findUsers?: T;
+        updateUsers?: T;
         getGlobal?: T;
         updateGlobal?: T;
         shareDocumentToTenants?: T;

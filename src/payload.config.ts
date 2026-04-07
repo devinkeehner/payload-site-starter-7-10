@@ -985,6 +985,288 @@ const listFormRecipientsByTitleTool = {
   },
 };
 
+const listFormSubmissionsTool = {
+  name: 'listFormSubmissions',
+  description:
+    'Read-only lookup for form submission records by form id/title, tenant, submitter email, and createdAt window.',
+  parameters: {
+    formId: z
+      .union([z.string(), z.number()])
+      .optional()
+      .describe('Optional exact form ID. When provided, takes precedence over `formTitle`.'),
+    formTitle: z.string().optional().describe('Optional exact form title, such as "Contact Form".'),
+    tenantIds: z
+      .array(z.union([z.string(), z.number()]))
+      .optional()
+      .describe('Optional tenant IDs to filter submissions.'),
+    tenantSlugs: z
+      .array(z.string())
+      .optional()
+      .describe('Optional tenant slugs to filter submissions.'),
+    submitterEmail: z.string().optional().describe('Optional exact submitter email match.'),
+    createdAfter: z
+      .string()
+      .optional()
+      .describe('Optional ISO timestamp lower bound for createdAt, e.g. 2026-04-07T00:00:00.000Z.'),
+    createdBefore: z
+      .string()
+      .optional()
+      .describe('Optional ISO timestamp upper bound for createdAt, e.g. 2026-04-08T00:00:00.000Z.'),
+    page: z.number().int().min(1).max(1000).optional().default(1).describe('Results page number.'),
+    limit: z.number().int().min(1).max(500).optional().default(50).describe('Maximum submissions to return.'),
+    includeSubmissionData: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('When true, include raw submissionData plus a flattened submissionDataMap.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const page =
+      typeof args.page === 'number' && Number.isFinite(args.page)
+        ? Math.max(1, Math.min(1000, Math.trunc(args.page)))
+        : 1;
+    const limit =
+      typeof args.limit === 'number' && Number.isFinite(args.limit)
+        ? Math.max(1, Math.min(500, Math.trunc(args.limit)))
+        : 50;
+    const includeSubmissionData =
+      typeof args.includeSubmissionData === 'boolean' ? args.includeSubmissionData : true;
+    const submitterEmail =
+      typeof args.submitterEmail === 'string' && args.submitterEmail.trim().length > 0
+        ? args.submitterEmail.trim().toLowerCase()
+        : null;
+    const createdAfter =
+      typeof args.createdAfter === 'string' && args.createdAfter.trim().length > 0
+        ? args.createdAfter.trim()
+        : null;
+    const createdBefore =
+      typeof args.createdBefore === 'string' && args.createdBefore.trim().length > 0
+        ? args.createdBefore.trim()
+        : null;
+
+    if (createdAfter && Number.isNaN(Date.parse(createdAfter))) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `createdAfter` must be a valid ISO timestamp.' }],
+      };
+    }
+
+    if (createdBefore && Number.isNaN(Date.parse(createdBefore))) {
+      return {
+        content: [{ type: 'text' as const, text: 'Error: `createdBefore` must be a valid ISO timestamp.' }],
+      };
+    }
+
+    const formId =
+      args.formId != null && String(args.formId).trim().length > 0 ? String(args.formId).trim() : null;
+    const formTitle =
+      !formId && typeof args.formTitle === 'string' && args.formTitle.trim().length > 0
+        ? args.formTitle.trim()
+        : null;
+
+    try {
+      const { tenantIDs, missingTenantSlugs } = await resolveTenantIDs(req, {
+        tenantIDs: args.tenantIds,
+        tenantSlugs: args.tenantSlugs,
+      });
+
+      const matchedForms: Array<Record<string, unknown>> = [];
+      let matchedFormIDs: string[] = [];
+
+      if (formId) {
+        matchedFormIDs = [formId];
+      } else if (formTitle) {
+        const formWhereFilters: Array<Record<string, unknown>> = [{ title: { equals: formTitle } }];
+        if (tenantIDs.length > 0) {
+          formWhereFilters.push({ tenant: { in: tenantIDs } });
+        }
+
+        const formWhere: Where =
+          formWhereFilters.length > 1
+            ? ({ and: formWhereFilters } as Where)
+            : ((formWhereFilters[0] ?? {}) as Where);
+
+        const formLookup = await payload.find({
+          collection: 'forms',
+          depth: 1,
+          limit: 5000,
+          overrideAccess: true,
+          req,
+          where: formWhere,
+        });
+
+        matchedFormIDs = (formLookup.docs as unknown as Array<Record<string, unknown>>)
+          .map((formDoc) => (formDoc.id ? String(formDoc.id) : ''))
+          .filter((id) => id.length > 0);
+
+        for (const formDoc of formLookup.docs as unknown as Array<Record<string, unknown>>) {
+          const { tenantId, tenantSlug, tenantName } = getTenantMeta(formDoc.tenant);
+          matchedForms.push({
+            formId: formDoc.id ? String(formDoc.id) : null,
+            title: typeof formDoc.title === 'string' ? formDoc.title : null,
+            tenantId,
+            tenantSlug,
+            tenantName,
+          });
+        }
+
+        if (matchedFormIDs.length === 0) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    formId,
+                    formTitle,
+                    page,
+                    limit,
+                    totalDocs: 0,
+                    totalPages: 0,
+                    missingTenantSlugs,
+                    matchedForms,
+                    rows: [],
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
+      }
+
+      const submissionWhereFilters: Array<Record<string, unknown>> = [];
+
+      if (matchedFormIDs.length === 1) {
+        submissionWhereFilters.push({ form: { equals: matchedFormIDs[0] } });
+      } else if (matchedFormIDs.length > 1) {
+        submissionWhereFilters.push({ form: { in: matchedFormIDs } });
+      }
+
+      if (tenantIDs.length > 0) {
+        submissionWhereFilters.push({ tenant: { in: tenantIDs } });
+      }
+
+      if (submitterEmail) {
+        submissionWhereFilters.push({ submitterEmail: { equals: submitterEmail } });
+      }
+
+      if (createdAfter) {
+        submissionWhereFilters.push({ createdAt: { greater_than: createdAfter } });
+      }
+
+      if (createdBefore) {
+        submissionWhereFilters.push({ createdAt: { less_than: createdBefore } });
+      }
+
+      const submissionWhere: Where =
+        submissionWhereFilters.length > 1
+          ? ({ and: submissionWhereFilters } as Where)
+          : ((submissionWhereFilters[0] ?? {}) as Where);
+
+      const result = await payload.find({
+        collection: 'form-submissions',
+        depth: 1,
+        limit,
+        page,
+        overrideAccess: true,
+        req,
+        sort: '-createdAt',
+        where: submissionWhere,
+      });
+
+      const rows = (result.docs as unknown as Array<Record<string, unknown>>).map((submissionDoc) => {
+        const submissionId = submissionDoc.id ? String(submissionDoc.id) : null;
+        const createdAtValue =
+          typeof submissionDoc.createdAt === 'string' ? submissionDoc.createdAt : submissionDoc.createdAt ?? null;
+        const submissionTenant = getTenantMeta(submissionDoc.tenant);
+
+        const formValue = submissionDoc.form;
+        const formRecord =
+          formValue && typeof formValue === 'object' && !Array.isArray(formValue)
+            ? (formValue as Record<string, unknown>)
+            : null;
+        const formMeta = getTenantMeta(formRecord?.tenant);
+
+        const rawSubmissionData = Array.isArray(submissionDoc.submissionData)
+          ? (submissionDoc.submissionData as Array<Record<string, unknown>>)
+          : [];
+
+        const submissionDataMap = rawSubmissionData.reduce<Record<string, unknown>>((acc, entry) => {
+          const fieldName =
+            entry && typeof entry.field === 'string' && entry.field.trim().length > 0 ? entry.field.trim() : null;
+          if (!fieldName) return acc;
+          acc[fieldName] = entry.value ?? null;
+          return acc;
+        }, {});
+
+        return {
+          submissionId,
+          createdAt: createdAtValue,
+          formId: formRecord?.id ? String(formRecord.id) : typeof formValue === 'string' ? formValue : null,
+          formTitle: typeof formRecord?.title === 'string' ? formRecord.title : null,
+          formTenantId: formMeta.tenantId,
+          formTenantSlug: formMeta.tenantSlug,
+          formTenantName: formMeta.tenantName,
+          submissionTenantId: submissionTenant.tenantId,
+          submissionTenantSlug: submissionTenant.tenantSlug,
+          submissionTenantName: submissionTenant.tenantName,
+          submitterEmail:
+            typeof submissionDoc.submitterEmail === 'string' ? submissionDoc.submitterEmail : submissionDoc.submitterEmail ?? null,
+          submitterIP:
+            typeof submissionDoc.submitterIP === 'string' ? submissionDoc.submitterIP : submissionDoc.submitterIP ?? null,
+          iContactSyncStatus:
+            typeof submissionDoc.iContactSyncStatus === 'string'
+              ? submissionDoc.iContactSyncStatus
+              : submissionDoc.iContactSyncStatus ?? null,
+          submissionDataCount: rawSubmissionData.length,
+          ...(includeSubmissionData
+            ? {
+                submissionData: rawSubmissionData,
+                submissionDataMap,
+              }
+            : {}),
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                formId,
+                formTitle,
+                tenantIDs,
+                submitterEmail,
+                createdAfter,
+                createdBefore,
+                page: result.page,
+                limit: result.limit,
+                totalDocs: result.totalDocs,
+                totalPages: result.totalPages,
+                hasNextPage: result.hasNextPage,
+                hasPrevPage: result.hasPrevPage,
+                missingTenantSlugs,
+                matchedForms,
+                rows,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error listing form submissions: ${message}` }],
+      };
+    }
+  },
+};
+
 const bulkNormalizeContactFormsTool = {
   name: 'bulkNormalizeContactForms',
   description:
@@ -4630,6 +4912,7 @@ export default buildConfig({
           updatePolicyVoicesCardLinksTool,
           bulkUpdateFormsByTitleTool,
           listFormRecipientsByTitleTool,
+          listFormSubmissionsTool,
           bulkNormalizeContactFormsTool,
           reorderContactFormTailFieldsTool,
         ],
