@@ -2315,6 +2315,10 @@ export interface PayloadMcpApiKey {
      */
     listFormRecipientsByTitle?: boolean | null;
     /**
+     * Read-only lookup for form submission records by form id/title, tenant, submitter email, and createdAt window.
+     */
+    listFormSubmissions?: boolean | null;
+    /**
      * Bulk normalize Contact Form fields across tenants: rename mobile->phone, ensure Street Address/Town/ZIP required, and add missing Town/ZIP fields.
      */
     bulkNormalizeContactForms?: boolean | null;
@@ -3976,6 +3980,7 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         updatePolicyVoicesCardLinks?: T;
         bulkUpdateFormsByTitle?: T;
         listFormRecipientsByTitle?: T;
+        listFormSubmissions?: T;
         bulkNormalizeContactForms?: T;
         reorderContactFormTailFields?: T;
       };

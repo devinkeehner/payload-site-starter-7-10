@@ -10,18 +10,12 @@ This backend is a Payload CMS app with MCP enabled.
 
 ## MCP auth
 
-- Direct MCP calls use `PAYLOAD_MCP_API_KEY`
+- The official `/api/mcp` route uses a bearer token created in the `payload-mcp-api-keys` collection
+- If your client wants an env var name, `PAYLOAD_MCP_API_KEY` is fine as the local/client variable that holds that bearer token
 - Send:
 - `Authorization: Bearer <PAYLOAD_MCP_API_KEY>`
 - `Content-Type: application/json`
 - `Accept: application/json, text/event-stream`
-
-## Secret-path public proxy
-
-- Public proxy pattern: `https://admin.cthousegop.com/api/mcp-public/<secret>`
-- `<secret>` is `PAYLOAD_MCP_PUBLIC_SECRET`
-- Use this primarily for testing App/connector flows for the ChatGPT consumer product
-- Do not treat this as the default backend MCP endpoint
 
 ## Local MCP behavior
 
