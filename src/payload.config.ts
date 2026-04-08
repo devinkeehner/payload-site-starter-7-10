@@ -119,7 +119,9 @@ const mcpCollections = {
   'icontact-folders': { enabled: { find: true, create: true, update: true, delete: true } },
   'icontact-lists': { enabled: { find: true, create: true, update: true, delete: true } },
   tenants: { enabled: { find: true, create: true, update: true, delete: true } },
-  users: { enabled: { find: true, create: true, update: true, delete: true } },
+  // Keep user CRUD out of the generic MCP surface so the custom
+  // findUsers/updateUsers tools can own that namespace without collisions.
+  users: { enabled: { find: false, create: false, update: false, delete: false } },
   'wordpress-posts': { enabled: { find: true, create: true, update: true, delete: true } },
   'sitemap-artifacts': { enabled: { find: true, create: true, update: true, delete: true } },
   navbars: { enabled: { find: true, create: true, update: true, delete: true } },
