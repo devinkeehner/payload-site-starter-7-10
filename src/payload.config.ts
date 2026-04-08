@@ -1214,6 +1214,20 @@ const listFormSubmissionsTool = {
           submissionTenantName: submissionTenant.tenantName,
           submitterEmail:
             typeof submissionDoc.submitterEmail === 'string' ? submissionDoc.submitterEmail : submissionDoc.submitterEmail ?? null,
+          submitterUserAgent:
+            typeof submissionDoc.submitterUserAgent === 'string'
+              ? submissionDoc.submitterUserAgent
+              : submissionDoc.submitterUserAgent ?? null,
+          submitterBrowser:
+            typeof submissionDoc.submitterBrowser === 'string'
+              ? submissionDoc.submitterBrowser
+              : submissionDoc.submitterBrowser ?? null,
+          submitterDevice:
+            typeof submissionDoc.submitterDevice === 'string'
+              ? submissionDoc.submitterDevice
+              : submissionDoc.submitterDevice ?? null,
+          submitterOS:
+            typeof submissionDoc.submitterOS === 'string' ? submissionDoc.submitterOS : submissionDoc.submitterOS ?? null,
           submitterIP:
             typeof submissionDoc.submitterIP === 'string' ? submissionDoc.submitterIP : submissionDoc.submitterIP ?? null,
           iContactSyncStatus:

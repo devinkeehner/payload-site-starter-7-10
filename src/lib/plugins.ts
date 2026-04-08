@@ -80,6 +80,51 @@ const parseRouteId = (req: any, endpointSuffixRegex: RegExp) => {
   }
 }
 
+const inferBrowserFromUserAgent = (userAgent: string): string => {
+  const ua = userAgent.toLowerCase()
+  if (!ua) return ''
+  if (ua.includes('edg/')) return 'Edge'
+  if (ua.includes('opr/') || ua.includes('opera')) return 'Opera'
+  if (ua.includes('firefox/')) return 'Firefox'
+  if (ua.includes('chrome/') && !ua.includes('edg/') && !ua.includes('opr/')) return 'Chrome'
+  if (ua.includes('safari/') && !ua.includes('chrome/') && !ua.includes('chromium/')) return 'Safari'
+  if (ua.includes('msie') || ua.includes('trident/')) return 'Internet Explorer'
+  if (ua.includes('samsungbrowser/')) return 'Samsung Internet'
+  return 'Unknown'
+}
+
+const inferDeviceFromUserAgent = (userAgent: string): string => {
+  const ua = userAgent.toLowerCase()
+  if (!ua) return ''
+  if (ua.includes('ipad') || (ua.includes('macintosh') && ua.includes('mobile'))) return 'Tablet'
+  if (ua.includes('tablet')) return 'Tablet'
+  if (
+    ua.includes('iphone') ||
+    ua.includes('android') ||
+    ua.includes('mobile') ||
+    ua.includes('windows phone') ||
+    ua.includes('ipod')
+  ) {
+    return 'Mobile'
+  }
+  if (ua.includes('bot') || ua.includes('spider') || ua.includes('crawler') || ua.includes('curl/')) return 'Bot'
+  return 'Desktop'
+}
+
+const inferOSFromUserAgent = (userAgent: string): string => {
+  const ua = userAgent.toLowerCase()
+  if (!ua) return ''
+  if (ua.includes('windows nt')) return 'Windows'
+  if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('cpu iphone os') || ua.includes('cpu os')) {
+    return 'iOS'
+  }
+  if (ua.includes('android')) return 'Android'
+  if (ua.includes('mac os x') || ua.includes('macintosh')) return 'macOS'
+  if (ua.includes('linux')) return 'Linux'
+  if (ua.includes('cros')) return 'ChromeOS'
+  return 'Unknown'
+}
+
 const appendInlineStyle = (html: string, tagName: string, styleToAdd: string) => {
   const openingTagPattern = new RegExp(`<${tagName}(\\s[^>]*)?>`, 'gi')
 
@@ -1537,6 +1582,30 @@ export const plugins: Plugin[] = [
             admin: { readOnly: true, position: 'sidebar' },
           },
           {
+            name: 'submitterUserAgent',
+            label: 'Submitter User Agent',
+            type: 'textarea',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'submitterBrowser',
+            label: 'Submitter Browser',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'submitterDevice',
+            label: 'Submitter Device',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
+            name: 'submitterOS',
+            label: 'Submitter OS',
+            type: 'text',
+            admin: { readOnly: true, position: 'sidebar' },
+          },
+          {
             name: 'iContactSyncStatus',
             label: 'iContact Sync Status',
             type: 'text',
@@ -1622,6 +1691,10 @@ export const plugins: Plugin[] = [
                 ''
               )
             })()
+            const submitterUserAgent = getHeader('user-agent').trim()
+            const submitterBrowser = inferBrowserFromUserAgent(submitterUserAgent)
+            const submitterDevice = inferDeviceFromUserAgent(submitterUserAgent)
+            const submitterOS = inferOSFromUserAgent(submitterUserAgent)
 
             const submitterEmail = (() => {
               for (const entry of submissionData) {
@@ -1745,6 +1818,10 @@ export const plugins: Plugin[] = [
                 submissionData,
                 submitterIP: submitterIP || undefined,
                 submitterEmail: submitterEmail || undefined,
+                submitterUserAgent: submitterUserAgent || undefined,
+                submitterBrowser: submitterBrowser || undefined,
+                submitterDevice: submitterDevice || undefined,
+                submitterOS: submitterOS || undefined,
                 iContactSyncStatus: iContactEnabled ? 'pending' : 'skipped',
                 iContactSyncError: undefined,
                 iContactSyncedAt: undefined,
@@ -1782,6 +1859,10 @@ export const plugins: Plugin[] = [
               submissionData,
               submitterIP: submitterIP || undefined,
               submitterEmail: submitterEmail || undefined,
+              submitterUserAgent: submitterUserAgent || undefined,
+              submitterBrowser: submitterBrowser || undefined,
+              submitterDevice: submitterDevice || undefined,
+              submitterOS: submitterOS || undefined,
               iContactSyncStatus: iContactEnabled ? 'pending' : 'skipped',
               iContactSyncError: undefined,
               iContactSyncedAt: undefined,

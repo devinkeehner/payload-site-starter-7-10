@@ -1769,6 +1769,10 @@ export interface FormSubmission {
     | null;
   submitterIP?: string | null;
   submitterEmail?: string | null;
+  submitterUserAgent?: string | null;
+  submitterBrowser?: string | null;
+  submitterDevice?: string | null;
+  submitterOS?: string | null;
   iContactSyncStatus?: string | null;
   iContactSyncError?: string | null;
   iContactAccountId?: string | null;
@@ -3618,6 +3622,10 @@ export interface FormSubmissionsSelect<T extends boolean = true> {
       };
   submitterIP?: T;
   submitterEmail?: T;
+  submitterUserAgent?: T;
+  submitterBrowser?: T;
+  submitterDevice?: T;
+  submitterOS?: T;
   iContactSyncStatus?: T;
   iContactSyncError?: T;
   iContactAccountId?: T;
