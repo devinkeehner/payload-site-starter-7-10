@@ -10,6 +10,15 @@ import type {
 import { authenticatedOrPublished } from '@/lib/access/authenticatedOrPublished'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { triggerFrontendRevalidate } from '@/lib/utilities/revalidateFrontend'
+import { generatePreviewAPIUrl } from '@/lib/utilities/generatePreviewAPIUrl'
+import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
+import {
+  MetaDescriptionField,
+  MetaImageField,
+  MetaTitleField,
+  OverviewField,
+  PreviewField,
+} from '@payloadcms/plugin-seo/fields'
 
 type TenantDoc = {
   id: string
@@ -166,6 +175,21 @@ export const BadBills: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
     description: 'Campaign landing pages for the root /bad-bills route. This collection is reserved for the main site.',
+    livePreview: {
+      url: ({ data }) =>
+        generatePreviewAPIUrl({
+          slug: 'bad-bills',
+          collection: 'bad-bills',
+          tenantId: resolveTenantId(data?.tenant),
+        }),
+    },
+    preview: (data, { req }) =>
+      generatePreviewPath({
+        slug: 'bad-bills',
+        collection: 'bad-bills',
+        req,
+        tenantId: resolveTenantId(data?.tenant),
+      }),
   },
   defaultPopulate: {
     title: true,
@@ -173,6 +197,7 @@ export const BadBills: CollectionConfig = {
     headline: true,
     form: true,
     tabs: true,
+    meta: true,
   },
   hooks: {
     beforeChange: [enforceMainTenant],
@@ -186,143 +211,176 @@ export const BadBills: CollectionConfig = {
       required: true,
     },
     {
-      name: 'logo',
-      label: 'Logo',
-      type: 'upload',
-      relationTo: 'media',
-      required: false,
-    },
-    {
-      name: 'backgroundImage',
-      label: 'Background Image',
-      type: 'upload',
-      relationTo: 'media',
-      required: false,
-    },
-    {
-      name: 'form',
-      label: 'Form',
-      type: 'relationship',
-      relationTo: 'forms',
-      required: false,
-      filterOptions: ({ req }) => {
-        const t = (req as { tenant?: unknown })?.tenant
-        const tenantID = typeof t === 'string' ? t : (t as { id?: string | null } | null)?.id
-        return tenantID ? { tenant: { equals: tenantID } } : true
-      },
-    },
-    {
-      name: 'tagline',
-      label: 'Tagline',
-      type: 'text',
-      required: false,
-      admin: { width: '50%' },
-    },
-    {
-      name: 'campaignYear',
-      label: 'Campaign Year',
-      type: 'text',
-      required: false,
-      admin: { width: '50%' },
-    },
-    {
-      name: 'headline',
-      label: 'Headline',
-      type: 'textarea',
-      required: true,
-    },
-    {
-      name: 'ctaPrefix',
-      label: 'CTA Prefix',
-      type: 'text',
-      required: false,
-      admin: { width: '40%' },
-    },
-    {
-      name: 'ctaLinkLabel',
-      label: 'CTA Link Label',
-      type: 'text',
-      required: false,
-      admin: { width: '30%' },
-    },
-    {
-      name: 'ctaUrl',
-      label: 'CTA URL',
-      type: 'text',
-      required: false,
-      validate: validateOptionalUrl,
-      admin: { width: '30%' },
-    },
-    {
-      name: 'tabs',
-      label: 'Tabs',
-      type: 'array',
-      minRows: 1,
-      required: true,
-      fields: [
+      type: 'tabs',
+      tabs: [
         {
-          name: 'label',
-          type: 'text',
-          required: true,
-          admin: { width: '50%' },
-        },
-        {
-          name: 'heading',
-          type: 'text',
-          required: false,
-          admin: { width: '50%' },
-        },
-        {
-          name: 'description',
-          type: 'textarea',
-          required: false,
-        },
-        {
-          name: 'bills',
-          label: 'Bill Blocks',
-          type: 'array',
-          minRows: 1,
-          required: true,
+          label: 'Content',
           fields: [
             {
-              name: 'image',
+              name: 'logo',
+              label: 'Logo',
               type: 'upload',
               relationTo: 'media',
               required: false,
             },
             {
-              name: 'billNumber',
-              label: 'Bill Number',
-              type: 'text',
-              required: true,
-              admin: { width: '35%' },
+              name: 'backgroundImage',
+              label: 'Background Image',
+              type: 'upload',
+              relationTo: 'media',
+              required: false,
             },
             {
-              name: 'title',
-              type: 'text',
-              required: true,
-              admin: { width: '65%' },
+              name: 'form',
+              label: 'Form',
+              type: 'relationship',
+              relationTo: 'forms',
+              required: false,
+              filterOptions: ({ req }) => {
+                const t = (req as { tenant?: unknown })?.tenant
+                const tenantID = typeof t === 'string' ? t : (t as { id?: string | null } | null)?.id
+                return tenantID ? { tenant: { equals: tenantID } } : true
+              },
             },
             {
-              name: 'description',
+              name: 'tagline',
+              label: 'Tagline',
+              type: 'text',
+              required: false,
+              admin: { width: '50%' },
+            },
+            {
+              name: 'campaignYear',
+              label: 'Campaign Year',
+              type: 'text',
+              required: false,
+              admin: { width: '50%' },
+            },
+            {
+              name: 'headline',
+              label: 'Headline',
               type: 'textarea',
               required: true,
             },
             {
-              name: 'readMoreLabel',
-              label: 'Read More Label',
+              name: 'ctaPrefix',
+              label: 'CTA Prefix',
               type: 'text',
               required: false,
               admin: { width: '40%' },
             },
             {
-              name: 'readMoreUrl',
-              label: 'Read More URL',
+              name: 'ctaLinkLabel',
+              label: 'CTA Link Label',
+              type: 'text',
+              required: false,
+              admin: { width: '30%' },
+            },
+            {
+              name: 'ctaUrl',
+              label: 'CTA URL',
               type: 'text',
               required: false,
               validate: validateOptionalUrl,
-              admin: { width: '60%' },
+              admin: { width: '30%' },
             },
+            {
+              name: 'tabs',
+              label: 'Tabs',
+              type: 'array',
+              minRows: 1,
+              required: true,
+              fields: [
+                {
+                  name: 'label',
+                  type: 'text',
+                  required: true,
+                  admin: { width: '50%' },
+                },
+                {
+                  name: 'heading',
+                  type: 'text',
+                  required: false,
+                  admin: { width: '50%' },
+                },
+                {
+                  name: 'description',
+                  type: 'textarea',
+                  required: false,
+                },
+                {
+                  name: 'bills',
+                  label: 'Bill Blocks',
+                  type: 'array',
+                  minRows: 1,
+                  required: true,
+                  fields: [
+                    {
+                      name: 'image',
+                      type: 'upload',
+                      relationTo: 'media',
+                      required: false,
+                    },
+                    {
+                      name: 'billNumber',
+                      label: 'Bill Number',
+                      type: 'text',
+                      required: true,
+                      admin: { width: '35%' },
+                    },
+                    {
+                      name: 'title',
+                      type: 'text',
+                      required: true,
+                      admin: { width: '65%' },
+                    },
+                    {
+                      name: 'description',
+                      type: 'textarea',
+                      required: true,
+                    },
+                    {
+                      name: 'readMoreLabel',
+                      label: 'Read More Label',
+                      type: 'text',
+                      required: false,
+                      admin: { width: '40%' },
+                    },
+                    {
+                      name: 'readMoreUrl',
+                      label: 'Read More URL',
+                      type: 'text',
+                      required: false,
+                      validate: validateOptionalUrl,
+                      admin: { width: '60%' },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          name: 'meta',
+          label: 'SEO',
+          fields: [
+            OverviewField({
+              titlePath: 'meta.title',
+              descriptionPath: 'meta.description',
+              imagePath: 'meta.image',
+            }),
+            MetaTitleField({
+              hasGenerateFn: true,
+            }),
+            MetaImageField({
+              relationTo: 'media',
+            }),
+            MetaDescriptionField({}),
+            PreviewField({
+              hasGenerateFn: true,
+              titlePath: 'meta.title',
+              descriptionPath: 'meta.description',
+            }),
           ],
         },
       ],

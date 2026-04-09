@@ -1471,6 +1471,14 @@ export interface BadBill {
     }[];
     id?: string | null;
   }[];
+  meta?: {
+    title?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (string | null) | Media;
+    description?: string | null;
+  };
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -3190,6 +3198,13 @@ export interface BadBillsSelect<T extends boolean = true> {
               id?: T;
             };
         id?: T;
+      };
+  meta?:
+    | T
+    | {
+        title?: T;
+        image?: T;
+        description?: T;
       };
   updatedAt?: T;
   createdAt?: T;
