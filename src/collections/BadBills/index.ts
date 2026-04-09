@@ -382,8 +382,20 @@ export const BadBills: CollectionConfig = {
         },
         {
           name: 'meta',
-          label: 'SEO',
+          label: 'Meta & SEO',
           fields: [
+            {
+              name: 'generateSEO',
+              type: 'ui',
+              label: 'AI Assistant',
+              admin: {
+                components: {
+                  Field: {
+                    path: './components/admin/GenerateSEOButton#GenerateSEOButton',
+                  },
+                },
+              },
+            },
             OverviewField({
               titlePath: 'meta.title',
               descriptionPath: 'meta.description',
@@ -391,11 +403,15 @@ export const BadBills: CollectionConfig = {
             }),
             MetaTitleField({
               hasGenerateFn: true,
+              overrides: { required: true },
             }),
             MetaImageField({
               relationTo: 'media',
+              overrides: { required: true },
             }),
-            MetaDescriptionField({}),
+            MetaDescriptionField({
+              overrides: { required: true },
+            }),
             PreviewField({
               hasGenerateFn: true,
               titlePath: 'meta.title',
