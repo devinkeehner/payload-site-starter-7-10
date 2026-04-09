@@ -9,9 +9,8 @@ import type {
 
 import { authenticatedOrPublished } from '@/lib/access/authenticatedOrPublished'
 import { isSuperUser } from '@/lib/access/isSuperUser'
+import { getServerSideURL } from '@/lib/utilities/getURL'
 import { triggerFrontendRevalidate } from '@/lib/utilities/revalidateFrontend'
-import { generatePreviewAPIUrl } from '@/lib/utilities/generatePreviewAPIUrl'
-import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import {
   MetaDescriptionField,
   MetaImageField,
@@ -176,20 +175,41 @@ export const BadBills: CollectionConfig = {
     defaultColumns: ['title', 'updatedAt'],
     description: 'Campaign landing pages for the root /bad-bills route. This collection is reserved for the main site.',
     livePreview: {
-      url: ({ data }) =>
-        generatePreviewAPIUrl({
+      url: ({ data }) => {
+        const encodedParams = new URLSearchParams({
           slug: 'bad-bills',
           collection: 'bad-bills',
-          tenantId: resolveTenantId(data?.tenant),
-        }),
+          secret: process.env.PREVIEW_SECRET || '',
+        })
+
+        const tenantId = resolveTenantId(data?.tenant)
+        if (tenantId) {
+          encodedParams.set('tenant', tenantId)
+        }
+
+        return `${getServerSideURL()}/api/preview?${encodedParams.toString()}`
+      },
     },
-    preview: (data, { req }) =>
-      generatePreviewPath({
+    preview: (data, { req }) => {
+      const encodedParams = new URLSearchParams({
         slug: 'bad-bills',
         collection: 'bad-bills',
-        req,
-        tenantId: resolveTenantId(data?.tenant),
-      }),
+        path: '/bad-bills',
+        secret: process.env.PREVIEW_SECRET || '',
+      })
+
+      const tenantFromData = resolveTenantId(data?.tenant)
+      const tenantFromReq = (req as { tenant?: unknown })?.tenant
+      const tenantId =
+        tenantFromData ||
+        (typeof tenantFromReq === 'string' ? tenantFromReq : (tenantFromReq as { id?: string } | null | undefined)?.id)
+
+      if (tenantId) {
+        encodedParams.set('tenant', tenantId)
+      }
+
+      return `${getServerSideURL()}/api/preview?${encodedParams.toString()}`
+    },
   },
   defaultPopulate: {
     title: true,
