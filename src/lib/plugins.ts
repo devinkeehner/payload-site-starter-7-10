@@ -1963,6 +1963,7 @@ export const plugins: Plugin[] = [
       posts: {},
       'wordpress-posts': {},
       pages: {},
+      'bad-bills': {},
       media: {},
       'media-canvas': {},
       'standard-media': { isGlobal: true },

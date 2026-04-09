@@ -70,6 +70,7 @@ export interface Config {
   collections: {
     posts: Post;
     pages: Page;
+    'bad-bills': BadBill;
     media: Media;
     'media-canvas': MediaCanva;
     'wordpress-posts': WordpressPost;
@@ -101,6 +102,7 @@ export interface Config {
   collectionsSelect: {
     posts: PostsSelect<false> | PostsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    'bad-bills': BadBillsSelect<false> | BadBillsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'media-canvas': MediaCanvasSelect<false> | MediaCanvasSelect<true>;
     'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
@@ -1436,6 +1438,44 @@ export interface PropertyTaxCreditTableBlock {
   blockType: 'propertyTaxCreditTable';
 }
 /**
+ * Campaign landing pages for the root /bad-bills route. This collection is reserved for the main site.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bad-bills".
+ */
+export interface BadBill {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  title: string;
+  logo?: (string | null) | Media;
+  backgroundImage?: (string | null) | Media;
+  form?: (string | null) | Form;
+  tagline?: string | null;
+  campaignYear?: string | null;
+  headline: string;
+  ctaPrefix?: string | null;
+  ctaLinkLabel?: string | null;
+  ctaUrl?: string | null;
+  tabs: {
+    label: string;
+    heading?: string | null;
+    description?: string | null;
+    bills: {
+      image?: (string | null) | Media;
+      billNumber: string;
+      title: string;
+      description: string;
+      readMoreLabel?: string | null;
+      readMoreUrl?: string | null;
+      id?: string | null;
+    }[];
+    id?: string | null;
+  }[];
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media-canvas".
  */
@@ -1893,6 +1933,24 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  badBills?: {
+    /**
+     * Allow clients to find bad-bills.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create bad-bills.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update bad-bills.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete bad-bills.
+     */
+    delete?: boolean | null;
+  };
   forms?: {
     /**
      * Allow clients to find forms.
@@ -2142,24 +2200,6 @@ export interface PayloadMcpApiKey {
     update?: boolean | null;
     /**
      * Allow clients to delete tenants.
-     */
-    delete?: boolean | null;
-  };
-  users?: {
-    /**
-     * Allow clients to find users.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create users.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update users.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete users.
      */
     delete?: boolean | null;
   };
@@ -2512,6 +2552,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'pages';
         value: string | Page;
+      } | null)
+    | ({
+        relationTo: 'bad-bills';
+        value: string | BadBill;
       } | null)
     | ({
         relationTo: 'media';
@@ -3111,6 +3155,45 @@ export interface PropertyTaxCreditTableBlockSelect<T extends boolean = true> {
   footerRight?: T;
   id?: T;
   blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "bad-bills_select".
+ */
+export interface BadBillsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  logo?: T;
+  backgroundImage?: T;
+  form?: T;
+  tagline?: T;
+  campaignYear?: T;
+  headline?: T;
+  ctaPrefix?: T;
+  ctaLinkLabel?: T;
+  ctaUrl?: T;
+  tabs?:
+    | T
+    | {
+        label?: T;
+        heading?: T;
+        description?: T;
+        bills?:
+          | T
+          | {
+              image?: T;
+              billNumber?: T;
+              title?: T;
+              description?: T;
+              readMoreLabel?: T;
+              readMoreUrl?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3809,6 +3892,14 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         update?: T;
         delete?: T;
       };
+  badBills?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
   forms?:
     | T
     | {
@@ -3914,14 +4005,6 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   tenants?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  users?:
     | T
     | {
         find?: T;
@@ -4256,6 +4339,10 @@ export interface TaskSchedulePublish {
       | ({
           relationTo: 'pages';
           value: string | Page;
+        } | null)
+      | ({
+          relationTo: 'bad-bills';
+          value: string | BadBill;
         } | null);
     global?: string | null;
     user?: (string | null) | User;

@@ -13,6 +13,7 @@ import { Tenants } from './collections/Tenants';
 import { Categories } from './collections/Categories';
 import { Media } from './collections/Media';
 import { Pages } from './collections/Pages';
+import { BadBills } from './collections/BadBills';
 import { Posts } from './collections/Posts';
 import { Users } from './collections/Users';
 import { Authors } from './collections/Authors';
@@ -105,6 +106,7 @@ const mongoPoolConfig = {
 const mcpCollections = {
   posts: { enabled: { find: true, create: true, update: true, delete: true } },
   pages: { enabled: { find: true, create: true, update: true, delete: true } },
+  'bad-bills': { enabled: { find: true, create: true, update: true, delete: true } },
   forms: { enabled: { find: true, create: true, update: true, delete: true } },
   'form-submissions': { enabled: { find: true, create: true, update: true, delete: true } },
   media: { enabled: { find: true, create: true, update: true, delete: true } },
@@ -4869,6 +4871,7 @@ export default buildConfig({
     // Content
     Posts,
     Pages,
+    BadBills,
     Media,
     MediaCanvas,
     WordpressPosts,

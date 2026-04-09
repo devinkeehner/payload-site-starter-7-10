@@ -83,23 +83,55 @@ const TenantBreadcrumb: React.FC = () => {
   )
 }
 
-const CustomDashboard = () => (
-  <div style={{ padding: '2rem' }}>
-    <h1 style={{ margin: 0, marginBottom: '1rem' }}>Custom Dashboard</h1>
-    <TenantBreadcrumb />
-    {Object.entries(GROUPS).map(([group, links]) => (
-      <section key={group} style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{group}</h2>
-        <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem' }}>
-          {links.map(({ slug, label }) => (
-            <li key={slug}>
-              <a href={`/admin/collections/${slug}`}>{label}</a>
-            </li>
-          ))}
-        </ul>
-      </section>
-    ))}
-  </div>
-);
+const CustomDashboard = () => {
+  const [tenant, setTenant] = useState<Tenant | null>(null)
+
+  useEffect(() => {
+    const id = readSelectedTenantIDFromCookies()
+    if (!id) return
+    let ignore = false
+
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/tenants/${id}`, { credentials: 'include' })
+        if (!res.ok) return
+        const json = await res.json()
+        if (!ignore) setTenant(json)
+      } catch {}
+    }
+
+    run()
+
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  const selectedTenantSlug = tenant?.slug || null
+
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1 style={{ margin: 0, marginBottom: '1rem' }}>Custom Dashboard</h1>
+      <TenantBreadcrumb />
+      {Object.entries(GROUPS).map(([group, links]) => {
+        const visibleLinks = links.filter(({ slug }) => slug !== 'bad-bills' || selectedTenantSlug === 'main')
+        if (!visibleLinks.length) return null
+
+        return (
+          <section key={group} style={{ marginBottom: '2rem' }}>
+            <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{group}</h2>
+            <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem' }}>
+              {visibleLinks.map(({ slug, label }) => (
+                <li key={slug}>
+                  <a href={`/admin/collections/${slug}`}>{label}</a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )
+      })}
+    </div>
+  )
+};
 
 export default CustomDashboard;
