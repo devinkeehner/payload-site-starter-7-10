@@ -1843,6 +1843,33 @@ export interface BudgetPlanFeatureBlock {
     externalURL?: string | null;
     alt: string;
   };
+  districtFocusTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  districtFocusImage: {
+    /**
+     * Use a district-specific image source link or upload a local asset for the selected district view.
+     */
+    source: 'link' | 'upload';
+    media?: (string | null) | Media;
+    /**
+     * Paste a direct image URL. Prefer a branded source when using a placeholder.
+     */
+    externalURL?: string | null;
+    alt?: string | null;
+  };
   reliefTitle?: {
     root: {
       type: string;
@@ -1911,11 +1938,17 @@ export interface BudgetPlanFeatureBlock {
         town: string;
         districts?:
           | {
-              district: string;
+              district?: string | null;
               id?: string | null;
             }[]
           | null;
         amount: number;
+        currentEcsEntitlement?: number | null;
+        percentOfTotal?: number | null;
+        percentIncrease?: number | null;
+        enhancedEducationFunding?: number | null;
+        districtCount?: number | null;
+        needsReview?: boolean | null;
         /**
          * Optional formatted label if the amount needs custom display text.
          */
@@ -3809,6 +3842,15 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
         externalURL?: T;
         alt?: T;
       };
+  districtFocusTitle?: T;
+  districtFocusImage?:
+    | T
+    | {
+        source?: T;
+        media?: T;
+        externalURL?: T;
+        alt?: T;
+      };
   reliefTitle?: T;
   reliefIntro?: T;
   townChartTitle?: T;
@@ -3827,6 +3869,12 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
               id?: T;
             };
         amount?: T;
+        currentEcsEntitlement?: T;
+        percentOfTotal?: T;
+        percentIncrease?: T;
+        enhancedEducationFunding?: T;
+        districtCount?: T;
+        needsReview?: T;
         amountLabel?: T;
         notes?: T;
         featured?: T;

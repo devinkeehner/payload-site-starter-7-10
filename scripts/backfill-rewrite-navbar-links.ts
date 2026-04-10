@@ -1,8 +1,7 @@
 /**
- * Backfill: Rewrite Navbar links pointing to cthousegop.com or www.cthousegop.com
- * to main.cthousegop.com, preserving the path, query, and hash.
- * Also remove trailing slashes from custom URLs and normalize newTab=false for
- * internal links to main.cthousegop.com.
+ * Backfill: Rewrite Navbar links to www.cthousegop.com, preserving the path,
+ * query, and hash. Also remove trailing slashes from custom URLs and
+ * normalize newTab=false for internal links to www.cthousegop.com.
  *
  * Usage:
  *  pnpm tsx scripts/backfill-rewrite-navbar-links.ts [--tenant <slug>] [--dry-run]
@@ -37,9 +36,9 @@ const { tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
   const { default: payloadConfig } = await import(pathToFileURL(configPath).href)
   await payload.init({ config: payloadConfig as any })
 
-  console.log(`Connected – backfilling navbar links${DRY_RUN ? ' (dry-run)' : ''}…`)
+  console.log(`Connected – backfilling navbar links to www.cthousegop.com${DRY_RUN ? ' (dry-run)' : ''}…`)
 
-  const INTERNAL_HOST = 'main.cthousegop.com'
+  const INTERNAL_HOST = 'www.cthousegop.com'
 
   function rewriteToMain(url: string): { url: string; changed: boolean; internal: boolean } {
     try {
@@ -48,7 +47,7 @@ const { tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
       const u = new URL(url, base)
       const host = u.host.toLowerCase()
       let changed = false
-      if (host === 'cthousegop.com' || host === 'www.cthousegop.com') {
+      if (host === 'cthousegop.com' || host === 'main.cthousegop.com') {
         u.host = INTERNAL_HOST
         changed = true
       }
