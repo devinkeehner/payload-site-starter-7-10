@@ -7,8 +7,6 @@ import {
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
 
-import { link } from '@/collections/fields/link'
-
 const campaignRichTextEditor = lexicalEditor({
   features: ({ rootFeatures }) => [
     ...rootFeatures,
@@ -261,6 +259,14 @@ export const BudgetPlanFeatureConfig: Block = {
               label: 'Fast Facts',
               type: 'array',
               fields: createBulletArrayFields('Use short supporting copy with inline links when needed.'),
+            },
+            createRichTextField('affordabilityTitle', 'Key Affordability Measures Title'),
+            createRichTextField('affordabilityIntro', 'Key Affordability Measures Intro'),
+            {
+              name: 'affordabilityItems',
+              label: 'Key Affordability Measures',
+              type: 'array',
+              fields: createBulletArrayFields('Use this for the affordability section above the save/invest boxes.'),
             },
             createRichTextField('whereWeSaveTitle', 'Where We Save Title'),
             createRichTextField('whereWeSaveIntro', 'Where We Save Intro'),

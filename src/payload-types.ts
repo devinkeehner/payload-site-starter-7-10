@@ -1621,6 +1621,76 @@ export interface BudgetPlanFeatureBlock {
         id?: string | null;
       }[]
     | null;
+  affordabilityTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  affordabilityIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  affordabilityItems?:
+    | {
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        title: string;
+        /**
+         * Use this for the affordability section above the save/invest boxes.
+         */
+        detail?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        id?: string | null;
+      }[]
+    | null;
   whereWeSaveTitle?: {
     root: {
       type: string;
@@ -3694,6 +3764,16 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
   fastFactsTitle?: T;
   fastFactsIntro?: T;
   fastFacts?:
+    | T
+    | {
+        icon?: T;
+        title?: T;
+        detail?: T;
+        id?: T;
+      };
+  affordabilityTitle?: T;
+  affordabilityIntro?: T;
+  affordabilityItems?:
     | T
     | {
         icon?: T;
