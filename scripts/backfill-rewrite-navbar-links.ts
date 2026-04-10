@@ -1,7 +1,8 @@
 /**
  * Backfill: Rewrite Navbar links pointing to cthousegop.com or www.cthousegop.com
  * to main.cthousegop.com, preserving the path, query, and hash.
- * Also normalize newTab=false for internal links to main.cthousegop.com.
+ * Also remove trailing slashes from custom URLs and normalize newTab=false for
+ * internal links to main.cthousegop.com.
  *
  * Usage:
  *  pnpm tsx scripts/backfill-rewrite-navbar-links.ts [--tenant <slug>] [--dry-run]
@@ -59,6 +60,26 @@ const { tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
     }
   }
 
+  function removeTrailingSlash(url: string): { url: string; changed: boolean } {
+    try {
+      const base = 'https://cthousegop.com'
+      const u = new URL(url, base)
+
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+        return { url, changed: false }
+      }
+
+      if (u.pathname.length > 1 && u.pathname.endsWith('/')) {
+        u.pathname = u.pathname.replace(/\/+$/, '')
+        return { url: u.toString(), changed: true }
+      }
+
+      return { url, changed: false }
+    } catch {
+      return { url, changed: false }
+    }
+  }
+
   type NavItem = any
 
   function processItem(it: NavItem): { item: NavItem; changes: number } {
@@ -67,9 +88,10 @@ const { tenant: ONLY_TENANT, dryRun: DRY_RUN } = parseArgs()
 
     const link = out.link
     if (link && link.type === 'custom' && typeof link.url === 'string') {
-      const { url: newUrl, changed, internal } = rewriteToMain(link.url)
-      if (changed) {
-        out.link = { ...link, url: newUrl }
+      const { url: rewrittenUrl, changed: rewrittenChanged, internal } = rewriteToMain(link.url)
+      const { url: normalizedUrl, changed: normalizedChanged } = removeTrailingSlash(rewrittenUrl)
+      if (rewrittenChanged || normalizedChanged) {
+        out.link = { ...link, url: normalizedUrl }
         changes++
         // Normalize newTab for internal links
         if (internal) out.newTab = false

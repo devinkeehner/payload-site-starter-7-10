@@ -473,6 +473,7 @@ export interface Page {
     | SolutionTimelineGraphicBlock
     | TaxReliefHighlightGraphicBlock
     | PropertyTaxCreditTableBlock
+    | BudgetPlanFeatureBlock
   )[];
   meta?: {
     title?: string | null;
@@ -1438,6 +1439,492 @@ export interface PropertyTaxCreditTableBlock {
   blockType: 'propertyTaxCreditTable';
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "BudgetPlanFeatureBlock".
+ */
+export interface BudgetPlanFeatureBlock {
+  budgetLogo: {
+    /**
+     * Use the branded logo source link or upload a local asset.
+     */
+    source: 'link' | 'upload';
+    media?: (string | null) | Media;
+    /**
+     * Paste a direct image URL. Prefer a branded source when using a placeholder.
+     */
+    externalURL?: string | null;
+    alt: string;
+  };
+  heroTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  heroIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  groupPhoto: {
+    /**
+     * Use a real press photo source link or upload a local asset.
+     */
+    source: 'link' | 'upload';
+    media?: (string | null) | Media;
+    /**
+     * Paste a direct image URL. Prefer a branded source when using a placeholder.
+     */
+    externalURL?: string | null;
+    alt: string;
+  };
+  newsReleaseTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  newsReleaseBody?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  newsReleaseLinkLabel?: string | null;
+  /**
+   * Optional direct link to the release or PDF.
+   */
+  newsReleaseLinkURL?: string | null;
+  presserVideo: {
+    /**
+     * Use a real press photo or poster frame source link.
+     */
+    source: 'link' | 'upload';
+    media?: (string | null) | Media;
+    /**
+     * Use a direct video URL or a YouTube/Vimeo link.
+     */
+    externalURL?: string | null;
+    posterSource: 'link' | 'upload';
+    posterMedia?: (string | null) | Media;
+    /**
+     * Use a direct image URL for the preview/poster frame.
+     */
+    posterExternalURL?: string | null;
+    posterAlt: string;
+    title: string;
+  };
+  fastFactsTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  fastFactsIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  fastFacts?:
+    | {
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        title: string;
+        /**
+         * Use short supporting copy with inline links when needed.
+         */
+        detail?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        id?: string | null;
+      }[]
+    | null;
+  whereWeSaveTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  whereWeSaveIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  whereWeSaveItems?:
+    | {
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        title: string;
+        /**
+         * Keep each saving item concise and scannable.
+         */
+        detail?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        id?: string | null;
+      }[]
+    | null;
+  whereWeInvestTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  whereWeInvestIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  whereWeInvestItems?:
+    | {
+        icon?:
+          | (
+              | 'DollarSign'
+              | 'Receipt'
+              | 'Zap'
+              | 'Heart'
+              | 'Home'
+              | 'Building2'
+              | 'Shield'
+              | 'Vote'
+              | 'Users'
+              | 'Landmark'
+              | 'FileCheck'
+              | 'Scale'
+            )
+          | null;
+        title: string;
+        /**
+         * Use this for the investment side of the budget story.
+         */
+        detail?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        id?: string | null;
+      }[]
+    | null;
+  secondaryLogo: {
+    /**
+     * Use a smaller branded logo source link or upload a local asset.
+     */
+    source: 'link' | 'upload';
+    media?: (string | null) | Media;
+    /**
+     * Paste a direct image URL. Prefer a branded source when using a placeholder.
+     */
+    externalURL?: string | null;
+    alt: string;
+  };
+  reliefTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  reliefIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  townChartTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  townChartIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  townSearchPlaceholder?: string | null;
+  districtFilterLabel?: string | null;
+  sortLabel?: string | null;
+  townRows?:
+    | {
+        town: string;
+        districts?:
+          | {
+              district: string;
+              id?: string | null;
+            }[]
+          | null;
+        amount: number;
+        /**
+         * Optional formatted label if the amount needs custom display text.
+         */
+        amountLabel?: string | null;
+        /**
+         * Optional supporting note for the town row.
+         */
+        notes?: {
+          root: {
+            type: string;
+            children: {
+              type: any;
+              version: number;
+              [k: string]: unknown;
+            }[];
+            direction: ('ltr' | 'rtl') | null;
+            format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+            indent: number;
+            version: number;
+          };
+          [k: string]: unknown;
+        } | null;
+        featured?: boolean | null;
+        id?: string | null;
+      }[]
+    | null;
+  emptyStateTitle?: string | null;
+  emptyStateBody?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  supportTitle?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  supportIntro?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  supportForm?: (string | null) | Form;
+  supportSubmitLabel?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'budgetPlanFeature';
+}
+/**
  * Campaign landing pages for the root /bad-bills route. This collection is reserved for the main site.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1471,13 +1958,13 @@ export interface BadBill {
     }[];
     id?: string | null;
   }[];
-  meta?: {
-    title?: string | null;
+  meta: {
+    title: string;
     /**
      * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
-    image?: (string | null) | Media;
-    description?: string | null;
+    image: string | Media;
+    description: string;
   };
   updatedAt: string;
   createdAt: string;
@@ -2793,6 +3280,7 @@ export interface PagesSelect<T extends boolean = true> {
         solutionTimelineGraphic?: T | SolutionTimelineGraphicBlockSelect<T>;
         taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
         propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
+        budgetPlanFeature?: T | BudgetPlanFeatureBlockSelect<T>;
       };
   meta?:
     | T
@@ -3161,6 +3649,115 @@ export interface PropertyTaxCreditTableBlockSelect<T extends boolean = true> {
   footnote?: T;
   footerLeft?: T;
   footerRight?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "BudgetPlanFeatureBlock_select".
+ */
+export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
+  budgetLogo?:
+    | T
+    | {
+        source?: T;
+        media?: T;
+        externalURL?: T;
+        alt?: T;
+      };
+  heroTitle?: T;
+  heroIntro?: T;
+  groupPhoto?:
+    | T
+    | {
+        source?: T;
+        media?: T;
+        externalURL?: T;
+        alt?: T;
+      };
+  newsReleaseTitle?: T;
+  newsReleaseBody?: T;
+  newsReleaseLinkLabel?: T;
+  newsReleaseLinkURL?: T;
+  presserVideo?:
+    | T
+    | {
+        source?: T;
+        media?: T;
+        externalURL?: T;
+        posterSource?: T;
+        posterMedia?: T;
+        posterExternalURL?: T;
+        posterAlt?: T;
+        title?: T;
+      };
+  fastFactsTitle?: T;
+  fastFactsIntro?: T;
+  fastFacts?:
+    | T
+    | {
+        icon?: T;
+        title?: T;
+        detail?: T;
+        id?: T;
+      };
+  whereWeSaveTitle?: T;
+  whereWeSaveIntro?: T;
+  whereWeSaveItems?:
+    | T
+    | {
+        icon?: T;
+        title?: T;
+        detail?: T;
+        id?: T;
+      };
+  whereWeInvestTitle?: T;
+  whereWeInvestIntro?: T;
+  whereWeInvestItems?:
+    | T
+    | {
+        icon?: T;
+        title?: T;
+        detail?: T;
+        id?: T;
+      };
+  secondaryLogo?:
+    | T
+    | {
+        source?: T;
+        media?: T;
+        externalURL?: T;
+        alt?: T;
+      };
+  reliefTitle?: T;
+  reliefIntro?: T;
+  townChartTitle?: T;
+  townChartIntro?: T;
+  townSearchPlaceholder?: T;
+  districtFilterLabel?: T;
+  sortLabel?: T;
+  townRows?:
+    | T
+    | {
+        town?: T;
+        districts?:
+          | T
+          | {
+              district?: T;
+              id?: T;
+            };
+        amount?: T;
+        amountLabel?: T;
+        notes?: T;
+        featured?: T;
+        id?: T;
+      };
+  emptyStateTitle?: T;
+  emptyStateBody?: T;
+  supportTitle?: T;
+  supportIntro?: T;
+  supportForm?: T;
+  supportSubmitLabel?: T;
   id?: T;
   blockName?: T;
 }

@@ -16,6 +16,7 @@ import { LunchComparisonGraphicBlockConfig } from '@/components/blocks/lunch-com
 import { SolutionTimelineGraphicBlockConfig } from '@/components/blocks/solution-timeline-graphic/config'
 import { TaxReliefHighlightGraphicBlockConfig } from '@/components/blocks/tax-relief-highlight-graphic/config'
 import { PropertyTaxCreditTableBlockConfig } from '@/components/blocks/property-tax-credit-table/config'
+import { BudgetPlanFeatureConfig } from '@/components/blocks/budget-plan-feature/config'
 import { HeroConfig } from '@/components/heros/config'
 import { slugField } from '@/collections/fields/slug'
 import { populatePublishedAt } from '@/lib/hooks/populatePublishedAt'
@@ -108,6 +109,7 @@ export const Pages: CollectionConfig<'pages'> = {
                 SolutionTimelineGraphicBlockConfig,
                 TaxReliefHighlightGraphicBlockConfig,
                 PropertyTaxCreditTableBlockConfig,
+                BudgetPlanFeatureConfig,
               ],
               required: true,
               admin: {
