@@ -32,6 +32,7 @@ import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 }
 import { ShareCopyField as ShareCopyField_beaba85f0ccf15f13c89f620a863758e } from '@/components/admin/ShareCopyField'
 import { DraftShareField as DraftShareField_b8b20b8fa8917c47596a0044ca795a6a } from '@/components/admin/DraftShareField'
 import { SlugComponent as SlugComponent_20724636d9656daa0703c14077e21c27 } from '@/collections/fields/slug/slug-component'
+import { default as default_29087ce7dedec9320d020e334482d0a4 } from '@/components/admin/live-preview/ResponsiveEditView'
 import { OverviewComponent as OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MediaCanvasField as MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07 } from '@/components/admin/MediaCanvasField'
 import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/components/site/navbar/row-label'
@@ -90,6 +91,7 @@ export const importMap = {
   "@/components/admin/ShareCopyField#ShareCopyField": ShareCopyField_beaba85f0ccf15f13c89f620a863758e,
   "@/components/admin/DraftShareField#DraftShareField": DraftShareField_b8b20b8fa8917c47596a0044ca795a6a,
   "@/collections/fields/slug/slug-component#SlugComponent": SlugComponent_20724636d9656daa0703c14077e21c27,
+  "@/components/admin/live-preview/ResponsiveEditView#default": default_29087ce7dedec9320d020e334482d0a4,
   "@payloadcms/plugin-seo/client#OverviewComponent": OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@/components/admin/MediaCanvasField#MediaCanvasField": MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07,
   "@/components/site/navbar/row-label#RowLabel": RowLabel_049f819b8cc5e95a74082f1d6b1ff31a,

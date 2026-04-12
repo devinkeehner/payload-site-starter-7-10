@@ -99,6 +99,15 @@ export const Posts: CollectionConfig<'posts'> = {
   admin: {
     group: 'Content',
     defaultColumns: ['title', 'slug', 'updatedAt'],
+    components: {
+      views: {
+        edit: {
+          default: {
+            Component: '@/components/admin/live-preview/ResponsiveEditView#default',
+          },
+        },
+      },
+    },
     livePreview: {
       url: ({ data, req }) => {
         const path = generatePreviewPath({
