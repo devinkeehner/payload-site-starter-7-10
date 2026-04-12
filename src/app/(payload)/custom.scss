@@ -143,6 +143,7 @@
     --responsive-live-preview-editor-width: 40%;
     --responsive-live-preview-handle-size: 2.25rem;
     --responsive-live-preview-handle-offset: calc(var(--responsive-live-preview-handle-size) / 2);
+    --responsive-live-preview-handle-left: 0px;
   }
 
   .collection-edit.responsive-live-preview-edit--resizable {
@@ -173,10 +174,12 @@
     }
 
     .responsive-live-preview-edit__handle {
-      position: absolute;
-      inset-block-start: 50%;
-      inset-inline-start: 0;
-      z-index: 20;
+      position: fixed;
+      inset-block-start: calc(
+        var(--doc-controls-height) + ((100vh - var(--doc-controls-height)) / 2)
+      );
+      inset-inline-start: var(--responsive-live-preview-handle-left);
+      z-index: 40;
       display: inline-flex;
       align-items: center;
       justify-content: center;

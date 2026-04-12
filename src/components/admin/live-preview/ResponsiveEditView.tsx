@@ -243,9 +243,13 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
     mainWrapperRef.current = mainWrapper
 
     const syncSplitVars = () => {
+      const rect = mainWrapper.getBoundingClientRect()
+      const boundaryLeft = rect.left + (rect.width * editorWidthPercent) / 100
+
       root.classList.toggle('responsive-live-preview-edit--resizable', isResizable)
       root.classList.toggle('responsive-live-preview-edit--dragging', isDragging)
       root.style.setProperty('--responsive-live-preview-editor-width', `${editorWidthPercent}%`)
+      root.style.setProperty('--responsive-live-preview-handle-left', `${boundaryLeft}px`)
     }
 
     syncSplitVars()
@@ -263,6 +267,7 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
       observer.disconnect()
       root.classList.remove('responsive-live-preview-edit--resizable', 'responsive-live-preview-edit--dragging')
       root.style.removeProperty('--responsive-live-preview-editor-width')
+      root.style.removeProperty('--responsive-live-preview-handle-left')
       if (rootRef.current === root) {
         rootRef.current = null
       }
