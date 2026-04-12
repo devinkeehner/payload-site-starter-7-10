@@ -42,7 +42,7 @@ type ResponsiveSplitContextValue = {
   isDragging: boolean
   previewWindowType: 'iframe' | 'popup'
   resizeToClientX: (clientX: number) => void
-  startDragging: (clientX: number) => void
+  startDragging: (clientX: number, pointerId?: number) => void
 }
 
 const ResponsiveSplitContext = createContext<ResponsiveSplitContextValue | null>(null)
@@ -112,13 +112,9 @@ const ResponsiveLivePreviewPane: React.FC = () => {
               resizeToClientX(1)
             }
           }}
-          onMouseDown={(event) => {
-            event.preventDefault()
-            startDragging(event.clientX)
-          }}
           onPointerDown={(event) => {
             event.preventDefault()
-            startDragging(event.clientX)
+            startDragging(event.clientX, event.pointerId)
           }}
           role="separator"
           type="button"
@@ -140,6 +136,8 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
   const rootRef = useRef<HTMLElement | null>(null)
   const mainWrapperRef = useRef<HTMLElement | null>(null)
   const splitRef = useRef(DEFAULT_EDITOR_WIDTH_PERCENT)
+  const isDraggingRef = useRef(false)
+  const dragPointerIdRef = useRef<number | null>(null)
 
   const [editorWidthPercent, setEditorWidthPercent] = useState(DEFAULT_EDITOR_WIDTH_PERCENT)
   const [containerWidth, setContainerWidth] = useState(0)
@@ -180,6 +178,14 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
     (nextPercent: number) => {
       const clamped = clampToContainer(nextPercent)
       splitRef.current = clamped
+      const root = rootRef.current
+      const mainWrapper = mainWrapperRef.current
+      if (root && mainWrapper) {
+        const rect = mainWrapper.getBoundingClientRect()
+        const boundaryLeft = rect.left + (rect.width * clamped) / 100
+        root.style.setProperty('--responsive-live-preview-editor-width', `${clamped}%`)
+        root.style.setProperty('--responsive-live-preview-handle-left', `${boundaryLeft}px`)
+      }
       setEditorWidthPercent(clamped)
     },
     [clampToContainer],
@@ -204,9 +210,11 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
   )
 
   const startDragging = useCallback(
-    (clientX: number) => {
-      if (!isResizable) return
+    (clientX: number, pointerId?: number) => {
+      if (!isResizable || isDraggingRef.current) return
 
+      isDraggingRef.current = true
+      dragPointerIdRef.current = pointerId ?? null
       setIsDragging(true)
       resizeToClientX(clientX)
     },
@@ -214,8 +222,10 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
   )
 
   const stopDragging = useCallback(() => {
-    if (!isDragging) return
+    if (!isDraggingRef.current) return
 
+    isDraggingRef.current = false
+    dragPointerIdRef.current = null
     setIsDragging(false)
 
     if (preferencesKey) {
@@ -229,7 +239,7 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
         true,
       )
     }
-  }, [isDragging, preferencesKey, setPreference])
+  }, [preferencesKey, setPreference])
 
   useEffect(() => {
     if (!wrapperRef.current) return
@@ -241,18 +251,6 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
 
     rootRef.current = root
     mainWrapperRef.current = mainWrapper
-
-    const syncSplitVars = () => {
-      const rect = mainWrapper.getBoundingClientRect()
-      const boundaryLeft = rect.left + (rect.width * editorWidthPercent) / 100
-
-      root.classList.toggle('responsive-live-preview-edit--resizable', isResizable)
-      root.classList.toggle('responsive-live-preview-edit--dragging', isDragging)
-      root.style.setProperty('--responsive-live-preview-editor-width', `${editorWidthPercent}%`)
-      root.style.setProperty('--responsive-live-preview-handle-left', `${boundaryLeft}px`)
-    }
-
-    syncSplitVars()
 
     const update = () => {
       setContainerWidth(mainWrapper.getBoundingClientRect().width)
@@ -275,6 +273,21 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
         mainWrapperRef.current = null
       }
     }
+  }, [])
+
+  useEffect(() => {
+    const root = rootRef.current
+    const mainWrapper = mainWrapperRef.current
+
+    if (!root || !mainWrapper) return
+
+    const rect = mainWrapper.getBoundingClientRect()
+    const boundaryLeft = rect.left + (rect.width * editorWidthPercent) / 100
+
+    root.classList.toggle('responsive-live-preview-edit--resizable', isResizable)
+    root.classList.toggle('responsive-live-preview-edit--dragging', isDragging)
+    root.style.setProperty('--responsive-live-preview-editor-width', `${editorWidthPercent}%`)
+    root.style.setProperty('--responsive-live-preview-handle-left', `${boundaryLeft}px`)
   }, [editorWidthPercent, isDragging, isResizable])
 
   useEffect(() => {
@@ -319,9 +332,12 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
 
     document.body.style.cursor = 'col-resize'
     document.body.style.userSelect = 'none'
+    document.documentElement.style.cursor = 'col-resize'
+    document.documentElement.style.userSelect = 'none'
 
     const handlePointerMove = (event: PointerEvent) => {
       if (!mainWrapperRef.current) return
+      if (dragPointerIdRef.current !== null && event.pointerId !== dragPointerIdRef.current) return
 
       event.preventDefault()
       resizeToClientX(event.clientX)
@@ -331,31 +347,41 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
       stopDragging()
     }
 
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!mainWrapperRef.current) return
-
-      event.preventDefault()
-      resizeToClientX(event.clientX)
+    const handleWindowBlur = () => {
+      stopDragging()
     }
 
-    const handleMouseUp = () => {
-      stopDragging()
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') {
+        stopDragging()
+      }
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        stopDragging()
+      }
     }
 
     document.addEventListener('pointermove', handlePointerMove)
     document.addEventListener('pointerup', handlePointerUp)
     document.addEventListener('pointercancel', handlePointerUp)
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleWindowBlur)
 
     return () => {
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      document.documentElement.style.cursor = ''
+      document.documentElement.style.userSelect = ''
       document.removeEventListener('pointermove', handlePointerMove)
       document.removeEventListener('pointerup', handlePointerUp)
       document.removeEventListener('pointercancel', handlePointerUp)
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleWindowBlur)
     }
   }, [isDragging, resizeToClientX, stopDragging])
 
