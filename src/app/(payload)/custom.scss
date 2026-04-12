@@ -141,8 +141,10 @@
   /* Custom live preview split for responsive iframe mode */
   .responsive-live-preview-edit {
     --responsive-live-preview-editor-width: 40%;
-    --responsive-live-preview-handle-size: 2.25rem;
-    --responsive-live-preview-handle-offset: calc(var(--responsive-live-preview-handle-size) / 2);
+    --responsive-live-preview-handle-width: 1.25rem;
+    --responsive-live-preview-handle-height: 3.25rem;
+    --responsive-live-preview-handle-offset: calc(var(--responsive-live-preview-handle-width) / 2);
+    --responsive-live-preview-handle-editor-overlap: 0.5rem;
     --responsive-live-preview-handle-left: 0px;
   }
 
@@ -205,13 +207,15 @@
       inset-block-start: calc(
         var(--doc-controls-height) + ((100vh - var(--doc-controls-height)) / 2)
       );
-      inset-inline-start: var(--responsive-live-preview-handle-left);
+      inset-inline-start: calc(
+        var(--responsive-live-preview-handle-left) - var(--responsive-live-preview-handle-editor-overlap)
+      );
       z-index: 40;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: var(--responsive-live-preview-handle-size);
-      height: var(--responsive-live-preview-handle-size);
+      width: var(--responsive-live-preview-handle-width);
+      height: var(--responsive-live-preview-handle-height);
       transform: translate(-50%, -50%);
       touch-action: none;
       user-select: none;
@@ -219,6 +223,8 @@
       background: var(--theme-elevation-0);
       border-color: var(--theme-elevation-200);
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+      border-radius: 9999px;
+      opacity: 0.92;
     }
 
     .responsive-live-preview-edit__handle:hover {
