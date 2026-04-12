@@ -240,12 +240,6 @@
       outline-offset: 2px;
     }
 
-    &.responsive-live-preview-edit--dragging {
-      .live-preview-window,
-      .live-preview-window iframe {
-        pointer-events: none !important;
-      }
-    }
   }
 
   html[data-theme='dark'] {

@@ -76,7 +76,6 @@ const ResponsiveLivePreviewPane: React.FC = () => {
   } = useResponsiveSplit()
 
   const isInteractive = canResize && previewWindowType === 'iframe'
-  const handleRef = useRef<HTMLButtonElement | null>(null)
 
   return (
     <div className="responsive-live-preview-edit__shell">
@@ -84,7 +83,6 @@ const ResponsiveLivePreviewPane: React.FC = () => {
 
       {isInteractive ? (
         <button
-          ref={handleRef}
           aria-label="Resize live preview"
           aria-valuemax={100}
           aria-valuemin={0}
@@ -130,6 +128,7 @@ const ResponsiveLivePreviewPane: React.FC = () => {
                 event.currentTarget.releasePointerCapture(event.pointerId)
               }
             } catch {}
+            stopDragging()
           }}
           onPointerCancel={(event) => {
             try {
@@ -137,6 +136,7 @@ const ResponsiveLivePreviewPane: React.FC = () => {
                 event.currentTarget.releasePointerCapture(event.pointerId)
               }
             } catch {}
+            stopDragging()
           }}
           onLostPointerCapture={() => {
             stopDragging()
