@@ -152,18 +152,33 @@
       grid-template-columns: minmax(0, var(--responsive-live-preview-editor-width)) minmax(0, 1fr);
       position: relative;
       align-items: stretch;
-      overflow: visible;
+      height: calc(100vh - var(--doc-controls-height) - 1.5rem);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .collection-edit__main-wrapper > * {
+      min-height: 0;
+    }
+
+    .collection-edit__main-wrapper > :not(.collection-edit__main--is-live-previewing) {
+      min-width: 0;
+      max-height: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+      overscroll-behavior: contain;
     }
 
     .collection-edit__main--is-live-previewing {
       width: auto !important;
       min-width: 0;
       max-width: none !important;
-      position: sticky;
-      top: calc(var(--doc-controls-height) + 1rem);
-      align-self: start;
-      height: calc(100vh - var(--doc-controls-height) - 1.5rem);
+      position: relative;
+      top: auto;
+      align-self: stretch;
+      height: 100%;
       overflow: hidden;
+      overscroll-behavior: contain;
     }
 
     .live-preview-window {
@@ -177,6 +192,8 @@
       position: relative;
       width: 100%;
       height: 100%;
+      overflow: hidden;
+      overscroll-behavior: contain;
     }
 
     .live-preview-window iframe {
