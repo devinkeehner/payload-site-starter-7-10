@@ -144,7 +144,9 @@
     --responsive-live-preview-handle-width: 1.25rem;
     --responsive-live-preview-handle-height: 3.25rem;
     --responsive-live-preview-handle-offset: calc(var(--responsive-live-preview-handle-width) / 2);
-    --responsive-live-preview-handle-editor-overlap: 0.5rem;
+    --responsive-live-preview-handle-editor-overlap: calc(
+      var(--responsive-live-preview-handle-width) + 0.5rem
+    );
     --responsive-live-preview-handle-left: 0px;
   }
 

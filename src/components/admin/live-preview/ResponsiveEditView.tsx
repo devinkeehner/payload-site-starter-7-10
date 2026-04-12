@@ -240,6 +240,7 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
 
       isDraggingRef.current = true
       dragPointerIdRef.current = pointerId ?? null
+      rootRef.current?.classList.add('responsive-live-preview-edit--dragging')
       setIsDragging(true)
       resizeToClientX(clientX)
     },
@@ -251,6 +252,7 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
 
     isDraggingRef.current = false
     dragPointerIdRef.current = null
+    rootRef.current?.classList.remove('responsive-live-preview-edit--dragging')
     setIsDragging(false)
 
     if (preferencesKey) {
