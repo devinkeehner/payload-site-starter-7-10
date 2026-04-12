@@ -43,6 +43,7 @@ type ResponsiveSplitContextValue = {
   previewWindowType: 'iframe' | 'popup'
   resizeToClientX: (clientX: number) => void
   startDragging: (clientX: number, pointerId?: number) => void
+  stopDragging: () => void
 }
 
 const ResponsiveSplitContext = createContext<ResponsiveSplitContextValue | null>(null)
@@ -71,9 +72,11 @@ const ResponsiveLivePreviewPane: React.FC = () => {
     previewWindowType,
     resizeToClientX,
     startDragging,
+    stopDragging,
   } = useResponsiveSplit()
 
   const isInteractive = canResize && previewWindowType === 'iframe'
+  const handleRef = useRef<HTMLButtonElement | null>(null)
 
   return (
     <div className="responsive-live-preview-edit__shell">
@@ -81,6 +84,7 @@ const ResponsiveLivePreviewPane: React.FC = () => {
 
       {isInteractive ? (
         <button
+          ref={handleRef}
           aria-label="Resize live preview"
           aria-valuemax={100}
           aria-valuemin={0}
@@ -114,7 +118,28 @@ const ResponsiveLivePreviewPane: React.FC = () => {
           }}
           onPointerDown={(event) => {
             event.preventDefault()
+            event.stopPropagation()
+            try {
+              event.currentTarget.setPointerCapture(event.pointerId)
+            } catch {}
             startDragging(event.clientX, event.pointerId)
+          }}
+          onPointerUp={(event) => {
+            try {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId)
+              }
+            } catch {}
+          }}
+          onPointerCancel={(event) => {
+            try {
+              if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId)
+              }
+            } catch {}
+          }}
+          onLostPointerCapture={() => {
+            stopDragging()
           }}
           role="separator"
           type="button"
@@ -399,8 +424,17 @@ const ResponsiveEditView: React.FC<DocumentViewClientProps> = (props) => {
       previewWindowType,
       resizeToClientX,
       startDragging,
+      stopDragging,
     }),
-    [editorWidthPercent, isDragging, isResizable, previewWindowType, resizeToClientX, startDragging],
+    [
+      editorWidthPercent,
+      isDragging,
+      isResizable,
+      previewWindowType,
+      resizeToClientX,
+      startDragging,
+      stopDragging,
+    ],
   )
 
   return (
