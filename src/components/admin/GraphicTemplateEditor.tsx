@@ -832,8 +832,8 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
 
     const node =
-      selection.kind === 'masthead'
-        ? mastheadPartRefs.current[selection.part]
+      selection.kind === 'mastheadLine'
+        ? mastheadLineRef.current
         : selection.kind === 'headline'
           ? titleRef.current
           : selection.kind === 'repName'
@@ -850,10 +850,6 @@ export const GraphicTemplateEditor: React.FC = () => {
 
   const updateHeadline = (patch: Partial<GraphicTextLayer>) => {
     setScene((current) => ({ ...current, headlineLayer: { ...current.headlineLayer, ...patch } }))
-  }
-
-  const updateMasthead = (patch: Partial<GraphicScene['masthead']>) => {
-    setScene((current) => ({ ...current, masthead: { ...current.masthead, ...patch } }))
   }
 
   const updateMastheadPart = (part: MastheadPart, patch: Partial<GraphicScene['masthead'][MastheadPart]>) => {
@@ -993,8 +989,7 @@ export const GraphicTemplateEditor: React.FC = () => {
 
   const resolveTextLayer = (target: EditableTextTarget): GraphicTextLayer => {
     if (target.kind === 'headline') return scene.headlineLayer
-    if (target.kind === 'repName') return scene.repNameLayers[target.role]
-    return scene.masthead[target.part]
+    return scene.repNameLayers[target.role]
   }
 
   const updateTextLayer = (target: EditableTextTarget, patch: Partial<GraphicTextLayer>) => {
@@ -1006,15 +1001,13 @@ export const GraphicTemplateEditor: React.FC = () => {
       updateRepName(target.role, patch)
       return
     }
-    updateMastheadPart(target.part, patch)
   }
 
   const getRenderedTextValue = (target: EditableTextTarget): string => {
     const layer = resolveTextLayer(target)
     if (typeof layer.text === 'string' && layer.text.length > 0) return layer.text
     if (target.kind === 'headline') return headlineText
-    if (target.kind === 'repName') return target.role === 'primary' ? primaryRepName : secondaryRepName
-    return target.part === 'fromThe' ? 'FROM THE' : target.part === 'houseGop' ? 'CT HOUSE GOP' : 'NEWSROOM'
+    return target.role === 'primary' ? primaryRepName : secondaryRepName
   }
 
   const beginInlineTextEdit = (target: EditableTextTarget) => {
@@ -1393,8 +1386,8 @@ export const GraphicTemplateEditor: React.FC = () => {
       return
     }
 
-    if (action === 'reset-masthead' && target !== 'canvas' && target.kind === 'masthead') {
-      updateMasthead(defaultGraphicScene().masthead)
+    if (action === 'reset-line' && target !== 'canvas' && target.kind === 'mastheadLine') {
+      updateMastheadPart('line', defaultGraphicScene().masthead.line)
       return
     }
 
@@ -2069,100 +2062,25 @@ export const GraphicTemplateEditor: React.FC = () => {
               })}
 
               {scene.masthead.show ? (
-                <>
-                  <Text
-                    ref={(node) => {
-                      mastheadPartRefs.current.fromThe = node
-                    }}
-                    x={scene.masthead.fromThe.x}
-                    y={scene.masthead.fromThe.y}
-                    width={Math.round(scene.masthead.fromThe.width * contentFitScale)}
-                    text={scene.masthead.fromThe.text || 'FROM THE'}
-                    fontFamily={scene.masthead.fromThe.fontFamily || 'Inter, Arial, sans-serif'}
-                    fontStyle={scene.masthead.fromThe.fontStyle || '800 italic'}
-                    fontSize={Math.max(13, Math.round((scene.masthead.fromThe.fontSize || 16) * contentFitScale))}
-                    fill={scene.masthead.fromThe.color || '#152b70'}
-                    align={scene.masthead.fromThe.align}
-                    textDecoration={scene.masthead.fromThe.textDecoration}
-                    letterSpacing={scene.masthead.fromThe.letterSpacing || 1}
-                    draggable
-                    onClick={() => setSelection({ kind: 'masthead', part: 'fromThe' })}
-                    onTap={() => setSelection({ kind: 'masthead', part: 'fromThe' })}
-                    onContextMenu={(event) => {
-                      event.cancelBubble = true
-                      openCanvasMenu(event.evt, { kind: 'masthead', part: 'fromThe' })
-                    }}
-                    onDragEnd={(event) => updateMastheadPart('fromThe', { x: event.target.x(), y: event.target.y() })}
-                    onDblClick={() => beginInlineTextEdit({ kind: 'masthead', part: 'fromThe' })}
-                  />
-                  <Text
-                    ref={(node) => {
-                      mastheadPartRefs.current.houseGop = node
-                    }}
-                    x={scene.masthead.houseGop.x}
-                    y={scene.masthead.houseGop.y}
-                    width={Math.round(scene.masthead.houseGop.width * contentFitScale)}
-                    text={scene.masthead.houseGop.text || 'CT HOUSE GOP'}
-                    fontFamily={scene.masthead.houseGop.fontFamily || 'Inter, Arial, sans-serif'}
-                    fontStyle={scene.masthead.houseGop.fontStyle || '800'}
-                    fontSize={Math.max(36, Math.round((scene.masthead.houseGop.fontSize || 50) * contentFitScale))}
-                    fill={scene.masthead.houseGop.color || '#b91c1c'}
-                    align={scene.masthead.houseGop.align}
-                    textDecoration={scene.masthead.houseGop.textDecoration}
-                    draggable
-                    onClick={() => setSelection({ kind: 'masthead', part: 'houseGop' })}
-                    onTap={() => setSelection({ kind: 'masthead', part: 'houseGop' })}
-                    onContextMenu={(event) => {
-                      event.cancelBubble = true
-                      openCanvasMenu(event.evt, { kind: 'masthead', part: 'houseGop' })
-                    }}
-                    onDragEnd={(event) => updateMastheadPart('houseGop', { x: event.target.x(), y: event.target.y() })}
-                    onDblClick={() => beginInlineTextEdit({ kind: 'masthead', part: 'houseGop' })}
-                  />
-                  <Text
-                    ref={(node) => {
-                      mastheadPartRefs.current.newsroom = node
-                    }}
-                    x={scene.masthead.newsroom.x}
-                    y={scene.masthead.newsroom.y}
-                    width={Math.round(scene.masthead.newsroom.width * contentFitScale)}
-                    text={scene.masthead.newsroom.text || 'NEWSROOM'}
-                    fontFamily={scene.masthead.newsroom.fontFamily || 'Inter, Arial, sans-serif'}
-                    fontStyle={scene.masthead.newsroom.fontStyle || '900 italic'}
-                    fontSize={Math.max(48, Math.round((scene.masthead.newsroom.fontSize || 74) * contentFitScale))}
-                    fill={scene.masthead.newsroom.color || '#b91c1c'}
-                    align={scene.masthead.newsroom.align}
-                    textDecoration={scene.masthead.newsroom.textDecoration}
-                    draggable
-                    onClick={() => setSelection({ kind: 'masthead', part: 'newsroom' })}
-                    onTap={() => setSelection({ kind: 'masthead', part: 'newsroom' })}
-                    onContextMenu={(event) => {
-                      event.cancelBubble = true
-                      openCanvasMenu(event.evt, { kind: 'masthead', part: 'newsroom' })
-                    }}
-                    onDragEnd={(event) => updateMastheadPart('newsroom', { x: event.target.x(), y: event.target.y() })}
-                    onDblClick={() => beginInlineTextEdit({ kind: 'masthead', part: 'newsroom' })}
-                  />
-                  <Rect
-                    ref={(node) => {
-                      mastheadPartRefs.current.line = node
-                    }}
-                    x={scene.masthead.line.x}
-                    y={scene.masthead.line.y}
-                    width={Math.round(scene.masthead.line.width * contentFitScale)}
-                    height={scene.masthead.line.height}
-                    fill={scene.masthead.line.color || '#172c70'}
-                    cornerRadius={999}
-                    draggable
-                    onClick={() => setSelection({ kind: 'masthead', part: 'line' })}
-                    onTap={() => setSelection({ kind: 'masthead', part: 'line' })}
-                    onContextMenu={(event) => {
-                      event.cancelBubble = true
-                      openCanvasMenu(event.evt, { kind: 'masthead', part: 'line' })
-                    }}
-                    onDragEnd={(event) => updateMastheadPart('line', { x: event.target.x(), y: event.target.y() })}
-                  />
-                </>
+                <Rect
+                  ref={(node) => {
+                    mastheadLineRef.current = node
+                  }}
+                  x={scene.masthead.line.x}
+                  y={scene.masthead.line.y}
+                  width={Math.round(scene.masthead.line.width * contentFitScale)}
+                  height={scene.masthead.line.height}
+                  fill={scene.masthead.line.color || '#172c70'}
+                  cornerRadius={999}
+                  draggable
+                  onClick={() => setSelection({ kind: 'mastheadLine' })}
+                  onTap={() => setSelection({ kind: 'mastheadLine' })}
+                  onContextMenu={(event) => {
+                    event.cancelBubble = true
+                    openCanvasMenu(event.evt, { kind: 'mastheadLine' })
+                  }}
+                  onDragEnd={(event) => updateMastheadPart('line', { x: event.target.x(), y: event.target.y() })}
+                />
               ) : null}
 
               {scene.headshots.map((headshot, index) => {
@@ -2353,7 +2271,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                 rotateEnabled={false}
                 flipEnabled={false}
                 enabledAnchors={
-                  selection?.kind === 'masthead'
+                  selection?.kind === 'mastheadLine'
                     ? []
                     : selection?.kind === 'headline'
                     ? ['middle-left', 'middle-right']
@@ -2370,7 +2288,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                 anchorFill="#ffffff"
                 anchorSize={10}
                 boundBoxFunc={(_, newBox) => {
-                  if (selection?.kind === 'masthead') {
+                  if (selection?.kind === 'mastheadLine') {
                     return newBox
                   }
 
@@ -2618,9 +2536,9 @@ export const GraphicTemplateEditor: React.FC = () => {
                     Remove slot
                   </button>
                 </>
-              ) : canvasMenu.target.kind === 'masthead' ? (
-                <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('reset-masthead')}>
-                  Reset masthead
+              ) : canvasMenu.target.kind === 'mastheadLine' ? (
+                <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('reset-line')}>
+                  Reset line
                 </button>
               ) : canvasMenu.target.kind === 'headline' ? (
                 <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('reset-headline')}>
