@@ -1289,6 +1289,31 @@ export const plugins: Plugin[] = [
                     tenant: tID,
                   }
 
+                  if (typeof (source as any)?.enableHoneypot !== 'undefined') data.enableHoneypot = (source as any).enableHoneypot
+                  if (typeof (source as any)?.enableTurnstile !== 'undefined') data.enableTurnstile = (source as any).enableTurnstile
+                  if (typeof (source as any)?.enableIContactSync !== 'undefined') data.enableIContactSync = (source as any).enableIContactSync
+                  if (typeof (source as any)?.iContactFolder !== 'undefined') {
+                    const folderValue = (source as any).iContactFolder
+                    data.iContactFolder =
+                      typeof folderValue === 'string'
+                        ? folderValue
+                        : folderValue && typeof folderValue === 'object'
+                        ? String((folderValue as any).id || (folderValue as any)._id || '')
+                        : undefined
+                  }
+                  if (typeof (source as any)?.iContactLists !== 'undefined') {
+                    const listValues = Array.isArray((source as any).iContactLists) ? (source as any).iContactLists : []
+                    data.iContactLists = listValues
+                      .map((row: any) =>
+                        typeof row === 'string'
+                          ? row
+                          : row && typeof row === 'object'
+                          ? String(row.id || row._id || '')
+                          : '',
+                      )
+                      .filter(Boolean)
+                  }
+                  if (typeof (source as any)?.iContactFieldMap !== 'undefined') data.iContactFieldMap = (source as any).iContactFieldMap
                   if (typeof (source as any)?.enableIntro !== 'undefined') data.enableIntro = (source as any).enableIntro
                   if (introContent) data.introContent = introContent
 

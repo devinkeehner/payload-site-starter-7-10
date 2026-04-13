@@ -246,6 +246,12 @@ export const BudgetPlanFeatureConfig: Block = {
               'https://media.cthousegop.com/Candelora_5833-1920x1244.jpg',
               'Use a real press photo source link or upload a local asset.',
             ),
+            {
+              name: 'pressEyebrow',
+              label: 'Press Eyebrow',
+              type: 'text',
+              defaultValue: 'Featured budget release',
+            },
             createRichTextField('newsReleaseTitle', 'News Release Title'),
             {
               name: 'pressQuotes',

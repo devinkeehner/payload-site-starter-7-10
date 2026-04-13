@@ -40,6 +40,15 @@ const sanitize = (value: unknown) => (typeof value === 'string' ? value.trim() :
 
 const sanitizePhone = (value: unknown) => sanitize(value).replace(/[^\d+]/gu, '')
 
+const errorText = (error: unknown) => {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return String(error || '')
+}
+
+const looksLikeDuplicateIContactError = (message: string) =>
+  /already exists|already subscribed|duplicate|conflict|409/i.test(message)
+
 export const getIContactConfigFromEnv = (): IContactConfig | null => {
   const appId = sanitize(process.env.ICONTACT_APP_ID)
   const username = sanitize(process.env.ICONTACT_USERNAME)
@@ -364,18 +373,33 @@ export const syncSubmissionToIContact = async (args: {
     if (existing?.contactId) {
       contactId = sanitize(existing.contactId)
     } else {
-      const created = await createContact(cfg, accountId, clientFolderId, {
-        email,
-        firstName,
-        lastName,
-        phone,
-        postalCode,
-      })
-      contactId = created.contactId
+      try {
+        const created = await createContact(cfg, accountId, clientFolderId, {
+          email,
+          firstName,
+          lastName,
+          phone,
+          postalCode,
+        })
+        contactId = created.contactId
+      } catch (createError) {
+        const retryExisting = await getExistingContact(cfg, accountId, clientFolderId, email)
+        if (retryExisting?.contactId) {
+          contactId = sanitize(retryExisting.contactId)
+        } else {
+          throw createError
+        }
+      }
     }
 
     for (const listId of listIds) {
-      await subscribeContactToList(cfg, accountId, clientFolderId, contactId, listId)
+      try {
+        await subscribeContactToList(cfg, accountId, clientFolderId, contactId, listId)
+      } catch (subscribeError) {
+        const message = errorText(subscribeError)
+        if (looksLikeDuplicateIContactError(message)) continue
+        throw subscribeError
+      }
     }
 
     return {

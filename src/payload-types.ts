@@ -1568,6 +1568,7 @@ export interface BudgetPlanFeatureBlock {
     externalURL?: string | null;
     alt: string;
   };
+  pressEyebrow?: string | null;
   newsReleaseTitle?: {
     root: {
       type: string;
@@ -1583,6 +1584,17 @@ export interface BudgetPlanFeatureBlock {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Optional featured quote cards shown in place of the news release title.
+   */
+  pressQuotes?:
+    | {
+        quote: string;
+        attribution: string;
+        title?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   newsReleaseBody?: {
     root: {
       type: string;
@@ -3895,7 +3907,16 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
         externalURL?: T;
         alt?: T;
       };
+  pressEyebrow?: T;
   newsReleaseTitle?: T;
+  pressQuotes?:
+    | T
+    | {
+        quote?: T;
+        attribution?: T;
+        title?: T;
+        id?: T;
+      };
   newsReleaseBody?: T;
   newsReleaseLinkLabel?: T;
   newsReleaseLinkURL?: T;
