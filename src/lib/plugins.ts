@@ -1966,6 +1966,7 @@ export const plugins: Plugin[] = [
       'bad-bills': {},
       media: {},
       'media-canvas': {},
+      'graphic-designs': {},
       'standard-media': { isGlobal: true },
       'rep-info': {},
       'site-seo': { isGlobal: true },

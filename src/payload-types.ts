@@ -73,6 +73,8 @@ export interface Config {
     'bad-bills': BadBill;
     media: Media;
     'media-canvas': MediaCanva;
+    'graphic-templates': GraphicTemplate;
+    'graphic-designs': GraphicDesign;
     'wordpress-posts': WordpressPost;
     'rep-info': RepInfo;
     navbars: Navbar;
@@ -105,6 +107,8 @@ export interface Config {
     'bad-bills': BadBillsSelect<false> | BadBillsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'media-canvas': MediaCanvasSelect<false> | MediaCanvasSelect<true>;
+    'graphic-templates': GraphicTemplatesSelect<false> | GraphicTemplatesSelect<true>;
+    'graphic-designs': GraphicDesignsSelect<false> | GraphicDesignsSelect<true>;
     'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
     'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
@@ -225,6 +229,8 @@ export interface Post {
     };
     [k: string]: unknown;
   };
+  graphicTemplate?: (string | null) | GraphicTemplate;
+  graphicDesign?: (string | null) | GraphicDesign;
   meta: {
     title: string;
     /**
@@ -354,6 +360,61 @@ export interface Media {
       filename?: string | null;
     };
   };
+}
+/**
+ * Reusable graphics templates shared across all tenants.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "graphic-templates".
+ */
+export interface GraphicTemplate {
+  id: string;
+  title: string;
+  sourceCollection: 'posts' | 'pages';
+  backgroundImage?: (string | null) | Media;
+  scene:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Editable generated graphics linked to posts and reusable templates.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "graphic-designs".
+ */
+export interface GraphicDesign {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  title: string;
+  template?: (string | null) | GraphicTemplate;
+  sourceCollection: 'posts' | 'pages';
+  sourcePost?: (string | null) | Post;
+  primaryTenant?: (string | null) | Tenant;
+  secondaryTenant?: (string | null) | Tenant;
+  backgroundImage?: (string | null) | Media;
+  titleOverride?: string | null;
+  scene:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  exportedMedia?: (string | null) | Media;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2747,6 +2808,42 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  graphicTemplates?: {
+    /**
+     * Allow clients to find graphic-templates.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create graphic-templates.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update graphic-templates.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete graphic-templates.
+     */
+    delete?: boolean | null;
+  };
+  graphicDesigns?: {
+    /**
+     * Allow clients to find graphic-designs.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create graphic-designs.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update graphic-designs.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete graphic-designs.
+     */
+    delete?: boolean | null;
+  };
   icontactFolders?: {
     /**
      * Allow clients to find icontact-folders.
@@ -3164,6 +3261,14 @@ export interface PayloadLockedDocument {
         value: string | MediaCanva;
       } | null)
     | ({
+        relationTo: 'graphic-templates';
+        value: string | GraphicTemplate;
+      } | null)
+    | ({
+        relationTo: 'graphic-designs';
+        value: string | GraphicDesign;
+      } | null)
+    | ({
         relationTo: 'wordpress-posts';
         value: string | WordpressPost;
       } | null)
@@ -3302,6 +3407,8 @@ export interface PostsSelect<T extends boolean = true> {
   heroImage?: T;
   heroExternalURL?: T;
   content?: T;
+  graphicTemplate?: T;
+  graphicDesign?: T;
   meta?:
     | T
     | {
@@ -4075,6 +4182,39 @@ export interface MediaCanvasSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "graphic-templates_select".
+ */
+export interface GraphicTemplatesSelect<T extends boolean = true> {
+  title?: T;
+  sourceCollection?: T;
+  backgroundImage?: T;
+  scene?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "graphic-designs_select".
+ */
+export interface GraphicDesignsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  template?: T;
+  sourceCollection?: T;
+  sourcePost?: T;
+  primaryTenant?: T;
+  secondaryTenant?: T;
+  backgroundImage?: T;
+  titleOverride?: T;
+  scene?: T;
+  exportedMedia?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "wordpress-posts_select".
  */
 export interface WordpressPostsSelect<T extends boolean = true> {
@@ -4721,6 +4861,22 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   mediaCanvas?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  graphicTemplates?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  graphicDesigns?:
     | T
     | {
         find?: T;

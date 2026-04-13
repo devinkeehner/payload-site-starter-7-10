@@ -955,6 +955,32 @@ export const Posts: CollectionConfig<'posts'> = {
           label: 'Meta & SEO',
           fields: [
             {
+              name: 'launchGraphicsEditor',
+              type: 'ui',
+              label: 'Graphics',
+              admin: {
+                components: {
+                  Field: {
+                    path: './components/admin/GraphicTemplateLauncher#GraphicTemplateLauncher',
+                  },
+                },
+              },
+            },
+            {
+              name: 'graphicTemplate',
+              label: 'Graphic Template',
+              type: 'relationship',
+              relationTo: 'graphic-templates',
+              required: false,
+            },
+            {
+              name: 'graphicDesign',
+              label: 'Graphic Design',
+              type: 'relationship',
+              relationTo: 'graphic-designs',
+              required: false,
+            },
+            {
               name: 'generateSEO',
               type: 'ui',
               label: 'AI Assistant',

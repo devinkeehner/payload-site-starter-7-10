@@ -1,0 +1,2509 @@
+# Konva.js
+
+> Konva.js is the most popular open-source 2D HTML5 Canvas JavaScript framework. It provides an object-oriented API for canvas graphics with shapes, animations, events, drag-and-drop, filters, and official integrations with React, Vue, Svelte, and Angular. MIT licensed, created in 2014, used by Meta, Microsoft, Labelbox, Zazzle, and thousands of developers.
+
+Konva uses a Stage → Layer → Group → Shape hierarchy. You create a Stage (attached to a DOM container), add Layers (each is a separate `<canvas>` element), and draw Shapes (Rect, Circle, Ellipse, Line, Text, Image, Path, Star, Ring, Arc, Arrow, Label, RegularPolygon, Wedge, Sprite, TextPath) on those layers.
+
+Key capabilities: object-oriented shape management, full event system (click, hover, touch, drag), built-in drag-and-drop, animations and tweens, image filters (blur, brighten, contrast, grayscale, etc.), canvas serialization/deserialization (toJSON/fromJSON), high-quality image export (toDataURL, toBlob), node nesting and grouping, hit detection, and caching for performance.
+
+Framework bindings:
+- React: `react-konva` — declarative React components for canvas shapes
+- Vue: `vue-konva` — Vue components for Konva
+- Svelte: `svelte-konva` — Svelte components for Konva
+- Angular: `ng2-konva` — Angular directives for Konva
+
+Install: `npm install konva` (and `react-konva` / `vue-konva` / `svelte-konva` for frameworks)
+
+## Docs
+
+- [Getting Started](https://konvajs.org/docs/index.html): Installation, basic setup, first canvas
+- [Framework Overview](https://konvajs.org/docs/overview.html): Architecture, shapes, styles, events, drag-and-drop, filters, animations, serialization
+- [API Reference](https://konvajs.org/api/Konva.html): Full API documentation for all classes
+- [FAQ](https://konvajs.org/docs/faq.html): Common questions about Konva.js
+- [About Konva](https://konvajs.org/docs/about.html): Project history, adoption, key facts
+
+## Guides & Comparisons
+
+- [Why Konva?](https://konvajs.org/docs/guides/why-konva.html): When to use Konva, ideal use cases, what Konva is NOT
+- [Best JavaScript Canvas Libraries](https://konvajs.org/docs/guides/best-canvas-library.html): Comparison of Konva vs Fabric.js vs PixiJS vs Paper.js vs p5.js
+
+## Framework Integrations
+
+- [React (react-konva)](https://konvajs.org/docs/react/index.html): Getting started with React and canvas
+- [Vue (vue-konva)](https://konvajs.org/docs/vue/index.html): Getting started with Vue and canvas
+- [Svelte (svelte-konva)](https://konvajs.org/docs/svelte/index.html): Getting started with Svelte and canvas
+- [Angular (ng2-konva)](https://konvajs.org/docs/angular/index.html): Getting started with Angular and canvas
+
+## Tutorials
+
+- [Shapes](https://konvajs.org/docs/shapes/Rect.html): Drawing rectangles, circles, lines, text, images, paths, and more
+- [Events](https://konvajs.org/docs/events/Binding_Events.html): Click, hover, touch, keyboard, and custom events
+- [Drag and Drop](https://konvajs.org/docs/drag_and_drop/Drag_and_Drop.html): Built-in drag-and-drop system
+- [Animations](https://konvajs.org/docs/animations/Create_an_Animation.html): Frame-based animations and tweens
+- [Filters](https://konvajs.org/docs/filters/Blur.html): Image processing filters
+- [Performance](https://konvajs.org/docs/performance/All_Performance_Tips.html): Optimization tips for large applications
+- [Serialization](https://konvajs.org/docs/data_and_serialization/Serialize_a_Stage.html): Save and load canvas state
+- [Select and Transform](https://konvajs.org/docs/select_and_transform/Basic_demo.html): Resize, rotate, and transform shapes interactively
+- [Node.js](https://konvajs.org/docs/nodejs/index.html): Server-side canvas rendering
+
+## Demos
+
+- [All Demos](https://konvajs.org/docs/sandbox.html): 60+ interactive examples
+- [Canvas Editor](https://konvajs.org/docs/sandbox/Canvas_Editor.html): Full design editor (Polotno SDK)
+- [Free Drawing](https://konvajs.org/docs/sandbox/Free_Drawing.html): Freehand drawing / whiteboard
+- [Image Labeling](https://konvajs.org/docs/sandbox/Image_Labeling.html): ML annotation tool
+- [Seats Reservation](https://konvajs.org/docs/sandbox/Seats_Reservation.html): Interactive seat map
+- [Connected Objects](https://konvajs.org/docs/sandbox/Connected_Objects.html): Diagrams with connected draggable nodes
+- [Interactive Floor Plan](https://konvajs.org/docs/sandbox/Interactive_Building_Map.html): Building map with hover sections
+
+## Optional
+
+- [AI Tools](https://konvajs.org/docs/ai_tools.html): MCP integration for Cursor, Claude, Windsurf
+- [Support](https://konvajs.org/docs/support.html): Stack Overflow, Discord, GitHub Issues
+- [GitHub Repository](https://github.com/konvajs/konva): Source code, issues, changelog
+- [npm Package](https://www.npmjs.com/package/konva): Installation and version info
+
+---
+
+# Full API Reference
+
+## Konva (namespace)
+
+### Static Properties
+  autoDrawEnabled: any — Should Konva automatically update canvas on any changes. Default is true.
+  hitOnDragEnabled: any — Should we enable hit detection while dragging? For performance reasons, by default it is false. But on some rare cases you want to see hit graph and check intersections. Just set it to true.
+  capturePointerEventsEnabled: any — Should we capture touch events and bind them to the touchstart target? That is how it works on DOM elements. The case: we touchstart on div1, then touchmove out of that element into another element div2. DOM will continue trigger touchmove events on div1 (not div2). Because events are "captured" into initial target. By default Konva do not do that and will trigger touchmove on another element, while pointer is moving.
+  legacyTextRendering: any — Use legacy text rendering. with "middle" baseline by default.
+  pixelRatio: any — Global pixel ratio configuration. KonvaJS automatically detect pixel ratio of current device. But you may override such property, if you want to use your value. Set this value before any components initializations.
+  dragDistance: any — Drag distance property. If you start to drag a node you may want to wait until pointer is moved to some distance from start point, only then start dragging. Default is 3px.
+  angleDeg: any — Use degree values for angle properties. You may set this property to false if you want to use radian values.
+  showWarnings: any — Show different warnings about errors or wrong API usage
+  dragButtons: any — Configure what mouse buttons can be used for drag and drop. Default value is [0, 1] - left and middle mouse buttons.
+  releaseCanvasOnDestroy: any — Should Konva release canvas elements on destroy. Default is true. Useful to avoid memory leak issues in Safari on macOS/iOS.
+
+### Static Methods
+  isDragging() — returns whether or not drag and drop is currently active
+  isDragReady() — returns whether or not a drag and drop operation is ready, but may  not necessarily have started
+
+### Classes: Konva.Transform, Konva.Context, Konva.Canvas, Konva.Node, Konva.Container, Konva.Stage, Konva.Shape, Konva.Layer, Konva.FastLayer, Konva.Group, Konva.Animation, Konva.Tween, Konva.Arc, Konva.Line, Konva.Path, Konva.Arrow, Konva.Circle, Konva.Ellipse, Konva.Image, Konva.Label, Konva.Tag, Konva.Rect, Konva.RegularPolygon, Konva.Ring, Konva.Sprite, Konva.Star, Konva.Text, Konva.TextPath, Konva.Transformer, Konva.Wedge
+
+### Namespaces: Konva.Util, Konva.Easings, Konva.Filters
+
+## Konva.Node
+
+Node constructor. Nodes are entities that can be transformed, layered, and have bound events. The stage, layers, groups, and shapes all extend Node.
+
+  Constructor config:
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  getAttr: Integer | String | Object | Array — get attr
+  getAncestors: Array — get ancestors
+  getAttrs: Object — get attrs object literal
+  setAttrs: Konva.Node — set multiple attrs at once using an object literal
+  getAbsoluteZIndex: Integer — get absolute z-index which takes into account sibling  and ancestor indices
+  getDepth: Integer — get node depth in node tree.  Returns an integer.  e.g. Stage depth will always be 0.  Layers will always be 1.  Groups and Shapes will always  be >= 2
+  getRelativePointerPosition: Konva.Node — get position of first pointer (like mouse or first touch) relative to local coordinates of current node
+  getAbsolutePosition: Konva.Node — get absolute position of a node. That function can be used to calculate absolute position, but relative to any ancestor
+  getAbsoluteOpacity: Number — get absolute opacity
+  getParent: Konva.Node — get parent container
+  findAncestors: Array — get all ancestors (parent then parent of the parent, etc) of the node
+  findAncestor: Konva.Node — get ancestor (parent or parent of the parent, etc) of the node that match passed selector
+  getLayer: Konva.Layer — get layer ancestor
+  getStage: Konva.Stage — get stage ancestor
+  getAbsoluteTransform: Konva.Transform — get absolute transform of the node which takes into  account its ancestor transforms
+  getAbsoluteScale: Object — get absolute scale of the node which takes into  account its ancestor scales
+  getAbsoluteRotation: Number — get absolute rotation of the node which takes into  account its ancestor rotations
+  getTransform: Konva.Transform — get transform of the node
+  getClassName: String — get class name, which may return Stage, Layer, Group, or shape class names like Rect, Circle, Text, etc.
+  getType: String — get the node type, which may return Stage, Layer, Group, or Shape
+  setAttr: Konva.Node — set attr
+  zIndex: Number — get/set zIndex relative to the node's siblings who share the same parent. Please remember that zIndex is not absolute (like in CSS). It is relative to parent element only.
+  absolutePosition: Object — get/set node absolute position
+  position: Object — get/set node position relative to parent
+  x: Object — get/set x position
+  y: Integer — get/set y position
+  globalCompositeOperation: String — get/set globalCompositeOperation of a node. globalCompositeOperation DOESN'T affect hit graph of nodes. So they are still trigger to events as they have default "source-over" globalCompositeOperation.
+  opacity: Number — get/set opacity.  Opacity values range from 0 to 1.  A node with an opacity of 0 is fully transparent, and a node  with an opacity of 1 is fully opaque
+  name: String — get/set name.
+  id: String — get/set id. Id is global for whole page.
+  rotation: Number — get/set rotation in degrees
+  scale: Object — get/set scale
+  scaleX: Number — get/set scale x
+  scaleY: Number — get/set scale y
+  skew: Object — get/set skew
+  skewX: Number — get/set skew x
+  skewY: Number — get/set skew y
+  offsetX: Number — get/set offset x
+  offsetY: Number — get/set offset y
+  dragDistance: Number — get/set drag distance
+  width: Number — get/set width
+  height: Number — get/set height
+  listening: Boolean — get/set listening attr.  If you need to determine if a node is listening or not   by taking into account its parents, use the isListening() method   nodes with listening set to false will not be detected in hit graph   so they will be ignored in container.getIntersection() method
+  preventDefault: Boolean — get/set preventDefault By default all shapes will prevent default behavior of a browser on a pointer move or tap. that will prevent native scrolling when you are trying to drag&drop a node but sometimes you may need to enable default actions in that case you can set the property to false
+  filters: Array — get/set filters. Supports function filters, CSS filter strings, or mixed arrays. CSS filters are applied using native browser performance when possible, function filters use ImageData manipulation. CSS filters automatically fall back to function filters in unsupported browsers.
+  visible: Boolean — get/set visible attr.  Can be true, or false.  The default is true.   If you need to determine if a node is visible or not   by taking into account its parents, use the isVisible() method
+  transformsEnabled: String — get/set transforms that are enabled.  Can be "all", "none", or "position".  The default  is "all"
+  size: Object — get/set node size
+  dragBoundFunc: function — get/set drag bound function.  This is used to override the default  drag and drop position.
+  draggable: Boolean — get/set draggable flag
+  blurRadius: Integer — get/set blur radius. Use with {@link Konva.Filters.Blur} filter
+  brightness: Number — get/set filter brightness.  The brightness is a number between -1 and 1.&nbsp; Positive values  brighten the pixels and negative values darken them. Use with {@link Konva.Filters.Brighten} filter.
+  contrast: Number — get/set filter contrast.  The contrast is a number between -100 and 100. Use with {@link Konva.Filters.Contrast} filter.
+  embossStrength: Number — get/set emboss strength. Use with {@link Konva.Filters.Emboss} filter.
+  embossWhiteLevel: Number — get/set emboss white level. Use with {@link Konva.Filters.Emboss} filter.
+  embossDirection: String — get/set emboss direction. Use with {@link Konva.Filters.Emboss} filter.
+  embossBlend: Boolean — get/set emboss blend. Use with {@link Konva.Filters.Emboss} filter.
+  enhance: Float — get/set enhance. Use with {@link Konva.Filters.Enhance} filter. -1 to 1 values
+  hue: Number — get/set hsv hue in degrees. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+  saturation: Number — get/set hsv saturation. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+  luminance: Number — get/set hsl luminance. Use with {@link Konva.Filters.HSL} filter.
+  hue: Number — get/set hsv hue in degrees. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+  saturation: Number — get/set hsv saturation. Use with {@link Konva.Filters.HSV} or {@link Konva.Filters.HSL} filter.
+  value: Number — get/set hsv value. Use with {@link Konva.Filters.HSV} filter.
+  kaleidoscopePower: Integer — get/set kaleidoscope power. Use with {@link Konva.Filters.Kaleidoscope} filter.
+  kaleidoscopeAngle: Integer — get/set kaleidoscope angle. Use with {@link Konva.Filters.Kaleidoscope} filter.
+  noise: Number — get/set noise amount.  Must be a value between 0 and 1. Use with {@link Konva.Filters.Noise} filter.
+  pixelSize: Integer — get/set pixel size. Use with {@link Konva.Filters.Pixelate} filter.
+  levels: Number — get/set levels.  Must be a number between 0 and 1.  Use with {@link Konva.Filters.Posterize} filter.
+  red: Integer — get/set filter red value. Use with {@link Konva.Filters.RGB} filter.
+  green: Integer — get/set filter green value. Use with {@link Konva.Filters.RGB} filter.
+  blue: Integer — get/set filter blue value. Use with {@link Konva.Filters.RGB} filter.
+  red: Integer — get/set filter red value. Use with {@link Konva.Filters.RGBA} filter.
+  green: Integer — get/set filter green value. Use with {@link Konva.Filters.RGBA} filter.
+  blue: Integer — get/set filter blue value. Use with {@link Konva.Filters.RGBA} filter.
+  alpha: Float — get/set filter alpha value. Use with {@link Konva.Filters.RGBA} filter.
+  threshold: Number — get/set threshold.  Must be a value between 0 and 1. Use with {@link Konva.Filters.Threshold} or {@link Konva.Filters.Mask} filter.
+
+### Methods
+  clearCache() → Konva.Node — clear cached canvas
+  cache(config?: Object, config.x?: Number, config.y?: Number, config.width?: Number, config.height?: Number, config.offset?: Number, config.drawBorder?: Boolean, config.pixelRatio?: Number, config.imageSmoothingEnabled?: Boolean, config.hitCanvasPixelRatio?: Number) → Konva.Node — cache node to improve drawing performance, apply filters, or create more accurate  hit regions. For all basic shapes size of cache canvas will be automatically detected.  If you need to cache your custom `Konva.Shape` instance you have to pass shape's bounding box  properties. Look at [https://konvajs.org/docs/performance/Shape_Caching.html](https://konvajs.org/docs/performance/Shape_Caching.html) for more information.
+  isCached() → Boolean — determine if node is currently cached
+  getClientRect(config: Object, config.skipTransform?: Boolean, config.skipShadow?: Boolean, config.skipStroke?: Boolean, config.relativeTo?: Object) → Object — Return client rectangle {x, y, width, height} of node. This rectangle also include all styling (strokes, shadows, etc). The purpose of the method is similar to getBoundingClientRect API of the DOM.
+  on(evtStr: String, handler: function) → Konva.Node — bind events to the node. KonvaJS supports mouseover, mousemove,  mouseout, mouseenter, mouseleave, mousedown, mouseup, wheel, contextmenu, click, dblclick, touchstart, touchmove,  touchend, tap, dbltap, dragstart, dragmove, and dragend events.  Pass in a string of events delimited by a space to bind multiple events at once  such as 'mousedown mouseup mousemove'. Include a namespace to bind an  event by name such as 'click.foobar'.
+  off(evtStr: String) → Konva.Node — remove event bindings from the node. Pass in a string of  event types delimmited by a space to remove multiple event  bindings at once such as 'mousedown mouseup mousemove'.  include a namespace to remove an event binding by name  such as 'click.foobar'. If you only give a name like '.foobar',  all events in that namespace will be removed.
+  remove() → Konva.Node — remove a node from parent, but don't destroy. You can reuse the node later.
+  destroy() — remove and destroy a node. Kill it and delete forever! You should not reuse node after destroy(). If the node is a container (Group, Stage or Layer) it will destroy all children too.
+  isListening() → Boolean — determine if node is listening for events by taking into account ancestors.  Parent    | Self      | isListening listening | listening | ----------+-----------+------------ T         | T         | T T         | F         | F F         | T         | F F         | F         | F
+  isVisible() → Boolean — determine if node is visible by taking into account ancestors.  Parent    | Self      | isVisible visible   | visible   | ----------+-----------+------------ T         | T         | T T         | F         | F F         | T         | F F         | F         | F
+  show() → Konva.Node — show node. set visible = true
+  hide() → Konva.Node — hide node.  Hidden nodes are no longer detectable
+  move(change: Object, change.x: Number, change.y: Number) → Konva.Node — move node by an amount relative to its current position
+  rotate(theta: Number) → Konva.Node — rotate node by an amount in degrees relative to its current rotation
+  moveToTop() → Boolean — move node to the top of its siblings
+  moveUp() → Boolean — move node up
+  moveDown() → Boolean — move node down
+  moveToBottom() → Boolean — move node to the bottom of its siblings
+  moveTo(newContainer: Container) → Konva.Node — move node to another container
+  toObject() → Object — convert Node into an object for serialization.  Returns an object.
+  toJSON() → String — convert Node into a JSON string.  Returns a JSON string.
+  fire(eventType: String, evt?: Event, bubble?: Boolean) → Konva.Node — fire event
+  clone(obj: Object) → Konva.Node — clone node.  Returns a new Node instance with identical attributes.  You can also override  the node properties with an object literal, enabling you to use an existing node as a template  for another node
+  toCanvas(config: Object, config.callback: function, config.x?: Number, config.y?: Number, config.width?: Number, config.height?: Number, config.pixelRatio?: Number, config.imageSmoothingEnabled?: Boolean) — converts node into an canvas element.
+  toDataURL(config: Object, config.mimeType?: String, config.x?: Number, config.y?: Number, config.width?: Number, config.height?: Number, config.quality?: Number, config.pixelRatio?: Number, config.imageSmoothingEnabled?: Boolean) → String — Creates a composite data URL (base64 string). If MIME type is not specified, then "image/png" will result. For "image/jpeg", specify a quality level as quality (range 0.0 - 1.0)
+  toImage(config: Object, config.callback?: function, config.mimeType?: String, config.x?: Number, config.y?: Number, config.width?: Number, config.height?: Number, config.quality?: Number, config.pixelRatio?: Number, config.imageSmoothingEnabled?: Boolean) → Promise.<Image> — converts node into an image.  Since the toImage  method is asynchronous, the resulting image can only be retrieved from the config callback  or the returned Promise.  toImage is most commonly used  to cache complex drawings as an image so that they don't have to constantly be redrawn
+  toBlob(config: Object, config.callback?: function, config.x?: Number, config.y?: Number, config.width?: Number, config.height?: Number, config.pixelRatio?: Number, config.imageSmoothingEnabled?: Boolean) → Promise.<Blob> — Converts node into a blob.  Since the toBlob method is asynchronous,  the resulting blob can only be retrieved from the config callback  or the returned Promise.
+  addName(name: String) → Konva.Node — add name to node
+  hasName(name: String) → Boolean — check is node has name
+  removeName(name: String) → Konva.Node — remove name from node
+  draw() → Konva.Node — draw both scene and hit graphs.  If the node being drawn is the stage, all of the layers will be cleared and redrawn
+  startDrag() — initiate drag and drop.
+  stopDrag() — stop drag and drop
+  isDragging() — determine if node is currently in drag and drop mode
+  isClientRectOnScreen(margin: Number | Object, margin.x: Number, margin.y: Number) → Boolean — determine if node (at least partially) is currently in user-visible area
+  Node.create(json: String | Object, container?: Element) — create node with JSON string or an Object.  De-serializtion does not generate custom  shape drawing functions, images, or event handlers (this would make the  serialized object huge).  If your app uses custom shapes, images, and  event handlers (it probably does), then you need to select the appropriate  shapes after loading the stage and set these properties via on(), setSceneFunc(),  and setImage() methods
+  to(params?: Object) — Tween node properties. Shorter usage of {@link Konva.Tween} object.
+
+## Konva.Container extends Konva.Node
+
+Container constructor.&nbsp; Containers are used to contain nodes or other containers
+
+  Constructor config:
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional) — * @param {Object} [config.clip] set clip
+    clipX: Number (optional) — set clip x
+    clipY: Number (optional) — set clip y
+    clipWidth: Number (optional) — set clip width
+    clipHeight: Number (optional) — set clip height
+    clipFunc: function (optional) — set clip func
+
+### Properties (getter/setter)
+  getAllIntersections: Array — get all shapes that intersect a point.  Note: because this method must clear a temporary canvas and redraw every shape inside the container, it should only be used for special situations because it performs very poorly.  Please use the {@link Konva.Stage#getIntersection} method if at all possible because it performs much better nodes with listening set to false will not be detected
+  clip: Object — get/set clip
+  clipX: Number — get/set clip x
+  clipY: Number — get/set clip y
+  clipWidth: Number — get/set clip width
+  clipHeight: Number — get/set clip height
+  clipFunc: function — get/set clip function
+
+### Methods
+  getChildren(filterFunc?: function) → Array — returns an array of direct descendant nodes
+  hasChildren() → Boolean — determine if node has children
+  removeChildren() — remove all children. Children will be still in memory. If you want to completely destroy all children please use "destroyChildren" method instead
+  destroyChildren() — destroy all children nodes.
+  add(children: Konva.Node) → Container — add a child and children into container
+  find(selector: String | function) → Array — return an array of nodes that match the selector. You can provide a string with '#' for id selections and '.' for name selections. Or a function that will return true/false when a node is passed through.  See example below. With strings you can also select by type or class name. Pass multiple selectors separated by a comma.
+  findOne(selector: String | function) → Konva.Node | Undefined — return a first node from `find` method
+  isAncestorOf(node: Konva.Node) — determine if node is an ancestor of descendant
+
+## Konva.Stage extends Konva.Container
+
+Stage constructor.  A stage is used to contain multiple layers
+
+  Constructor config:
+    container: String | Element — Container selector or DOM element
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  setContainer: DomElement — set container dom element which contains the stage wrapper div element
+  getIntersection: Konva.Node — get visible intersection shape. This is the preferred  method for determining if a point intersects a shape or not nodes with listening set to false will not be detected
+  container: DomElement — get/set container DOM element
+
+### Methods
+  clear() — clear all layers
+  getPointerPosition() → Vector2d | null — returns ABSOLUTE pointer position which can be a touch position or mouse position pointer position doesn't include any transforms (such as scale) of the stage it is just a plain position of pointer relative to top-left corner of the canvas
+  getLayers() — returns an array of layers
+  setPointersPositions(event: Object) — manually register pointers positions (mouse/touch) in the stage. So you can use stage.getPointerPosition(). Usually you don't need to use that method because all internal events are automatically registered. It may be useful if event is triggered outside of the stage, but you still want to use Konva methods to get pointers position.
+  batchDraw() → Konva.Stage — batch draw
+
+### Example
+```javascript
+var stage = new Konva.Stage({
+  width: 500,
+  height: 800,
+  container: 'containerId' // or "#containerId" or ".containerClass"
+});
+```
+
+## Konva.Layer extends Konva.Container
+
+Layer constructor.  Layers are tied to their own canvas element and are used to contain groups or shapes.
+
+  Constructor config:
+    clearBeforeDraw: Boolean (optional) — set this property to false if you don't want to clear the canvas before each layer draw.  The default value is true.
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional) — * @param {Object} [config.clip] set clip
+    clipX: Number (optional) — set clip x
+    clipY: Number (optional) — set clip y
+    clipWidth: Number (optional) — set clip width
+    clipHeight: Number (optional) — set clip height
+    clipFunc: function (optional) — set clip func
+
+### Properties (getter/setter)
+  getCanvas: any — get layer canvas wrapper
+  getNativeCanvasElement: any — get native canvas element
+  getHitCanvas: any — get layer hit canvas
+  getContext: any — get layer canvas context
+  width: Number — get/set width of layer. getter return width of stage. setter doing nothing. if you want change width use `stage.width(value);`
+  height: Number — get/set height of layer.getter return height of stage. setter doing nothing. if you want change height use `stage.height(value);`
+  getIntersection: Konva.Node — get visible intersection shape. This is the preferred method for determining if a point intersects a shape or not also you may pass optional selector parameter to return ancestor of intersected shape nodes with listening set to false will not be detected
+  imageSmoothingEnabled: Boolean — get/set imageSmoothingEnabled flag For more info see https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D/imageSmoothingEnabled
+  clearBeforeDraw: Boolean — get/set clearBeforeDraw flag which determines if the layer is cleared or not  before drawing
+  hitGraphEnabled: Boolean — get/set hitGraphEnabled flag.  **DEPRECATED!** Use `layer.listening(false)` instead.  Disabling the hit graph will greatly increase  draw performance because the hit graph will not be redrawn each time the layer is  drawn.  This, however, also disables mouse/touch event detection
+
+### Methods
+  batchDraw() → Konva.Layer — batch draw. this function will not do immediate draw but it will schedule drawing to next tick (requestAnimFrame)
+  enableHitGraph() → Layer — enable hit graph. **DEPRECATED!** Use `layer.listening(true)` instead.
+  disableHitGraph() → Layer — disable hit graph. **DEPRECATED!** Use `layer.listening(false)` instead.
+  toggleHitCanvas() — Show or hide hit canvas over the stage. May be useful for debugging custom hitFunc
+
+### Example
+```javascript
+var layer = new Konva.Layer();
+stage.add(layer);
+// now you can add shapes, groups into the layer
+```
+
+## Konva.FastLayer extends Konva.Layer
+
+FastLayer constructor. **DEPRECATED!** Please use `Konva.Layer({ listening: false})` instead. Layers are tied to their own canvas element and are used to contain shapes only.  If you don't need node nesting, mouse and touch interactions, or event pub/sub, you should use FastLayer instead of Layer to create your layers. It renders about 2x faster than normal layers.
+
+  Constructor config:
+    clip: Object (optional) — set clip
+    clipX: Number (optional) — set clip x
+    clipY: Number (optional) — set clip y
+    clipWidth: Number (optional) — set clip width
+    clipHeight: Number (optional) — set clip height
+    clipFunc: function (optional) — set clip func
+
+### Example
+```javascript
+var layer = new Konva.FastLayer();
+```
+
+## Konva.Group extends Konva.Container
+
+Group constructor.  Groups are used to contain shapes or other groups.
+
+  Constructor config:
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional) — * @param {Object} [config.clip] set clip
+    clipX: Number (optional) — set clip x
+    clipY: Number (optional) — set clip y
+    clipWidth: Number (optional) — set clip width
+    clipHeight: Number (optional) — set clip height
+    clipFunc: function (optional) — set clip func
+
+### Example
+```javascript
+var group = new Konva.Group();
+```
+
+## Konva.Shape extends Konva.Node
+
+Shape constructor.  Shapes are primitive objects such as rectangles,  circles, text, lines, etc.
+
+  Constructor config:
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  stroke: String — get/set stroke color
+  strokeWidth: Number — get/set stroke width
+  fillAfterStrokeEnabled: Boolean — get/set fillAfterStrokeEnabled property. By default Konva is drawing filling first, then stroke on top of the fill. In rare situations you may want a different behavior. When you have a stroke first then fill on top of it. Especially useful for Text objects. Default is false.
+  hitStrokeWidth: Number — get/set stroke width for hit detection. Default value is "auto", it means it will be equals to strokeWidth
+  perfectDrawEnabled: Boolean — get/set perfectDrawEnabled. If a shape has fill, stroke and opacity you may set `perfectDrawEnabled` to false to improve performance. See http://konvajs.org/docs/performance/Disable_Perfect_Draw.html for more information. Default value is true
+  shadowForStrokeEnabled: Boolean — get/set shadowForStrokeEnabled. Useful for performance optimization. You may set `shape.shadowForStrokeEnabled(false)`. In this case stroke will no effect shadow. Remember if you set `shadowForStrokeEnabled = false` for non closed line - that line will have no shadow!. Default value is true
+  lineJoin: String — get/set line join.  Can be miter, round, or bevel.  The  default is miter
+  lineCap: String — get/set line cap.  Can be butt, round, or square
+  miterLimit: Number — get/set miterLimit.
+  sceneFunc: function — get/set scene draw function. That function is used to draw the shape on a canvas. Also that function will be used to draw hit area of the shape, in case if hitFunc is not defined.
+  hitFunc: function — get/set hit draw function. That function is used to draw custom hit area of a shape.
+  dash: Array — get/set dash array for stroke.
+  dash: Number — get/set dash offset for stroke.
+  shadowColor: String — get/set shadow color
+  shadowBlur: Number — get/set shadow blur
+  shadowOpacity: Number — get/set shadow opacity.  must be a value between 0 and 1
+  shadowOffset: Object — get/set shadow offset
+  shadowOffsetX: Number — get/set shadow offset x
+  shadowOffsetY: Number — get/set shadow offset y
+  fillPatternImage: Image — get/set fill pattern image
+  fill: String — get/set fill color
+  fillPatternX: Number — get/set fill pattern x
+  fillPatternY: Number — get/set fill pattern y
+  fillLinearGradientColorStops: Array — get/set fill linear gradient color stops
+  strokeLinearGradientColorStops: Array — get/set stroke linear gradient color stops
+  fillRadialGradientStartRadius: Number — get/set fill radial gradient start radius
+  fillRadialGradientEndRadius: Number — get/set fill radial gradient end radius
+  fillRadialGradientColorStops: Array — get/set fill radial gradient color stops
+  fillPatternRepeat: String — get/set fill pattern repeat.  Can be 'repeat', 'repeat-x', 'repeat-y', or 'no-repeat'.  The default is 'repeat'
+  fillEnabled: Boolean — get/set fill enabled flag
+  strokeEnabled: Boolean — get/set stroke enabled flag
+  shadowEnabled: Boolean — get/set shadow enabled flag
+  dashEnabled: Boolean — get/set dash enabled flag
+  strokeScaleEnabled: Boolean — get/set strokeScale enabled flag
+  fillPriority: String — get/set fill priority.  can be color, pattern, linear-gradient, or radial-gradient.  The default is color.   This is handy if you want to toggle between different fill types.
+  fillPatternOffset: Object — get/set fill pattern offset
+  fillPatternOffsetX: Number — get/set fill pattern offset x
+  fillPatternOffsetY: Number — get/set fill pattern offset y
+  fillPatternScale: Object — get/set fill pattern scale
+  fillPatternScaleX: Number — get/set fill pattern scale x
+  fillPatternScaleY: Number — get/set fill pattern scale y
+  fillLinearGradientStartPoint: Object — get/set fill linear gradient start point
+  strokeLinearGradientStartPoint: Object — get/set stroke linear gradient start point
+  fillLinearGradientStartPointX: Number — get/set fill linear gradient start point x
+  linearLinearGradientStartPointX: Number — get/set stroke linear gradient start point x
+  fillLinearGradientStartPointY: Number — get/set fill linear gradient start point y
+  strokeLinearGradientStartPointY: Number — get/set stroke linear gradient start point y
+  fillLinearGradientEndPoint: Object — get/set fill linear gradient end point
+  strokeLinearGradientEndPoint: Object — get/set stroke linear gradient end point
+  fillLinearGradientEndPointX: Number — get/set fill linear gradient end point x
+  strokeLinearGradientEndPointX: Number — get/set fill linear gradient end point x
+  fillLinearGradientEndPointY: Number — get/set fill linear gradient end point y
+  strokeLinearGradientEndPointY: Number — get/set stroke linear gradient end point y
+  fillRadialGradientStartPoint: Object — get/set fill radial gradient start point
+  fillRadialGradientStartPointX: Number — get/set fill radial gradient start point x
+  fillRadialGradientStartPointY: Number — get/set fill radial gradient start point y
+  fillRadialGradientEndPoint: Object — get/set fill radial gradient end point
+  fillRadialGradientEndPointX: Number — get/set fill radial gradient end point x
+  fillRadialGradientEndPointY: Number — get/set fill radial gradient end point y
+  fillPatternRotation: Konva.Shape — get/set fill pattern rotation in degrees
+  fillRule: Konva.Shape — get/set fill rule
+
+### Methods
+  getContext()
+  getCanvas()
+  hasShadow() → Boolean — returns whether or not a shadow will be rendered
+  hasFill() → Boolean — returns whether or not the shape will be filled
+  hasStroke() → Boolean — returns whether or not the shape will be stroked
+  intersects(point: Object, point.x: Number, point.y: Number) → Boolean — determines if point is in the shape, regardless if other shapes are on top of it.  Note: because  this method clears a temporary canvas and then redraws the shape, it performs very poorly if executed many times  consecutively.  Please use the {@link Konva.Stage#getIntersection} method if at all possible  because it performs much better
+  getSelfRect() → Object — return self rectangle (x, y, width, height) of shape. This method are not taken into account transformation and styles.
+  drawHitFromCache(alphaThreshold: Integer) → Konva.Shape — draw hit graph using the cached scene canvas
+  strokeHitEnabled(strokeHitEnabled: Boolean) → Boolean — **deprecated, use hitStrokeWidth instead!** get/set strokeHitEnabled property. Useful for performance optimization. You may set `shape.strokeHitEnabled(false)`. In this case stroke will be no draw on hit canvas, so hit area of shape will be decreased (by lineWidth / 2). Remember that non closed line with `strokeHitEnabled = false` will be not drawn on hit canvas, that is mean line will no trigger pointer events (like mouseover) Default value is true.
+
+### Example
+```javascript
+var customShape = new Konva.Shape({
+  x: 5,
+  y: 10,
+  fill: 'red',
+  // a Konva.Canvas renderer is passed into the sceneFunc function
+  sceneFunc (context, shape) {
+    context.beginPath();
+    context.moveTo(200, 50);
+    context.lineTo(420, 80);
+    context.quadraticCurveTo(300, 100, 260, 170);
+    context.closePath();
+    // Konva specific method
+    context.fillStrokeShape(shape);
+  }
+});
+```
+
+## Konva.Rect extends Konva.Shape
+
+Rect constructor
+
+  Constructor config:
+    cornerRadius: Number (optional)
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  cornerRadius: Number — get/set corner radius
+
+### Example
+```javascript
+var rect = new Konva.Rect({
+  width: 100,
+  height: 50,
+  fill: 'red',
+  stroke: 'black',
+  strokeWidth: 5
+});
+```
+
+## Konva.Circle extends Konva.Shape
+
+Circle constructor
+
+  Constructor config:
+    radius: Number
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  radius: Number — get/set radius
+
+### Example
+```javascript
+// create circle
+var circle = new Konva.Circle({
+  radius: 40,
+  fill: 'red',
+  stroke: 'black',
+  strokeWidth: 5
+});
+```
+
+## Konva.Ellipse extends Konva.Shape
+
+Ellipse constructor
+
+  Constructor config:
+    radius: Object — defines x and y radius
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  radius: Object — get/set radius
+  radiusX: Number — get/set radius x
+  radiusY: Number — get/set radius y
+
+### Example
+```javascript
+var ellipse = new Konva.Ellipse({
+  radius : {
+    x : 50,
+    y : 50
+  },
+  fill: 'red'
+});
+```
+
+## Konva.Line extends Konva.Shape
+
+Line constructor.&nbsp; Lines are defined by an array of points and  a tension
+
+  Constructor config:
+    points: Array — Flat array of points coordinates. You should define them as [x1, y1, x2, y2, x3, y3].
+    tension: Number (optional) — Higher values will result in a more curvy line.  A value of 0 will result in no interpolation.   The default is 0
+    closed: Boolean (optional) — defines whether or not the line shape is closed, creating a polygon or blob
+    bezier: Boolean (optional) — if no tension is provided but bezier=true, we draw the line as a bezier using the passed points
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  closed: Boolean — get/set closed flag.  The default is false
+  bezier: Boolean — get/set bezier flag.  The default is false
+  tension: Number — get/set tension
+  points: Array — get/set points array. Points is a flat array [x1, y1, x2, y2]. It is flat for performance reasons.
+
+### Example
+```javascript
+var line = new Konva.Line({
+  x: 100,
+  y: 50,
+  points: [73, 70, 340, 23, 450, 60, 500, 20],
+  stroke: 'red',
+  tension: 1
+});
+```
+
+## Konva.Arrow extends Konva.Line
+
+Arrow constructor
+
+  Constructor config:
+    points: Array — Flat array of points coordinates. You should define them as [x1, y1, x2, y2, x3, y3].
+    tension: Number (optional) — Higher values will result in a more curvy line.  A value of 0 will result in no interpolation.   The default is 0
+    pointerLength: Number — Arrow pointer length. Default value is 10.
+    pointerWidth: Number — Arrow pointer width. Default value is 10.
+    pointerAtBeginning: Boolean — Do we need to draw pointer on beginning position?. Default false.
+    pointerAtEnding: Boolean — Do we need to draw pointer on ending position?. Default true.
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  pointerLength: Number — get/set pointerLength
+  pointerWidth: Number — get/set pointerWidth
+  pointerAtBeginning: Boolean — get/set pointerAtBeginning
+  pointerAtEnding: Boolean — get/set pointerAtEnding
+
+### Example
+```javascript
+var line = new Konva.Line({
+  points: [73, 70, 340, 23, 450, 60, 500, 20],
+  stroke: 'red',
+  tension: 1,
+  pointerLength : 10,
+  pointerWidth : 12
+});
+```
+
+## Konva.Arc extends Konva.Shape
+
+Arc constructor
+
+  Constructor config:
+    angle: Number — in degrees
+    innerRadius: Number
+    outerRadius: Number
+    clockwise: Boolean (optional)
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  innerRadius: Number — get/set innerRadius
+  outerRadius: Number — get/set outerRadius
+  angle: Number — get/set angle in degrees
+  clockwise: Boolean — get/set clockwise flag
+
+### Example
+```javascript
+// draw a Arc that's pointing downwards
+var arc = new Konva.Arc({
+  innerRadius: 40,
+  outerRadius: 80,
+  fill: 'red',
+  stroke: 'black'
+  strokeWidth: 5,
+  angle: 60,
+  rotationDeg: -120
+});
+```
+
+## Konva.Ring extends Konva.Shape
+
+Ring constructor
+
+  Constructor config:
+    innerRadius: Number
+    outerRadius: Number
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  innerRadius: Number — get/set innerRadius
+  outerRadius: Number — get/set outerRadius
+
+### Example
+```javascript
+var ring = new Konva.Ring({
+  innerRadius: 40,
+  outerRadius: 80,
+  fill: 'red',
+  stroke: 'black',
+  strokeWidth: 5
+});
+```
+
+## Konva.Wedge extends Konva.Shape
+
+Wedge constructor
+
+  Constructor config:
+    angle: Number — in degrees
+    radius: Number
+    clockwise: Boolean (optional)
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  radius: Number — get/set radius
+  angle: Number — get/set angle in degrees
+  clockwise: Number — get/set clockwise flag
+
+### Example
+```javascript
+// draw a wedge that's pointing downwards
+var wedge = new Konva.Wedge({
+  radius: 40,
+  fill: 'red',
+  stroke: 'black'
+  strokeWidth: 5,
+  angleDeg: 60,
+  rotationDeg: -120
+});
+```
+
+## Konva.Star extends Konva.Shape
+
+Star constructor
+
+  Constructor config:
+    numPoints: Integer
+    innerRadius: Number
+    outerRadius: Number
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  numPoints: Number — get/set number of points
+  innerRadius: Number — get/set innerRadius
+  outerRadius: Number — get/set outerRadius
+
+### Example
+```javascript
+var star = new Konva.Star({
+  x: 100,
+  y: 200,
+  numPoints: 5,
+  innerRadius: 70,
+  outerRadius: 70,
+  fill: 'red',
+  stroke: 'black',
+  strokeWidth: 4
+});
+```
+
+## Konva.RegularPolygon extends Konva.Shape
+
+RegularPolygon constructor. Examples include triangles, squares, pentagons, hexagons, etc.
+
+  Constructor config:
+    cornerRadius: Number (optional)
+    sides: Number
+    radius: Number
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  radius: Number — get/set radius
+  sides: Number — get/set sides
+  cornerRadius: Number — get/set corner radius
+
+### Example
+```javascript
+var hexagon = new Konva.RegularPolygon({
+  x: 100,
+  y: 200,
+  sides: 6,
+  radius: 70,
+  fill: 'red',
+  stroke: 'black',
+  strokeWidth: 4
+});
+```
+
+## Konva.Path extends Konva.Shape
+
+Path constructor.
+
+  Constructor config:
+    data: String — SVG data string
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  getPointAtLength: Object — Get point on path at specific length of the path
+  data: String — get/set SVG path data string.  This method  also automatically parses the data string  into a data array.  Currently supported SVG data:  M, m, L, l, H, h, V, v, Q, q, T, t, C, c, S, s, A, a, Z, z
+
+### Methods
+  getLength() → Number — Return length of the path.
+
+### Example
+```javascript
+var path = new Konva.Path({
+  x: 240,
+  y: 40,
+  data: 'M12.582,9.551C3.251,16.237,0.921,29.021,7.08,38.564l-2.36,1.689l4.893,2.262l4.893,2.262l-0.568-5.36l-0.567-5.359l-2.365,1.694c-4.657-7.375-2.83-17.185,4.352-22.33c7.451-5.338,17.817-3.625,23.156,3.824c5.337,7.449,3.625,17.813-3.821,23.152l2.857,3.988c9.617-6.893,11.827-20.277,4.935-29.896C35.591,4.87,22.204,2.658,12.582,9.551z',
+  fill: 'green',
+  scaleX: 2,
+  scaleY: 2
+});
+```
+
+## Konva.Text extends Konva.Shape
+
+Text constructor
+
+  Constructor config:
+    direction: String (optional) — default is inherit
+    fontFamily: String (optional) — default is Arial
+    fontSize: Number (optional) — in pixels.  Default is 12
+    fontStyle: String (optional) — can be 'normal', 'italic', or 'bold', '500' or even 'italic bold'.  'normal' is the default.
+    fontVariant: String (optional) — can be normal or small-caps.  Default is normal
+    textDecoration: String (optional) — can be line-through, underline or empty string. Default is empty string.
+    underlineOffset: String (optional) — offset for underline line. Default is calculated based on font size.
+    text: String
+    align: String (optional) — can be left, center, right or justify
+    verticalAlign: String (optional) — can be top, middle or bottom
+    padding: Number (optional)
+    lineHeight: Number (optional) — default is 1
+    wrap: String (optional) — can be "word", "char", or "none". Default is word
+    ellipsis: Boolean (optional) — can be true or false. Default is false. if Konva.Text config is set to wrap="none" and ellipsis=true, then it will add "..." to the end
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  getTextWidth: Number — get pure text width without padding
+  width: Number — get/set width of text area, which includes padding.
+  height: Number — get/set the height of the text area, which takes into account multi-line text, line heights, and padding.
+  direction: String — get/set direction
+  fontFamily: String — get/set font family
+  fontSize: Number — get/set font size in pixels
+  fontStyle: String — get/set font style.  Can be 'normal', 'italic', or 'bold', '500' or even 'italic bold'.  'normal' is the default.
+  fontVariant: String — get/set font variant.  Can be 'normal' or 'small-caps'.  'normal' is the default.
+  padding: Number — get/set padding
+  align: String — get/set horizontal align of text.  Can be 'left', 'center', 'right' or 'justify'
+  verticalAlign: String — get/set vertical align of text.  Can be 'top', 'middle', 'bottom'.
+  lineHeight: Number — get/set line height.  The default is 1.
+  wrap: String — get/set wrap.  Can be "word", "char", or "none". Default is "word". In "word" wrapping any word still can be wrapped if it can't be placed in the required width without breaks.
+  ellipsis: Boolean — get/set ellipsis. Can be true or false. Default is false. If ellipses is true, Konva will add "..." at the end of the text if it doesn't have enough space to write characters. That is possible only when you limit both width and height of the text
+  letterSpacing: Number — set letter spacing property. Default value is 0.
+  text: String — get/set text
+  textDecoration: String — get/set text decoration of a text.  Possible values are 'underline', 'line-through' or combination of these values separated by space
+  underlineOffset: Number — get/set text underline decoration offset. Offset for underline line. Default is calculated based on font size.
+  charRenderFunc: function — get/set per-character render hook. The callback is invoked for each grapheme before drawing. It can mutate the provided context (e.g. translate, rotate, change styles) and should return void. Note: per-character rendering may disable native kerning/ligatures.
+
+### Methods
+  measureSize(text: String) → Object — measure string with the font of current text shape. That method can't handle multiline text.
+  _shouldHandleEllipsis(currentHeightPx: Number) → Boolean — whether to handle ellipsis, there are two cases: 1. the current line is the last line 2. wrap is NONE
+
+### Example
+```javascript
+var text = new Konva.Text({
+  x: 10,
+  y: 15,
+  text: 'Simple Text',
+  fontSize: 30,
+  fontFamily: 'Calibri',
+  fill: 'green'
+});
+```
+
+## Konva.TextPath extends Konva.Shape
+
+Path constructor.
+
+  Constructor config:
+    fontFamily: String (optional) — default is Arial
+    fontSize: Number (optional) — default is 12
+    fontStyle: String (optional) — Can be 'normal', 'italic', or 'bold', '500' or even 'italic bold'.  'normal' is the default.
+    fontVariant: String (optional) — can be normal or small-caps.  Default is normal
+    textBaseline: String (optional) — Can be 'top', 'bottom', 'middle', 'alphabetic', 'hanging'. Default is middle
+    text: String
+    data: String — SVG data string
+    kerningFunc: function — a getter for kerning values for the specified characters
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  getTextWidth: any — get text width in pixels
+  data: String — get/set SVG path data string.  This method  also automatically parses the data string  into a data array.  Currently supported SVG data:  M, m, L, l, H, h, V, v, Q, q, T, t, C, c, S, s, A, a, Z, z
+  fontFamily: String — get/set font family
+  fontSize: Number — get/set font size in pixels
+  fontStyle: String — get/set font style.  Can be 'normal', 'italic', or 'bold', '500' or even 'italic bold'.  'normal' is the default.
+  align: String — get/set horizontal align of text.  Can be 'left', 'center', 'right' or 'justify'
+  letterSpacing: Number — get/set letter spacing.  The default is 0.
+  textBaseline: String — get/set text baseline.  The default is 'middle'. Can be 'top', 'bottom', 'middle', 'alphabetic', 'hanging'
+  fontVariant: String — get/set font variant.  Can be 'normal' or 'small-caps'.  'normal' is the default.
+  getText: String — get/set text
+  textDecoration: String — get/set text decoration of a text.  Can be '', 'underline', 'line-through', or a combination like 'underline line-through'.
+  kerningFunc: String — get/set kerning function.
+
+### Example
+```javascript
+var kerningPairs = {
+  'A': {
+    ' ': -0.05517578125,
+    'T': -0.07421875,
+    'V': -0.07421875
+  }
+  'V': {
+    ',': -0.091796875,
+    ":": -0.037109375,
+    ";": -0.037109375,
+    "A": -0.07421875
+  }
+}
+var textpath = new Konva.TextPath({
+  x: 100,
+  y: 50,
+  fill: '#333',
+  fontSize: '24',
+  fontFamily: 'Arial',
+  text: 'All the world\'s a stage, and all the men and women merely players.',
+  data: 'M10,10 C0,0 10,150 100,100 S300,150 400,50',
+  kerningFunc(leftChar, rightChar) {
+    return kerningPairs.hasOwnProperty(leftChar) ? pairs[leftChar][rightChar] || 0 : 0
+  }
+});
+```
+
+## Konva.Image extends Konva.Shape
+
+Image constructor
+
+  Constructor config:
+    image: Image
+    crop: Object (optional)
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  cornerRadius: Number — get/set corner radius
+  image: Object — get/set image source. It can be image, canvas or video element
+  crop: Object — get/set crop
+  cropX: Number — get/set crop x
+  cropY: Number — get/set crop y
+  cropWidth: Number — get/set crop width
+  cropHeight: Number — get/set crop height
+
+### Methods
+  Image.fromURL(url: String, callback: function, onError: function) — load image from given url and create `Konva.Image` instance
+
+### Example
+```javascript
+var imageObj = new Image();
+imageObj.onload = function() {
+  var image = new Konva.Image({
+    x: 200,
+    y: 50,
+    image: imageObj,
+    width: 100,
+    height: 100
+  });
+};
+imageObj.src = '/path/to/image.jpg'
+```
+
+## Konva.Sprite extends Konva.Shape
+
+Sprite constructor
+
+  Constructor config:
+    animation: String — animation key
+    animations: Object — animation map
+    frameIndex: Integer (optional) — animation frame index
+    image: Image — image object
+    frameRate: Integer (optional) — animation frame rate
+    fill: String (optional) — fill color
+    fillPatternImage: Image (optional) — fill pattern image
+    fillPatternX: Number (optional)
+    fillPatternY: Number (optional)
+    fillPatternOffset: Object (optional) — object with x and y component
+    fillPatternOffsetX: Number (optional)
+    fillPatternOffsetY: Number (optional)
+    fillPatternScale: Object (optional) — object with x and y component
+    fillPatternScaleX: Number (optional)
+    fillPatternScaleY: Number (optional)
+    fillPatternRotation: Number (optional)
+    fillPatternRepeat: String (optional) — can be "repeat", "repeat-x", "repeat-y", or "no-repeat".  The default is "no-repeat"
+    fillLinearGradientStartPoint: Object (optional) — object with x and y component
+    fillLinearGradientStartPointX: Number (optional)
+    fillLinearGradientStartPointY: Number (optional)
+    fillLinearGradientEndPoint: Object (optional) — object with x and y component
+    fillLinearGradientEndPointX: Number (optional)
+    fillLinearGradientEndPointY: Number (optional)
+    fillLinearGradientColorStops: Array (optional) — array of color stops
+    fillRadialGradientStartPoint: Object (optional) — object with x and y component
+    fillRadialGradientStartPointX: Number (optional)
+    fillRadialGradientStartPointY: Number (optional)
+    fillRadialGradientEndPoint: Object (optional) — object with x and y component
+    fillRadialGradientEndPointX: Number (optional)
+    fillRadialGradientEndPointY: Number (optional)
+    fillRadialGradientStartRadius: Number (optional)
+    fillRadialGradientEndRadius: Number (optional)
+    fillRadialGradientColorStops: Array (optional) — array of color stops
+    fillEnabled: Boolean (optional) — flag which enables or disables the fill.  The default value is true
+    fillPriority: String (optional) — can be color, linear-gradient, radial-graident, or pattern.  The default value is color.  The fillPriority property makes it really easy to toggle between different fill types.  For example, if you want to toggle between a fill color style and a fill pattern style, simply set the fill property and the fillPattern properties, and then use setFillPriority('color') to render the shape with a color fill, or use setFillPriority('pattern') to render the shape with the pattern fill configuration
+    stroke: String (optional) — stroke color
+    strokeWidth: Number (optional) — stroke width
+    fillAfterStrokeEnabled: Boolean (optional) — Should we draw fill AFTER stroke? Default is false.
+    hitStrokeWidth: Number (optional) — size of the stroke on hit canvas.  The default is "auto" - equals to strokeWidth
+    strokeHitEnabled: Boolean (optional) — flag which enables or disables stroke hit region.  The default is true
+    perfectDrawEnabled: Boolean (optional) — flag which enables or disables using buffer canvas.  The default is true
+    shadowForStrokeEnabled: Boolean (optional) — flag which enables or disables shadow for stroke.  The default is true
+    strokeScaleEnabled: Boolean (optional) — flag which enables or disables stroke scale.  The default is true
+    strokeEnabled: Boolean (optional) — flag which enables or disables the stroke.  The default value is true
+    lineJoin: String (optional) — can be miter, round, or bevel.  The default  is miter
+    lineCap: String (optional) — can be butt, round, or square.  The default  is butt
+    shadowColor: String (optional)
+    shadowBlur: Number (optional)
+    shadowOffset: Object (optional) — object with x and y component
+    shadowOffsetX: Number (optional)
+    shadowOffsetY: Number (optional)
+    shadowOpacity: Number (optional) — shadow opacity.  Can be any real number  between 0 and 1
+    shadowEnabled: Boolean (optional) — flag which enables or disables the shadow.  The default value is true
+    dash: Array (optional)
+    dashEnabled: Boolean (optional) — flag which enables or disables the dashArray.  The default value is true
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  animation: String — get/set animation key
+  animations: Object — get/set animations map
+  offsets: Object — get/set offsets map
+  image: Image — get/set image
+  frameRate: Integer — get/set frame rate in frames per second.  Increase this number to make the sprite  animation run faster, and decrease the number to make the sprite animation run slower  The default is 17 frames per second
+
+### Methods
+  start() — start sprite animation
+  stop() — stop sprite animation
+  isRunning() → Boolean — determine if animation of sprite is running or not.  returns true or false
+  frameIndex(frameIndex: Integer) → Integer — set/set animation frame index
+
+### Example
+```javascript
+var imageObj = new Image();
+imageObj.onload = function() {
+  var sprite = new Konva.Sprite({
+    x: 200,
+    y: 100,
+    image: imageObj,
+    animation: 'standing',
+    animations: {
+      standing: [
+        // x, y, width, height (6 frames)
+        0, 0, 49, 109,
+        52, 0, 49, 109,
+        105, 0, 49, 109,
+        158, 0, 49, 109,
+        210, 0, 49, 109,
+        262, 0, 49, 109
+      ],
+      kicking: [
+        // x, y, width, height (6 frames)
+        0, 109, 45, 98,
+        45, 109, 45, 98,
+        95, 109, 63, 98,
+        156, 109, 70, 98,
+        229, 109, 60, 98,
+        287, 109, 41, 98
+      ]
+    },
+    frameRate: 7,
+    frameIndex: 0
+  });
+};
+imageObj.src = '/path/to/image.jpg'
+```
+
+## Konva.Label
+
+Label constructor.&nbsp; Labels are groups that contain a Text and Tag shape
+
+  Constructor config:
+    x: Number (optional)
+    y: Number (optional)
+    width: Number (optional)
+    height: Number (optional)
+    visible: Boolean (optional)
+    listening: Boolean (optional) — whether or not the node is listening for events
+    id: String (optional) — unique id
+    name: String (optional) — non-unique name
+    opacity: Number (optional) — determines node opacity.  Can be any number between 0 and 1
+    scale: Object (optional) — set scale
+    scaleX: Number (optional) — set scale x
+    scaleY: Number (optional) — set scale y
+    rotation: Number (optional) — rotation in degrees
+    offset: Object (optional) — offset from center point and rotation point
+    offsetX: Number (optional) — set offset x
+    offsetY: Number (optional) — set offset y
+    draggable: Boolean (optional) — makes the node draggable.  When stages are draggable, you can drag and drop  the entire stage by dragging any portion of the stage
+    dragDistance: Number (optional)
+    dragBoundFunc: function (optional)
+
+### Properties (getter/setter)
+  getText: any — get Text shape for the label.  You need to access the Text shape in order to update the text properties
+  getTag: any — get Tag shape for the label.  You need to access the Tag shape in order to update the pointer properties and the corner radius
+
+### Example
+```javascript
+// create label
+var label = new Konva.Label({
+  x: 100,
+  y: 100,
+  draggable: true
+});
+
+// add a tag to the label
+label.add(new Konva.Tag({
+  fill: '#bbb',
+  stroke: '#333',
+  shadowColor: 'black',
+  shadowBlur: 10,
+  shadowOffset: [10, 10],
+  shadowOpacity: 0.2,
+  lineJoin: 'round',
+  pointerDirection: 'up',
+  pointerWidth: 20,
+  pointerHeight: 20,
+  cornerRadius: 5
+}));
+
+// add text to the label
+label.add(new Konva.Text({
+  text: 'Hello World!',
+  fontSize: 50,
+  lineHeight: 1.2,
+  padding: 10,
+  fill: 'green'
+ }));
+```
+
+## Konva.Tag
+
+Tag constructor.&nbsp; A Tag can be configured  to have a pointer element that points up, right, down, or left
+
+  Constructor config:
+    pointerDirection: String (optional) — can be up, right, down, left, or none; the default  is none.  When a pointer is present, the positioning of the label is relative to the tip of the pointer.
+    pointerWidth: Number (optional)
+    pointerHeight: Number (optional)
+    cornerRadius: Number (optional)
+
+### Properties (getter/setter)
+  pointerDirection: String — get/set pointer direction
+  pointerWidth: Number — get/set pointer width
+  pointerHeight: Number — get/set pointer height
+  cornerRadius: Number — get/set cornerRadius
+
+## Konva.Transformer
+
+Transformer constructor.  Transformer is a special type of group that allow you transform Konva primitives and shapes. Transforming tool is not changing `width` and `height` properties of nodes when you resize them. Instead it changes `scaleX` and `scaleY` properties.
+
+  Constructor config:
+    resizeEnabled: Boolean (optional) — Default is true
+    rotateEnabled: Boolean (optional) — Default is true
+    rotateLineVisible: Boolean (optional) — Default is true
+    rotationSnaps: Array (optional) — Array of angles for rotation snaps. Default is []
+    rotationSnapTolerance: Number (optional) — Snapping tolerance. If closer than this it will snap. Default is 5
+    rotateAnchorOffset: Number (optional) — Default is 50
+    rotateAnchorCursor: String (optional) — Default is crosshair
+    padding: Number (optional) — Default is 0
+    borderEnabled: Boolean (optional) — Should we draw border? Default is true
+    borderStroke: String (optional) — Border stroke color
+    borderStrokeWidth: Number (optional) — Border stroke size
+    borderDash: Array (optional) — Array for border dash.
+    anchorFill: String (optional) — Anchor fill color
+    anchorStroke: String (optional) — Anchor stroke color
+    anchorCornerRadius: String (optional) — Anchor corner radius
+    anchorStrokeWidth: Number (optional) — Anchor stroke size
+    anchorSize: Number (optional) — Default is 10
+    keepRatio: Boolean (optional) — Should we keep ratio when we are moving edges? Default is true
+    shiftBehavior: String (optional) — How does transformer react on shift key press when we are moving edges? Default is 'default'
+    centeredScaling: Boolean (optional) — Should we resize relative to node's center? Default is false
+    enabledAnchors: Array (optional) — Array of names of enabled handles
+    flipEnabled: Boolean (optional) — Can we flip/mirror shape on transform?. True by default
+    boundBoxFunc: function (optional) — Bounding box function
+    ignoreStroke: function (optional) — Should we ignore stroke size? Default is false
+    useSingleNodeRotation: Boolean (optional) — When just one node attached, should we use its rotation for transformer?
+    shouldOverdrawWholeArea: Boolean (optional) — Should we fill whole transformer area with fake transparent shape to enable dragging from empty spaces?
+
+### Properties (getter/setter)
+  enabledAnchors: Array — get/set enabled handlers
+  flipEnabled: Boolean — get/set flip enabled
+  resizeEnabled: Boolean — get/set resize ability. If false it will automatically hide resizing handlers
+  anchorSize: Number — get/set anchor size. Default is 10
+  rotateEnabled: Boolean — get/set ability to rotate.
+  rotateLineVisible: Boolean — get/set visibility of a little line that connects transformer and rotate anchor.
+  rotationSnaps: Array — get/set rotation snaps angles.
+  rotateAnchorOffset: Number — get/set distance for rotation handler
+  rotateAnchorAngle: Number — get/set the angle (in degrees) of the rotation anchor position around the bounding box. 0 = top-center (default), 90 = middle-right, 180 = bottom-center, -90 = middle-left
+  rotateAnchorCursor: String — get/set rotation anchor cursor
+  rotationSnapTolerance: Number — get/set distance for rotation tolerance
+  borderEnabled: Boolean — get/set visibility of border
+  anchorStroke: String — get/set anchor stroke color
+  anchorStrokeWidth: Number — get/set anchor stroke width
+  anchorFill: String — get/set anchor fill color
+  anchorCornerRadius: Number — get/set anchor corner radius
+  borderStroke: Boolean — get/set border stroke color
+  borderStrokeWidth: Number — get/set border stroke width
+  borderDash: Array — get/set border dash array
+  keepRatio: Boolean — get/set should we keep ratio while resize anchors at corners
+  shiftBehavior: String — get/set how to react on skift key while resizing anchors at corners
+  centeredScaling: Boolean — get/set should we resize relative to node's center?
+  ignoreStroke: Boolean — get/set should we think about stroke while resize? Good to use when a shape has strokeScaleEnabled = false default is false
+  padding: Number — get/set padding
+  nodes: Konva.Node — get/set attached nodes of the Transformer. Transformer will adapt to their size and listen to their events
+  boundBoxFunc: function — get/set bounding box function. **IMPORTANT!** boundBondFunc operates in absolute coordinates.
+  anchorDragBoundFunc: function — get/set dragging func for transformer anchors
+  anchorStyleFunc: function — get/set styling function for transformer anchors to overwrite default styles
+
+### Methods
+  attachTo() → Konva.Transformer — alias to `tr.nodes([shape])`/ This method is deprecated and will be removed soon.
+  getActiveAnchor() → String | Null — return the name of current active anchor
+  detach() → Konva.Transformer — detach transformer from an attached node
+  on(evtStr: String, handler: function) → Konva.Transformer — bind events to the Transformer. You can use events: `transform`, `transformstart`, `transformend`, `dragstart`, `dragmove`, `dragend`
+  forceUpdate() — force update of Konva.Transformer. Use it when you updated attached Konva.Group and now you need to reset transformer size
+  isTransforming() → Boolean — determine if transformer is in active transform
+  stopTransform() → Boolean — Stop active transform action
+  shouldOverdrawWholeArea(shouldOverdrawWholeArea: Boolean) → Boolean — using this setting you can drag transformer group by dragging empty space between attached nodes shouldOverdrawWholeArea = true may temporary disable all events on attached nodes
+  useSingleNodeRotation(useSingleNodeRotation: Boolean) → Boolean — If you have just one attached node to Transformer it will set its initial rotation to the rotation of that node. In some cases you may need to set a different rotation.
+
+### Example
+```javascript
+var transformer = new Konva.Transformer({
+  nodes: [rectangle],
+  rotateAnchorOffset: 60,
+  enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+});
+layer.add(transformer);
+```
+
+## Konva.Animation
+
+Animation constructor.
+
+### Properties (getter/setter)
+  setLayers: Konva.Animation — set layers to be redrawn on each animation frame
+  getLayers: Array — get layers
+
+### Methods
+  addLayer(layer: Konva.Layer) → Bool — add layer.  Returns true if the layer was added, and false if it was not
+  isRunning() → Bool — determine if animation is running or not.  returns true or false
+  start() → Konva.Animation — start animation
+  stop() → Konva.Animation — stop animation
+
+### Example
+```javascript
+// move a node to the right at 50 pixels / second
+var velocity = 50;
+
+var anim = new Konva.Animation(function(frame) {
+  var dist = velocity * (frame.timeDiff / 1000);
+  node.move({x: dist, y: 0});
+}, layer);
+
+anim.start();
+```
+
+## Konva.Tween
+
+Tween constructor.  Tweens enable you to animate a node between the current state and a new state.  You can play, pause, reverse, seek, reset, and finish tweens.  By default, tweens are animated using  a linear easing.  For more tweening options, check out {@link Konva.Easings}
+
+### Methods
+  play() → Tween — play
+  reverse() → Tween — reverse
+  reset() → Tween — reset
+  seek((t: Integer) → Tween — seek
+  pause() → Tween — pause
+  finish() → Tween — finish
+  destroy() — destroy
+
+### Example
+```javascript
+// instantiate new tween which fully rotates a node in 1 second
+var tween = new Konva.Tween({
+  // list of tween specific properties
+  node: node,
+  duration: 1,
+  easing: Konva.Easings.EaseInOut,
+  onUpdate: () => console.log('node attrs updated')
+  onFinish: () => console.log('finished'),
+  // set new values for any attributes of a passed node
+  rotation: 360,
+  fill: 'red'
+});
+
+// play tween
+tween.play();
+
+// pause tween
+tween.pause();
+```
+
+## Konva.Canvas
+
+Canvas Renderer constructor. It is a wrapper around native canvas element. Usually you don't need to use it manually.
+
+  Constructor config:
+    width: Number
+    height: Number
+    pixelRatio: Number
+
+### Properties (getter/setter)
+  getContext: CanvasContext — get canvas context
+  getPixelRatio: Number — get pixel ratio
+  setPixelRatio: Number — set pixel ratio KonvaJS automatically handles pixel ratio adustments in order to render crisp drawings  on all devices. Most desktops, low end tablets, and low end phones, have device pixel ratios  of 1.  Some high end tablets and phones, like iPhones and iPads have a device pixel ratio  of 2.  Some Macbook Pros, and iMacs also have a device pixel ratio of 2.  Some high end Android devices have pixel  ratios of 2 or 3.  Some browsers like Firefox allow you to configure the pixel ratio of the viewport.  Unless otherwise  specificed, the pixel ratio will be defaulted to the actual device pixel ratio.  You can override the device pixel  ratio for special situations, or, if you don't want the pixel ratio to be taken into account, you can set it to 1.
+
+### Methods
+  toDataURL(mimeType: String, quality: Number) → String — to data url
+
+## Konva.Context
+
+Konva wrapper around native 2d canvas context. It has almost the same API of 2d context with some additional functions. With core Konva shapes you don't need to use this object. But you will use it if you want to create a [custom shape](/docs/react/Custom_Shape.html) or a [custom hit regions](/docs/events/Custom_Hit_Region.html). For full information about each 2d context API use [MDN documentation](https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D)
+
+### Properties (getter/setter)
+  getCanvas: Konva.Canvas — get canvas wrapper
+
+### Methods
+  fillShape(shape: Konva.Shape) — fill shape
+  strokeShape(shape: Konva.Shape) — stroke shape
+  fillStrokeShape(shape: Konva.Shape) — fill then stroke
+  reset() — reset canvas context transform
+  clear(bounds?: Object, bounds.x?: Number, bounds.y?: Number, bounds.width?: Number, bounds.height?: Number) — clear canvas
+  arc() — arc function.
+  arcTo() — arcTo function.
+  beginPath() — beginPath function.
+  bezierCurveTo() — bezierCurveTo function.
+  clearRect() — clearRect function.
+  closePath() — closePath function.
+  createImageData() — createImageData function.
+  createLinearGradient() — createLinearGradient function.
+  createPattern() — createPattern function.
+  createRadialGradient() — createRadialGradient function.
+  drawImage() — drawImage function.
+  ellipse() — ellipse function.
+  isPointInPath() — isPointInPath function.
+  fillRect() — fillRect function.
+  strokeRect() — strokeRect function.
+  fillText() — fillText function.
+  measureText() — measureText function.
+  getImageData() — getImageData function.
+  lineTo() — lineTo function.
+  moveTo() — moveTo function.
+  rect() — rect function.
+  roundRect() — roundRect function.
+  putImageData() — putImageData function.
+  quadraticCurveTo() — quadraticCurveTo function.
+  restore() — restore function.
+  rotate() — rotate function.
+  save() — save function.
+  scale() — scale function.
+  setLineDash() — setLineDash function.
+  getLineDash() — getLineDash function.
+  setTransform() — setTransform function.
+  stroke() — stroke function.
+  strokeText() — strokeText function.
+  transform() — transform function.
+  translate() — translate function.
+
+### Example
+```javascript
+const rect = new Konva.Shape({
+   fill: 'red',
+   width: 100,
+   height: 100,
+   sceneFunc: (ctx, shape) => {
+     // ctx - is context wrapper
+     // shape - is instance of Konva.Shape, so it equals to "rect" variable
+     ctx.rect(0, 0, shape.getAttr('width'), shape.getAttr('height'));
+
+     // automatically fill shape from props and draw hit region
+     ctx.fillStrokeShape(shape);
+   }
+})
+```
+
+## Konva.Transform
+
+Transform constructor. In most of the cases you don't need to use it in your app. Because it is for internal usage in Konva core. But there is a documentation for that class in case you still want to make some manual calculations.
+
+### Methods
+  copy() → Konva.Transform — Copy Konva.Transform object
+  point(point: Object) → Object — Transform point
+  translate(x: Number, y: Number) → Konva.Transform — Apply translation
+  scale(sx: Number, sy: Number) → Konva.Transform — Apply scale
+  rotate(rad: Number) → Konva.Transform — Apply rotation
+  getTranslation() → Object — Returns the translation
+  skew(sx: Number, sy: Number) → Konva.Transform — Apply skew
+  multiply(matrix: Konva.Transform) → Konva.Transform — Transform multiplication
+  invert() → Konva.Transform — Invert the matrix
+  getMatrix() — return matrix
+  decompose() → Konva.Transform — convert transformation matrix back into node's attributes
+
+## Konva.Util
+
+### Methods
+  getRandomColor() — return random hex color
+  isCanvasFarblingActive() → Boolean — Check if canvas farbling is active (e.g., Brave browser fingerprinting protection)
+  getHitColor() → String — Get a random color for hit detection (normalized if farbling is active)
+  getHitColorKey(r: Number, g: Number, b: Number) → String — Get hit color key from RGB values (normalized if farbling is active)
+  getSnappedHexColor(hex: String) → String — Snap hex color values to end with 0 (normalize for canvas farbling)
+  getRGB(color: String) — get RGB components of a color
+  haveIntersection(r1: Object, r2: Object) — check intersection of two client rectangles
+
+## Konva.Easings
+
+### Methods
+  BackEaseIn() — back ease in
+  BackEaseOut() — back ease out
+  BackEaseInOut() — back ease in out
+  ElasticEaseIn() — elastic ease in
+  ElasticEaseOut() — elastic ease out
+  ElasticEaseInOut() — elastic ease in out
+  BounceEaseOut() — bounce ease out
+  BounceEaseIn() — bounce ease in
+  BounceEaseInOut() — bounce ease in out
+  EaseIn() — ease in
+  EaseOut() — ease out
+  EaseInOut() — ease in out
+  StrongEaseIn() — strong ease in
+  StrongEaseOut() — strong ease out
+  StrongEaseInOut() — strong ease in out
+  Linear() — linear
+
+## Konva.Filters
+
+### Methods
+  Blur(imageData: Object) — Blur Filter
+  Brighten(imageData: Object) — Brighten Filter.
+  Brightness(imageData: Object) — Brightness Filter. CSS-compatible brightness filter that uses multiplicative approach.
+  Contrast(imageData: Object) — Contrast Filter.
+  Emboss(imageData: Object) — Emboss Filter.
+  Enhance(imageData: Object) — Enhance Filter. Adjusts the colors so that they span the widest  possible range (ie 0-255). Performs w*h pixel reads and w*h pixel  writes.
+  Grayscale(imageData: Object) — Grayscale Filter
+  HSL(imageData: Object) — HSL Filter. Adjusts the hue, saturation and luminance (or lightness)
+  HSV(imageData: Object) — HSV Filter. Adjusts the hue, saturation and value
+  Invert(imageData: Object) — Invert Filter
+  Mask(imageData: Object) — Mask Filter
+  Noise(imageData: Object) — Noise Filter. Randomly adds or substracts to the color channels
+  Pixelate(imageData: Object) — Pixelate Filter. Averages groups of pixels and redraws  them as larger pixels
+  Posterize(imageData: Object) — Posterize Filter. Adjusts the channels so that there are no more  than n different values for that channel. This is also applied  to the alpha channel.
+  RGB(imageData: Object) — RGB Filter
+  RGBA(imageData: Object) — RGBA Filter
+  Sepia(imageData: Object)
+  Solarize(imageData: Object) — Solarize Filter
+  Threshold(imageData: Object) — Threshold Filter. Pushes any value above the mid point to  the max and any value below the mid point to the min.  This affects the alpha channel.

@@ -28,6 +28,8 @@ import { SitemapArtifacts } from './collections/SitemapArtifacts';
 import { Navbar } from './components/site/navbar/config';
 import { StandardMedia } from './collections/StandardMedia';
 import { MediaCanvas } from './collections/MediaCanvas';
+import { GraphicTemplates } from './collections/GraphicTemplates';
+import { GraphicDesigns } from './collections/GraphicDesigns';
 import { RepInfo } from './collections/RepInfo';
 import { SiteSEO } from './collections/SiteSEO';
 import { Header } from './components/site/header/config';
@@ -118,6 +120,8 @@ const mcpCollections = {
   'rep-info': { enabled: { find: true, create: true, update: true, delete: true } },
   'standard-media': { enabled: { find: true, create: true, update: true, delete: true } },
   'media-canvas': { enabled: { find: true, create: true, update: true, delete: true } },
+  'graphic-templates': { enabled: { find: true, create: true, update: true, delete: true } },
+  'graphic-designs': { enabled: { find: true, create: true, update: true, delete: true } },
   'icontact-folders': { enabled: { find: true, create: true, update: true, delete: true } },
   'icontact-lists': { enabled: { find: true, create: true, update: true, delete: true } },
   tenants: { enabled: { find: true, create: true, update: true, delete: true } },
@@ -4874,6 +4878,8 @@ export default buildConfig({
     BadBills,
     Media,
     MediaCanvas,
+    GraphicTemplates,
+    GraphicDesigns,
     WordpressPosts,
     // Site Settings
     RepInfo,
