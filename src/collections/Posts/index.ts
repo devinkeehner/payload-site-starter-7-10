@@ -972,6 +972,10 @@ export const Posts: CollectionConfig<'posts'> = {
               type: 'relationship',
               relationTo: 'graphic-templates',
               required: false,
+              access: {
+                read: ({ req }) => isSuperUser(req.user),
+                update: ({ req }) => isSuperUser(req.user),
+              },
             },
             {
               name: 'graphicDesign',
@@ -979,6 +983,10 @@ export const Posts: CollectionConfig<'posts'> = {
               type: 'relationship',
               relationTo: 'graphic-designs',
               required: false,
+              access: {
+                read: ({ req }) => isSuperUser(req.user),
+                update: ({ req }) => isSuperUser(req.user),
+              },
             },
             {
               name: 'generateSEO',

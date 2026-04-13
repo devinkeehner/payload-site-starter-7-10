@@ -34,6 +34,31 @@ export type GraphicTextLayer = {
   width: number
   height?: number
   align: GraphicTextAlign
+  text?: string
+  color?: string
+  fontSize?: number
+  fontFamily?: string
+  fontStyle?: string
+  textDecoration?: string
+  letterSpacing?: number
+}
+
+export type GraphicImageLayer = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  mediaID: string | null
+  opacity?: number
+}
+
+export type GraphicLineLayer = {
+  x: number
+  y: number
+  width: number
+  height: number
+  color?: string
 }
 
 export type GraphicScene = {
@@ -42,49 +67,38 @@ export type GraphicScene = {
   headlineLayer: GraphicTextLayer
   masthead: {
     show: boolean
-    fromThe: {
-      x: number
-      y: number
-      width: number
-    }
-    houseGop: {
-      x: number
-      y: number
-      width: number
-    }
-    newsroom: {
-      x: number
-      y: number
-      width: number
-      fontSize: number
-    }
-    line: {
-      x: number
-      y: number
-      width: number
-      height: number
-    }
+    fromThe: GraphicTextLayer
+    houseGop: GraphicTextLayer
+    newsroom: GraphicTextLayer
+    line: GraphicLineLayer
   }
   handle: {
     show: boolean
   }
   headshots: GraphicHeadshotLayer[]
+  imageLayers: GraphicImageLayer[]
 }
 
 export const defaultGraphicScene = (): GraphicScene => ({
-  version: 3,
+  version: 4,
   repNameLayers: {
     primary: {
       x: 380,
       y: 512,
       width: 320,
       align: 'left',
+      color: '#aa2426',
+      fontFamily: 'Georgia, Times New Roman, serif',
+      fontSize: 28,
     },
     secondary: {
       x: 268,
       y: 498,
       width: 260,
       align: 'left',
+      color: '#aa2426',
+      fontFamily: 'Georgia, Times New Roman, serif',
+      fontSize: 26,
     },
   },
   headlineLayer: {
@@ -93,6 +107,9 @@ export const defaultGraphicScene = (): GraphicScene => ({
     width: 510,
     height: 190,
     align: 'center',
+    color: '#a02626',
+    fontFamily: 'Georgia, Times New Roman, serif',
+    fontSize: 38,
   },
   masthead: {
     show: true,
@@ -100,23 +117,42 @@ export const defaultGraphicScene = (): GraphicScene => ({
       x: 676,
       y: 60,
       width: 300,
+      align: 'center',
+      text: 'FROM THE',
+      color: '#152b70',
+      fontFamily: 'Inter, Arial, sans-serif',
+      fontSize: 16,
+      fontStyle: '800 italic',
+      letterSpacing: 1,
     },
     houseGop: {
       x: 592,
       y: 86,
       width: 542,
+      align: 'center',
+      text: 'CT HOUSE GOP',
+      color: '#b91c1c',
+      fontFamily: 'Inter, Arial, sans-serif',
+      fontSize: 50,
+      fontStyle: '800',
     },
     newsroom: {
       x: 592,
       y: 128,
       width: 542,
+      align: 'center',
+      text: 'NEWSROOM',
+      color: '#b91c1c',
+      fontFamily: 'Inter, Arial, sans-serif',
       fontSize: 74,
+      fontStyle: '900 italic',
     },
     line: {
       x: 700,
       y: 220,
       width: 382,
       height: 4,
+      color: '#172c70',
     },
   },
   handle: {
@@ -139,6 +175,7 @@ export const defaultGraphicScene = (): GraphicScene => ({
       },
     },
   ],
+  imageLayers: [],
 })
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -155,6 +192,25 @@ const asTextLayer = (value: unknown, fallback: GraphicTextLayer): GraphicTextLay
     width: asNumber(record.width, fallback.width),
     height: typeof record.height === 'number' && Number.isFinite(record.height) ? record.height : fallback.height,
     align: record.align === 'center' ? 'center' : 'left',
+    text: typeof record.text === 'string' ? record.text : fallback.text,
+    color: typeof record.color === 'string' ? record.color : fallback.color,
+    fontSize: asNumber(record.fontSize, fallback.fontSize ?? 32),
+    fontFamily: typeof record.fontFamily === 'string' ? record.fontFamily : fallback.fontFamily,
+    fontStyle: typeof record.fontStyle === 'string' ? record.fontStyle : fallback.fontStyle,
+    textDecoration: typeof record.textDecoration === 'string' ? record.textDecoration : fallback.textDecoration,
+    letterSpacing: asNumber(record.letterSpacing, fallback.letterSpacing ?? 0),
+  }
+}
+
+const asLineLayer = (value: unknown, fallback: GraphicLineLayer): GraphicLineLayer => {
+  const record = asRecord(value)
+
+  return {
+    x: asNumber(record.x, fallback.x),
+    y: asNumber(record.y, fallback.y),
+    width: asNumber(record.width, fallback.width),
+    height: asNumber(record.height, fallback.height),
+    color: typeof record.color === 'string' ? record.color : fallback.color,
   }
 }
 
@@ -235,42 +291,73 @@ export const normalizeGraphicScene = (value: unknown): GraphicScene => {
     }
   }).filter((item): item is GraphicHeadshotLayer => Boolean(item))
 
+  const rawImageLayers = Array.isArray(record.imageLayers) ? record.imageLayers : fallback.imageLayers
+  const imageLayers = rawImageLayers
+    .map((item, index) => {
+      const layerRecord = asRecord(item)
+      return {
+        id: typeof layerRecord.id === 'string' ? layerRecord.id : `image-${index + 1}`,
+        x: asNumber(layerRecord.x, 120 + index * 36),
+        y: asNumber(layerRecord.y, 120 + index * 24),
+        width: asNumber(layerRecord.width, 280),
+        height: asNumber(layerRecord.height, 180),
+        mediaID: typeof layerRecord.mediaID === 'string' ? layerRecord.mediaID : null,
+        opacity: asNumber(layerRecord.opacity, 1),
+      }
+    })
+    .filter((item) => Boolean(item.id))
+
   const mastheadRecord = asRecord(record.masthead)
   const legacyMastheadX = asNumber(mastheadRecord.x, fallback.masthead.houseGop.x)
   const legacyMastheadY = asNumber(mastheadRecord.y, fallback.masthead.houseGop.y - 26)
 
   return {
-    version: 3,
+    version: 4,
     repNameLayers,
     headlineLayer: asTextLayer(record.headlineLayer, fallback.headlineLayer),
     masthead: {
       show: mastheadRecord.show !== false,
-      fromThe: {
-        x: asNumber(asRecord(mastheadRecord.fromThe).x, legacyMastheadX + 84),
-        y: asNumber(asRecord(mastheadRecord.fromThe).y, legacyMastheadY),
-        width: asNumber(asRecord(mastheadRecord.fromThe).width, fallback.masthead.fromThe.width),
-      },
-      houseGop: {
-        x: asNumber(asRecord(mastheadRecord.houseGop).x, legacyMastheadX),
-        y: asNumber(asRecord(mastheadRecord.houseGop).y, legacyMastheadY + 26),
-        width: asNumber(asRecord(mastheadRecord.houseGop).width, fallback.masthead.houseGop.width),
-      },
-      newsroom: {
-        x: asNumber(asRecord(mastheadRecord.newsroom).x, legacyMastheadX),
-        y: asNumber(asRecord(mastheadRecord.newsroom).y, legacyMastheadY + 68),
-        width: asNumber(asRecord(mastheadRecord.newsroom).width, fallback.masthead.newsroom.width),
-        fontSize: asNumber(asRecord(mastheadRecord.newsroom).fontSize, fallback.masthead.newsroom.fontSize),
-      },
-      line: {
-        x: asNumber(asRecord(mastheadRecord.line).x, legacyMastheadX + 108),
-        y: asNumber(asRecord(mastheadRecord.line).y, legacyMastheadY + 160),
-        width: asNumber(asRecord(mastheadRecord.line).width, fallback.masthead.line.width),
-        height: asNumber(asRecord(mastheadRecord.line).height, fallback.masthead.line.height),
-      },
+      fromThe: asTextLayer(
+        {
+          ...fallback.masthead.fromThe,
+          ...asRecord(mastheadRecord.fromThe),
+          x: asNumber(asRecord(mastheadRecord.fromThe).x, legacyMastheadX + 84),
+          y: asNumber(asRecord(mastheadRecord.fromThe).y, legacyMastheadY),
+        },
+        fallback.masthead.fromThe,
+      ),
+      houseGop: asTextLayer(
+        {
+          ...fallback.masthead.houseGop,
+          ...asRecord(mastheadRecord.houseGop),
+          x: asNumber(asRecord(mastheadRecord.houseGop).x, legacyMastheadX),
+          y: asNumber(asRecord(mastheadRecord.houseGop).y, legacyMastheadY + 26),
+        },
+        fallback.masthead.houseGop,
+      ),
+      newsroom: asTextLayer(
+        {
+          ...fallback.masthead.newsroom,
+          ...asRecord(mastheadRecord.newsroom),
+          x: asNumber(asRecord(mastheadRecord.newsroom).x, legacyMastheadX),
+          y: asNumber(asRecord(mastheadRecord.newsroom).y, legacyMastheadY + 68),
+        },
+        fallback.masthead.newsroom,
+      ),
+      line: asLineLayer(
+        {
+          ...fallback.masthead.line,
+          ...asRecord(mastheadRecord.line),
+          x: asNumber(asRecord(mastheadRecord.line).x, legacyMastheadX + 108),
+          y: asNumber(asRecord(mastheadRecord.line).y, legacyMastheadY + 160),
+        },
+        fallback.masthead.line,
+      ),
     },
     handle: {
       show: asRecord(record.handle).show !== false,
     },
     headshots: headshots.length > 0 ? headshots : fallback.headshots,
+    imageLayers,
   }
 }

@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { Button, useDocumentInfo, useFormFields } from '@payloadcms/ui'
+import { Button, useAuth, useDocumentInfo, useFormFields } from '@payloadcms/ui'
 
 type FieldState = {
   value?: unknown
@@ -42,11 +42,21 @@ const readIdField = (fields: unknown): string | undefined => {
   return undefined
 }
 
+const hasSuperRole = (value: unknown) => {
+  if (!value || typeof value !== 'object') return false
+  const roles = (value as { roles?: unknown }).roles
+  return Array.isArray(roles) && roles.includes('super')
+}
+
 export const GraphicTemplateLauncher: React.FC = () => {
+  const { user } = useAuth()
   const docInfo = useDocumentInfo() as { id?: string } | null
   const documentID = useFormFields(([fields]) => readIdField(fields)) || docInfo?.id
   const templateID = useFormFields(([fields]) => readStringField(fields, 'graphicTemplate'))
   const designID = useFormFields(([fields]) => readStringField(fields, 'graphicDesign'))
+  const isSuperAdmin = hasSuperRole(user)
+
+  if (!isSuperAdmin) return null
 
   const openEditor = () => {
     if (typeof window === 'undefined' || !documentID) return

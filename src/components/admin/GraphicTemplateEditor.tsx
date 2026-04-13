@@ -4,11 +4,13 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
+import { useAuth } from '@payloadcms/ui'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import type {
   GraphicHeadshotBinding,
   GraphicHeadshotLayer,
+  GraphicImageLayer,
   GraphicRepRole,
   GraphicScene,
   GraphicTextAlign,
@@ -21,9 +23,12 @@ const STAGE_HEIGHT = 630
 const HEADSHOT_SIZE_LIMITS = { min: 180, max: 560 }
 const TITLE_WIDTH_LIMITS = { min: 220, max: 860 }
 const REP_NAME_WIDTH_LIMITS = { min: 180, max: 520 }
+const IMAGE_WIDTH_LIMITS = { min: 80, max: 1040 }
+const IMAGE_HEIGHT_LIMITS = { min: 80, max: 540 }
 const STACK_BREAKPOINT = 1080
 const COMPACT_BREAKPOINT = 1320
 const WIDE_BREAKPOINT = 1600
+const BRAND_COLORS = ['#102145', '#152b70', '#a02626', '#b91c1c', '#ffffff', '#111827']
 
 const KEYBOARD_KEYS = [
   { x: 12, y: 0, width: 214, height: 150, rotate: -10 },
@@ -109,9 +114,10 @@ type TenantAssets = {
 
 type Selection =
   | { kind: 'headline' }
-  | { kind: 'masthead'; part: MastheadPart }
+  | { kind: 'mastheadLine' }
   | { kind: 'repName'; role: GraphicRepRole }
   | { kind: 'headshot'; id: string }
+  | { kind: 'image'; id: string }
   | null
 
 type CanvasContextMenuState = {
@@ -123,6 +129,7 @@ type CanvasContextMenuState = {
 type PickerState = {
   open: boolean
   query: string
+  target: 'background' | { kind: 'image'; id: string }
 }
 
 type GraphicHeadshotBindingPatch = {
@@ -132,6 +139,15 @@ type GraphicHeadshotBindingPatch = {
 }
 
 type MastheadPart = 'fromThe' | 'houseGop' | 'newsroom' | 'line'
+
+type EditableTextTarget =
+  | { kind: 'headline' }
+  | { kind: 'repName'; role: GraphicRepRole }
+
+type InlineTextEditorState = {
+  target: EditableTextTarget
+  value: string
+} | null
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -293,20 +309,21 @@ function fitHeadlineText(text: string, layer: GraphicTextLayer, fitScale = 1) {
   const clean = text.length > 0 ? text : 'Headline'
   const layerHeight = Math.max(120, Math.round((layer.height ?? 200) * fitScale))
   const layerWidth = Math.max(220, Math.round(layer.width * fitScale))
+  const fontFamily = layer.fontFamily || 'Georgia, Times New Roman, serif'
 
-  const startFontSize = Math.max(28, Math.round(38 * fitScale))
+  const startFontSize = Math.max(28, Math.round((layer.fontSize || 38) * fitScale))
   const endFontSize = Math.max(14, Math.round(18 * fitScale))
 
   for (let fontSize = startFontSize; fontSize >= endFontSize; fontSize -= 1) {
     const lineHeight = Math.round(fontSize * 1.08)
-    const lines = wrapText(clean, `${fontSize}px Georgia, Times New Roman, serif`, layerWidth)
+    const lines = wrapText(clean, `${fontSize}px ${fontFamily}`, layerWidth)
     if (lines.length <= 7 && lines.length * lineHeight <= layerHeight) {
       return { fontSize, lineHeight, lines }
     }
   }
 
   const fallbackFontSize = endFontSize
-  const lines = wrapText(clean, `${fallbackFontSize}px Georgia, Times New Roman, serif`, layerWidth).slice(0, 7)
+  const lines = wrapText(clean, `${fallbackFontSize}px ${fontFamily}`, layerWidth).slice(0, 7)
   return { fontSize: fallbackFontSize, lineHeight: Math.max(18, Math.round(fallbackFontSize * 1.08)), lines }
 }
 
@@ -400,21 +417,29 @@ const upsertGraphicDesign = (list: DesignDoc[], nextDoc: DesignDoc) => {
     .slice(0, 12)
 }
 
+const isEditableTextSelection = (selection: Selection): selection is EditableTextTarget => {
+  if (!selection) return false
+  return selection.kind === 'headline' || selection.kind === 'repName'
+}
+
+const hasSuperRole = (value: unknown) => {
+  if (!value || typeof value !== 'object') return false
+  const roles = (value as { roles?: unknown }).roles
+  return Array.isArray(roles) && roles.includes('super')
+}
+
 export const GraphicTemplateEditor: React.FC = () => {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { user } = useAuth()
   const templateIdParam = searchParams.get('templateId') || ''
   const designIdParam = searchParams.get('designId') || ''
   const { tenantID, tenantName } = useActiveTenant()
   const stageRef = useRef<Konva.Stage | null>(null)
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const headshotRefs = useRef<Record<string, Konva.Group | null>>({})
-  const mastheadPartRefs = useRef<Record<MastheadPart, Konva.Node | null>>({
-    fromThe: null,
-    houseGop: null,
-    newsroom: null,
-    line: null,
-  })
+  const imageRefs = useRef<Record<string, Konva.Group | null>>({})
+  const mastheadLineRef = useRef<Konva.Rect | null>(null)
   const titleRef = useRef<Konva.Group | null>(null)
   const repNameRefs = useRef<Record<GraphicRepRole, Konva.Text | null>>({
     primary: null,
@@ -431,10 +456,22 @@ export const GraphicTemplateEditor: React.FC = () => {
   const [message, setMessage] = useState<string | null>(null)
   const [canvasMenu, setCanvasMenu] = useState<CanvasContextMenuState>(null)
   const [uploadingBackground, setUploadingBackground] = useState(false)
-  const [backgroundPicker, setBackgroundPicker] = useState<PickerState>({ open: false, query: '' })
+  const [backgroundPicker, setBackgroundPicker] = useState<PickerState>({ open: false, query: '', target: 'background' })
   const [designBrowserQuery, setDesignBrowserQuery] = useState('')
   const [graphicDesigns, setGraphicDesigns] = useState<DesignDoc[]>([])
   const [loadingGraphicDesigns, setLoadingGraphicDesigns] = useState(false)
+  const [imageLayerCache, setImageLayerCache] = useState<Record<string, HTMLImageElement | null>>({})
+  const [collapsedPanels, setCollapsedPanels] = useState<Record<string, boolean>>({
+    template: false,
+    content: true,
+    text: false,
+    repBindings: true,
+    headshots: true,
+    images: false,
+    background: true,
+    designs: true,
+  })
+  const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
 
   const [postDoc, setPostDoc] = useState<PostDoc | null>(null)
   const [templates, setTemplates] = useState<TemplateDoc[]>([])
@@ -467,7 +504,7 @@ export const GraphicTemplateEditor: React.FC = () => {
     return `${sidebarColumnWidth || 348}px minmax(0, 1fr)`
   }, [isStackedLayout, sidebarColumnWidth])
 
-  const headlineText = titleOverride.length > 0 ? titleOverride : postDoc?.title || 'Headline'
+  const headlineText = scene.headlineLayer.text || titleOverride || postDoc?.title || 'Headline'
   const viewportStageWidth = useMemo(() => {
     if (!viewportWidth) return stageContainerWidth || STAGE_WIDTH
 
@@ -518,6 +555,7 @@ export const GraphicTemplateEditor: React.FC = () => {
 
   const primaryRepName = getRepLabel(primaryAssets.repInfo?.name)
   const secondaryRepName = getRepLabel(secondaryAssets.repInfo?.name)
+  const isSuperAdmin = hasSuperRole(user)
 
   const headshotSourceURLs = useMemo(
     () =>
@@ -531,6 +569,15 @@ export const GraphicTemplateEditor: React.FC = () => {
         return readSelectedImageUrl(primaryAssets.standardMedia?.mobileHeadshot)
       }),
     [mediaOptions, primaryAssets.standardMedia?.mobileHeadshot, scene.headshots, secondaryAssets.standardMedia?.mobileHeadshot],
+  )
+
+  const imageLayerSourceURLs = useMemo(
+    () =>
+      scene.imageLayers.map((layer) => {
+        const doc = mediaOptions.find((media) => media.id === layer.mediaID)
+        return proxiedUrl(doc?.url)
+      }),
+    [mediaOptions, scene.imageLayers],
   )
 
   const headshotImages = [useLoadedImage(headshotSourceURLs[0]), useLoadedImage(headshotSourceURLs[1])]
@@ -743,6 +790,38 @@ export const GraphicTemplateEditor: React.FC = () => {
   }, [designBrowserQuery, tenantID])
 
   useEffect(() => {
+    let cancelled = false
+
+    const loadImages = async () => {
+      const pairs = await Promise.all(
+        scene.imageLayers.map(async (layer, index) => {
+          const src = imageLayerSourceURLs[index]
+          if (!src) return [layer.id, null] as const
+
+          const image = await new Promise<HTMLImageElement | null>((resolve) => {
+            const nextImage = new window.Image()
+            nextImage.crossOrigin = 'anonymous'
+            nextImage.onload = () => resolve(nextImage)
+            nextImage.onerror = () => resolve(null)
+            nextImage.src = src
+          })
+
+          return [layer.id, image] as const
+        }),
+      )
+
+      if (cancelled) return
+      setImageLayerCache(Object.fromEntries(pairs))
+    }
+
+    if (typeof window !== 'undefined') void loadImages()
+
+    return () => {
+      cancelled = true
+    }
+  }, [imageLayerSourceURLs, scene.imageLayers])
+
+  useEffect(() => {
     const transformer = transformerRef.current
     if (!transformer) return
 
@@ -759,7 +838,9 @@ export const GraphicTemplateEditor: React.FC = () => {
           ? titleRef.current
           : selection.kind === 'repName'
             ? repNameRefs.current[selection.role]
-            : headshotRefs.current[selection.id]
+            : selection.kind === 'image'
+              ? imageRefs.current[selection.id]
+              : headshotRefs.current[selection.id]
 
     if (node) {
       transformer.nodes([node])
@@ -802,6 +883,13 @@ export const GraphicTemplateEditor: React.FC = () => {
     setScene((current) => ({
       ...current,
       headshots: current.headshots.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const updateImageLayer = (id: string, patch: Partial<GraphicImageLayer>) => {
+    setScene((current) => ({
+      ...current,
+      imageLayers: current.imageLayers.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     }))
   }
 
@@ -872,6 +960,75 @@ export const GraphicTemplateEditor: React.FC = () => {
         ],
       }
     })
+  }
+
+  const addImageLayer = () => {
+    const id = `image-${Date.now()}`
+    setScene((current) => ({
+      ...current,
+      imageLayers: [
+        ...current.imageLayers,
+        {
+          id,
+          x: 120,
+          y: 120,
+          width: 260,
+          height: 180,
+          mediaID: null,
+          opacity: 1,
+        },
+      ],
+    }))
+    setSelection({ kind: 'image', id })
+    setBackgroundPicker({ open: true, query: '', target: { kind: 'image', id } })
+  }
+
+  const removeImageLayer = (id: string) => {
+    setScene((current) => ({
+      ...current,
+      imageLayers: current.imageLayers.filter((item) => item.id !== id),
+    }))
+    if (selection?.kind === 'image' && selection.id === id) setSelection(null)
+  }
+
+  const resolveTextLayer = (target: EditableTextTarget): GraphicTextLayer => {
+    if (target.kind === 'headline') return scene.headlineLayer
+    if (target.kind === 'repName') return scene.repNameLayers[target.role]
+    return scene.masthead[target.part]
+  }
+
+  const updateTextLayer = (target: EditableTextTarget, patch: Partial<GraphicTextLayer>) => {
+    if (target.kind === 'headline') {
+      updateHeadline(patch)
+      return
+    }
+    if (target.kind === 'repName') {
+      updateRepName(target.role, patch)
+      return
+    }
+    updateMastheadPart(target.part, patch)
+  }
+
+  const getRenderedTextValue = (target: EditableTextTarget): string => {
+    const layer = resolveTextLayer(target)
+    if (typeof layer.text === 'string' && layer.text.length > 0) return layer.text
+    if (target.kind === 'headline') return headlineText
+    if (target.kind === 'repName') return target.role === 'primary' ? primaryRepName : secondaryRepName
+    return target.part === 'fromThe' ? 'FROM THE' : target.part === 'houseGop' ? 'CT HOUSE GOP' : 'NEWSROOM'
+  }
+
+  const beginInlineTextEdit = (target: EditableTextTarget) => {
+    setSelection(target)
+    setInlineTextEditor({ target, value: getRenderedTextValue(target) })
+  }
+
+  const commitInlineTextEdit = () => {
+    if (!inlineTextEditor) return
+    updateTextLayer(inlineTextEditor.target, { text: inlineTextEditor.value })
+    if (inlineTextEditor.target.kind === 'headline') {
+      setTitleOverride(inlineTextEditor.value)
+    }
+    setInlineTextEditor(null)
   }
 
   const removeHeadshot = (id: string) => {
@@ -1135,8 +1292,8 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
   }
 
-  const openBackgroundPicker = () => {
-    setBackgroundPicker((current) => ({ ...current, open: true }))
+  const openBackgroundPicker = (target: PickerState['target'] = 'background') => {
+    setBackgroundPicker({ open: true, query: '', target })
   }
 
   const closeBackgroundPicker = () => {
@@ -1144,7 +1301,11 @@ export const GraphicTemplateEditor: React.FC = () => {
   }
 
   const chooseBackground = (mediaID: string) => {
-    setBackgroundMediaID(mediaID)
+    if (backgroundPicker.target === 'background') {
+      setBackgroundMediaID(mediaID)
+    } else {
+      updateImageLayer(backgroundPicker.target.id, { mediaID: mediaID || null })
+    }
     closeBackgroundPicker()
   }
 
@@ -1194,8 +1355,18 @@ export const GraphicTemplateEditor: React.FC = () => {
       return
     }
 
+    if (action === 'add-image') {
+      addImageLayer()
+      return
+    }
+
     if (action === 'remove-headshot' && target !== 'canvas' && target.kind === 'headshot') {
       removeHeadshot(target.id)
+      return
+    }
+
+    if (action === 'remove-image' && target !== 'canvas' && target.kind === 'image') {
+      removeImageLayer(target.id)
       return
     }
 
@@ -1237,15 +1408,40 @@ export const GraphicTemplateEditor: React.FC = () => {
     setTitleOverride('')
     setBackgroundMediaID(getMediaID(selectedTemplate?.backgroundImage) || '')
     setSelection(null)
+    setInlineTextEditor(null)
   }
 
   const headshotMeta = scene.headshots.map((headshot) => ({
     id: headshot.id,
     label: headshot.binding.type === 'tenant-headshot' ? `${headshot.binding.role === 'secondary' ? 'Secondary' : 'Primary'} tenant headshot` : 'Headshot slot',
   }))
+  const selectedTextTarget = isEditableTextSelection(selection) ? selection : null
+  const selectedTextLayer = selectedTextTarget ? resolveTextLayer(selectedTextTarget) : null
+  const stageOffsetX = Math.max(0, (stageContainerWidth - STAGE_WIDTH * previewScale) / 2)
+  const inlineEditorBox =
+    inlineTextEditor && selectedTextTarget
+      ? (() => {
+          const layer = resolveTextLayer(inlineTextEditor.target)
+          const width = Math.max(140, layer.width * previewScale)
+          const height =
+            inlineTextEditor.target.kind === 'headline'
+              ? Math.max(120, (layer.height || 190) * previewScale)
+              : Math.max(44, ((layer.fontSize || 28) + 18) * previewScale)
+          return {
+            left: stageOffsetX + layer.x * previewScale,
+            top: layer.y * previewScale,
+            width,
+            height,
+          }
+        })()
+      : null
 
   if (loading) {
     return <div style={{ padding: 24 }}>Loading graphics editor…</div>
+  }
+
+  if (!isSuperAdmin) {
+    return <div style={{ padding: 24 }}>This editor is restricted to super admins.</div>
   }
 
   return (
@@ -1267,8 +1463,6 @@ export const GraphicTemplateEditor: React.FC = () => {
           display: 'grid',
           gap: 18,
           alignSelf: 'start',
-          position: isStackedLayout ? 'static' : 'sticky',
-          top: 18,
         }}
       >
         <section style={{ display: 'grid', gap: 8 }}>
@@ -1321,7 +1515,10 @@ export const GraphicTemplateEditor: React.FC = () => {
             <textarea
               rows={5}
               value={titleOverride}
-              onChange={(event) => setTitleOverride(event.target.value)}
+              onChange={(event) => {
+                setTitleOverride(event.target.value)
+                updateHeadline({ text: event.target.value })
+              }}
               placeholder="Supports manual line breaks"
               style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
             />
@@ -1506,8 +1703,47 @@ export const GraphicTemplateEditor: React.FC = () => {
           })}
         </section>
 
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Background</div>
+        <details open={!collapsedPanels.images} style={collapsibleStyle}>
+          <summary style={summaryStyle} onClick={() => setCollapsedPanels((current) => ({ ...current, images: !current.images }))}>
+            Images
+          </summary>
+          <div style={collapsibleBodyStyle}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button type="button" onClick={addImageLayer} style={secondaryButtonStyle}>
+                Add image
+              </button>
+            </div>
+            {scene.imageLayers.length === 0 ? <div style={hintStyle}>No extra image layers yet.</div> : null}
+            {scene.imageLayers.map((layer) => {
+              const imageDoc = mediaOptions.find((media) => media.id === layer.mediaID)
+              return (
+                <div key={layer.id} style={slotCardStyle}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <strong style={{ fontSize: 13 }}>Image layer</strong>
+                    <button type="button" onClick={() => setSelection({ kind: 'image', id: layer.id })} style={secondaryButtonStyle}>
+                      Select on canvas
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button type="button" onClick={() => openBackgroundPicker({ kind: 'image', id: layer.id })} style={secondaryButtonStyle}>
+                      Choose image
+                    </button>
+                    <button type="button" onClick={() => removeImageLayer(layer.id)} style={secondaryButtonStyle}>
+                      Remove
+                    </button>
+                  </div>
+                  <div style={hintStyle}>{imageDoc ? imageDoc.alt || imageDoc.title || imageDoc.filename || imageDoc.id : 'No media selected'}</div>
+                </div>
+              )
+            })}
+          </div>
+        </details>
+
+        <details open={!collapsedPanels.background} style={collapsibleStyle}>
+          <summary style={summaryStyle} onClick={() => setCollapsedPanels((current) => ({ ...current, background: !current.background }))}>
+            Background
+          </summary>
+          <div style={collapsibleBodyStyle}>
           <input
             ref={backgroundUploadRef}
             type="file"
@@ -1534,7 +1770,7 @@ export const GraphicTemplateEditor: React.FC = () => {
               Pick a background from the media library or upload a new one into the tenant gallery.
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button type="button" onClick={openBackgroundPicker} style={secondaryButtonStyle}>
+              <button type="button" onClick={() => openBackgroundPicker()} style={secondaryButtonStyle}>
                 Choose from media library
               </button>
               <button type="button" onClick={() => backgroundUploadRef.current?.click()} style={secondaryButtonStyle} disabled={uploadingBackground}>
@@ -1565,10 +1801,14 @@ export const GraphicTemplateEditor: React.FC = () => {
               )}
             </div>
           </div>
-        </section>
+          </div>
+        </details>
 
-        <section style={{ display: 'grid', gap: 12 }}>
-          <div style={sectionLabelStyle}>Saved Designs</div>
+        <details open={!collapsedPanels.designs} style={collapsibleStyle}>
+          <summary style={summaryStyle} onClick={() => setCollapsedPanels((current) => ({ ...current, designs: !current.designs }))}>
+            Saved Designs
+          </summary>
+          <div style={collapsibleBodyStyle}>
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={fieldLabelStyle}>Search designs</span>
             <input
@@ -1625,26 +1865,8 @@ export const GraphicTemplateEditor: React.FC = () => {
               )
             })}
           </div>
-        </section>
-
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Output</div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="button" onClick={saveDesign} style={primaryButtonStyle} disabled={savingDesign}>
-              {savingDesign ? 'Saving…' : 'Save design'}
-            </button>
-            <button type="button" onClick={saveToSEO} style={primaryButtonStyle} disabled={savingMedia || !docID}>
-              {savingMedia ? 'Saving…' : 'Save to SEO'}
-            </button>
-            <button type="button" onClick={saveToMediaGallery} style={secondaryButtonStyle} disabled={savingMedia}>
-              {savingMedia ? 'Saving…' : 'Save to Media Gallery'}
-            </button>
-            <button type="button" onClick={downloadPng} style={secondaryButtonStyle}>
-              Download PNG
-            </button>
           </div>
-          {message ? <div style={hintStyle}>{message}</div> : null}
-        </section>
+        </details>
       </aside>
 
       <section
@@ -1653,11 +1875,106 @@ export const GraphicTemplateEditor: React.FC = () => {
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.86)',
           padding: isStackedLayout ? 14 : '16px 32px 16px 16px',
-          position: 'relative',
+          position: isStackedLayout ? 'relative' : 'sticky',
+          top: isStackedLayout ? undefined : 18,
           overflow: 'auto',
           minWidth: 0,
         }}
       >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            flexWrap: 'wrap',
+            marginBottom: 14,
+          }}
+        >
+          <div style={{ display: 'grid', gap: 4 }}>
+            <strong style={{ fontSize: 16, color: '#0f172a' }}>Canvas</strong>
+            <span style={{ fontSize: 12, color: '#64748b' }}>Double-click text to edit in place. Right-click for slot actions.</span>
+          </div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button type="button" onClick={saveDesign} style={primaryButtonStyle} disabled={savingDesign}>
+              {savingDesign ? 'Saving…' : 'Save design'}
+            </button>
+            <button type="button" onClick={saveToSEO} style={primaryButtonStyle} disabled={savingMedia || !docID}>
+              {savingMedia ? 'Saving…' : 'Save to SEO'}
+            </button>
+            <button type="button" onClick={saveToMediaGallery} style={secondaryButtonStyle} disabled={savingMedia}>
+              {savingMedia ? 'Saving…' : 'Save to Media'}
+            </button>
+            <button type="button" onClick={downloadPng} style={secondaryButtonStyle}>
+              Download PNG
+            </button>
+          </div>
+        </div>
+        {selectedTextTarget && selectedTextLayer ? (
+          <div style={textToolbarStyle}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
+            <button
+              type="button"
+              style={toolbarButtonStyle}
+              onClick={() =>
+                updateTextLayer(selectedTextTarget, {
+                  fontStyle: (selectedTextLayer.fontStyle || '').includes('italic')
+                    ? (selectedTextLayer.fontStyle || 'normal').replace(/\s*italic/g, '').trim() || 'normal'
+                    : `${selectedTextLayer.fontStyle || 'normal'} italic`.trim(),
+                })
+              }
+            >
+              Italic
+            </button>
+            <button
+              type="button"
+              style={toolbarButtonStyle}
+              onClick={() =>
+                updateTextLayer(selectedTextTarget, {
+                  textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline',
+                })
+              }
+            >
+              Underline
+            </button>
+            <select
+              value={selectedTextLayer.align}
+              onChange={(event) => updateTextLayer(selectedTextTarget, { align: event.target.value as GraphicTextAlign })}
+              style={{ ...controlStyle, width: 110, padding: '8px 10px' }}
+            >
+              <option value="left">Left</option>
+              <option value="center">Center</option>
+            </select>
+            <input
+              type="range"
+              min={12}
+              max={120}
+              step={1}
+              value={selectedTextLayer.fontSize || 32}
+              onChange={(event) => updateTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })}
+              style={{ width: 140 }}
+            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {BRAND_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Choose ${color}`}
+                  onClick={() => updateTextLayer(selectedTextTarget, { color })}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 999,
+                    border: selectedTextLayer.color === color ? '2px solid #0f172a' : '1px solid rgba(15,23,42,0.18)',
+                    background: color,
+                    cursor: 'pointer',
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {message ? <div style={{ ...hintStyle, marginBottom: 12 }}>{message}</div> : null}
         <div
           ref={stageContainerRef}
           style={{
@@ -1709,6 +2026,48 @@ export const GraphicTemplateEditor: React.FC = () => {
                 />
               ))}
 
+              {scene.imageLayers.map((layer) => {
+                const image = imageLayerCache[layer.id] || null
+                return (
+                  <Group
+                    key={layer.id}
+                    ref={(node) => {
+                      imageRefs.current[layer.id] = node
+                    }}
+                    x={layer.x}
+                    y={layer.y}
+                    draggable
+                    onClick={() => setSelection({ kind: 'image', id: layer.id })}
+                    onTap={() => setSelection({ kind: 'image', id: layer.id })}
+                    onContextMenu={(event) => {
+                      event.cancelBubble = true
+                      openCanvasMenu(event.evt, { kind: 'image', id: layer.id })
+                    }}
+                    onDragEnd={(event) => updateImageLayer(layer.id, { x: event.target.x(), y: event.target.y() })}
+                    onTransformEnd={(event) => {
+                      const node = event.target
+                      const nextWidth = clamp(Math.round(layer.width * node.scaleX()), IMAGE_WIDTH_LIMITS.min, IMAGE_WIDTH_LIMITS.max)
+                      const nextHeight = clamp(Math.round(layer.height * node.scaleY()), IMAGE_HEIGHT_LIMITS.min, IMAGE_HEIGHT_LIMITS.max)
+                      node.scaleX(1)
+                      node.scaleY(1)
+                      updateImageLayer(layer.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                    }}
+                  >
+                    {image ? <KonvaImage image={image} width={layer.width} height={layer.height} opacity={layer.opacity ?? 1} /> : null}
+                    {!image ? (
+                      <Rect
+                        width={layer.width}
+                        height={layer.height}
+                        cornerRadius={14}
+                        fill="rgba(148, 163, 184, 0.12)"
+                        stroke="rgba(148, 163, 184, 0.42)"
+                        dash={[10, 8]}
+                      />
+                    ) : null}
+                  </Group>
+                )
+              })}
+
               {scene.masthead.show ? (
                 <>
                   <Text
@@ -1718,13 +2077,14 @@ export const GraphicTemplateEditor: React.FC = () => {
                     x={scene.masthead.fromThe.x}
                     y={scene.masthead.fromThe.y}
                     width={Math.round(scene.masthead.fromThe.width * contentFitScale)}
-                    text="FROM THE"
-                    fontFamily="Inter, Arial, sans-serif"
-                    fontStyle="800 italic"
-                    fontSize={Math.max(13, Math.round(16 * contentFitScale))}
-                    fill="#152b70"
-                    align="center"
-                    letterSpacing={1}
+                    text={scene.masthead.fromThe.text || 'FROM THE'}
+                    fontFamily={scene.masthead.fromThe.fontFamily || 'Inter, Arial, sans-serif'}
+                    fontStyle={scene.masthead.fromThe.fontStyle || '800 italic'}
+                    fontSize={Math.max(13, Math.round((scene.masthead.fromThe.fontSize || 16) * contentFitScale))}
+                    fill={scene.masthead.fromThe.color || '#152b70'}
+                    align={scene.masthead.fromThe.align}
+                    textDecoration={scene.masthead.fromThe.textDecoration}
+                    letterSpacing={scene.masthead.fromThe.letterSpacing || 1}
                     draggable
                     onClick={() => setSelection({ kind: 'masthead', part: 'fromThe' })}
                     onTap={() => setSelection({ kind: 'masthead', part: 'fromThe' })}
@@ -1733,6 +2093,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                       openCanvasMenu(event.evt, { kind: 'masthead', part: 'fromThe' })
                     }}
                     onDragEnd={(event) => updateMastheadPart('fromThe', { x: event.target.x(), y: event.target.y() })}
+                    onDblClick={() => beginInlineTextEdit({ kind: 'masthead', part: 'fromThe' })}
                   />
                   <Text
                     ref={(node) => {
@@ -1741,12 +2102,13 @@ export const GraphicTemplateEditor: React.FC = () => {
                     x={scene.masthead.houseGop.x}
                     y={scene.masthead.houseGop.y}
                     width={Math.round(scene.masthead.houseGop.width * contentFitScale)}
-                    text="CT HOUSE GOP"
-                    fontFamily="Inter, Arial, sans-serif"
-                    fontStyle="800"
-                    fontSize={Math.max(36, Math.round(50 * contentFitScale))}
-                    fill="#b91c1c"
-                    align="center"
+                    text={scene.masthead.houseGop.text || 'CT HOUSE GOP'}
+                    fontFamily={scene.masthead.houseGop.fontFamily || 'Inter, Arial, sans-serif'}
+                    fontStyle={scene.masthead.houseGop.fontStyle || '800'}
+                    fontSize={Math.max(36, Math.round((scene.masthead.houseGop.fontSize || 50) * contentFitScale))}
+                    fill={scene.masthead.houseGop.color || '#b91c1c'}
+                    align={scene.masthead.houseGop.align}
+                    textDecoration={scene.masthead.houseGop.textDecoration}
                     draggable
                     onClick={() => setSelection({ kind: 'masthead', part: 'houseGop' })}
                     onTap={() => setSelection({ kind: 'masthead', part: 'houseGop' })}
@@ -1755,6 +2117,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                       openCanvasMenu(event.evt, { kind: 'masthead', part: 'houseGop' })
                     }}
                     onDragEnd={(event) => updateMastheadPart('houseGop', { x: event.target.x(), y: event.target.y() })}
+                    onDblClick={() => beginInlineTextEdit({ kind: 'masthead', part: 'houseGop' })}
                   />
                   <Text
                     ref={(node) => {
@@ -1763,12 +2126,13 @@ export const GraphicTemplateEditor: React.FC = () => {
                     x={scene.masthead.newsroom.x}
                     y={scene.masthead.newsroom.y}
                     width={Math.round(scene.masthead.newsroom.width * contentFitScale)}
-                    text="NEWSROOM"
-                    fontFamily="Inter, Arial, sans-serif"
-                    fontStyle="900 italic"
-                    fontSize={Math.max(48, Math.round(scene.masthead.newsroom.fontSize * contentFitScale))}
-                    fill="#b91c1c"
-                    align="center"
+                    text={scene.masthead.newsroom.text || 'NEWSROOM'}
+                    fontFamily={scene.masthead.newsroom.fontFamily || 'Inter, Arial, sans-serif'}
+                    fontStyle={scene.masthead.newsroom.fontStyle || '900 italic'}
+                    fontSize={Math.max(48, Math.round((scene.masthead.newsroom.fontSize || 74) * contentFitScale))}
+                    fill={scene.masthead.newsroom.color || '#b91c1c'}
+                    align={scene.masthead.newsroom.align}
+                    textDecoration={scene.masthead.newsroom.textDecoration}
                     draggable
                     onClick={() => setSelection({ kind: 'masthead', part: 'newsroom' })}
                     onTap={() => setSelection({ kind: 'masthead', part: 'newsroom' })}
@@ -1777,6 +2141,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                       openCanvasMenu(event.evt, { kind: 'masthead', part: 'newsroom' })
                     }}
                     onDragEnd={(event) => updateMastheadPart('newsroom', { x: event.target.x(), y: event.target.y() })}
+                    onDblClick={() => beginInlineTextEdit({ kind: 'masthead', part: 'newsroom' })}
                   />
                   <Rect
                     ref={(node) => {
@@ -1786,7 +2151,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                     y={scene.masthead.line.y}
                     width={Math.round(scene.masthead.line.width * contentFitScale)}
                     height={scene.masthead.line.height}
-                    fill="#172c70"
+                    fill={scene.masthead.line.color || '#172c70'}
                     cornerRadius={999}
                     draggable
                     onClick={() => setSelection({ kind: 'masthead', part: 'line' })}
@@ -1858,10 +2223,13 @@ export const GraphicTemplateEditor: React.FC = () => {
                 x={scene.repNameLayers.primary.x}
                 y={scene.repNameLayers.primary.y}
                 width={scene.repNameLayers.primary.width}
-                text={primaryRepName}
-                fontFamily="Georgia, Times New Roman, serif"
-                fontSize={Math.max(22, Math.round(28 * contentFitScale))}
-                fill="#aa2426"
+                text={scene.repNameLayers.primary.text || primaryRepName}
+                fontFamily={scene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif'}
+                fontSize={Math.max(22, Math.round((scene.repNameLayers.primary.fontSize || 28) * contentFitScale))}
+                fill={scene.repNameLayers.primary.color || '#aa2426'}
+                fontStyle={scene.repNameLayers.primary.fontStyle}
+                textDecoration={scene.repNameLayers.primary.textDecoration}
+                align={scene.repNameLayers.primary.align}
                 draggable
                 onClick={() => setSelection({ kind: 'repName', role: 'primary' })}
                 onTap={() => setSelection({ kind: 'repName', role: 'primary' })}
@@ -1870,6 +2238,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                   openCanvasMenu(event.evt, { kind: 'repName', role: 'primary' })
                 }}
                 onDragEnd={(event) => updateRepName('primary', { x: event.target.x(), y: event.target.y() })}
+                onDblClick={() => beginInlineTextEdit({ kind: 'repName', role: 'primary' })}
                 onTransformEnd={(event) => {
                   const node = event.target
                   const nextWidth = clamp(
@@ -1891,10 +2260,13 @@ export const GraphicTemplateEditor: React.FC = () => {
                   x={scene.repNameLayers.secondary.x}
                   y={scene.repNameLayers.secondary.y}
                   width={scene.repNameLayers.secondary.width}
-                  text={secondaryRepName}
-                  fontFamily="Georgia, Times New Roman, serif"
-                  fontSize={Math.max(20, Math.round(26 * contentFitScale))}
-                  fill="#aa2426"
+                  text={scene.repNameLayers.secondary.text || secondaryRepName}
+                  fontFamily={scene.repNameLayers.secondary.fontFamily || 'Georgia, Times New Roman, serif'}
+                  fontSize={Math.max(20, Math.round((scene.repNameLayers.secondary.fontSize || 26) * contentFitScale))}
+                  fill={scene.repNameLayers.secondary.color || '#aa2426'}
+                  fontStyle={scene.repNameLayers.secondary.fontStyle}
+                  textDecoration={scene.repNameLayers.secondary.textDecoration}
+                  align={scene.repNameLayers.secondary.align}
                   draggable
                   onClick={() => setSelection({ kind: 'repName', role: 'secondary' })}
                   onTap={() => setSelection({ kind: 'repName', role: 'secondary' })}
@@ -1903,6 +2275,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                     openCanvasMenu(event.evt, { kind: 'repName', role: 'secondary' })
                   }}
                   onDragEnd={(event) => updateRepName('secondary', { x: event.target.x(), y: event.target.y() })}
+                  onDblClick={() => beginInlineTextEdit({ kind: 'repName', role: 'secondary' })}
                   onTransformEnd={(event) => {
                     const node = event.target
                     const nextWidth = clamp(
@@ -1950,11 +2323,14 @@ export const GraphicTemplateEditor: React.FC = () => {
                 <Text
                   width={scene.headlineLayer.width}
                   text={fittedHeadline.lines.join('\n')}
-                  fontFamily="Georgia, Times New Roman, serif"
+                  fontFamily={scene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
                   fontSize={fittedHeadline.fontSize}
                   lineHeight={fittedHeadline.lineHeight / fittedHeadline.fontSize}
-                  fill="#a02626"
+                  fill={scene.headlineLayer.color || '#a02626'}
                   align={scene.headlineLayer.align}
+                  fontStyle={scene.headlineLayer.fontStyle}
+                  textDecoration={scene.headlineLayer.textDecoration}
+                  onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
                 />
               </Group>
 
@@ -1983,6 +2359,8 @@ export const GraphicTemplateEditor: React.FC = () => {
                     ? ['middle-left', 'middle-right']
                     : selection?.kind === 'repName'
                       ? ['middle-left', 'middle-right']
+                      : selection?.kind === 'image'
+                        ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                       : selection?.kind === 'headshot'
                         ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                         : []
@@ -2017,11 +2395,68 @@ export const GraphicTemplateEditor: React.FC = () => {
                     return { ...newBox, width: nextSize, height: nextSize, rotation: 0 }
                   }
 
+                  if (selection?.kind === 'image') {
+                    return {
+                      ...newBox,
+                      width: clamp(newBox.width, IMAGE_WIDTH_LIMITS.min, IMAGE_WIDTH_LIMITS.max),
+                      height: clamp(newBox.height, IMAGE_HEIGHT_LIMITS.min, IMAGE_HEIGHT_LIMITS.max),
+                      rotation: 0,
+                    }
+                  }
+
                   return newBox
                 }}
               />
             </Layer>
           </Stage>
+          {inlineTextEditor && inlineEditorBox ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: inlineEditorBox.left,
+                top: inlineEditorBox.top,
+                width: inlineEditorBox.width,
+                minHeight: inlineEditorBox.height,
+                zIndex: 40,
+              }}
+            >
+              <textarea
+                autoFocus
+                value={inlineTextEditor.value}
+                onChange={(event) => setInlineTextEditor((current) => (current ? { ...current, value: event.target.value } : current))}
+                onBlur={commitInlineTextEdit}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault()
+                    commitInlineTextEdit()
+                    return
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    setInlineTextEditor(null)
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: inlineEditorBox.height,
+                  resize: 'none',
+                  padding: '10px 12px',
+                  borderRadius: 14,
+                  border: '2px solid #0ea5e9',
+                  background: 'rgba(255,255,255,0.95)',
+                  color: selectedTextLayer?.color || '#111827',
+                  fontFamily: selectedTextLayer?.fontFamily || 'Georgia, Times New Roman, serif',
+                  fontSize: `${Math.max(14, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
+                  fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
+                  fontWeight: selectedTextLayer?.fontStyle?.includes('800') || selectedTextLayer?.fontStyle?.includes('900') ? 800 : 400,
+                  textDecoration: selectedTextLayer?.textDecoration || 'none',
+                  textAlign: selectedTextLayer?.align || 'left',
+                  lineHeight: 1.1,
+                  boxShadow: '0 18px 45px rgba(14,165,233,0.2)',
+                }}
+              />
+            </div>
+          ) : null}
 
           {backgroundPicker.open ? (
             <div
@@ -2053,8 +2488,12 @@ export const GraphicTemplateEditor: React.FC = () => {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                   <div style={{ display: 'grid', gap: 4 }}>
-                    <strong style={{ fontSize: 18 }}>Choose Background</strong>
-                    <span style={hintStyle}>Browse tenant media, search, or close the picker without changing anything.</span>
+                    <strong style={{ fontSize: 18 }}>
+                      {backgroundPicker.target === 'background' ? 'Choose Background' : 'Choose Image'}
+                    </strong>
+                    <span style={hintStyle}>
+                      Browse tenant media, search, or close the picker without changing anything.
+                    </span>
                   </div>
                   <button type="button" style={secondaryButtonStyle} onClick={closeBackgroundPicker}>
                     Close
@@ -2076,7 +2515,8 @@ export const GraphicTemplateEditor: React.FC = () => {
                     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
                   }}
                 >
-                  <button type="button" style={{ ...backgroundCardStyle, borderColor: backgroundMediaID === '' ? '#0ea5e9' : 'rgba(17, 24, 39, 0.12)' }} onClick={() => chooseBackground('')}>
+                  {backgroundPicker.target === 'background' ? (
+                    <button type="button" style={{ ...backgroundCardStyle, borderColor: backgroundMediaID === '' ? '#0ea5e9' : 'rgba(17, 24, 39, 0.12)' }} onClick={() => chooseBackground('')}>
                     <div
                       style={{
                         height: 120,
@@ -2085,7 +2525,8 @@ export const GraphicTemplateEditor: React.FC = () => {
                       }}
                     />
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', textAlign: 'left' }}>Pattern only</div>
-                  </button>
+                    </button>
+                  ) : null}
                   {backgroundPickerItems.map((item) => {
                     const preview = proxiedUrl(item.thumbnailURL || item.url)
                     return (
@@ -2145,8 +2586,27 @@ export const GraphicTemplateEditor: React.FC = () => {
                   <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('add-headshot')}>
                     Add headshot slot
                   </button>
+                  <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('add-image')}>
+                    Add image
+                  </button>
                   <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('reset-scene')}>
                     Reset scene
+                  </button>
+                </>
+              ) : canvasMenu.target.kind === 'image' ? (
+                <>
+                  <button
+                    type="button"
+                    style={contextMenuButtonStyle}
+                    onClick={() => {
+                      const target = canvasMenu.target
+                      if (target !== 'canvas' && target.kind === 'image') openBackgroundPicker({ kind: 'image', id: target.id })
+                    }}
+                  >
+                    Choose image
+                  </button>
+                  <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('remove-image')}>
+                    Remove image
                   </button>
                 </>
               ) : canvasMenu.target.kind === 'headshot' ? (
@@ -2210,6 +2670,45 @@ const sectionLabelStyle: React.CSSProperties = {
 const fieldLabelStyle: React.CSSProperties = {
   fontSize: 13,
   color: '#374151',
+}
+
+const collapsibleStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 10,
+}
+
+const summaryStyle: React.CSSProperties = {
+  ...sectionLabelStyle,
+  cursor: 'pointer',
+  listStyle: 'none',
+}
+
+const collapsibleBodyStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 12,
+}
+
+const textToolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 10,
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  marginBottom: 14,
+  padding: '10px 12px',
+  borderRadius: 16,
+  border: '1px solid rgba(15, 23, 42, 0.1)',
+  background: 'rgba(248,250,252,0.92)',
+}
+
+const toolbarButtonStyle: React.CSSProperties = {
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  borderRadius: 999,
+  background: '#ffffff',
+  color: '#111827',
+  padding: '8px 12px',
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: 'pointer',
 }
 
 const primaryButtonStyle: React.CSSProperties = {

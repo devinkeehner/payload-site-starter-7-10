@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated } from '@/lib/access/authenticated'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
 
 export const GraphicTemplates: CollectionConfig = {
@@ -14,12 +14,13 @@ export const GraphicTemplates: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
     description: 'Reusable graphics templates shared across all tenants.',
+    hidden: ({ user }) => !isSuperUser(user),
   },
   access: {
-    create: authenticated,
-    delete: authenticated,
-    read: authenticated,
-    update: authenticated,
+    create: ({ req }) => isSuperUser(req.user),
+    delete: ({ req }) => isSuperUser(req.user),
+    read: ({ req }) => isSuperUser(req.user),
+    update: ({ req }) => isSuperUser(req.user),
   },
   fields: [
     {
