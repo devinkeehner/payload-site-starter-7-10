@@ -229,7 +229,13 @@ export interface Post {
     };
     [k: string]: unknown;
   };
+  /**
+   * Starting layout for the social graphic editor. If the tenant has a default, this field is preselected automatically.
+   */
   graphicTemplate?: (string | null) | GraphicTemplate;
+  /**
+   * The saved editable graphic instance for this post.
+   */
   graphicDesign?: (string | null) | GraphicDesign;
   meta: {
     title: string;
@@ -263,7 +269,35 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  /**
+   * Preselects the post graphic template for new posts in this tenant.
+   */
+  defaultGraphicTemplate?: (string | null) | GraphicTemplate;
   archived?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Reusable graphics templates shared across all tenants.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "graphic-templates".
+ */
+export interface GraphicTemplate {
+  id: string;
+  title: string;
+  sourceCollection: 'posts' | 'pages';
+  backgroundImage?: (string | null) | Media;
+  scene:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -360,30 +394,6 @@ export interface Media {
       filename?: string | null;
     };
   };
-}
-/**
- * Reusable graphics templates shared across all tenants.
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "graphic-templates".
- */
-export interface GraphicTemplate {
-  id: string;
-  title: string;
-  sourceCollection: 'posts' | 'pages';
-  backgroundImage?: (string | null) | Media;
-  scene:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  notes?: string | null;
-  updatedAt: string;
-  createdAt: string;
 }
 /**
  * Editable generated graphics linked to posts and reusable templates.
@@ -4679,6 +4689,7 @@ export interface UsersSelect<T extends boolean = true> {
 export interface TenantsSelect<T extends boolean = true> {
   name?: T;
   slug?: T;
+  defaultGraphicTemplate?: T;
   archived?: T;
   updatedAt?: T;
   createdAt?: T;

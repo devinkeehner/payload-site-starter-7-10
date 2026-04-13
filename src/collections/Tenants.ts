@@ -30,6 +30,16 @@ export const Tenants: CollectionConfig = {
       required: true,
     },
     {
+      name: 'defaultGraphicTemplate',
+      label: 'Default Post Graphic Template',
+      type: 'relationship',
+      relationTo: 'graphic-templates',
+      required: false,
+      admin: {
+        description: 'Preselects the post graphic template for new posts in this tenant.',
+      },
+    },
+    {
       name: 'archived',
       label: 'Archived',
       type: 'checkbox',
