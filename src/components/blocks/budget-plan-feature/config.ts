@@ -213,6 +213,61 @@ const createPressQuoteFields = (): Field[] => [
   },
 ]
 
+const propertyTaxCreditDefaultSections = [
+  {
+    title: 'Single AGI',
+    rows: [
+      { incomeRange: '$1 – $70,000', credit: '$650' },
+      { incomeRange: '$70,001 – $80,000', credit: '$550' },
+      { incomeRange: '$80,001 – $90,000', credit: '$460' },
+      { incomeRange: '$90,001 – $100,000', credit: '$360' },
+      { incomeRange: '$100,001 – $110,000', credit: '$260' },
+      { incomeRange: '$110,001 – $120,000', credit: '$200' },
+      { incomeRange: '$120,001 – $130,000', credit: '$200' },
+      { incomeRange: '$130,001 and up', credit: '–' },
+    ],
+  },
+  {
+    title: 'Joint AGI',
+    rows: [
+      { incomeRange: '$1 – $100,000', credit: '$650' },
+      { incomeRange: '$100,001 – $110,000', credit: '$550' },
+      { incomeRange: '$110,001 – $120,000', credit: '$460' },
+      { incomeRange: '$120,001 – $130,000', credit: '$360' },
+      { incomeRange: '$130,001 – $140,000', credit: '$260' },
+      { incomeRange: '$140,001 – $150,000', credit: '$200' },
+      { incomeRange: '$150,001 – $200,000', credit: '$200' },
+      { incomeRange: '$200,001 and up', credit: '–' },
+    ],
+  },
+  {
+    title: 'Married Separate AGI',
+    rows: [
+      { incomeRange: '$1 – $50,000', credit: '$650' },
+      { incomeRange: '$50,001 – $55,000', credit: '$550' },
+      { incomeRange: '$55,001 – $60,000', credit: '$460' },
+      { incomeRange: '$60,001 – $65,000', credit: '$360' },
+      { incomeRange: '$65,001 – $70,000', credit: '$260' },
+      { incomeRange: '$70,001 – $75,000', credit: '$200' },
+      { incomeRange: '$75,001 – $80,000', credit: '$200' },
+      { incomeRange: '$80,001 and up', credit: '–' },
+    ],
+  },
+  {
+    title: 'Head of Household AGI',
+    rows: [
+      { incomeRange: '$1 – $80,000', credit: '$650' },
+      { incomeRange: '$80,001 – $90,000', credit: '$550' },
+      { incomeRange: '$90,001 – $100,000', credit: '$460' },
+      { incomeRange: '$100,001 – $110,000', credit: '$360' },
+      { incomeRange: '$110,001 – $120,000', credit: '$260' },
+      { incomeRange: '$120,001 – $130,000', credit: '$200' },
+      { incomeRange: '$130,001 – $140,000', credit: '$200' },
+      { incomeRange: '$140,001 and up', credit: '–' },
+    ],
+  },
+]
+
 export const BudgetPlanFeatureConfig: Block = {
   slug: 'budgetPlanFeature',
   interfaceName: 'BudgetPlanFeatureBlock',
@@ -319,6 +374,88 @@ export const BudgetPlanFeatureConfig: Block = {
               label: 'Where We Invest Items',
               type: 'array',
               fields: createBulletArrayFields('Use this for the investment side of the budget story.'),
+            },
+          ],
+        },
+        {
+          label: 'Property Tax Credit',
+          fields: [
+            {
+              name: 'propertyTaxCreditEyebrow',
+              label: 'Property Tax Credit Eyebrow',
+              type: 'text',
+              defaultValue: 'Connecticut House Republicans | March 30, 2026',
+            },
+            {
+              name: 'propertyTaxCreditTitle',
+              label: 'Property Tax Credit Title',
+              type: 'text',
+              defaultValue: 'Connecticut State Property Tax Credit',
+            },
+            {
+              name: 'propertyTaxCreditSubtitle',
+              label: 'Property Tax Credit Subtitle',
+              type: 'text',
+              defaultValue: 'Proposed $650 Maximum',
+            },
+            {
+              name: 'propertyTaxCreditCaption',
+              label: 'Property Tax Credit Caption',
+              type: 'text',
+              defaultValue: 'House Republican Proposal – All figures in dollars ($)',
+            },
+            {
+              name: 'propertyTaxCreditSections',
+              label: 'Property Tax Credit Sections',
+              type: 'array',
+              minRows: 4,
+              defaultValue: propertyTaxCreditDefaultSections,
+              fields: [
+                {
+                  name: 'title',
+                  label: 'Section Title',
+                  type: 'text',
+                  required: true,
+                },
+                {
+                  name: 'rows',
+                  label: 'Rows',
+                  type: 'array',
+                  fields: [
+                    {
+                      name: 'incomeRange',
+                      label: 'Income Range',
+                      type: 'text',
+                      required: true,
+                    },
+                    {
+                      name: 'credit',
+                      label: 'Credit',
+                      type: 'text',
+                      required: true,
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              name: 'propertyTaxCreditFootnote',
+              label: 'Property Tax Credit Footnote',
+              type: 'text',
+              defaultValue:
+                'Eligible property: primary residence and/or owned or leased motor vehicle. Credit applied against state income tax; does not affect municipal revenue.',
+            },
+            {
+              name: 'propertyTaxCreditFooterLeft',
+              label: 'Property Tax Credit Footer Left',
+              type: 'text',
+              defaultValue: '@cthousegop',
+            },
+            {
+              name: 'propertyTaxCreditFooterRight',
+              label: 'Property Tax Credit Footer Right',
+              type: 'text',
+              defaultValue: 'cthousegop.com',
             },
           ],
         },

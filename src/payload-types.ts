@@ -1914,6 +1914,26 @@ export interface BudgetPlanFeatureBlock {
         id?: string | null;
       }[]
     | null;
+  propertyTaxCreditEyebrow?: string | null;
+  propertyTaxCreditTitle?: string | null;
+  propertyTaxCreditSubtitle?: string | null;
+  propertyTaxCreditCaption?: string | null;
+  propertyTaxCreditSections?:
+    | {
+        title: string;
+        rows?:
+          | {
+              incomeRange: string;
+              credit: string;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  propertyTaxCreditFootnote?: string | null;
+  propertyTaxCreditFooterLeft?: string | null;
+  propertyTaxCreditFooterRight?: string | null;
   secondaryLogo: {
     /**
      * Use a smaller branded logo source link or upload a local asset.
@@ -3972,6 +3992,26 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
         detail?: T;
         id?: T;
       };
+  propertyTaxCreditEyebrow?: T;
+  propertyTaxCreditTitle?: T;
+  propertyTaxCreditSubtitle?: T;
+  propertyTaxCreditCaption?: T;
+  propertyTaxCreditSections?:
+    | T
+    | {
+        title?: T;
+        rows?:
+          | T
+          | {
+              incomeRange?: T;
+              credit?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  propertyTaxCreditFootnote?: T;
+  propertyTaxCreditFooterLeft?: T;
+  propertyTaxCreditFooterRight?: T;
   secondaryLogo?:
     | T
     | {
