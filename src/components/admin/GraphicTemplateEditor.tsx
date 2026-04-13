@@ -138,8 +138,6 @@ type GraphicHeadshotBindingPatch = {
   mediaID?: string | null
 }
 
-type MastheadPart = 'fromThe' | 'houseGop' | 'newsroom' | 'line'
-
 type EditableTextTarget =
   | { kind: 'headline' }
   | { kind: 'repName'; role: GraphicRepRole }
@@ -852,13 +850,13 @@ export const GraphicTemplateEditor: React.FC = () => {
     setScene((current) => ({ ...current, headlineLayer: { ...current.headlineLayer, ...patch } }))
   }
 
-  const updateMastheadPart = (part: MastheadPart, patch: Partial<GraphicScene['masthead'][MastheadPart]>) => {
+  const updateMastheadLine = (patch: Partial<GraphicScene['masthead']['line']>) => {
     setScene((current) => ({
       ...current,
       masthead: {
         ...current.masthead,
-        [part]: {
-          ...current.masthead[part],
+        line: {
+          ...current.masthead.line,
           ...patch,
         },
       },
@@ -1387,7 +1385,7 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
 
     if (action === 'reset-line' && target !== 'canvas' && target.kind === 'mastheadLine') {
-      updateMastheadPart('line', defaultGraphicScene().masthead.line)
+      updateMastheadLine(defaultGraphicScene().masthead.line)
       return
     }
 
@@ -2079,7 +2077,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                     event.cancelBubble = true
                     openCanvasMenu(event.evt, { kind: 'mastheadLine' })
                   }}
-                  onDragEnd={(event) => updateMastheadPart('line', { x: event.target.x(), y: event.target.y() })}
+                  onDragEnd={(event) => updateMastheadLine({ x: event.target.x(), y: event.target.y() })}
                 />
               ) : null}
 

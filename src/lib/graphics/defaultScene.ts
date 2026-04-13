@@ -67,9 +67,6 @@ export type GraphicScene = {
   headlineLayer: GraphicTextLayer
   masthead: {
     show: boolean
-    fromThe: GraphicTextLayer
-    houseGop: GraphicTextLayer
-    newsroom: GraphicTextLayer
     line: GraphicLineLayer
   }
   handle: {
@@ -80,7 +77,7 @@ export type GraphicScene = {
 }
 
 export const defaultGraphicScene = (): GraphicScene => ({
-  version: 4,
+  version: 5,
   repNameLayers: {
     primary: {
       x: 380,
@@ -113,40 +110,6 @@ export const defaultGraphicScene = (): GraphicScene => ({
   },
   masthead: {
     show: true,
-    fromThe: {
-      x: 676,
-      y: 60,
-      width: 300,
-      align: 'center',
-      text: '',
-      color: '#152b70',
-      fontFamily: 'Inter, Arial, sans-serif',
-      fontSize: 16,
-      fontStyle: '800 italic',
-      letterSpacing: 1,
-    },
-    houseGop: {
-      x: 592,
-      y: 86,
-      width: 542,
-      align: 'center',
-      text: '',
-      color: '#b91c1c',
-      fontFamily: 'Inter, Arial, sans-serif',
-      fontSize: 50,
-      fontStyle: '800',
-    },
-    newsroom: {
-      x: 592,
-      y: 128,
-      width: 542,
-      align: 'center',
-      text: '',
-      color: '#b91c1c',
-      fontFamily: 'Inter, Arial, sans-serif',
-      fontSize: 74,
-      fontStyle: '900 italic',
-    },
     line: {
       x: 700,
       y: 220,
@@ -308,42 +271,14 @@ export const normalizeGraphicScene = (value: unknown): GraphicScene => {
     .filter((item) => Boolean(item.id))
 
   const mastheadRecord = asRecord(record.masthead)
-  const legacyMastheadX = asNumber(mastheadRecord.x, fallback.masthead.houseGop.x)
-  const legacyMastheadY = asNumber(mastheadRecord.y, fallback.masthead.houseGop.y - 26)
-
+  const legacyMastheadX = asNumber(mastheadRecord.x, fallback.masthead.line.x)
+  const legacyMastheadY = asNumber(mastheadRecord.y, fallback.masthead.line.y - 160)
   return {
-    version: 4,
+    version: 5,
     repNameLayers,
     headlineLayer: asTextLayer(record.headlineLayer, fallback.headlineLayer),
     masthead: {
       show: mastheadRecord.show !== false,
-      fromThe: asTextLayer(
-        {
-          ...fallback.masthead.fromThe,
-          ...asRecord(mastheadRecord.fromThe),
-          x: asNumber(asRecord(mastheadRecord.fromThe).x, legacyMastheadX + 84),
-          y: asNumber(asRecord(mastheadRecord.fromThe).y, legacyMastheadY),
-        },
-        fallback.masthead.fromThe,
-      ),
-      houseGop: asTextLayer(
-        {
-          ...fallback.masthead.houseGop,
-          ...asRecord(mastheadRecord.houseGop),
-          x: asNumber(asRecord(mastheadRecord.houseGop).x, legacyMastheadX),
-          y: asNumber(asRecord(mastheadRecord.houseGop).y, legacyMastheadY + 26),
-        },
-        fallback.masthead.houseGop,
-      ),
-      newsroom: asTextLayer(
-        {
-          ...fallback.masthead.newsroom,
-          ...asRecord(mastheadRecord.newsroom),
-          x: asNumber(asRecord(mastheadRecord.newsroom).x, legacyMastheadX),
-          y: asNumber(asRecord(mastheadRecord.newsroom).y, legacyMastheadY + 68),
-        },
-        fallback.masthead.newsroom,
-      ),
       line: asLineLayer(
         {
           ...fallback.masthead.line,
