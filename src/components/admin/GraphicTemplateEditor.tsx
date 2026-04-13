@@ -30,22 +30,6 @@ const COMPACT_BREAKPOINT = 1320
 const WIDE_BREAKPOINT = 1600
 const BRAND_COLORS = ['#102145', '#152b70', '#a02626', '#b91c1c', '#ffffff', '#111827']
 
-const KEYBOARD_KEYS = [
-  { x: 12, y: 0, width: 214, height: 150, rotate: -10 },
-  { x: 216, y: -12, width: 252, height: 170, rotate: 10 },
-  { x: 472, y: 4, width: 232, height: 170, rotate: -12 },
-  { x: 732, y: -14, width: 248, height: 178, rotate: 10 },
-  { x: 994, y: 10, width: 188, height: 146, rotate: -10 },
-  { x: 48, y: 178, width: 246, height: 172, rotate: 10 },
-  { x: 324, y: 162, width: 254, height: 180, rotate: -12 },
-  { x: 602, y: 188, width: 236, height: 170, rotate: 11 },
-  { x: 862, y: 178, width: 214, height: 164, rotate: -10 },
-  { x: 84, y: 384, width: 252, height: 172, rotate: -11 },
-  { x: 364, y: 374, width: 246, height: 176, rotate: 9 },
-  { x: 636, y: 392, width: 252, height: 176, rotate: -12 },
-  { x: 924, y: 384, width: 224, height: 164, rotate: 10 },
-]
-
 type MediaDoc = {
   id: string
   alt?: string | null
@@ -114,7 +98,6 @@ type TenantAssets = {
 
 type Selection =
   | { kind: 'headline' }
-  | { kind: 'mastheadLine' }
   | { kind: 'repName'; role: GraphicRepRole }
   | { kind: 'headshot'; id: string }
   | { kind: 'image'; id: string }
@@ -437,7 +420,6 @@ export const GraphicTemplateEditor: React.FC = () => {
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const headshotRefs = useRef<Record<string, Konva.Group | null>>({})
   const imageRefs = useRef<Record<string, Konva.Group | null>>({})
-  const mastheadLineRef = useRef<Konva.Rect | null>(null)
   const titleRef = useRef<Konva.Group | null>(null)
   const repNameRefs = useRef<Record<GraphicRepRole, Konva.Text | null>>({
     primary: null,
@@ -830,9 +812,7 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
 
     const node =
-      selection.kind === 'mastheadLine'
-        ? mastheadLineRef.current
-        : selection.kind === 'headline'
+      selection.kind === 'headline'
           ? titleRef.current
           : selection.kind === 'repName'
             ? repNameRefs.current[selection.role]
@@ -848,19 +828,6 @@ export const GraphicTemplateEditor: React.FC = () => {
 
   const updateHeadline = (patch: Partial<GraphicTextLayer>) => {
     setScene((current) => ({ ...current, headlineLayer: { ...current.headlineLayer, ...patch } }))
-  }
-
-  const updateMastheadLine = (patch: Partial<GraphicScene['masthead']['line']>) => {
-    setScene((current) => ({
-      ...current,
-      masthead: {
-        ...current.masthead,
-        line: {
-          ...current.masthead.line,
-          ...patch,
-        },
-      },
-    }))
   }
 
   const updateRepName = (role: GraphicRepRole, patch: Partial<GraphicTextLayer>) => {
@@ -1381,11 +1348,6 @@ export const GraphicTemplateEditor: React.FC = () => {
 
     if (action === 'reset-headline' && target !== 'canvas' && target.kind === 'headline') {
       updateHeadline({ x: 548, y: 244, width: 510, align: 'center' })
-      return
-    }
-
-    if (action === 'reset-line' && target !== 'canvas' && target.kind === 'mastheadLine') {
-      updateMastheadLine(defaultGraphicScene().masthead.line)
       return
     }
 
@@ -2003,19 +1965,6 @@ export const GraphicTemplateEditor: React.FC = () => {
             <Layer>
               <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="#f7f4ef" />
               {backgroundImage ? <KonvaImage image={backgroundImage} width={STAGE_WIDTH} height={STAGE_HEIGHT} opacity={0.94} /> : null}
-              {KEYBOARD_KEYS.map((key, index) => (
-                <Rect
-                  key={index}
-                  x={key.x}
-                  y={key.y}
-                  width={key.width}
-                  height={key.height}
-                  rotation={key.rotate}
-                  cornerRadius={22}
-                  stroke="rgba(160, 166, 179, 0.12)"
-                  strokeWidth={5}
-                />
-              ))}
 
               {scene.imageLayers.map((layer) => {
                 const image = imageLayerCache[layer.id] || null
@@ -2058,28 +2007,6 @@ export const GraphicTemplateEditor: React.FC = () => {
                   </Group>
                 )
               })}
-
-              {scene.masthead.show ? (
-                <Rect
-                  ref={(node) => {
-                    mastheadLineRef.current = node
-                  }}
-                  x={scene.masthead.line.x}
-                  y={scene.masthead.line.y}
-                  width={Math.round(scene.masthead.line.width * contentFitScale)}
-                  height={scene.masthead.line.height}
-                  fill={scene.masthead.line.color || '#172c70'}
-                  cornerRadius={999}
-                  draggable
-                  onClick={() => setSelection({ kind: 'mastheadLine' })}
-                  onTap={() => setSelection({ kind: 'mastheadLine' })}
-                  onContextMenu={(event) => {
-                    event.cancelBubble = true
-                    openCanvasMenu(event.evt, { kind: 'mastheadLine' })
-                  }}
-                  onDragEnd={(event) => updateMastheadLine({ x: event.target.x(), y: event.target.y() })}
-                />
-              ) : null}
 
               {scene.headshots.map((headshot, index) => {
                 const image = headshotImages[index] || null
@@ -2250,28 +2177,12 @@ export const GraphicTemplateEditor: React.FC = () => {
                 />
               </Group>
 
-              {scene.handle.show ? (
-                  <Text
-                    x={798}
-                    y={498}
-                    width={240}
-                    text="@cthousegop"
-                    fontFamily="Inter, Arial, sans-serif"
-                    fontStyle="700 italic"
-                    fontSize={Math.max(15, Math.round(18 * contentFitScale))}
-                    fill="#172c70"
-                    align="center"
-                  />
-              ) : null}
-
               <Transformer
                 ref={transformerRef}
                 rotateEnabled={false}
                 flipEnabled={false}
                 enabledAnchors={
-                  selection?.kind === 'mastheadLine'
-                    ? []
-                    : selection?.kind === 'headline'
+                  selection?.kind === 'headline'
                     ? ['middle-left', 'middle-right']
                     : selection?.kind === 'repName'
                       ? ['middle-left', 'middle-right']
@@ -2286,10 +2197,6 @@ export const GraphicTemplateEditor: React.FC = () => {
                 anchorFill="#ffffff"
                 anchorSize={10}
                 boundBoxFunc={(_, newBox) => {
-                  if (selection?.kind === 'mastheadLine') {
-                    return newBox
-                  }
-
                   if (selection?.kind === 'headline') {
                     return {
                       ...newBox,
@@ -2534,10 +2441,6 @@ export const GraphicTemplateEditor: React.FC = () => {
                     Remove slot
                   </button>
                 </>
-              ) : canvasMenu.target.kind === 'mastheadLine' ? (
-                <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('reset-line')}>
-                  Reset line
-                </button>
               ) : canvasMenu.target.kind === 'headline' ? (
                 <button type="button" style={contextMenuButtonStyle} onClick={() => void handleCanvasMenuAction('reset-headline')}>
                   Reset headline

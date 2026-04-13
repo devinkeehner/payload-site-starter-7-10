@@ -53,25 +53,10 @@ export type GraphicImageLayer = {
   opacity?: number
 }
 
-export type GraphicLineLayer = {
-  x: number
-  y: number
-  width: number
-  height: number
-  color?: string
-}
-
 export type GraphicScene = {
   version: number
   repNameLayers: Record<GraphicRepRole, GraphicTextLayer>
   headlineLayer: GraphicTextLayer
-  masthead: {
-    show: boolean
-    line: GraphicLineLayer
-  }
-  handle: {
-    show: boolean
-  }
   headshots: GraphicHeadshotLayer[]
   imageLayers: GraphicImageLayer[]
 }
@@ -107,19 +92,6 @@ export const defaultGraphicScene = (): GraphicScene => ({
     color: '#a02626',
     fontFamily: 'Georgia, Times New Roman, serif',
     fontSize: 38,
-  },
-  masthead: {
-    show: true,
-    line: {
-      x: 700,
-      y: 220,
-      width: 382,
-      height: 4,
-      color: '#172c70',
-    },
-  },
-  handle: {
-    show: true,
   },
   headshots: [
     {
@@ -162,18 +134,6 @@ const asTextLayer = (value: unknown, fallback: GraphicTextLayer): GraphicTextLay
     fontStyle: typeof record.fontStyle === 'string' ? record.fontStyle : fallback.fontStyle,
     textDecoration: typeof record.textDecoration === 'string' ? record.textDecoration : fallback.textDecoration,
     letterSpacing: asNumber(record.letterSpacing, fallback.letterSpacing ?? 0),
-  }
-}
-
-const asLineLayer = (value: unknown, fallback: GraphicLineLayer): GraphicLineLayer => {
-  const record = asRecord(value)
-
-  return {
-    x: asNumber(record.x, fallback.x),
-    y: asNumber(record.y, fallback.y),
-    width: asNumber(record.width, fallback.width),
-    height: asNumber(record.height, fallback.height),
-    color: typeof record.color === 'string' ? record.color : fallback.color,
   }
 }
 
@@ -270,28 +230,10 @@ export const normalizeGraphicScene = (value: unknown): GraphicScene => {
     })
     .filter((item) => Boolean(item.id))
 
-  const mastheadRecord = asRecord(record.masthead)
-  const legacyMastheadX = asNumber(mastheadRecord.x, fallback.masthead.line.x)
-  const legacyMastheadY = asNumber(mastheadRecord.y, fallback.masthead.line.y - 160)
   return {
-    version: 5,
+    version: 6,
     repNameLayers,
     headlineLayer: asTextLayer(record.headlineLayer, fallback.headlineLayer),
-    masthead: {
-      show: mastheadRecord.show !== false,
-      line: asLineLayer(
-        {
-          ...fallback.masthead.line,
-          ...asRecord(mastheadRecord.line),
-          x: asNumber(asRecord(mastheadRecord.line).x, legacyMastheadX + 108),
-          y: asNumber(asRecord(mastheadRecord.line).y, legacyMastheadY + 160),
-        },
-        fallback.masthead.line,
-      ),
-    },
-    handle: {
-      show: asRecord(record.handle).show !== false,
-    },
     headshots: headshots.length > 0 ? headshots : fallback.headshots,
     imageLayers,
   }
