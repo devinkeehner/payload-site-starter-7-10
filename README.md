@@ -11,9 +11,10 @@ This backend is a Payload CMS app with MCP enabled.
 ## MCP auth
 
 - The official `/api/mcp` route uses a bearer token created in the `payload-mcp-api-keys` collection
-- If your client wants an env var name, `PAYLOAD_MCP_API_KEY` is fine as the local/client variable that holds that bearer token
+- If your client wants an env var name, use `PAYLOAD_MCP_TOKEN` as the local/client variable that holds that bearer token
+- `PAYLOAD_MCP_API_KEY` is still accepted by the backend proxy routes as a compatibility fallback
 - Send:
-- `Authorization: Bearer <PAYLOAD_MCP_API_KEY>`
+- `Authorization: Bearer <PAYLOAD_MCP_TOKEN>`
 - `Content-Type: application/json`
 - `Accept: application/json, text/event-stream`
 

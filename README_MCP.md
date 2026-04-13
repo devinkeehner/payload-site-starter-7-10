@@ -11,10 +11,11 @@ This backend exposes the official Payload MCP route at `https://admin.cthousegop
 Example client config:
 
 ```bash
-codex mcp add payload --url https://admin.cthousegop.com/api/mcp --bearer-token-env-var PAYLOAD_MCP_API_KEY
+codex mcp add payload --url https://admin.cthousegop.com/api/mcp --bearer-token-env-var PAYLOAD_MCP_TOKEN
 ```
 
-`PAYLOAD_MCP_API_KEY` is just the local/client env name that holds the bearer token value.
+`PAYLOAD_MCP_TOKEN` is the local/client env name that holds the bearer token value.
+If you still have older setup scripts, `PAYLOAD_MCP_API_KEY` is accepted by the backend proxy routes as a fallback.
 
 ## Optional compatibility routes
 

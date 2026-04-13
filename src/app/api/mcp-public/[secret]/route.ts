@@ -20,6 +20,14 @@ function isAuthorizedPathSecret(secret: string) {
   return secret === configured
 }
 
+function getMcpBearerToken() {
+  return (
+    process.env.PAYLOAD_MCP_TOKEN ||
+    process.env.PAYLOAD_MCP_API_KEY ||
+    ''
+  ).trim()
+}
+
 function getForwardHeaders(req: NextRequest) {
   const headers = new Headers()
 
@@ -34,9 +42,9 @@ function getForwardHeaders(req: NextRequest) {
   if (lastEventId) headers.set('last-event-id', lastEventId)
   if (mcpSessionId) headers.set('mcp-session-id', mcpSessionId)
 
-  const mcpApiKey = process.env.PAYLOAD_MCP_API_KEY || ''
-  if (mcpApiKey) {
-    headers.set('authorization', `Bearer ${mcpApiKey}`)
+  const mcpToken = getMcpBearerToken()
+  if (mcpToken) {
+    headers.set('authorization', `Bearer ${mcpToken}`)
   }
 
   return headers
@@ -168,7 +176,7 @@ function requireEnabled() {
     })
   }
 
-  if (!(process.env.PAYLOAD_MCP_API_KEY || '').trim()) {
+  if (!getMcpBearerToken()) {
     return new Response(JSON.stringify({ message: 'MCP proxy is not configured' }), {
       status: 503,
       headers: { 'content-type': 'application/json' },

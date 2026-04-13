@@ -1471,7 +1471,7 @@ const mcpHandler = createMcpHandler(
 )
 
 function requireAuth(req: Request) {
-  const expected = process.env.PAYLOAD_MCP_API_KEY || ''
+  const expected = (process.env.PAYLOAD_MCP_TOKEN || process.env.PAYLOAD_MCP_API_KEY || '').trim()
   if (!expected.trim()) {
     return new Response(JSON.stringify({ message: 'MCP API key is not configured' }), {
       status: 503,
