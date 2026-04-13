@@ -193,6 +193,26 @@ const createBulletArrayFields = (description: string): Field[] => [
   },
 ]
 
+const createPressQuoteFields = (): Field[] => [
+  {
+    name: 'quote',
+    label: 'Quote',
+    type: 'textarea',
+    required: true,
+  },
+  {
+    name: 'attribution',
+    label: 'Attribution',
+    type: 'text',
+    required: true,
+  },
+  {
+    name: 'title',
+    label: 'Title / Role',
+    type: 'text',
+  },
+]
+
 export const BudgetPlanFeatureConfig: Block = {
   slug: 'budgetPlanFeature',
   interfaceName: 'BudgetPlanFeatureBlock',
@@ -227,6 +247,15 @@ export const BudgetPlanFeatureConfig: Block = {
               'Use a real press photo source link or upload a local asset.',
             ),
             createRichTextField('newsReleaseTitle', 'News Release Title'),
+            {
+              name: 'pressQuotes',
+              label: 'Press Quotes',
+              type: 'array',
+              admin: {
+                description: 'Optional featured quote cards shown in place of the news release title.',
+              },
+              fields: createPressQuoteFields(),
+            },
             createRichTextField('newsReleaseBody', 'News Release Body'),
             {
               name: 'newsReleaseLinkLabel',

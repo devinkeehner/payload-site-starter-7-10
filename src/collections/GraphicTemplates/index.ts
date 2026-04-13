@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
+import { authenticated } from '@/lib/access/authenticated'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
 
@@ -19,7 +20,7 @@ export const GraphicTemplates: CollectionConfig = {
   access: {
     create: ({ req }) => isSuperUser(req.user),
     delete: ({ req }) => isSuperUser(req.user),
-    read: ({ req }) => isSuperUser(req.user),
+    read: authenticated,
     update: ({ req }) => isSuperUser(req.user),
   },
   fields: [

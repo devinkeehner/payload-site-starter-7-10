@@ -116,8 +116,6 @@ export const GraphicTemplateLauncher: React.FC = () => {
     }
   }, [setTemplateValue, tenantID, templateID])
 
-  if (!isSuperAdmin) return null
-
   const openEditor = (params: URLSearchParams) => {
     if (typeof window === 'undefined') return
     window.location.assign(`/graphics-editor?${params.toString()}`)
@@ -172,9 +170,11 @@ export const GraphicTemplateLauncher: React.FC = () => {
         <Button onClick={openPostGraphicEditor} disabled={!documentID} buttonStyle="secondary">
           Open Post Graphic Editor
         </Button>
-        <Button onClick={openTemplateEditor} disabled={!effectiveTemplateID} buttonStyle="secondary">
-          Edit Template
-        </Button>
+        {isSuperAdmin ? (
+          <Button onClick={openTemplateEditor} disabled={!effectiveTemplateID} buttonStyle="secondary">
+            Edit Template
+          </Button>
+        ) : null}
         <Button onClick={openDesignEditor} disabled={!designID} buttonStyle="secondary">
           Edit Saved Graphic
         </Button>

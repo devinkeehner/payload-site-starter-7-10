@@ -1393,10 +1393,6 @@ export const GraphicTemplateEditor: React.FC = () => {
     return <div style={{ padding: 24 }}>Loading graphics editor…</div>
   }
 
-  if (!isSuperAdmin) {
-    return <div style={{ padding: 24 }}>This editor is restricted to super admins.</div>
-  }
-
   return (
     <div
       style={{
@@ -1452,9 +1448,11 @@ export const GraphicTemplateEditor: React.FC = () => {
             <input value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} style={controlStyle} />
           </label>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="button" onClick={saveTemplate} style={primaryButtonStyle} disabled={savingTemplate}>
-              {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
-            </button>
+            {isSuperAdmin ? (
+              <button type="button" onClick={saveTemplate} style={primaryButtonStyle} disabled={savingTemplate}>
+                {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
+              </button>
+            ) : null}
             <button type="button" onClick={resetScene} style={secondaryButtonStyle}>
               Reset scene
             </button>

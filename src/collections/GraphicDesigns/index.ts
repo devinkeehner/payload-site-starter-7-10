@@ -1,5 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
+import { authenticated } from '@/lib/access/authenticated'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
 
@@ -17,10 +18,10 @@ export const GraphicDesigns: CollectionConfig = {
     hidden: ({ user }) => !isSuperUser(user),
   },
   access: {
-    create: ({ req }) => isSuperUser(req.user),
+    create: authenticated,
     delete: ({ req }) => isSuperUser(req.user),
-    read: ({ req }) => isSuperUser(req.user),
-    update: ({ req }) => isSuperUser(req.user),
+    read: authenticated,
+    update: authenticated,
   },
   fields: [
     {

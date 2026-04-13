@@ -976,10 +976,6 @@ export const Posts: CollectionConfig<'posts'> = {
                 width: '50%',
                 description: 'Starting layout for the social graphic editor. If the tenant has a default, this field is preselected automatically.',
               },
-              access: {
-                read: ({ req }) => isSuperUser(req.user),
-                update: ({ req }) => isSuperUser(req.user),
-              },
             },
             {
               name: 'graphicDesign',
@@ -990,10 +986,6 @@ export const Posts: CollectionConfig<'posts'> = {
               admin: {
                 width: '50%',
                 description: 'The saved editable graphic instance for this post.',
-              },
-              access: {
-                read: ({ req }) => isSuperUser(req.user),
-                update: ({ req }) => isSuperUser(req.user),
               },
             },
             {
