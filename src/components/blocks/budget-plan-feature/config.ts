@@ -380,6 +380,15 @@ export const BudgetPlanFeatureConfig: Block = {
             createRichTextField('affordabilityTitle', 'Key Affordability Measures Title'),
             createRichTextField('affordabilityIntro', 'Key Affordability Measures Intro'),
             {
+              name: 'affordabilityQuote',
+              label: 'Affordability Quote',
+              type: 'group',
+              admin: {
+                description: 'Optional quote card shown in the upper-right of the affordability section.',
+              },
+              fields: createPressQuoteFields(),
+            },
+            {
               name: 'affordabilityItems',
               label: 'Key Affordability Measures',
               type: 'array',
