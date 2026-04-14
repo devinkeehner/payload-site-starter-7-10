@@ -301,6 +301,21 @@ export const BudgetPlanFeatureConfig: Block = {
             ),
             createRichTextField('heroTitle', 'Hero Title'),
             createRichTextField('heroIntro', 'Hero Intro'),
+            {
+              name: 'heroCtaLabel',
+              label: 'Hero CTA Label',
+              type: 'text',
+              defaultValue: 'Explore the plan',
+            },
+            {
+              name: 'heroCtaURL',
+              label: 'Hero CTA URL',
+              type: 'text',
+              defaultValue: '#budget-plan-fast-facts',
+              admin: {
+                description: 'Use a section anchor like #budget-plan-fast-facts or a full URL.',
+              },
+            },
           ],
         },
         {

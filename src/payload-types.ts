@@ -1556,6 +1556,11 @@ export interface BudgetPlanFeatureBlock {
     };
     [k: string]: unknown;
   } | null;
+  heroCtaLabel?: string | null;
+  /**
+   * Use a section anchor like #budget-plan-fast-facts or a full URL.
+   */
+  heroCtaURL?: string | null;
   groupPhoto: {
     /**
      * Use a real press photo source link or upload a local asset.
@@ -3963,6 +3968,8 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
       };
   heroTitle?: T;
   heroIntro?: T;
+  heroCtaLabel?: T;
+  heroCtaURL?: T;
   groupPhoto?:
     | T
     | {
