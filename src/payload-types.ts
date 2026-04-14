@@ -1750,6 +1750,14 @@ export interface BudgetPlanFeatureBlock {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Optional quote card shown in the upper-right of the affordability section.
+   */
+  affordabilityQuote: {
+    quote: string;
+    attribution: string;
+    title?: string | null;
+  };
   affordabilityItems?:
     | {
         icon?:
@@ -4029,6 +4037,13 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
       };
   affordabilityTitle?: T;
   affordabilityIntro?: T;
+  affordabilityQuote?:
+    | T
+    | {
+        quote?: T;
+        attribution?: T;
+        title?: T;
+      };
   affordabilityItems?:
     | T
     | {
