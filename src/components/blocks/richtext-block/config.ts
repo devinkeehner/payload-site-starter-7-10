@@ -13,6 +13,7 @@ import { CodeBlockConfig } from '@/components/blocks/code-block/config'
 import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { MediaBlockConfig } from '@/components/blocks/media-block/config'
 import { MediaGalleryBlockConfig } from '@/components/blocks/media-gallery-block/config'
+import { TenantTownTableBlockConfig } from '@/components/blocks/tenant-town-table/config'
 import { VideoBlockConfig } from '@/components/blocks/video-block/config'
 
 export const RichTextBlockConfig: Block = {
@@ -35,6 +36,7 @@ export const RichTextBlockConfig: Block = {
                 VideoBlockConfig,
                 MediaGalleryBlockConfig,
                 FormBlockConfig,
+                TenantTownTableBlockConfig,
               ],
             }),
             FixedToolbarFeature(),

@@ -1156,9 +1156,18 @@ export const GraphicTemplateEditor: React.FC = () => {
     const stage = stageRef.current
     if (!stage) return null
     const previousSelection = selection
+    const previousScaleX = stage.scaleX()
+    const previousScaleY = stage.scaleY()
+
     setSelection(null)
+    stage.scale({ x: 1, y: 1 })
+    stage.draw()
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+
     const dataUrl = stage.toDataURL({ pixelRatio: 2 })
+
+    stage.scale({ x: previousScaleX, y: previousScaleY })
+    stage.draw()
     setSelection(previousSelection)
     return dataUrl
   }
@@ -1370,6 +1379,7 @@ export const GraphicTemplateEditor: React.FC = () => {
   }))
   const selectedTextTarget = isEditableTextSelection(selection) ? selection : null
   const selectedTextLayer = selectedTextTarget ? resolveTextLayer(selectedTextTarget) : null
+  const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
   const stageOffsetX = Math.max(0, (stageContainerWidth - STAGE_WIDTH * previewScale) / 2)
   const inlineEditorBox =
     inlineTextEditor && selectedTextTarget
@@ -1847,12 +1857,6 @@ export const GraphicTemplateEditor: React.FC = () => {
             <span style={{ fontSize: 12, color: '#64748b' }}>Double-click text to edit in place. Right-click for slot actions.</span>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-            <button type="button" onClick={saveDesign} style={primaryButtonStyle} disabled={savingDesign}>
-              {savingDesign ? 'Saving…' : 'Save design'}
-            </button>
-            <button type="button" onClick={saveToSEO} style={primaryButtonStyle} disabled={savingMedia || !docID}>
-              {savingMedia ? 'Saving…' : 'Save to SEO'}
-            </button>
             <button type="button" onClick={saveToMediaGallery} style={secondaryButtonStyle} disabled={savingMedia}>
               {savingMedia ? 'Saving…' : 'Save to Media'}
             </button>
@@ -1861,70 +1865,100 @@ export const GraphicTemplateEditor: React.FC = () => {
             </button>
           </div>
         </div>
-        {selectedTextTarget && selectedTextLayer ? (
-          <div style={textToolbarStyle}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
+        <div style={textToolbarStyle}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              opacity: selectedTextTarget && selectedTextLayer ? 1 : 0,
+              pointerEvents: selectedTextTarget && selectedTextLayer ? 'auto' : 'none',
+            }}
+          >
             <button
               type="button"
               style={toolbarButtonStyle}
-              onClick={() =>
+              onClick={() => {
+                if (!selectedTextTarget || !selectedTextLayer) return
                 updateTextLayer(selectedTextTarget, {
                   fontStyle: (selectedTextLayer.fontStyle || '').includes('italic')
                     ? (selectedTextLayer.fontStyle || 'normal').replace(/\s*italic/g, '').trim() || 'normal'
                     : `${selectedTextLayer.fontStyle || 'normal'} italic`.trim(),
                 })
-              }
+              }}
+              disabled={!isTextToolbarActive}
             >
               Italic
             </button>
             <button
               type="button"
               style={toolbarButtonStyle}
-              onClick={() =>
+              onClick={() => {
+                if (!selectedTextTarget || !selectedTextLayer) return
                 updateTextLayer(selectedTextTarget, {
                   textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline',
                 })
-              }
+              }}
+              disabled={!isTextToolbarActive}
             >
               Underline
             </button>
             <select
-              value={selectedTextLayer.align}
-              onChange={(event) => updateTextLayer(selectedTextTarget, { align: event.target.value as GraphicTextAlign })}
+              value={selectedTextLayer?.align || 'left'}
+              onChange={(event) =>
+                (() => {
+                  if (!selectedTextTarget || !selectedTextLayer) return
+                  updateTextLayer(selectedTextTarget, { align: event.target.value as GraphicTextAlign })
+                })()
+              }
               style={{ ...controlStyle, width: 110, padding: '8px 10px' }}
+              disabled={!isTextToolbarActive}
             >
               <option value="left">Left</option>
               <option value="center">Center</option>
             </select>
-            <input
-              type="range"
-              min={12}
-              max={120}
-              step={1}
-              value={selectedTextLayer.fontSize || 32}
-              onChange={(event) => updateTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })}
-              style={{ width: 140 }}
-            />
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
+              <input
+                type="number"
+                min={12}
+                max={120}
+                step={1}
+                value={selectedTextLayer?.fontSize || 32}
+                onChange={(event) => {
+                  if (!selectedTextTarget || !selectedTextLayer) return
+                  updateTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })
+                }}
+                style={{ ...controlStyle, width: 92, padding: '8px 10px' }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               {BRAND_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
                   aria-label={`Choose ${color}`}
-                  onClick={() => updateTextLayer(selectedTextTarget, { color })}
+                  onClick={() => {
+                    if (!selectedTextTarget || !selectedTextLayer) return
+                    updateTextLayer(selectedTextTarget, { color })
+                  }}
                   style={{
                     width: 22,
                     height: 22,
                     borderRadius: 999,
-                    border: selectedTextLayer.color === color ? '2px solid #0f172a' : '1px solid rgba(15,23,42,0.18)',
+                    border: selectedTextLayer?.color === color ? '2px solid #0f172a' : '1px solid rgba(15,23,42,0.18)',
                     background: color,
                     cursor: 'pointer',
                   }}
+                  disabled={!isTextToolbarActive}
                 />
               ))}
             </div>
           </div>
-        ) : null}
+        </div>
         {message ? <div style={{ ...hintStyle, marginBottom: 12 }}>{message}</div> : null}
         <div
           ref={stageContainerRef}

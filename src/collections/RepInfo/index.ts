@@ -147,6 +147,18 @@ export const RepInfo: CollectionConfig = {
           required: true,
         },
         {
+          name: 'currentEcsEntitlement',
+          label: 'Current ECS',
+          type: 'number',
+          min: 0,
+        },
+        {
+          name: 'houseGopStrapAid',
+          label: 'House GOP STRAP Aid',
+          type: 'number',
+          min: 0,
+        },
+        {
           name: 'url',
           label: 'Town Website URL',
           type: 'text',

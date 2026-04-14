@@ -21,6 +21,7 @@ import { FormBlockConfig } from '@/components/blocks/form-block/config'
 import { VideoBlockConfig } from '@/components/blocks/video-block/config'
 import { LunchComparisonGraphicBlockConfig } from '@/components/blocks/lunch-comparison-graphic/config'
 import { PropertyTaxCreditTableBlockConfig } from '@/components/blocks/property-tax-credit-table/config'
+import { TenantTownTableBlockConfig } from '@/components/blocks/tenant-town-table/config'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
@@ -937,6 +938,7 @@ export const Posts: CollectionConfig<'posts'> = {
                         FormBlockConfig,
                         LunchComparisonGraphicBlockConfig,
                         PropertyTaxCreditTableBlockConfig,
+                        TenantTownTableBlockConfig,
                       ],
                     }),
                     FixedToolbarFeature(),

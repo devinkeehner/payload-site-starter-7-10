@@ -2388,6 +2388,8 @@ export interface RepInfo {
   towns?:
     | {
         town: string;
+        currentEcsEntitlement?: number | null;
+        houseGopStrapAid?: number | null;
         /**
          * Optional: paste the town website URL, including https:// (opens in a new tab).
          */
@@ -4389,6 +4391,8 @@ export interface RepInfoSelect<T extends boolean = true> {
     | T
     | {
         town?: T;
+        currentEcsEntitlement?: T;
+        houseGopStrapAid?: T;
         url?: T;
         id?: T;
       };
@@ -5411,6 +5415,22 @@ export interface VideoBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'videoBlock';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TenantTownTableBlock".
+ */
+export interface TenantTownTableBlock {
+  townTableEyebrow?: string | null;
+  townTableTitle: string;
+  townTableDescription?: string | null;
+  townTableTownLabel?: string | null;
+  townTableWebsiteLabel?: string | null;
+  townTableEmptyStateTitle?: string | null;
+  townTableEmptyStateDescription?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'tenantTownTable';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
