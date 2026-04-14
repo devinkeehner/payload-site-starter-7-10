@@ -1669,15 +1669,26 @@ export interface BudgetPlanFeatureBlock {
         icon?:
           | (
               | 'DollarSign'
+              | 'BadgeDollarSign'
+              | 'Banknote'
+              | 'CircleDollarSign'
+              | 'HandCoins'
+              | 'HeartHandshake'
+              | 'PiggyBank'
               | 'Receipt'
               | 'Zap'
               | 'Heart'
               | 'Home'
+              | 'Shirt'
+              | 'ShoppingCart'
+              | 'CarFront'
               | 'Building2'
               | 'Shield'
               | 'Vote'
               | 'Users'
               | 'Landmark'
+              | 'School'
+              | 'UsersRound'
               | 'FileCheck'
               | 'Scale'
             )
@@ -1739,22 +1750,33 @@ export interface BudgetPlanFeatureBlock {
         icon?:
           | (
               | 'DollarSign'
+              | 'BadgeDollarSign'
+              | 'Banknote'
+              | 'CircleDollarSign'
+              | 'HandCoins'
+              | 'HeartHandshake'
+              | 'PiggyBank'
               | 'Receipt'
               | 'Zap'
               | 'Heart'
               | 'Home'
+              | 'Shirt'
+              | 'ShoppingCart'
+              | 'CarFront'
               | 'Building2'
               | 'Shield'
               | 'Vote'
               | 'Users'
               | 'Landmark'
+              | 'School'
+              | 'UsersRound'
               | 'FileCheck'
               | 'Scale'
             )
           | null;
         title: string;
         /**
-         * Use this for the affordability section above the save/invest boxes.
+         * Use nine items for a 3x3 stats-strip layout in the affordability section above the save/invest boxes.
          */
         detail?: {
           root: {
@@ -1809,15 +1831,26 @@ export interface BudgetPlanFeatureBlock {
         icon?:
           | (
               | 'DollarSign'
+              | 'BadgeDollarSign'
+              | 'Banknote'
+              | 'CircleDollarSign'
+              | 'HandCoins'
+              | 'HeartHandshake'
+              | 'PiggyBank'
               | 'Receipt'
               | 'Zap'
               | 'Heart'
               | 'Home'
+              | 'Shirt'
+              | 'ShoppingCart'
+              | 'CarFront'
               | 'Building2'
               | 'Shield'
               | 'Vote'
               | 'Users'
               | 'Landmark'
+              | 'School'
+              | 'UsersRound'
               | 'FileCheck'
               | 'Scale'
             )
@@ -1879,15 +1912,26 @@ export interface BudgetPlanFeatureBlock {
         icon?:
           | (
               | 'DollarSign'
+              | 'BadgeDollarSign'
+              | 'Banknote'
+              | 'CircleDollarSign'
+              | 'HandCoins'
+              | 'HeartHandshake'
+              | 'PiggyBank'
               | 'Receipt'
               | 'Zap'
               | 'Heart'
               | 'Home'
+              | 'Shirt'
+              | 'ShoppingCart'
+              | 'CarFront'
               | 'Building2'
               | 'Shield'
               | 'Vote'
               | 'Users'
               | 'Landmark'
+              | 'School'
+              | 'UsersRound'
               | 'FileCheck'
               | 'Scale'
             )
