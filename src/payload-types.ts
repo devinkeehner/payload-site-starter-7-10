@@ -2052,6 +2052,17 @@ export interface BudgetPlanFeatureBlock {
     };
     [k: string]: unknown;
   } | null;
+  /**
+   * Optional quote cards that appear under the relief intro and to the left of the town table.
+   */
+  reliefQuotes?:
+    | {
+        quote: string;
+        attribution: string;
+        title?: string | null;
+        id?: string | null;
+      }[]
+    | null;
   townChartTitle?: {
     root: {
       type: string;
@@ -4083,6 +4094,14 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
       };
   reliefTitle?: T;
   reliefIntro?: T;
+  reliefQuotes?:
+    | T
+    | {
+        quote?: T;
+        attribution?: T;
+        title?: T;
+        id?: T;
+      };
   townChartTitle?: T;
   townChartIntro?: T;
   townSearchPlaceholder?: T;

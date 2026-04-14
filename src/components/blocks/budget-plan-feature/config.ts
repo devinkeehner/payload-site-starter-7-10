@@ -504,6 +504,15 @@ export const BudgetPlanFeatureConfig: Block = {
             ),
             createRichTextField('reliefTitle', 'Relief Fund Title'),
             createRichTextField('reliefIntro', 'Relief Fund Intro'),
+            {
+              name: 'reliefQuotes',
+              label: 'Relief Quotes',
+              type: 'array',
+              admin: {
+                description: 'Optional quote cards that appear under the relief intro and to the left of the town table.',
+              },
+              fields: createPressQuoteFields(),
+            },
             createRichTextField('townChartTitle', 'Town Chart Title'),
             createRichTextField('townChartIntro', 'Town Chart Intro'),
             {
