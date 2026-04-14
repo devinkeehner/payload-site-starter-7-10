@@ -2173,6 +2173,7 @@ export interface BudgetPlanFeatureBlock {
     };
     [k: string]: unknown;
   } | null;
+  supportFormEyebrow?: string | null;
   supportForm?: (string | null) | Form;
   supportSubmitLabel?: string | null;
   id?: string | null;
@@ -4113,6 +4114,7 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
   emptyStateBody?: T;
   supportTitle?: T;
   supportIntro?: T;
+  supportFormEyebrow?: T;
   supportForm?: T;
   supportSubmitLabel?: T;
   id?: T;

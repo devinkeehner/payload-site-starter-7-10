@@ -634,6 +634,12 @@ export const BudgetPlanFeatureConfig: Block = {
             createRichTextField('supportTitle', 'Support Title'),
             createRichTextField('supportIntro', 'Support Intro'),
             {
+              name: 'supportFormEyebrow',
+              label: 'Support Form Label',
+              type: 'text',
+              defaultValue: 'Support form',
+            },
+            {
               name: 'supportForm',
               label: 'Support Form',
               type: 'relationship',
