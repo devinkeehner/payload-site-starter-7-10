@@ -286,6 +286,40 @@ const normalizeTownKey = (value: string) => value.trim().toLowerCase().replace(/
 const measureTownLabelWidth = (town: string, fontSize = 30) =>
   clamp(Math.ceil(measureText(town.toUpperCase(), `700 ${fontSize}px Arial`)) + 28, 180, 560)
 
+const wrapTextToWidth = (text: string, font: string, maxWidth: number) => {
+  const paragraphs = text.replace(/\r\n/g, '\n').split('\n')
+  const lines: string[] = []
+
+  for (const paragraph of paragraphs) {
+    const words = paragraph.trim().split(/\s+/).filter(Boolean)
+    if (!words.length) {
+      lines.push('')
+      continue
+    }
+
+    let current = words[0] || ''
+    for (const word of words.slice(1)) {
+      const next = `${current} ${word}`
+      if (measureText(next, font) <= maxWidth) current = next
+      else {
+        lines.push(current)
+        current = word
+      }
+    }
+    lines.push(current)
+  }
+
+  return lines
+}
+
+const measureHeadlineHeight = (headline: SceneTextElement) => {
+  const fontFamily = headline.fontFamily || 'Georgia, Times New Roman, serif'
+  const fontSize = headline.fontSize || 66
+  const lineHeight = headline.lineHeight || 1.05
+  const lines = wrapTextToWidth(headline.text || '', `${fontSize}px ${fontFamily}`, headline.width)
+  return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
+}
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -479,9 +513,9 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
     },
     headshot: {
       id: 'headshot',
-      x: 900,
-      y: 1270,
-      size: 280,
+      x: 860,
+      y: 1220,
+      size: 340,
       crop: {
         zoom: 1,
         offsetX: 0,
@@ -553,12 +587,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const { ref: stageContainerRef, width: stageContainerWidth } = useContainerWidth()
   const viewportHeight = useViewportHeight()
   const stageRef = useRef<Konva.Stage | null>(null)
+  const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
-  const headshotImageRef = useRef<Konva.Group | null>(null)
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
-  const [isResizingHeadshot, setIsResizingHeadshot] = useState(false)
+  const [isResizingHeadline, setIsResizingHeadline] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
@@ -687,10 +721,15 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   useEffect(() => {
     const transformer = transformerRef.current
-    const node = headshotImageRef.current
+    const node =
+      selection?.kind === 'headline'
+        ? headlineRef.current
+        : selection?.kind === 'headshot'
+          ? headshotRef.current
+          : null
     if (!transformer) return
 
-    if (selection?.kind === 'headshot' && node) {
+    if (node) {
       transformer.nodes([node])
       transformer.getLayer()?.batchDraw()
       return
@@ -701,13 +740,24 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   }, [selection])
 
   useEffect(() => {
-    if (selection?.kind !== 'headshot') {
-      setIsResizingHeadshot(false)
+    if (selection?.kind !== 'headline') {
+      setIsResizingHeadline(false)
     }
   }, [selection])
 
   const updateScene = (updater: (current: ExperimentalTownScene) => ExperimentalTownScene) => {
     setScene((current) => (current ? updater(current) : current))
+  }
+
+  const syncSubheadToHeadline = (current: ExperimentalTownScene) => {
+    const headlineHeight = measureHeadlineHeight(current.headline)
+    return {
+      ...current,
+      subhead: {
+        ...current.subhead,
+        y: current.headline.y + headlineHeight + 26,
+      },
+    }
   }
 
   const updateTownRow = (rowID: string, patch: Partial<TownSceneRow>) => {
@@ -720,7 +770,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const updateSelectionPosition = (x: number, y: number) => {
     if (!scene || !selection) return
     if (selection.kind === 'eyebrow') updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, x, y } }))
-    if (selection.kind === 'headline') updateScene((current) => ({ ...current, headline: { ...current.headline, x, y } }))
+    if (selection.kind === 'headline') updateScene((current) => syncSubheadToHeadline({ ...current, headline: { ...current.headline, x, y } }))
     if (selection.kind === 'subhead') updateScene((current) => ({ ...current, subhead: { ...current.subhead, x, y } }))
     if (selection.kind === 'footer') {
       updateScene((current) => {
@@ -759,6 +809,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const updateHeadshot = (patch: Partial<HeadshotElement>) => {
     updateScene((current) => ({ ...current, headshot: { ...current.headshot, ...patch } }))
+  }
+
+  const updateHeadline = (patch: Partial<SceneTextElement>) => {
+    updateScene((current) => syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } }))
   }
 
   const loadTemplate = (nextTemplateID: string) => {
@@ -1385,12 +1439,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               <Group
                 x={scene.headline.x}
                 y={scene.headline.y}
-                draggable
+                ref={headlineRef}
+                draggable={selection?.kind === 'headline' && !isResizingHeadline}
                 onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                 onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
+                onTransformStart={() => setIsResizingHeadline(true)}
+                onTransformEnd={(event) => {
+                  const node = event.target
+                  const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), 240, 920)
+                  node.scaleX(1)
+                  node.scaleY(1)
+                  updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
+                  setIsResizingHeadline(false)
+                }}
               >
                 {selection?.kind === 'headline' ? (
-                  <Rect x={-12} y={-12} width={scene.headline.width + 24} height={360} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={14} />
+                  <Rect x={-12} y={-12} width={scene.headline.width + 24} height={measureHeadlineHeight(scene.headline) + 24} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={14} />
                 ) : null}
                 <Text
                   width={scene.headline.width}
@@ -1486,26 +1550,23 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   x={scene.headshot.x}
                   y={scene.headshot.y}
                   ref={headshotRef}
-                  draggable={selection?.kind === 'headshot' && !isResizingHeadshot}
+                  draggable
                   onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                   onMouseDown={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                  onTransformStart={() => setIsResizingHeadshot(true)}
+                  onTransformEnd={(event) => {
+                    const node = event.target
+                    const scale = Math.max(node.scaleX(), node.scaleY())
+                    const nextSize = clamp(Math.round(scene.headshot.size * scale), 160, 520)
+                    node.scaleX(1)
+                    node.scaleY(1)
+                    updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
+                  }}
                 >
                   <Group
-                    ref={headshotImageRef}
                     clipFunc={(ctx) => {
                       ctx.beginPath()
                       ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
                       ctx.closePath()
-                    }}
-                    onTransformEnd={(event) => {
-                      const node = event.target
-                      const scale = Math.max(node.scaleX(), node.scaleY())
-                      const nextSize = clamp(Math.round(scene.headshot.size * scale), 160, 520)
-                      node.scaleX(1)
-                      node.scaleY(1)
-                      updateHeadshot({ size: nextSize })
-                      setIsResizingHeadshot(false)
                     }}
                   >
                     {headshotImage ? (
@@ -1524,12 +1585,23 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 ref={transformerRef}
                 rotateEnabled={false}
                 flipEnabled={false}
-                enabledAnchors={selection?.kind === 'headshot' ? ['top-left', 'top-right', 'bottom-left', 'bottom-right'] : []}
+                enabledAnchors={
+                  selection?.kind === 'headline'
+                    ? ['middle-left', 'middle-right']
+                    : selection?.kind === 'headshot'
+                      ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                      : []
+                }
                 borderStroke="#0ea5e9"
                 anchorStroke="#0ea5e9"
                 anchorFill="#ffffff"
                 anchorSize={10}
                 boundBoxFunc={(_, newBox) => {
+                  if (selection?.kind === 'headline') {
+                    const nextWidth = clamp(newBox.width, 240, 920)
+                    return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                  }
+
                   if (selection?.kind === 'headshot') {
                     const nextSize = clamp(Math.max(newBox.width, newBox.height), 160, 520)
                     return { ...newBox, width: nextSize, height: nextSize, rotation: 0 }
