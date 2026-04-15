@@ -145,6 +145,11 @@ export const GraphicTemplateLauncher: React.FC = () => {
     openEditor(params)
   }
 
+  const openExperimentalTownGraphic = () => {
+    if (typeof window === 'undefined') return
+    window.location.assign('/graphics-editor-experimental')
+  }
+
   return (
     <div
       style={{
@@ -178,8 +183,11 @@ export const GraphicTemplateLauncher: React.FC = () => {
         <Button onClick={openDesignEditor} disabled={!designID} buttonStyle="secondary">
           Edit Saved Graphic
         </Button>
+        <Button onClick={openExperimentalTownGraphic} buttonStyle="secondary">
+          Experimental Town Graphic
+        </Button>
       </div>
-      {!documentID ? <small>Save the post first to launch the editor.</small> : null}
+      {!documentID ? <small>The main post graphic editor still needs a saved post. The experimental town editor does not.</small> : null}
     </div>
   )
 }
