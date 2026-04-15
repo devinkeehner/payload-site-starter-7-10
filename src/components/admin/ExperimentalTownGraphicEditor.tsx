@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
-import { Group, Image as KonvaImage, Layer, Rect, Stage, Text } from 'react-konva'
+import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
@@ -553,8 +553,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const { ref: stageContainerRef, width: stageContainerWidth } = useContainerWidth()
   const viewportHeight = useViewportHeight()
   const stageRef = useRef<Konva.Stage | null>(null)
+  const headshotRef = useRef<Konva.Group | null>(null)
+  const headshotImageRef = useRef<Konva.Group | null>(null)
+  const transformerRef = useRef<Konva.Transformer | null>(null)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
+  const [isResizingHeadshot, setIsResizingHeadshot] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
@@ -681,6 +685,27 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     return scene.townRows.find((row) => row.id === selection.id) || null
   }, [scene, selection])
 
+  useEffect(() => {
+    const transformer = transformerRef.current
+    const node = headshotImageRef.current
+    if (!transformer) return
+
+    if (selection?.kind === 'headshot' && node) {
+      transformer.nodes([node])
+      transformer.getLayer()?.batchDraw()
+      return
+    }
+
+    transformer.nodes([])
+    transformer.getLayer()?.batchDraw()
+  }, [selection])
+
+  useEffect(() => {
+    if (selection?.kind !== 'headshot') {
+      setIsResizingHeadshot(false)
+    }
+  }, [selection])
+
   const updateScene = (updater: (current: ExperimentalTownScene) => ExperimentalTownScene) => {
     setScene((current) => (current ? updater(current) : current))
   }
@@ -730,6 +755,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         ),
       }))
     }
+  }
+
+  const updateHeadshot = (patch: Partial<HeadshotElement>) => {
+    updateScene((current) => ({ ...current, headshot: { ...current.headshot, ...patch } }))
   }
 
   const loadTemplate = (nextTemplateID: string) => {
@@ -1454,33 +1483,60 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               </Group>
 
               <Group
-                x={scene.headshot.x}
-                y={scene.headshot.y}
-                draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-              >
-                {selection?.kind === 'headshot' ? (
-                  <Rect x={-8} y={-8} width={scene.headshot.size + 16} height={scene.headshot.size + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={999} />
-                ) : null}
-                <Group
-                  clipFunc={(ctx) => {
-                    ctx.beginPath()
-                    ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
-                    ctx.closePath()
-                  }}
+                  x={scene.headshot.x}
+                  y={scene.headshot.y}
+                  ref={headshotRef}
+                  draggable={selection?.kind === 'headshot' && !isResizingHeadshot}
+                  onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
+                  onMouseDown={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                  onTransformStart={() => setIsResizingHeadshot(true)}
                 >
-                  {headshotImage ? (
-                    <KonvaImage
-                      image={headshotImage}
-                      x={headshotPlacement.x}
-                      y={headshotPlacement.y}
-                      width={headshotPlacement.width}
-                      height={headshotPlacement.height}
-                    />
-                  ) : null}
+                  <Group
+                    ref={headshotImageRef}
+                    clipFunc={(ctx) => {
+                      ctx.beginPath()
+                      ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
+                      ctx.closePath()
+                    }}
+                    onTransformEnd={(event) => {
+                      const node = event.target
+                      const scale = Math.max(node.scaleX(), node.scaleY())
+                      const nextSize = clamp(Math.round(scene.headshot.size * scale), 160, 520)
+                      node.scaleX(1)
+                      node.scaleY(1)
+                      updateHeadshot({ size: nextSize })
+                      setIsResizingHeadshot(false)
+                    }}
+                  >
+                    {headshotImage ? (
+                      <KonvaImage
+                        image={headshotImage}
+                        x={headshotPlacement.x}
+                        y={headshotPlacement.y}
+                        width={headshotPlacement.width}
+                        height={headshotPlacement.height}
+                      />
+                    ) : null}
+                  </Group>
                 </Group>
-              </Group>
+
+              <Transformer
+                ref={transformerRef}
+                rotateEnabled={false}
+                flipEnabled={false}
+                enabledAnchors={selection?.kind === 'headshot' ? ['top-left', 'top-right', 'bottom-left', 'bottom-right'] : []}
+                borderStroke="#0ea5e9"
+                anchorStroke="#0ea5e9"
+                anchorFill="#ffffff"
+                anchorSize={10}
+                boundBoxFunc={(_, newBox) => {
+                  if (selection?.kind === 'headshot') {
+                    const nextSize = clamp(Math.max(newBox.width, newBox.height), 160, 520)
+                    return { ...newBox, width: nextSize, height: nextSize, rotation: 0 }
+                  }
+                  return newBox
+                }}
+              />
                 </Layer>
               </Stage>
             </div>
