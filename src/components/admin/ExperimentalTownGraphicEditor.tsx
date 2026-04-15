@@ -19,6 +19,9 @@ const BRAND_COLORS = [BRAND_BLUE, '#8ea4ea', BRAND_RED, '#ffffff', '#111827']
 const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
 const HEADLINE_WIDTH_LIMITS = { min: 240, max: 1060 }
 const TOWN_LABEL_WIDTH_LIMITS = { min: 180, max: 760 }
+const TOWN_LABEL_HEIGHT_LIMITS = { min: 42, max: 84 }
+const TOWN_FONT_SIZE_LIMITS = { min: 26, max: 58 }
+const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 48, max: 124 }
 
 type MediaDoc = {
   id: string
@@ -1688,10 +1691,26 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   onMouseDown={() => setSelection({ kind: 'town', id: row.id })}
                   onTransformEnd={(event) => {
                     const node = event.target
-                    const nextWidth = clamp(Math.round(row.labelWidth * node.scaleX()), TOWN_LABEL_WIDTH_LIMITS.min, TOWN_LABEL_WIDTH_LIMITS.max)
+                    const rawScale = node.scaleX()
+                    const nextWidth = clamp(Math.round(row.labelWidth * rawScale), TOWN_LABEL_WIDTH_LIMITS.min, TOWN_LABEL_WIDTH_LIMITS.max)
+                    const appliedScale = nextWidth / Math.max(row.labelWidth, 1)
+                    const nextLabelHeight = clamp(Math.round(row.labelHeight * appliedScale), TOWN_LABEL_HEIGHT_LIMITS.min, TOWN_LABEL_HEIGHT_LIMITS.max)
+                    const nextTownFontSize = clamp(Math.round(row.townFontSize * appliedScale), TOWN_FONT_SIZE_LIMITS.min, TOWN_FONT_SIZE_LIMITS.max)
+                    const nextAmountFontSize = clamp(
+                      Math.round(row.amountFontSize * appliedScale),
+                      TOWN_AMOUNT_FONT_SIZE_LIMITS.min,
+                      TOWN_AMOUNT_FONT_SIZE_LIMITS.max,
+                    )
+                    const nextAmountY = row.labelY + nextLabelHeight + Math.round(18 * appliedScale)
                     node.scaleX(1)
                     node.scaleY(1)
-                    updateTownRow(row.id, { labelWidth: nextWidth })
+                    updateTownRow(row.id, {
+                      labelWidth: nextWidth,
+                      labelHeight: nextLabelHeight,
+                      townFontSize: nextTownFontSize,
+                      amountFontSize: nextAmountFontSize,
+                      amountY: nextAmountY,
+                    })
                   }}
                 >
                   {selection?.kind === 'town' && selection.id === row.id ? (
