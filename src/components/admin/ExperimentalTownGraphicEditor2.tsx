@@ -4,17 +4,22 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
-import { Button, useAuth } from '@payloadcms/ui'
+import { Button } from '@payloadcms/ui'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 
 const STAGE_WIDTH = 1200
 const STAGE_HEIGHT = 1600
-const MAX_PREVIEW_WIDTH = 760
-const MAX_PREVIEW_HEIGHT = 900
-const SCENE_KIND = 'experimental-town-graphic/v1'
+const ARTBOARD_X = 220
+const ARTBOARD_Y = 120
+const WORKSPACE_WIDTH = STAGE_WIDTH + ARTBOARD_X * 2
+const WORKSPACE_HEIGHT = STAGE_HEIGHT + ARTBOARD_Y * 2
+const MAX_PREVIEW_HEIGHT = 860
+const SCENE_KIND = 'experimental-town-graphic/v2'
 const BRAND_BLUE = '#1d2f8c'
 const BRAND_RED = '#c3202f'
+const HEADSHOT_SIZE_LIMITS = { min: 180, max: 560 }
+const TITLE_WIDTH_LIMITS = { min: 240, max: 920 }
 
 type MediaDoc = {
   id: string
@@ -40,13 +45,7 @@ type RepInfoDoc = {
 type TownDataRow = {
   id: string
   town: string
-  matched: boolean
-  needsReview: boolean
-  currentEcsEntitlement: number
   strapAid: number
-  percentIncrease: number
-  newTotalFunding: number
-  districtLabels: string
 }
 
 type TownFundingResponse = {
@@ -60,43 +59,22 @@ type TownFundingResponse = {
     defaultFeaturedImage?: string | MediaDoc | null
   } | null
   townRows: TownDataRow[]
-  unmatchedTownCount?: number
 }
 
-type TemplateDoc = {
-  id: string
-  title?: string | null
-  backgroundImage?: string | MediaDoc | null
-  scene?: ExperimentalTownScene | null
-  notes?: string | null
-}
-
-type DesignDoc = {
-  id: string
-  title?: string | null
-  updatedAt?: string | null
-  template?: string | TemplateDoc | null
-  primaryTenant?: string | TenantDoc | null
-  backgroundImage?: string | MediaDoc | null
-  scene?: ExperimentalTownScene | null
-  exportedMedia?: string | MediaDoc | null
-  notes?: string | null
-}
-
-type SceneTextElement = {
-  id: string
+type TownGraphicTextLayer = {
   x: number
   y: number
   width: number
+  height?: number
   text: string
-  fontSize: number
   color: string
+  fontSize: number
   fontFamily?: string
   fontStyle?: string
   lineHeight?: number
 }
 
-type EyebrowElement = SceneTextElement & {
+type TownGraphicEyebrow = TownGraphicTextLayer & {
   barWidth: number
   barHeight: number
   paddingX: number
@@ -104,22 +82,20 @@ type EyebrowElement = SceneTextElement & {
   backgroundColor: string
 }
 
-type SubheadElement = {
-  id: string
+type TownGraphicSubhead = {
   x: number
   y: number
   dividerWidth: number
   dividerHeight: number
   dividerColor: string
   text: string
-  fontSize: number
   color: string
+  fontSize: number
   fontFamily?: string
   fontStyle?: string
 }
 
-type FooterElement = {
-  id: string
+type TownGraphicFooter = {
   x: number
   y: number
   width: number
@@ -128,12 +104,12 @@ type FooterElement = {
   text: string
   textX: number
   textY: number
-  fontSize: number
   color: string
+  fontSize: number
   fontStyle?: string
 }
 
-type HeadshotElement = {
+type TownGraphicHeadshotLayer = {
   id: string
   x: number
   y: number
@@ -145,42 +121,59 @@ type HeadshotElement = {
   }
 }
 
-type TownSceneRow = {
+type TownGraphicRow = {
   id: string
   townKey: string
   town: string
   strapAid: number
   included: boolean
-  labelX: number
-  labelY: number
+  x: number
+  y: number
   labelWidth: number
   labelHeight: number
-  amountX: number
-  amountY: number
+  amountOffsetY: number
   townFontSize: number
   amountFontSize: number
   labelColor: string
   textColor: string
 }
 
-type ExperimentalTownScene = {
+type TownGraphicScene = {
   kind: typeof SCENE_KIND
   backgroundMediaID: string | null
-  eyebrow: EyebrowElement
-  headline: SceneTextElement
-  subhead: SubheadElement
-  footer: FooterElement
-  headshot: HeadshotElement
-  townRows: TownSceneRow[]
+  eyebrow: TownGraphicEyebrow
+  headlineLayer: TownGraphicTextLayer
+  subhead: TownGraphicSubhead
+  footer: TownGraphicFooter
+  headshots: TownGraphicHeadshotLayer[]
+  townRows: TownGraphicRow[]
+}
+
+type TemplateDoc = {
+  id: string
+  title?: string | null
+  backgroundImage?: string | MediaDoc | null
+  scene?: TownGraphicScene | null
+}
+
+type DesignDoc = {
+  id: string
+  title?: string | null
+  updatedAt?: string | null
+  template?: string | TemplateDoc | null
+  primaryTenant?: string | TenantDoc | null
+  backgroundImage?: string | MediaDoc | null
+  scene?: TownGraphicScene | null
+  exportedMedia?: string | MediaDoc | null
 }
 
 type Selection =
-  | { kind: 'eyebrow'; id: string }
-  | { kind: 'headline'; id: string }
-  | { kind: 'subhead'; id: string }
-  | { kind: 'footer'; id: string }
+  | { kind: 'headline' }
   | { kind: 'headshot'; id: string }
   | { kind: 'town'; id: string }
+  | { kind: 'eyebrow' }
+  | { kind: 'subhead' }
+  | { kind: 'footer' }
   | null
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -200,12 +193,11 @@ const getMediaDoc = (value: unknown): MediaDoc | null =>
 
 const getMediaID = (value: unknown): string | null => {
   if (typeof value === 'string' && value) return value
-  const mediaDoc = getMediaDoc(value)
-  return mediaDoc?.id || null
+  return getMediaDoc(value)?.id || null
 }
 
 const proxiedUrl = (url: string | undefined | null) => {
-  if (typeof url !== 'string' || !url) return undefined
+  if (typeof url !== "string" || !url) return undefined
   if (url.startsWith('/')) return url
   return `/api/media-proxy?url=${encodeURIComponent(url)}`
 }
@@ -259,14 +251,27 @@ function useContainerWidth() {
   return { ref, width }
 }
 
+function useViewportWidth() {
+  const [width, setWidth] = useState(0)
+
+  useEffect(() => {
+    const update = () => setWidth(window.innerWidth)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
+  }, [])
+
+  return width
+}
+
 function useViewportHeight() {
   const [height, setHeight] = useState(0)
 
   useEffect(() => {
-    const updateHeight = () => setHeight(window.innerHeight)
-    updateHeight()
-    window.addEventListener('resize', updateHeight)
-    return () => window.removeEventListener('resize', updateHeight)
+    const update = () => setHeight(window.innerHeight)
+    update()
+    window.addEventListener('resize', update)
+    return () => window.removeEventListener('resize', update)
   }, [])
 
   return height
@@ -286,14 +291,14 @@ const normalizeTownKey = (value: string) => value.trim().toLowerCase().replace(/
 const measureTownLabelWidth = (town: string, fontSize = 30) =>
   clamp(Math.ceil(measureText(town.toUpperCase(), `700 ${fontSize}px Arial`)) + 28, 180, 560)
 
-const wrapTextToWidth = (text: string, font: string, maxWidth: number) => {
+function wrapText(text: string, font: string, maxWidth: number) {
   const paragraphs = text.replace(/\r\n/g, '\n').split('\n')
-  const lines: string[] = []
+  const allLines: string[] = []
 
   for (const paragraph of paragraphs) {
     const words = paragraph.trim().split(/\s+/).filter(Boolean)
     if (!words.length) {
-      lines.push('')
+      allLines.push('')
       continue
     }
 
@@ -302,70 +307,71 @@ const wrapTextToWidth = (text: string, font: string, maxWidth: number) => {
       const next = `${current} ${word}`
       if (measureText(next, font) <= maxWidth) current = next
       else {
-        lines.push(current)
+        allLines.push(current)
         current = word
       }
     }
-    lines.push(current)
+    allLines.push(current)
   }
 
-  return lines
+  return allLines
 }
 
-const measureHeadlineHeight = (headline: SceneTextElement) => {
-  const fontFamily = headline.fontFamily || 'Georgia, Times New Roman, serif'
-  const fontSize = headline.fontSize || 66
-  const lineHeight = headline.lineHeight || 1.05
-  const lines = wrapTextToWidth(headline.text || '', `${fontSize}px ${fontFamily}`, headline.width)
-  return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
+function fitHeadlineText(text: string, layer: TownGraphicTextLayer) {
+  const clean = text.length > 0 ? text : 'Headline'
+  const layerHeight = Math.max(120, layer.height ?? 240)
+  const layerWidth = Math.max(220, layer.width)
+  const fontFamily = layer.fontFamily || 'Georgia, Times New Roman, serif'
+  const startFontSize = Math.max(28, layer.fontSize || 66)
+  const endFontSize = 18
+
+  for (let fontSize = startFontSize; fontSize >= endFontSize; fontSize -= 1) {
+    const lineHeight = Math.round(fontSize * (layer.lineHeight || 1.05))
+    const lines = wrapText(clean, `${fontSize}px ${fontFamily}`, layerWidth)
+    if (lines.length <= 8 && lines.length * lineHeight <= layerHeight) {
+      return { fontSize, lineHeight, lines }
+    }
+  }
+
+  const fallbackFontSize = endFontSize
+  return {
+    fontSize: fallbackFontSize,
+    lineHeight: Math.round(fallbackFontSize * (layer.lineHeight || 1.05)),
+    lines: wrapText(clean, `${fallbackFontSize}px ${fontFamily}`, layerWidth).slice(0, 8),
+  }
 }
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value || 0)
+function computeHeadshotPlacement(image: HTMLImageElement | null, layer: TownGraphicHeadshotLayer) {
+  const frame = { width: layer.size, height: layer.size }
+  if (!image) return { width: frame.width, height: frame.height, x: 0, y: 0 }
 
-const slugToWebsite = (slug: string | undefined | null) => {
-  if (!slug) return 'CTHOUSEGOP.COM'
-  return `${slug.replace(/^www\./, '').replace(/[^a-z0-9-]/gi, '').toUpperCase()}.COM`
+  const baseScale = Math.max(frame.width / image.width, frame.height / image.height)
+  const scale = baseScale * layer.crop.zoom
+  const width = image.width * scale
+  const height = image.height * scale
+  const centeredX = (frame.width - width) / 2
+  const centeredY = (frame.height - height) / 2
+  const minX = Math.min(0, frame.width - width)
+  const minY = Math.min(0, frame.height - height)
+  const x = clamp(centeredX + layer.crop.offsetX, minX, 0)
+  const y = clamp(centeredY + layer.crop.offsetY, minY, 0)
+
+  return { width, height, x, y }
 }
-
-const buildRepShortName = (name: string | undefined | null) => {
-  if (!name) return 'Rep. Announces'
-  const clean = name.replace(/^rep\.?\s+/i, '').trim()
-  const parts = clean.split(/\s+/).filter(Boolean)
-  const lastName = parts[parts.length - 1] || clean
-  return `Rep. ${lastName}`
-}
-
-const deriveDefaultHeadline = (repName: string | undefined | null) =>
-  `${buildRepShortName(repName)} Announces\nSchools/Taxpayers\nRelief & Affordability\nPlan (STRAP Aid)`
 
 function computeCoverPlacement(
   image: HTMLImageElement | null,
   frameWidth: number,
   frameHeight: number,
-  crop?: { zoom: number; offsetX: number; offsetY: number },
 ) {
   if (!image) return { width: frameWidth, height: frameHeight, x: 0, y: 0 }
 
-  const zoom = crop?.zoom || 1
-  const baseScale = Math.max(frameWidth / image.width, frameHeight / image.height)
-  const scale = baseScale * zoom
+  const scale = Math.max(frameWidth / image.width, frameHeight / image.height)
   const width = image.width * scale
   const height = image.height * scale
-  const centeredX = (frameWidth - width) / 2
-  const centeredY = (frameHeight - height) / 2
-  const minX = Math.min(0, frameWidth - width)
-  const minY = Math.min(0, frameHeight - height)
-  return {
-    width,
-    height,
-    x: clamp(centeredX + (crop?.offsetX || 0), minX, 0),
-    y: clamp(centeredY + (crop?.offsetY || 0), minY, 0),
-  }
+  const x = (frameWidth - width) / 2
+  const y = (frameHeight - height) / 2
+  return { width, height, x, y }
 }
 
 function dataUrlToBlob(dataUrl: string) {
@@ -387,8 +393,28 @@ const dedupeMediaOptions = (docs: MediaDoc[]) => {
   })
 }
 
-const buildDesignTitle = (tenantName: string | undefined | null, fallback: string) =>
-  tenantName ? `${tenantName} Town Graphic` : fallback || 'Town Graphic'
+const buildRepShortName = (name: string | undefined | null) => {
+  if (!name) return 'Rep. Announces'
+  const clean = name.replace(/^rep\.?\s+/i, '').trim()
+  const parts = clean.split(/\s+/).filter(Boolean)
+  const lastName = parts[parts.length - 1] || clean
+  return `Rep. ${lastName}`
+}
+
+const deriveDefaultHeadline = (repName: string | undefined | null) =>
+  `${buildRepShortName(repName)} Announces\nSchools/Taxpayers\nRelief & Affordability\nPlan (STRAP Aid)`
+
+const slugToWebsite = (slug: string | undefined | null) => {
+  if (!slug) return 'CTHOUSEGOP.COM'
+  return `${slug.replace(/^www\./, '').replace(/[^a-z0-9-]/gi, '').toUpperCase()}.COM`
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(value || 0)
 
 const buildTemplateSearchParams = () =>
   new URLSearchParams({
@@ -415,37 +441,30 @@ const buildMediaSearchParams = (tenantID: string) =>
     'where[tenant][equals]': tenantID,
   })
 
-const isExperimentalScene = (value: unknown): value is ExperimentalTownScene =>
+const isExperimentalTownScene2 = (value: unknown): value is TownGraphicScene =>
   asRecord(value).kind === SCENE_KIND
 
-const hasSuperRole = (value: unknown) => {
-  if (!value || typeof value !== 'object') return false
-  const roles = (value as { roles?: unknown }).roles
-  return Array.isArray(roles) && roles.includes('super')
-}
+const buildDesignTitle = (tenantName: string | undefined | null) =>
+  tenantName ? `${tenantName} Town Graphic` : 'Town Graphic'
 
 const createBaseScene = (data: TownFundingResponse, tenantName: string | undefined) => {
   const headline = deriveDefaultHeadline(data.repInfo?.name)
-  const townRows = data.townRows.map((row, index) => {
-    const top = 660 + index * 160
-    return {
-      id: row.id,
-      townKey: normalizeTownKey(row.town),
-      town: row.town,
-      strapAid: row.strapAid,
-      included: true,
-      labelX: 72,
-      labelY: top,
-      labelWidth: measureTownLabelWidth(row.town),
-      labelHeight: 48,
-      amountX: 72,
-      amountY: top + 64,
-      townFontSize: 30,
-      amountFontSize: 66,
-      labelColor: BRAND_RED,
-      textColor: BRAND_BLUE,
-    }
-  })
+  const townRows = data.townRows.map((row, index) => ({
+    id: row.id,
+    townKey: normalizeTownKey(row.town),
+    town: row.town,
+    strapAid: row.strapAid,
+    included: true,
+    x: 72,
+    y: 650 + index * 154,
+    labelWidth: measureTownLabelWidth(row.town),
+    labelHeight: 48,
+    amountOffsetY: 60,
+    townFontSize: 30,
+    amountFontSize: 66,
+    labelColor: BRAND_RED,
+    textColor: BRAND_BLUE,
+  }))
 
   const fallbackBackgroundID =
     getMediaID(data.standardMedia?.districtImage) ||
@@ -457,13 +476,13 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
     kind: SCENE_KIND,
     backgroundMediaID: fallbackBackgroundID,
     eyebrow: {
-      id: 'eyebrow',
       x: 72,
-      y: 70,
-      width: 260,
+      y: 72,
+      width: 0,
+      height: 0,
       text: 'REAL RELIEF FOR CONNECTICUT',
-      fontSize: 18,
       color: '#ffffff',
+      fontSize: 18,
       fontFamily: 'Arial',
       fontStyle: '700',
       lineHeight: 1,
@@ -473,32 +492,30 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       paddingY: 10,
       backgroundColor: BRAND_BLUE,
     },
-    headline: {
-      id: 'headline',
+    headlineLayer: {
       x: 72,
-      y: 140,
+      y: 142,
       width: 640,
+      height: 336,
       text: headline,
-      fontSize: 66,
       color: BRAND_BLUE,
+      fontSize: 66,
       fontFamily: 'Georgia, Times New Roman, serif',
       lineHeight: 1.05,
     },
     subhead: {
-      id: 'subhead',
-      x: 74,
-      y: 512,
-      dividerWidth: 210,
+      x: 72,
+      y: 508,
+      dividerWidth: 220,
       dividerHeight: 3,
       dividerColor: '#8ea4ea',
       text: 'STRAP Aid funding per town',
-      fontSize: 26,
       color: BRAND_BLUE,
+      fontSize: 26,
       fontFamily: 'Arial',
       fontStyle: 'italic 700',
     },
     footer: {
-      id: 'footer',
       x: 0,
       y: 1490,
       width: STAGE_WIDTH,
@@ -507,111 +524,102 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       text: slugToWebsite(data.tenant?.slug || tenantName),
       textX: 78,
       textY: 1511,
-      fontSize: 28,
       color: '#ffffff',
+      fontSize: 28,
       fontStyle: 'italic 700',
     },
-    headshot: {
-      id: 'headshot',
-      x: 820,
-      y: 1188,
-      size: 400,
-      crop: {
-        zoom: 1,
-        offsetX: 0,
-        offsetY: 0,
+    headshots: [
+      {
+        id: 'headshot-primary',
+        x: 800,
+        y: 1160,
+        size: 420,
+        crop: {
+          zoom: 1,
+          offsetX: 0,
+          offsetY: 0,
+        },
       },
-    },
+    ],
     townRows,
-  } satisfies ExperimentalTownScene
+  } satisfies TownGraphicScene
 }
 
-const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | undefined, baseScene: ExperimentalTownScene) => {
-  if (!savedScene || !isExperimentalScene(savedScene)) return baseScene
+const mergeSceneWithFreshData = (savedScene: TownGraphicScene | null | undefined, baseScene: TownGraphicScene) => {
+  if (!savedScene || !isExperimentalTownScene2(savedScene)) return baseScene
 
   const savedRowsByKey = new Map(
     (savedScene.townRows || []).map((row) => [row.townKey || normalizeTownKey(row.town), row] as const),
   )
+  const fallbackHeadshot = baseScene.headshots[0]!
 
   return {
     ...baseScene,
     ...savedScene,
     backgroundMediaID: savedScene.backgroundMediaID ?? baseScene.backgroundMediaID,
     eyebrow: { ...baseScene.eyebrow, ...savedScene.eyebrow },
-    headline: { ...baseScene.headline, ...savedScene.headline },
+    headlineLayer: { ...baseScene.headlineLayer, ...savedScene.headlineLayer },
     subhead: { ...baseScene.subhead, ...savedScene.subhead },
     footer: { ...baseScene.footer, ...savedScene.footer },
-    headshot: {
-      ...baseScene.headshot,
-      ...savedScene.headshot,
-      crop: {
-        ...baseScene.headshot.crop,
-        ...savedScene.headshot?.crop,
-      },
-    },
+    headshots: (savedScene.headshots || baseScene.headshots).length > 0
+      ? (savedScene.headshots || baseScene.headshots).map((headshot, index) => ({
+          ...(baseScene.headshots[index] || fallbackHeadshot),
+          ...headshot,
+          crop: {
+            ...(baseScene.headshots[index] || fallbackHeadshot).crop,
+            ...headshot.crop,
+          },
+        }))
+      : baseScene.headshots,
     townRows: baseScene.townRows.map((row) => {
       const savedRow = savedRowsByKey.get(row.townKey)
       return savedRow ? { ...row, ...savedRow, town: row.town, townKey: row.townKey } : row
     }),
-  } satisfies ExperimentalTownScene
+  } satisfies TownGraphicScene
 }
 
-const getBackgroundPreview = (scene: ExperimentalTownScene, data: TownFundingResponse | null, templates: TemplateDoc[], designs: DesignDoc[]) => {
-  const selectedID = scene.backgroundMediaID
-  if (!selectedID) {
-    return readMediaUrl(data?.standardMedia?.districtImage) ||
-      readMediaUrl(data?.standardMedia?.bannerImage) ||
-      readMediaUrl(data?.standardMedia?.defaultFeaturedImage) ||
-      undefined
+const syncSubheadToHeadline = (scene: TownGraphicScene) => {
+  const fitted = fitHeadlineText(scene.headlineLayer.text || '', scene.headlineLayer)
+  return {
+    ...scene,
+    subhead: {
+      ...scene.subhead,
+      y: scene.headlineLayer.y + fitted.lines.length * fitted.lineHeight + 26,
+    },
   }
-
-  const mediaDoc =
-    getMediaDoc(data?.standardMedia?.districtImage) && getMediaID(data?.standardMedia?.districtImage) === selectedID
-      ? getMediaDoc(data?.standardMedia?.districtImage)
-      : getMediaDoc(data?.standardMedia?.bannerImage) && getMediaID(data?.standardMedia?.bannerImage) === selectedID
-        ? getMediaDoc(data?.standardMedia?.bannerImage)
-        : getMediaDoc(data?.standardMedia?.defaultFeaturedImage) &&
-            getMediaID(data?.standardMedia?.defaultFeaturedImage) === selectedID
-          ? getMediaDoc(data?.standardMedia?.defaultFeaturedImage)
-          : templates.map((template) => getMediaDoc(template.backgroundImage)).find((item) => item?.id === selectedID) ||
-            designs.map((design) => getMediaDoc(design.backgroundImage)).find((item) => item?.id === selectedID) ||
-            null
-
-  return proxiedUrl(mediaDoc?.url || mediaDoc?.thumbnailURL || null)
 }
 
-export const ExperimentalTownGraphicEditor: React.FC = () => {
-  const { user } = useAuth()
+export const ExperimentalTownGraphicEditor2: React.FC = () => {
   const { tenantID, tenantName } = useActiveTenant()
   const searchParams = useSearchParams()
-  const { ref: stageContainerRef, width: stageContainerWidth } = useContainerWidth()
-  const viewportHeight = useViewportHeight()
   const requestedDesignID = searchParams.get('designId') || ''
   const requestedTemplateID = searchParams.get('templateId') || ''
-  const stageRef = useRef<Konva.Stage | null>(null)
-  const headlineRef = useRef<Konva.Group | null>(null)
-  const headshotRef = useRef<Konva.Group | null>(null)
-  const transformerRef = useRef<Konva.Transformer | null>(null)
-  const isSuperAdmin = hasSuperRole(user)
-  const [isMounted, setIsMounted] = useState(false)
-  const [isResizingHeadline, setIsResizingHeadline] = useState(false)
-  const [previewZoom, setPreviewZoom] = useState(1)
+  const { ref: stageContainerRef, width: stageContainerWidth } = useContainerWidth()
+  const viewportWidth = useViewportWidth()
+  const viewportHeight = useViewportHeight()
 
+  const stageRef = useRef<Konva.Stage | null>(null)
+  const transformerRef = useRef<Konva.Transformer | null>(null)
+  const titleRef = useRef<Konva.Group | null>(null)
+  const headshotRefs = useRef<Record<string, Konva.Group | null>>({})
+
+  const [isMounted, setIsMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
-  const [townData, setTownData] = useState<TownFundingResponse | null>(null)
-  const [scene, setScene] = useState<ExperimentalTownScene | null>(null)
-  const [selection, setSelection] = useState<Selection>(null)
-  const [templateID, setTemplateID] = useState('')
-  const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
-  const [designID, setDesignID] = useState('')
-  const [designTitle, setDesignTitle] = useState('Town Graphic')
-  const [templates, setTemplates] = useState<TemplateDoc[]>([])
-  const [designs, setDesigns] = useState<DesignDoc[]>([])
-  const [mediaOptions, setMediaOptions] = useState<MediaDoc[]>([])
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
+
+  const [townData, setTownData] = useState<TownFundingResponse | null>(null)
+  const [scene, setScene] = useState<TownGraphicScene | null>(null)
+  const [selection, setSelection] = useState<Selection>(null)
+  const [templates, setTemplates] = useState<TemplateDoc[]>([])
+  const [designs, setDesigns] = useState<DesignDoc[]>([])
+  const [mediaOptions, setMediaOptions] = useState<MediaDoc[]>([])
+  const [templateID, setTemplateID] = useState('')
+  const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic 2')
+  const [designID, setDesignID] = useState('')
+  const [designTitle, setDesignTitle] = useState('Town Graphic')
 
   useEffect(() => {
     setIsMounted(true)
@@ -651,12 +659,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
         const nextTownData = townJson as TownFundingResponse
         const nextTemplates = Array.isArray(asRecord(templateJson).docs)
-          ? ((asRecord(templateJson).docs as TemplateDoc[]) || []).filter((doc) => isExperimentalScene(doc.scene))
+          ? ((asRecord(templateJson).docs as TemplateDoc[]) || []).filter((doc) => isExperimentalTownScene2(doc.scene))
           : []
         const nextDesigns = Array.isArray(asRecord(designJson).docs)
-          ? ((asRecord(designJson).docs as DesignDoc[]) || []).filter((doc) => isExperimentalScene(doc.scene))
+          ? ((asRecord(designJson).docs as DesignDoc[]) || []).filter((doc) => isExperimentalTownScene2(doc.scene))
           : []
         const nextMedia = Array.isArray(asRecord(mediaJson).docs) ? ((asRecord(mediaJson).docs as MediaDoc[]) || []) : []
+
         const baseScene = createBaseScene(nextTownData, tenantName)
         const selectedDesign = requestedDesignID ? nextDesigns.find((item) => item.id === requestedDesignID) : undefined
         const selectedTemplate = !selectedDesign && requestedTemplateID ? nextTemplates.find((item) => item.id === requestedTemplateID) : undefined
@@ -672,11 +681,11 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         setTemplates(nextTemplates)
         setDesigns(nextDesigns)
         setMediaOptions(dedupeMediaOptions(nextMedia))
-        setScene(nextScene)
-        setTemplateID(selectedTemplate?.id || getString(selectedDesign?.template) || getString(asRecord(selectedDesign?.template).id) || '')
-        setTemplateTitle(selectedTemplate?.title || 'Experimental Town Graphic')
+        setScene(syncSubheadToHeadline(nextScene))
+        setTemplateID(selectedTemplate?.id || getString(asRecord(selectedDesign?.template).id) || getString(selectedDesign?.template) || '')
+        setTemplateTitle(selectedTemplate?.title || 'Experimental Town Graphic 2')
         setDesignID(selectedDesign?.id || '')
-        setDesignTitle(selectedDesign?.title || buildDesignTitle(nextTownData.tenant?.name || tenantName, 'Town Graphic'))
+        setDesignTitle(selectedDesign?.title || buildDesignTitle(nextTownData.tenant?.name || tenantName))
       } catch (error) {
         if (!cancelled) {
           setMessage(error instanceof Error ? error.message : String(error))
@@ -695,161 +704,120 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   }, [isMounted, requestedDesignID, requestedTemplateID, tenantID, tenantName])
 
   const previewScale = useMemo(() => {
-    const fallbackHeight = viewportHeight > 0 ? Math.min(MAX_PREVIEW_HEIGHT, Math.max(520, viewportHeight - 220)) : MAX_PREVIEW_HEIGHT
-    const fallbackScale = Math.min(1, MAX_PREVIEW_WIDTH / STAGE_WIDTH, fallbackHeight / STAGE_HEIGHT)
-    if (!stageContainerWidth) return Math.max(0.35, Math.min(1, fallbackScale * previewZoom))
-    const maxHeight = viewportHeight > 0 ? Math.min(MAX_PREVIEW_HEIGHT, Math.max(520, viewportHeight - 220)) : MAX_PREVIEW_HEIGHT
-    const fitScale = Math.min(1, stageContainerWidth / STAGE_WIDTH, MAX_PREVIEW_WIDTH / STAGE_WIDTH, maxHeight / STAGE_HEIGHT)
-    return Math.max(0.35, Math.min(1, fitScale * previewZoom))
-  }, [previewZoom, stageContainerWidth, viewportHeight])
-  const previewWidth = STAGE_WIDTH * previewScale
-  const previewHeight = STAGE_HEIGHT * previewScale
-  const transformerAnchorSize = useMemo(() => clamp(Math.round(12 / Math.max(previewScale, 0.72)), 12, 16), [previewScale])
+    const availableWidth = stageContainerWidth > 0 ? Math.max(0, stageContainerWidth - 16) : Math.max(0, viewportWidth - 72)
+    const availableHeight = viewportHeight > 0 ? Math.max(520, Math.min(MAX_PREVIEW_HEIGHT, viewportHeight - 220)) : MAX_PREVIEW_HEIGHT
+    if (!availableWidth) return 1
+    return Math.min(availableWidth / WORKSPACE_WIDTH, availableHeight / WORKSPACE_HEIGHT, 1)
+  }, [stageContainerWidth, viewportHeight, viewportWidth])
 
-  const backgroundUrl = useMemo(
-    () => (scene ? getBackgroundPreview(scene, townData, templates, designs) : undefined),
-    [designs, scene, templates, townData],
-  )
+  const backgroundUrl = useMemo(() => {
+    if (!scene) return undefined
+    const selectedID = scene.backgroundMediaID
+    const mediaDoc =
+      mediaOptions.find((item) => item.id === selectedID) ||
+      getMediaDoc(townData?.standardMedia?.districtImage) ||
+      getMediaDoc(townData?.standardMedia?.bannerImage) ||
+      getMediaDoc(townData?.standardMedia?.defaultFeaturedImage) ||
+      null
+
+    return proxiedUrl(mediaDoc?.url || mediaDoc?.thumbnailURL || null)
+  }, [mediaOptions, scene, townData])
+
   const headshotUrl = useMemo(
     () => readMediaUrl(townData?.standardMedia?.mobileHeadshot) || undefined,
     [townData],
   )
+
   const backgroundImage = useLoadedImage(backgroundUrl)
   const headshotImage = useLoadedImage(headshotUrl)
 
-  const selectedTownRow = useMemo(() => {
-    if (!scene || selection?.kind !== 'town') return null
-    return scene.townRows.find((row) => row.id === selection.id) || null
-  }, [scene, selection])
+  const fittedHeadline = useMemo(() => {
+    if (!scene) return null
+    return fitHeadlineText(scene.headlineLayer.text || '', scene.headlineLayer)
+  }, [scene])
 
   useEffect(() => {
     const transformer = transformerRef.current
+    if (!transformer) return
+
     const node =
       selection?.kind === 'headline'
-        ? headlineRef.current
+        ? titleRef.current
         : selection?.kind === 'headshot'
-          ? headshotRef.current
+          ? headshotRefs.current[selection.id]
           : null
-    if (!transformer) return
 
     if (node) {
       transformer.nodes([node])
       transformer.getLayer()?.batchDraw()
-      return
+    } else {
+      transformer.nodes([])
+      transformer.getLayer()?.batchDraw()
     }
-
-    transformer.nodes([])
-    transformer.getLayer()?.batchDraw()
   }, [scene, selection])
 
-  useEffect(() => {
-    if (selection?.kind !== 'headline') {
-      setIsResizingHeadline(false)
-    }
-  }, [selection])
-
-  const updateScene = (updater: (current: ExperimentalTownScene) => ExperimentalTownScene) => {
+  const updateScene = (updater: (current: TownGraphicScene) => TownGraphicScene) => {
     setScene((current) => (current ? updater(current) : current))
   }
 
-  const syncSubheadToHeadline = (current: ExperimentalTownScene) => {
-    const headlineHeight = measureHeadlineHeight(current.headline)
-    return {
-      ...current,
-      subhead: {
-        ...current.subhead,
-        y: current.headline.y + headlineHeight + 26,
-      },
-    }
+  const updateHeadline = (patch: Partial<TownGraphicTextLayer>) => {
+    updateScene((current) => syncSubheadToHeadline({ ...current, headlineLayer: { ...current.headlineLayer, ...patch } }))
   }
 
-  const updateTownRow = (rowID: string, patch: Partial<TownSceneRow>) => {
+  const updateHeadshot = (id: string, patch: Partial<TownGraphicHeadshotLayer>) => {
+    updateScene((current) => ({
+      ...current,
+      headshots: current.headshots.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const updateTownRow = (rowID: string, patch: Partial<TownGraphicRow>) => {
     updateScene((current) => ({
       ...current,
       townRows: current.townRows.map((row) => (row.id === rowID ? { ...row, ...patch } : row)),
     }))
   }
 
-  const updateSelectionPosition = (x: number, y: number) => {
-    if (!scene || !selection) return
-    if (selection.kind === 'eyebrow') updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, x, y } }))
-    if (selection.kind === 'headline') updateScene((current) => syncSubheadToHeadline({ ...current, headline: { ...current.headline, x, y } }))
-    if (selection.kind === 'subhead') updateScene((current) => ({ ...current, subhead: { ...current.subhead, x, y } }))
-    if (selection.kind === 'footer') {
-      updateScene((current) => {
-        const deltaX = x - current.footer.x
-        const deltaY = y - current.footer.y
-        return {
-          ...current,
-          footer: {
-            ...current.footer,
-            x,
-            y,
-            textX: current.footer.textX + deltaX,
-            textY: current.footer.textY + deltaY,
-          },
-        }
-      })
-    }
-    if (selection.kind === 'headshot') updateScene((current) => ({ ...current, headshot: { ...current.headshot, x, y } }))
-    if (selection.kind === 'town') {
-      updateScene((current) => ({
-        ...current,
-        townRows: current.townRows.map((row) =>
-          row.id === selection.id
-            ? {
-                ...row,
-                labelX: x,
-                labelY: y,
-                amountX: x,
-                amountY: y + (row.amountY - row.labelY),
-              }
-            : row,
-        ),
-      }))
-    }
-  }
+  const selectedTownRow = useMemo(() => {
+    if (!scene || selection?.kind !== 'town') return null
+    return scene.townRows.find((row) => row.id === selection.id) || null
+  }, [scene, selection])
 
-  const updateHeadshot = (patch: Partial<HeadshotElement>) => {
-    updateScene((current) => ({ ...current, headshot: { ...current.headshot, ...patch } }))
-  }
-
-  const updateHeadline = (patch: Partial<SceneTextElement>) => {
-    updateScene((current) => syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } }))
-  }
+  const selectedHeadshot = useMemo(() => {
+    if (!scene || selection?.kind !== 'headshot') return null
+    return scene.headshots.find((item) => item.id === selection.id) || null
+  }, [scene, selection])
 
   const loadTemplate = (nextTemplateID: string) => {
-    if (!scene || !townData) return
+    if (!townData) return
     setTemplateID(nextTemplateID)
+    const baseScene = createBaseScene(townData, tenantName)
     if (!nextTemplateID) {
-      const baseScene = createBaseScene(townData, tenantName)
-      setScene(baseScene)
+      setScene(syncSubheadToHeadline(baseScene))
       setSelection(null)
       return
     }
     const template = templates.find((item) => item.id === nextTemplateID)
     if (!template) return
-    const baseScene = createBaseScene(townData, tenantName)
-    setTemplateTitle(template.title || 'Experimental Town Graphic')
-    setScene(mergeSceneWithFreshData(template.scene, baseScene))
+    setTemplateTitle(template.title || 'Experimental Town Graphic 2')
+    setScene(syncSubheadToHeadline(mergeSceneWithFreshData(template.scene, baseScene)))
     setSelection(null)
   }
 
   const loadDesign = (nextDesignID: string) => {
-    if (!scene || !townData) return
+    if (!townData) return
     setDesignID(nextDesignID)
+    const baseScene = createBaseScene(townData, tenantName)
     if (!nextDesignID) {
-      const baseScene = createBaseScene(townData, tenantName)
-      setScene(baseScene)
+      setScene(syncSubheadToHeadline(baseScene))
       setSelection(null)
       return
     }
     const design = designs.find((item) => item.id === nextDesignID)
     if (!design) return
-    const baseScene = createBaseScene(townData, tenantName)
-    setDesignTitle(design.title || 'Town Graphic')
+    setDesignTitle(design.title || buildDesignTitle(townData.tenant?.name || tenantName))
     setTemplateID(getString(asRecord(design.template).id) || getString(design.template) || '')
-    setScene(mergeSceneWithFreshData(design.scene, baseScene))
+    setScene(syncSubheadToHeadline(mergeSceneWithFreshData(design.scene, baseScene)))
     setSelection(null)
   }
 
@@ -888,28 +856,28 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const buildTemplatePayload = () => {
     if (!scene) throw new Error('No scene available')
     return {
-      title: templateTitle || 'Experimental Town Graphic',
+      title: templateTitle || 'Experimental Town Graphic 2',
       sourceCollection: 'pages',
       backgroundImage: scene.backgroundMediaID || null,
       scene,
-      notes: 'experimental-town-graphic',
+      notes: 'experimental-town-graphic-2',
     }
   }
 
   const buildDesignPayload = (exportedMediaID?: string | null) => {
     if (!scene) throw new Error('No scene available')
     return {
-      title: designTitle || buildDesignTitle(townData?.tenant?.name || tenantName, 'Town Graphic'),
+      title: designTitle || buildDesignTitle(townData?.tenant?.name || tenantName),
       template: templateID || null,
       sourceCollection: 'pages',
       sourcePost: null,
       primaryTenant: tenantID || null,
       secondaryTenant: null,
       backgroundImage: scene.backgroundMediaID || null,
-      titleOverride: scene.headline.text || null,
+      titleOverride: scene.headlineLayer.text || null,
       scene,
       exportedMedia: exportedMediaID ?? null,
-      notes: 'experimental-town-graphic',
+      notes: 'experimental-town-graphic-2',
       tenant: tenantID || null,
     }
   }
@@ -918,6 +886,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!scene) return
     setSavingTemplate(true)
     setMessage(null)
+
     try {
       const response = await fetch(
         templateID ? `/api/graphic-templates/${templateID}?draft=true` : '/api/graphic-templates?draft=true',
@@ -933,10 +902,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       const savedDoc = ((asRecord(data).doc || data) as TemplateDoc) || null
       if (savedDoc?.id) {
         setTemplateID(savedDoc.id)
-        setTemplates((current) => {
-          const next = [savedDoc, ...current.filter((item) => item.id !== savedDoc.id)]
-          return next.slice(0, 50)
-        })
+        setTemplates((current) => [savedDoc, ...current.filter((item) => item.id !== savedDoc.id)].slice(0, 50))
       }
       setMessage('Template saved')
     } catch (error) {
@@ -985,6 +951,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const exportStageDataUrl = async () => {
     const stage = stageRef.current
     if (!stage) return null
+
     const previousSelection = selection
     const previousScaleX = stage.scaleX()
     const previousScaleY = stage.scaleY()
@@ -993,7 +960,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     stage.scale({ x: 1, y: 1 })
     stage.draw()
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
-    const dataUrl = stage.toDataURL({ pixelRatio: 2 })
+    const dataUrl = stage.toDataURL({
+      x: ARTBOARD_X,
+      y: ARTBOARD_Y,
+      width: STAGE_WIDTH,
+      height: STAGE_HEIGHT,
+      pixelRatio: 2,
+    })
     stage.scale({ x: previousScaleX, y: previousScaleY })
     stage.draw()
     setSelection(previousSelection)
@@ -1018,7 +991,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         designTitle || templateTitle || 'Town Graphic',
       )
       await saveDesign(mediaDoc.id)
-      setMessage('Saved to Media Gallery')
+      setMessage('Saved to media gallery')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
@@ -1029,172 +1002,43 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const downloadPng = async () => {
     try {
       const dataUrl = await exportStageDataUrl()
-      if (!dataUrl) throw new Error('Failed to render PNG')
+      if (!dataUrl) throw new Error('Failed to render image')
+      const link = document.createElement('a')
       const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
-      const link = document.createElement('a')
       link.href = dataUrl
       link.download = `${filenameBase || 'town-graphic'}.png`
-      document.body.appendChild(link)
       link.click()
-      link.remove()
-      setMessage('PNG downloaded')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     }
   }
 
-  if (!isMounted) {
-    return <div style={{ padding: 24 }}>Loading experimental town editor…</div>
+  if (!isMounted || loading) {
+    return <div style={{ padding: 24 }}>Loading experimental town editor 2...</div>
   }
 
   if (!tenantID) {
     return <div style={{ padding: 24 }}>Select a tenant in the admin first.</div>
   }
 
-  if (loading || !scene || !townData) {
-    return <div style={{ padding: 24 }}>Loading experimental town editor…</div>
+  if (!scene || !townData || !fittedHeadline) {
+    return <div style={{ padding: 24 }}>{message || 'No town funding data available for this tenant.'}</div>
   }
 
-  const selectedElementPanel =
-    selection?.kind === 'eyebrow'
-      ? (
-          <div style={slotCardStyle}>
-            <strong style={{ fontSize: 13 }}>Selected: Eyebrow</strong>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>X</span>
-              <input type="number" value={Math.round(scene.eyebrow.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), scene.eyebrow.y)} style={controlStyle} />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Y</span>
-              <input type="number" value={Math.round(scene.eyebrow.y)} onChange={(event) => updateSelectionPosition(scene.eyebrow.x, Number(event.target.value))} style={controlStyle} />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Bar width</span>
-              <input type="number" value={Math.round(scene.eyebrow.barWidth)} onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, barWidth: Number(event.target.value) } }))} style={controlStyle} />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Font size</span>
-              <input type="number" value={Math.round(scene.eyebrow.fontSize)} onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, fontSize: Number(event.target.value) } }))} style={controlStyle} />
-            </label>
-          </div>
-        )
-      : selection?.kind === 'headline'
-        ? (
-            <div style={slotCardStyle}>
-              <strong style={{ fontSize: 13 }}>Selected: Headline</strong>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>X</span>
-                <input type="number" value={Math.round(scene.headline.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), scene.headline.y)} style={controlStyle} />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>Y</span>
-                <input type="number" value={Math.round(scene.headline.y)} onChange={(event) => updateSelectionPosition(scene.headline.x, Number(event.target.value))} style={controlStyle} />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>Width</span>
-                <input type="number" value={Math.round(scene.headline.width)} onChange={(event) => updateScene((current) => ({ ...current, headline: { ...current.headline, width: Number(event.target.value) } }))} style={controlStyle} />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>Font size</span>
-                <input type="number" value={Math.round(scene.headline.fontSize)} onChange={(event) => updateScene((current) => ({ ...current, headline: { ...current.headline, fontSize: Number(event.target.value) } }))} style={controlStyle} />
-              </label>
-            </div>
-          )
-        : selection?.kind === 'subhead'
-          ? (
-              <div style={slotCardStyle}>
-                <strong style={{ fontSize: 13 }}>Selected: Subhead</strong>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>X</span>
-                  <input type="number" value={Math.round(scene.subhead.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), scene.subhead.y)} style={controlStyle} />
-                </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>Y</span>
-                  <input type="number" value={Math.round(scene.subhead.y)} onChange={(event) => updateSelectionPosition(scene.subhead.x, Number(event.target.value))} style={controlStyle} />
-                </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>Divider width</span>
-                  <input type="number" value={Math.round(scene.subhead.dividerWidth)} onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, dividerWidth: Number(event.target.value) } }))} style={controlStyle} />
-                </label>
-              </div>
-            )
-          : selection?.kind === 'footer'
-            ? (
-                <div style={slotCardStyle}>
-                  <strong style={{ fontSize: 13 }}>Selected: Footer</strong>
-                  <label style={{ display: 'grid', gap: 6 }}>
-                    <span style={fieldLabelStyle}>Y</span>
-                    <input type="number" value={Math.round(scene.footer.y)} onChange={(event) => updateSelectionPosition(scene.footer.x, Number(event.target.value))} style={controlStyle} />
-                  </label>
-                  <label style={{ display: 'grid', gap: 6 }}>
-                    <span style={fieldLabelStyle}>Text X</span>
-                    <input type="number" value={Math.round(scene.footer.textX)} onChange={(event) => updateScene((current) => ({ ...current, footer: { ...current.footer, textX: Number(event.target.value) } }))} style={controlStyle} />
-                  </label>
-                  <label style={{ display: 'grid', gap: 6 }}>
-                    <span style={fieldLabelStyle}>Text Y</span>
-                    <input type="number" value={Math.round(scene.footer.textY)} onChange={(event) => updateScene((current) => ({ ...current, footer: { ...current.footer, textY: Number(event.target.value) } }))} style={controlStyle} />
-                  </label>
-                </div>
-              )
-            : selection?.kind === 'headshot'
-              ? (
-                  <div style={slotCardStyle}>
-                    <strong style={{ fontSize: 13 }}>Selected: Headshot</strong>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>X</span>
-                      <input type="number" value={Math.round(scene.headshot.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), scene.headshot.y)} style={controlStyle} />
-                    </label>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Y</span>
-                      <input type="number" value={Math.round(scene.headshot.y)} onChange={(event) => updateSelectionPosition(scene.headshot.x, Number(event.target.value))} style={controlStyle} />
-                    </label>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Size</span>
-                      <input type="number" value={Math.round(scene.headshot.size)} onChange={(event) => updateScene((current) => ({ ...current, headshot: { ...current.headshot, size: Number(event.target.value) } }))} style={controlStyle} />
-                    </label>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Zoom</span>
-                      <input type="number" step={0.05} value={scene.headshot.crop.zoom} onChange={(event) => updateScene((current) => ({ ...current, headshot: { ...current.headshot, crop: { ...current.headshot.crop, zoom: Number(event.target.value) } } }))} style={controlStyle} />
-                    </label>
-                  </div>
-                )
-              : selection?.kind === 'town' && selectedTownRow
-                  ? (
-                      <div style={slotCardStyle}>
-                        <strong style={{ fontSize: 13 }}>Selected: {selectedTownRow.town}</strong>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Label X</span>
-                          <input type="number" value={Math.round(selectedTownRow.labelX)} onChange={(event) => updateSelectionPosition(Number(event.target.value), selectedTownRow.labelY)} style={controlStyle} />
-                        </label>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Label Y</span>
-                          <input type="number" value={Math.round(selectedTownRow.labelY)} onChange={(event) => updateSelectionPosition(selectedTownRow.labelX, Number(event.target.value))} style={controlStyle} />
-                        </label>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Label width</span>
-                          <input type="number" value={Math.round(selectedTownRow.labelWidth)} onChange={(event) => updateTownRow(selectedTownRow.id, { labelWidth: Number(event.target.value) })} style={controlStyle} />
-                        </label>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Amount font size</span>
-                          <input type="number" value={Math.round(selectedTownRow.amountFontSize)} onChange={(event) => updateTownRow(selectedTownRow.id, { amountFontSize: Number(event.target.value) })} style={controlStyle} />
-                        </label>
-                      </div>
-                    )
-                  : null
-
-  const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
+  const primaryHeadshot = scene.headshots[0] || null
+  const primaryPlacement = primaryHeadshot ? computeHeadshotPlacement(headshotImage, primaryHeadshot) : null
   const backgroundPlacement = computeCoverPlacement(backgroundImage, STAGE_WIDTH, STAGE_HEIGHT)
 
   return (
     <div
       style={{
+        padding: 24,
         display: 'grid',
         gap: 20,
         gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
-        padding: 24,
         alignItems: 'start',
       }}
     >
@@ -1212,13 +1056,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         }}
       >
         <section style={{ display: 'grid', gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>Experimental Town Graphic</h2>
+          <h2 style={{ margin: 0, fontSize: 20 }}>Experimental Town Graphic 2</h2>
           <div style={hintStyle}>
-            Tenant: <strong>{townData.tenant?.name || tenantName || tenantID}</strong>
+            Tenant: <strong>{tenantName || townData.tenant?.name || 'Unknown'}</strong>
             <br />
-            Rep: <strong>{townData.repInfo?.name || 'Unknown rep'}</strong>
+            Rep: <strong>{townData.repInfo?.name || 'Unknown'}</strong>
             <br />
-            Design: <strong>{designID || 'unsaved'}</strong>
+            Design: <strong>{designID ? designTitle : 'unsaved'}</strong>
           </div>
         </section>
 
@@ -1239,11 +1083,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             <span style={fieldLabelStyle}>Template title</span>
             <input value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} style={controlStyle} />
           </label>
-          {isSuperAdmin ? (
-            <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
-              {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
-            </Button>
-          ) : null}
+          <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
+            {savingTemplate ? 'Saving...' : 'Save template'}
+          </Button>
         </section>
 
         <section style={{ display: 'grid', gap: 10 }}>
@@ -1264,7 +1106,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
           </label>
           <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
-            {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
+            {savingDesign ? 'Saving...' : 'Save design'}
           </Button>
         </section>
 
@@ -1282,8 +1124,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             <span style={fieldLabelStyle}>Headline</span>
             <textarea
               rows={5}
-              value={scene.headline.text}
-              onChange={(event) => updateScene((current) => ({ ...current, headline: { ...current.headline, text: event.target.value } }))}
+              value={scene.headlineLayer.text}
+              onChange={(event) => updateHeadline({ text: event.target.value })}
               style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
             />
           </label>
@@ -1305,16 +1147,161 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           </label>
         </section>
 
+        {selection?.kind === 'headline' ? (
+          <section style={{ display: 'grid', gap: 10 }}>
+            <div style={sectionLabelStyle}>Selected headline</div>
+            <div style={twoColumnGridStyle}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>X</span>
+                <input
+                  type="number"
+                  value={Math.round(scene.headlineLayer.x)}
+                  onChange={(event) => updateHeadline({ x: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Y</span>
+                <input
+                  type="number"
+                  value={Math.round(scene.headlineLayer.y)}
+                  onChange={(event) => updateHeadline({ y: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Width</span>
+                <input
+                  type="number"
+                  value={Math.round(scene.headlineLayer.width)}
+                  onChange={(event) => updateHeadline({ width: clamp(Number(event.target.value), TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Font size</span>
+                <input
+                  type="number"
+                  value={Math.round(scene.headlineLayer.fontSize)}
+                  onChange={(event) => updateHeadline({ fontSize: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+            </div>
+          </section>
+        ) : null}
+
+        {selection?.kind === 'headshot' && selectedHeadshot ? (
+          <section style={{ display: 'grid', gap: 10 }}>
+            <div style={sectionLabelStyle}>Selected headshot</div>
+            <div style={twoColumnGridStyle}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>X</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedHeadshot.x)}
+                  onChange={(event) => updateHeadshot(selectedHeadshot.id, { x: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Y</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedHeadshot.y)}
+                  onChange={(event) => updateHeadshot(selectedHeadshot.id, { y: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Size</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedHeadshot.size)}
+                  onChange={(event) =>
+                    updateHeadshot(selectedHeadshot.id, {
+                      size: clamp(Number(event.target.value), HEADSHOT_SIZE_LIMITS.min, HEADSHOT_SIZE_LIMITS.max),
+                    })
+                  }
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Zoom</span>
+                <input
+                  type="number"
+                  step={0.05}
+                  value={selectedHeadshot.crop.zoom}
+                  onChange={(event) =>
+                    updateHeadshot(selectedHeadshot.id, {
+                      crop: { ...selectedHeadshot.crop, zoom: Number(event.target.value) },
+                    })
+                  }
+                  style={controlStyle}
+                />
+              </label>
+            </div>
+          </section>
+        ) : null}
+
+        {selection?.kind === 'town' && selectedTownRow ? (
+          <section style={{ display: 'grid', gap: 10 }}>
+            <div style={sectionLabelStyle}>Selected town row</div>
+            <div style={twoColumnGridStyle}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>X</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedTownRow.x)}
+                  onChange={(event) => updateTownRow(selectedTownRow.id, { x: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Y</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedTownRow.y)}
+                  onChange={(event) => updateTownRow(selectedTownRow.id, { y: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Label width</span>
+                <input
+                  type="number"
+                  value={Math.round(selectedTownRow.labelWidth)}
+                  onChange={(event) => updateTownRow(selectedTownRow.id, { labelWidth: clamp(Number(event.target.value), 180, 560) })}
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Amount</span>
+                <input
+                  type="number"
+                  value={selectedTownRow.strapAid}
+                  onChange={(event) => updateTownRow(selectedTownRow.id, { strapAid: Number(event.target.value) })}
+                  style={controlStyle}
+                />
+              </label>
+            </div>
+          </section>
+        ) : null}
+
         <section style={{ display: 'grid', gap: 12 }}>
           <div style={sectionLabelStyle}>Towns</div>
           {scene.townRows.map((row) => (
-            <div key={row.id} style={slotCardStyle}>
+            <div key={row.id} style={townCardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
-                  <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
+                  <input
+                    type="checkbox"
+                    checked={row.included}
+                    onChange={(event) => updateTownRow(row.id, { included: event.target.checked })}
+                  />
                   {row.town}
                 </label>
-                <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
+                <button type="button" style={pillButtonStyle} onClick={() => setSelection({ kind: 'town', id: row.id })}>
                   Select
                 </button>
               </div>
@@ -1323,7 +1310,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 <input
                   type="number"
                   value={row.strapAid}
-                  onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
+                  onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) })}
                   style={controlStyle}
                 />
               </label>
@@ -1331,23 +1318,14 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           ))}
         </section>
 
-        {selectedElementPanel ? (
-          <section style={{ display: 'grid', gap: 12 }}>
-            <div style={sectionLabelStyle}>Selected Element</div>
-            {selectedElementPanel}
-          </section>
-        ) : null}
-
         <section style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           <Button onClick={saveToMediaGallery} disabled={savingMedia} buttonStyle="secondary">
-            {savingMedia ? 'Saving…' : 'Save to Media'}
+            {savingMedia ? 'Saving...' : 'Save to Media'}
           </Button>
           <Button onClick={downloadPng} buttonStyle="secondary">
             Download PNG
           </Button>
         </section>
-
-        {message ? <div style={hintStyle}>{message}</div> : null}
       </aside>
 
       <section
@@ -1363,25 +1341,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
           <strong style={{ fontSize: 16, color: '#0f172a' }}>Canvas</strong>
           <span style={{ fontSize: 12, color: '#64748b' }}>
-            Click an element to select it, then drag it directly on the canvas. The left panel keeps the text/town editing workflow.
+            Headline and headshot use the original editor transformer flow. Town rows stay direct-drag.
           </span>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
-          <label style={{ display: 'grid', gap: 4 }}>
-            <span style={fieldLabelStyle}>Preview zoom</span>
-            <select
-              value={String(previewZoom)}
-              onChange={(event) => setPreviewZoom(Number(event.target.value))}
-              style={{ ...controlStyle, width: 110, padding: '8px 10px' }}
-            >
-              <option value="0.75">75%</option>
-              <option value="0.9">90%</option>
-              <option value="1">Fit</option>
-              <option value="1.1">110%</option>
-              <option value="1.25">125%</option>
-            </select>
-          </label>
-        </div>
+        {message ? <div style={{ ...hintStyle, marginBottom: 12 }}>{message}</div> : null}
         <div
           ref={stageContainerRef}
           style={{
@@ -1393,16 +1356,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         >
           <Stage
             ref={stageRef}
-            width={STAGE_WIDTH}
-            height={STAGE_HEIGHT}
+            width={WORKSPACE_WIDTH}
+            height={WORKSPACE_HEIGHT}
             scaleX={previewScale}
             scaleY={previewScale}
             style={{
-              width: `${previewWidth}px`,
-              height: `${previewHeight}px`,
-              borderRadius: 20,
-              background: '#f5f2ec',
+              width: `${WORKSPACE_WIDTH * previewScale}px`,
+              height: `${WORKSPACE_HEIGHT * previewScale}px`,
               display: 'block',
+              borderRadius: 20,
+              background: '#e5e7eb',
               flex: '0 0 auto',
             }}
             onMouseDown={(event) => {
@@ -1410,13 +1373,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             }}
           >
             <Layer>
-              <Group
-                clipFunc={(ctx) => {
-                  ctx.beginPath()
-                  ctx.rect(0, 0, STAGE_WIDTH, STAGE_HEIGHT)
-                  ctx.closePath()
-                }}
-              >
+              <Rect width={WORKSPACE_WIDTH} height={WORKSPACE_HEIGHT} fill="#e5e7eb" />
+              <Group x={ARTBOARD_X} y={ARTBOARD_Y}>
               <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="#f7f4ef" />
               {backgroundImage ? (
                 <KonvaImage
@@ -1434,12 +1392,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 x={scene.eyebrow.x}
                 y={scene.eyebrow.y}
                 draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'eyebrow', id: scene.eyebrow.id })}
+                onClick={() => setSelection({ kind: 'eyebrow' })}
+                onTap={() => setSelection({ kind: 'eyebrow' })}
+                onDragEnd={(event) =>
+                  updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, x: event.target.x(), y: event.target.y() } }))
+                }
               >
-                {selection?.kind === 'eyebrow' ? (
-                  <Rect x={-8} y={-8} width={scene.eyebrow.barWidth + 16} height={scene.eyebrow.barHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                ) : null}
                 <Rect width={scene.eyebrow.barWidth} height={scene.eyebrow.barHeight} fill={scene.eyebrow.backgroundColor} />
                 <Text
                   x={scene.eyebrow.paddingX}
@@ -1455,32 +1413,39 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               </Group>
 
               <Group
-                x={scene.headline.x}
-                y={scene.headline.y}
-                ref={headlineRef}
-                draggable={selection?.kind === 'headline' && !isResizingHeadline}
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
-                onTransformStart={() => setIsResizingHeadline(true)}
+                ref={titleRef}
+                x={scene.headlineLayer.x}
+                y={scene.headlineLayer.y}
+                draggable
+                onClick={() => setSelection({ kind: 'headline' })}
+                onTap={() => setSelection({ kind: 'headline' })}
+                onDragEnd={(event) => updateHeadline({ x: event.target.x(), y: event.target.y() })}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), 240, 920)
+                  const nextWidth = clamp(Math.round(scene.headlineLayer.width * node.scaleX()), TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max)
                   node.scaleX(1)
                   node.scaleY(1)
                   updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
-                  setIsResizingHeadline(false)
                 }}
               >
-                {selection?.kind === 'headline' ? (
-                  <Rect x={-12} y={-12} width={scene.headline.width + 24} height={measureHeadlineHeight(scene.headline) + 24} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={14} />
-                ) : null}
+                <Rect
+                  x={-12}
+                  y={-8}
+                  width={scene.headlineLayer.width + 24}
+                  height={(scene.headlineLayer.height || 240) + 16}
+                  cornerRadius={18}
+                  fill={selection?.kind === 'headline' ? 'rgba(125, 211, 252, 0.08)' : 'transparent'}
+                  stroke={selection?.kind === 'headline' ? '#7dd3fc' : 'transparent'}
+                  dash={selection?.kind === 'headline' ? [10, 8] : []}
+                />
                 <Text
-                  width={scene.headline.width}
-                  text={scene.headline.text}
-                  fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
-                  fontSize={scene.headline.fontSize}
-                  lineHeight={scene.headline.lineHeight || 1.04}
-                  fill={scene.headline.color}
+                  width={scene.headlineLayer.width}
+                  text={fittedHeadline.lines.join('\n')}
+                  fontFamily={scene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
+                  fontSize={fittedHeadline.fontSize}
+                  lineHeight={fittedHeadline.lineHeight / fittedHeadline.fontSize}
+                  fill={scene.headlineLayer.color}
+                  fontStyle={scene.headlineLayer.fontStyle}
                 />
               </Group>
 
@@ -1488,12 +1453,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 x={scene.subhead.x}
                 y={scene.subhead.y}
                 draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'subhead', id: scene.subhead.id })}
+                onClick={() => setSelection({ kind: 'subhead' })}
+                onTap={() => setSelection({ kind: 'subhead' })}
+                onDragEnd={(event) =>
+                  updateScene((current) => ({ ...current, subhead: { ...current.subhead, x: event.target.x(), y: event.target.y() } }))
+                }
               >
-                {selection?.kind === 'subhead' ? (
-                  <Rect x={-10} y={-12} width={Math.max(scene.subhead.dividerWidth + 20, 320)} height={74} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={12} />
-                ) : null}
                 <Rect width={scene.subhead.dividerWidth} height={scene.subhead.dividerHeight} fill={scene.subhead.dividerColor} />
                 <Text
                   y={14}
@@ -1508,14 +1473,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               {scene.townRows.filter((row) => row.included).map((row) => (
                 <Group
                   key={row.id}
-                  x={row.labelX}
-                  y={row.labelY}
+                  x={row.x}
+                  y={row.y}
                   draggable
-                  onDragEnd={(event) => {
-                    setSelection({ kind: 'town', id: row.id })
-                    updateSelectionPosition(event.target.x(), event.target.y())
-                  }}
-                  onMouseDown={() => setSelection({ kind: 'town', id: row.id })}
+                  onClick={() => setSelection({ kind: 'town', id: row.id })}
+                  onTap={() => setSelection({ kind: 'town', id: row.id })}
+                  onDragEnd={(event) => updateTownRow(row.id, { x: event.target.x(), y: event.target.y() })}
                 >
                   {selection?.kind === 'town' && selection.id === row.id ? (
                     <Rect x={-10} y={-12} width={Math.max(row.labelWidth + 24, 360)} height={128} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={12} />
@@ -1532,7 +1495,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                     fill="#ffffff"
                   />
                   <Text
-                    y={row.amountY - row.labelY}
+                    y={row.amountOffsetY}
                     text={formatCurrency(row.strapAid)}
                     fontFamily="Arial"
                     fontSize={row.amountFontSize}
@@ -1546,12 +1509,25 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 x={scene.footer.x}
                 y={scene.footer.y}
                 draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'footer', id: scene.footer.id })}
+                onClick={() => setSelection({ kind: 'footer' })}
+                onTap={() => setSelection({ kind: 'footer' })}
+                onDragEnd={(event) =>
+                  updateScene((current) => {
+                    const deltaX = event.target.x() - current.footer.x
+                    const deltaY = event.target.y() - current.footer.y
+                    return {
+                      ...current,
+                      footer: {
+                        ...current.footer,
+                        x: event.target.x(),
+                        y: event.target.y(),
+                        textX: current.footer.textX + deltaX,
+                        textY: current.footer.textY + deltaY,
+                      },
+                    }
+                  })
+                }
               >
-                {selection?.kind === 'footer' ? (
-                  <Rect x={-8} y={-8} width={scene.footer.width + 16} height={scene.footer.height + 16} stroke="#0ea5e9" dash={[10, 6]} />
-                ) : null}
                 <Rect width={scene.footer.width} height={scene.footer.height} fill={scene.footer.backgroundColor} />
                 <Text
                   x={scene.footer.textX - scene.footer.x}
@@ -1564,43 +1540,51 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 />
               </Group>
 
-              <Group
-                  x={scene.headshot.x}
-                  y={scene.headshot.y}
-                  ref={headshotRef}
-                  draggable
-                  onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                  onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                  onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
-                  onTransformEnd={(event) => {
-                    const node = event.target
-                    const scale = Math.max(node.scaleX(), node.scaleY())
-                    const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
-                    node.scaleX(1)
-                    node.scaleY(1)
-                    updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
-                  }}
-                >
+              {scene.headshots.map((headshot, index) => {
+                const placement = computeHeadshotPlacement(headshotImage, headshot)
+                return (
                   <Group
-                    clipFunc={(ctx) => {
-                      ctx.beginPath()
-                      ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
-                      ctx.closePath()
+                    key={headshot.id}
+                    ref={(node) => {
+                      headshotRefs.current[headshot.id] = node
+                    }}
+                    x={headshot.x}
+                    y={headshot.y}
+                    draggable
+                    onClick={() => setSelection({ kind: 'headshot', id: headshot.id })}
+                    onTap={() => setSelection({ kind: 'headshot', id: headshot.id })}
+                    onDragEnd={(event) => updateHeadshot(headshot.id, { x: event.target.x(), y: event.target.y() })}
+                    onTransformEnd={(event) => {
+                      const node = event.target
+                      const scale = Math.max(node.scaleX(), node.scaleY())
+                      const nextSize = clamp(Math.round(headshot.size * scale), HEADSHOT_SIZE_LIMITS.min, HEADSHOT_SIZE_LIMITS.max)
+                      node.scaleX(1)
+                      node.scaleY(1)
+                      updateHeadshot(headshot.id, { x: node.x(), y: node.y(), size: nextSize })
                     }}
                   >
-                    {headshotImage ? (
-                      <KonvaImage
-                        image={headshotImage}
-                        x={headshotPlacement.x}
-                        y={headshotPlacement.y}
-                        width={headshotPlacement.width}
-                        height={headshotPlacement.height}
-                        onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                        onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                      />
-                    ) : null}
+                    <Group
+                      clipFunc={(ctx) => {
+                        ctx.beginPath()
+                        ctx.arc(headshot.size / 2, headshot.size / 2, headshot.size / 2, 0, Math.PI * 2)
+                        ctx.closePath()
+                      }}
+                    >
+                      {index === 0 && headshotImage ? (
+                        <KonvaImage
+                          image={headshotImage}
+                          x={placement.x}
+                          y={placement.y}
+                          width={placement.width}
+                          height={placement.height}
+                          onClick={() => setSelection({ kind: 'headshot', id: headshot.id })}
+                          onTap={() => setSelection({ kind: 'headshot', id: headshot.id })}
+                        />
+                      ) : null}
+                    </Group>
                   </Group>
-                </Group>
+                )
+              })}
 
               <Transformer
                 ref={transformerRef}
@@ -1616,17 +1600,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 borderStroke="#0ea5e9"
                 anchorStroke="#0ea5e9"
                 anchorFill="#ffffff"
-                anchorSize={transformerAnchorSize}
+                anchorSize={10}
                 boundBoxFunc={(_, newBox) => {
                   if (selection?.kind === 'headline') {
-                    const nextWidth = clamp(newBox.width, 240, 920)
-                    return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                    return {
+                      ...newBox,
+                      width: clamp(newBox.width, TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max),
+                      height: scene.headlineLayer.height || 240,
+                      rotation: 0,
+                    }
                   }
 
                   if (selection?.kind === 'headshot') {
-                    const nextSize = Math.max(180, Math.max(newBox.width, newBox.height))
+                    const nextSize = clamp(Math.max(newBox.width, newBox.height), HEADSHOT_SIZE_LIMITS.min, HEADSHOT_SIZE_LIMITS.max)
                     return { ...newBox, width: nextSize, height: nextSize, rotation: 0 }
                   }
+
                   return newBox
                 }}
               />
@@ -1672,7 +1661,7 @@ const fieldLabelStyle: React.CSSProperties = {
   color: '#374151',
 }
 
-const secondaryButtonStyle: React.CSSProperties = {
+const pillButtonStyle: React.CSSProperties = {
   border: '1px solid rgba(17, 24, 39, 0.12)',
   borderRadius: 999,
   background: '#ffffff',
@@ -1683,11 +1672,17 @@ const secondaryButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const slotCardStyle: React.CSSProperties = {
+const townCardStyle: React.CSSProperties = {
   display: 'grid',
   gap: 10,
   padding: 14,
   borderRadius: 16,
   border: '1px solid rgba(17, 24, 39, 0.1)',
   background: 'rgba(248, 250, 252, 0.82)',
+}
+
+const twoColumnGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 10,
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
 }
