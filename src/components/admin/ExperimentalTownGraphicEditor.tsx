@@ -15,6 +15,10 @@ const MAX_PREVIEW_HEIGHT = 900
 const SCENE_KIND = 'experimental-town-graphic/v1'
 const BRAND_BLUE = '#1d2f8c'
 const BRAND_RED = '#c3202f'
+const BRAND_COLORS = [BRAND_BLUE, '#8ea4ea', BRAND_RED, '#ffffff', '#111827']
+const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
+const HEADLINE_WIDTH_LIMITS = { min: 240, max: 1060 }
+const TOWN_LABEL_WIDTH_LIMITS = { min: 180, max: 760 }
 
 type MediaDoc = {
   id: string
@@ -94,6 +98,7 @@ type SceneTextElement = {
   fontFamily?: string
   fontStyle?: string
   lineHeight?: number
+  textDecoration?: string
 }
 
 type EyebrowElement = SceneTextElement & {
@@ -116,6 +121,7 @@ type SubheadElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  textDecoration?: string
 }
 
 type FooterElement = {
@@ -131,6 +137,7 @@ type FooterElement = {
   fontSize: number
   color: string
   fontStyle?: string
+  textDecoration?: string
 }
 
 type HeadshotElement = {
@@ -182,6 +189,10 @@ type Selection =
   | { kind: 'headshot'; id: string }
   | { kind: 'town'; id: string }
   | null
+
+type TextSelection = Exclude<Selection, null> & {
+  kind: 'eyebrow' | 'headline' | 'subhead' | 'footer'
+}
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -283,8 +294,8 @@ function measureText(text: string, font: string) {
 
 const normalizeTownKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
 
-const measureTownLabelWidth = (town: string, fontSize = 30) =>
-  clamp(Math.ceil(measureText(town.toUpperCase(), `700 ${fontSize}px Arial`)) + 28, 180, 560)
+const measureTownLabelWidth = (town: string, fontSize = 36) =>
+  clamp(Math.ceil(measureText(town.toUpperCase(), `700 ${fontSize}px Arial`)) + 32, TOWN_LABEL_WIDTH_LIMITS.min, TOWN_LABEL_WIDTH_LIMITS.max)
 
 const wrapTextToWidth = (text: string, font: string, maxWidth: number) => {
   const paragraphs = text.replace(/\r\n/g, '\n').split('\n')
@@ -326,11 +337,6 @@ const formatCurrency = (value: number) =>
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(value || 0)
-
-const slugToWebsite = (slug: string | undefined | null) => {
-  if (!slug) return 'CTHOUSEGOP.COM'
-  return `${slug.replace(/^www\./, '').replace(/[^a-z0-9-]/gi, '').toUpperCase()}.COM`
-}
 
 const buildRepShortName = (name: string | undefined | null) => {
   if (!name) return 'Rep. Announces'
@@ -427,7 +433,7 @@ const hasSuperRole = (value: unknown) => {
 const createBaseScene = (data: TownFundingResponse, tenantName: string | undefined) => {
   const headline = deriveDefaultHeadline(data.repInfo?.name)
   const townRows = data.townRows.map((row, index) => {
-    const top = 660 + index * 160
+    const top = 670 + index * 174
     return {
       id: row.id,
       townKey: normalizeTownKey(row.town),
@@ -436,12 +442,12 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       included: true,
       labelX: 72,
       labelY: top,
-      labelWidth: measureTownLabelWidth(row.town),
-      labelHeight: 48,
+      labelWidth: measureTownLabelWidth(row.town, 36),
+      labelHeight: 54,
       amountX: 72,
-      amountY: top + 64,
-      townFontSize: 30,
-      amountFontSize: 66,
+      amountY: top + 72,
+      townFontSize: 36,
+      amountFontSize: 74,
       labelColor: BRAND_RED,
       textColor: BRAND_BLUE,
     }
@@ -477,7 +483,7 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       id: 'headline',
       x: 72,
       y: 140,
-      width: 640,
+      width: 760,
       text: headline,
       fontSize: 66,
       color: BRAND_BLUE,
@@ -502,12 +508,12 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       x: 0,
       y: 1490,
       width: STAGE_WIDTH,
-      height: 70,
+      height: 80,
       backgroundColor: BRAND_RED,
-      text: slugToWebsite(data.tenant?.slug || tenantName),
+      text: WEBSITE_TEXT,
       textX: 78,
-      textY: 1511,
-      fontSize: 28,
+      textY: 1510,
+      fontSize: 34,
       color: '#ffffff',
       fontStyle: 'italic 700',
     },
@@ -540,7 +546,7 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
     eyebrow: { ...baseScene.eyebrow, ...savedScene.eyebrow },
     headline: { ...baseScene.headline, ...savedScene.headline },
     subhead: { ...baseScene.subhead, ...savedScene.subhead },
-    footer: { ...baseScene.footer, ...savedScene.footer },
+    footer: { ...baseScene.footer, ...savedScene.footer, text: baseScene.footer.text },
     headshot: {
       ...baseScene.headshot,
       ...savedScene.headshot,
@@ -591,6 +597,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const stageRef = useRef<Konva.Stage | null>(null)
   const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
+  const townRefs = useRef<Record<string, Konva.Group | null>>({})
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
@@ -722,6 +729,11 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     return scene.townRows.find((row) => row.id === selection.id) || null
   }, [scene, selection])
 
+  const selectedTextTarget = useMemo<TextSelection | null>(() => {
+    if (!selection) return null
+    return ['eyebrow', 'headline', 'subhead', 'footer'].includes(selection.kind) ? (selection as TextSelection) : null
+  }, [selection])
+
   useEffect(() => {
     const transformer = transformerRef.current
     const node =
@@ -729,6 +741,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         ? headlineRef.current
         : selection?.kind === 'headshot'
           ? headshotRef.current
+          : selection?.kind === 'town'
+            ? townRefs.current[selection.id] || null
           : null
     if (!transformer) return
 
@@ -758,6 +772,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       ...current,
       subhead: {
         ...current.subhead,
+        x: current.headline.x + 2,
         y: current.headline.y + headlineHeight + 26,
       },
     }
@@ -816,6 +831,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const updateHeadline = (patch: Partial<SceneTextElement>) => {
     updateScene((current) => syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } }))
+  }
+
+  const resolveSelectedTextLayer = (current: ExperimentalTownScene, target: TextSelection) => {
+    if (target.kind === 'eyebrow') return current.eyebrow
+    if (target.kind === 'headline') return current.headline
+    if (target.kind === 'subhead') return current.subhead
+    return current.footer
+  }
+
+  const updateSelectedTextLayer = (target: TextSelection, patch: Partial<SceneTextElement | SubheadElement | FooterElement>) => {
+    updateScene((current) => {
+      if (target.kind === 'eyebrow') return { ...current, eyebrow: { ...current.eyebrow, ...patch } }
+      if (target.kind === 'headline') return syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } })
+      if (target.kind === 'subhead') return { ...current, subhead: { ...current.subhead, ...patch } }
+      return { ...current, footer: { ...current.footer, ...patch } }
+    })
   }
 
   const loadTemplate = (nextTemplateID: string) => {
@@ -1185,6 +1216,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                     )
                   : null
 
+  const selectedTextLayer = selectedTextTarget ? resolveSelectedTextLayer(scene, selectedTextTarget) : null
+  const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
+
   const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
   const backgroundPlacement = computeCoverPlacement(backgroundImage, STAGE_WIDTH, STAGE_HEIGHT)
 
@@ -1283,7 +1317,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             <textarea
               rows={5}
               value={scene.headline.text}
-              onChange={(event) => updateScene((current) => ({ ...current, headline: { ...current.headline, text: event.target.value } }))}
+              onChange={(event) => updateHeadline({ text: event.target.value })}
               style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
             />
           </label>
@@ -1295,14 +1329,46 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               style={controlStyle}
             />
           </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Website</span>
-            <input
-              value={scene.footer.text}
-              onChange={(event) => updateScene((current) => ({ ...current, footer: { ...current.footer, text: event.target.value } }))}
-              style={controlStyle}
-            />
-          </label>
+          <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
+          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Footer text size</span>
+              <input
+                type="number"
+                value={scene.footer.fontSize}
+                onChange={(event) =>
+                  updateScene((current) => ({
+                    ...current,
+                    footer: {
+                      ...current.footer,
+                      fontSize: Number(event.target.value) || current.footer.fontSize,
+                    },
+                  }))
+                }
+                style={controlStyle}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Footer bar height</span>
+              <input
+                type="number"
+                value={scene.footer.height}
+                onChange={(event) =>
+                  updateScene((current) => {
+                    const nextHeight = Number(event.target.value) || current.footer.height
+                    return {
+                      ...current,
+                      footer: {
+                        ...current.footer,
+                        height: nextHeight,
+                      },
+                    }
+                  })
+                }
+                style={controlStyle}
+              />
+            </label>
+          </div>
         </section>
 
         <section style={{ display: 'grid', gap: 12 }}>
@@ -1327,12 +1393,32 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   style={controlStyle}
                 />
               </label>
+              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={fieldLabelStyle}>Town size</span>
+                  <input
+                    type="number"
+                    value={row.townFontSize}
+                    onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
+                    style={controlStyle}
+                  />
+                </label>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={fieldLabelStyle}>Box width</span>
+                  <input
+                    type="number"
+                    value={row.labelWidth}
+                    onChange={(event) => updateTownRow(row.id, { labelWidth: Number(event.target.value) || row.labelWidth })}
+                    style={controlStyle}
+                  />
+                </label>
+              </div>
             </div>
           ))}
         </section>
 
         {selectedElementPanel ? (
-          <section style={{ display: 'grid', gap: 12 }}>
+          <section style={{ display: 'none', gap: 12 }}>
             <div style={sectionLabelStyle}>Selected Element</div>
             {selectedElementPanel}
           </section>
@@ -1381,6 +1467,86 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               <option value="1.25">125%</option>
             </select>
           </label>
+        </div>
+        <div style={textToolbarStyle}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              opacity: isTextToolbarActive ? 1 : 0,
+              pointerEvents: isTextToolbarActive ? 'auto' : 'none',
+            }}
+          >
+            <button
+              type="button"
+              style={toolbarButtonStyle}
+              onClick={() => {
+                if (!selectedTextTarget || !selectedTextLayer) return
+                updateSelectedTextLayer(selectedTextTarget, {
+                  fontStyle: (selectedTextLayer.fontStyle || '').includes('italic')
+                    ? (selectedTextLayer.fontStyle || 'normal').replace(/\s*italic/g, '').trim() || 'normal'
+                    : `${selectedTextLayer.fontStyle || 'normal'} italic`.trim(),
+                })
+              }}
+              disabled={!isTextToolbarActive}
+            >
+              Italic
+            </button>
+            <button
+              type="button"
+              style={toolbarButtonStyle}
+              onClick={() => {
+                if (!selectedTextTarget || !selectedTextLayer) return
+                updateSelectedTextLayer(selectedTextTarget, {
+                  textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline',
+                })
+              }}
+              disabled={!isTextToolbarActive}
+            >
+              Underline
+            </button>
+            <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
+              <input
+                type="number"
+                min={12}
+                max={140}
+                step={1}
+                value={selectedTextLayer?.fontSize || 32}
+                onChange={(event) => {
+                  if (!selectedTextTarget || !selectedTextLayer) return
+                  updateSelectedTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })
+                }}
+                style={{ ...controlStyle, width: 92, padding: '8px 10px' }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {BRAND_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  aria-label={`Choose ${color}`}
+                  onClick={() => {
+                    if (!selectedTextTarget || !selectedTextLayer) return
+                    updateSelectedTextLayer(selectedTextTarget, { color })
+                  }}
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: 999,
+                    border: selectedTextLayer?.color === color ? '2px solid #0f172a' : '1px solid rgba(15,23,42,0.18)',
+                    background: color,
+                    cursor: 'pointer',
+                  }}
+                  disabled={!isTextToolbarActive}
+                />
+              ))}
+            </div>
+          </div>
         </div>
         <div
           ref={stageContainerRef}
@@ -1450,6 +1616,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   fontSize={scene.eyebrow.fontSize}
                   fontStyle={scene.eyebrow.fontStyle}
                   fill={scene.eyebrow.color}
+                  textDecoration={scene.eyebrow.textDecoration}
                   wrap="none"
                 />
               </Group>
@@ -1464,7 +1631,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 onTransformStart={() => setIsResizingHeadline(true)}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), 240, 920)
+                  const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
                   node.scaleX(1)
                   node.scaleY(1)
                   updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
@@ -1481,14 +1648,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   fontSize={scene.headline.fontSize}
                   lineHeight={scene.headline.lineHeight || 1.04}
                   fill={scene.headline.color}
+                  textDecoration={scene.headline.textDecoration}
                 />
               </Group>
 
               <Group
                 x={scene.subhead.x}
                 y={scene.subhead.y}
-                draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                 onMouseDown={() => setSelection({ kind: 'subhead', id: scene.subhead.id })}
               >
                 {selection?.kind === 'subhead' ? (
@@ -1502,12 +1668,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   fontSize={scene.subhead.fontSize}
                   fontStyle={scene.subhead.fontStyle}
                   fill={scene.subhead.color}
+                  textDecoration={scene.subhead.textDecoration}
                 />
               </Group>
 
               {scene.townRows.filter((row) => row.included).map((row) => (
                 <Group
                   key={row.id}
+                  ref={(node) => {
+                    townRefs.current[row.id] = node
+                  }}
                   x={row.labelX}
                   y={row.labelY}
                   draggable
@@ -1516,6 +1686,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                     updateSelectionPosition(event.target.x(), event.target.y())
                   }}
                   onMouseDown={() => setSelection({ kind: 'town', id: row.id })}
+                  onTransformEnd={(event) => {
+                    const node = event.target
+                    const nextWidth = clamp(Math.round(row.labelWidth * node.scaleX()), TOWN_LABEL_WIDTH_LIMITS.min, TOWN_LABEL_WIDTH_LIMITS.max)
+                    node.scaleX(1)
+                    node.scaleY(1)
+                    updateTownRow(row.id, { labelWidth: nextWidth })
+                  }}
                 >
                   {selection?.kind === 'town' && selection.id === row.id ? (
                     <Rect x={-10} y={-12} width={Math.max(row.labelWidth + 24, 360)} height={128} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={12} />
@@ -1561,6 +1738,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   fontSize={scene.footer.fontSize}
                   fontStyle={scene.footer.fontStyle}
                   fill={scene.footer.color}
+                  textDecoration={scene.footer.textDecoration}
                 />
               </Group>
 
@@ -1609,6 +1787,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 enabledAnchors={
                   selection?.kind === 'headline'
                     ? ['middle-left', 'middle-right']
+                    : selection?.kind === 'town'
+                      ? ['middle-left', 'middle-right']
                     : selection?.kind === 'headshot'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                       : []
@@ -1619,8 +1799,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 anchorSize={transformerAnchorSize}
                 boundBoxFunc={(_, newBox) => {
                   if (selection?.kind === 'headline') {
-                    const nextWidth = clamp(newBox.width, 240, 920)
+                    const nextWidth = clamp(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
                     return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'town' && selectedTownRow) {
+                    const nextWidth = clamp(newBox.width, TOWN_LABEL_WIDTH_LIMITS.min, TOWN_LABEL_WIDTH_LIMITS.max)
+                    return { ...newBox, width: nextWidth, height: selectedTownRow.labelHeight, rotation: 0 }
                   }
 
                   if (selection?.kind === 'headshot') {
@@ -1658,6 +1843,31 @@ const hintStyle: React.CSSProperties = {
   color: '#4b5563',
   fontSize: 13,
   lineHeight: 1.6,
+}
+
+const textToolbarStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 12,
+  flexWrap: 'wrap',
+  minHeight: 54,
+  padding: '10px 12px',
+  marginBottom: 12,
+  borderRadius: 14,
+  border: '1px solid rgba(17, 24, 39, 0.08)',
+  background: '#f8fafc',
+}
+
+const toolbarButtonStyle: React.CSSProperties = {
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  borderRadius: 999,
+  background: '#ffffff',
+  color: '#111827',
+  padding: '8px 12px',
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: 'pointer',
 }
 
 const sectionLabelStyle: React.CSSProperties = {
