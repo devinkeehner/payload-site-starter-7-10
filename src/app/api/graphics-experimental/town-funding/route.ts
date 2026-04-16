@@ -11,6 +11,7 @@ type CsvTownFundingRow = {
   town: string
   townKey: string
   currentEcsEntitlement: number
+  strapAid: number
   percentIncrease: number
   enhancedEducationFunding: number
   newTotalFunding: number
@@ -110,6 +111,7 @@ async function readTownFundingCsv(): Promise<Map<string, CsvTownFundingRow>> {
   const townIndex = findHeaderIndex(headers, ['Town'])
   const townKeyIndex = findHeaderIndex(headers, ['Town Key'])
   const currentEcsIndex = findHeaderIndex(headers, ['Current ECS Entitlement'])
+  const strapAidIndex = findHeaderIndex(headers, ['House GOP STRAP Aid', 'STRAP Aid', 'STRAP', 'Enhanced Education Funding'])
   const percentIncreaseIndex = findHeaderIndex(headers, ['Percent Increase'])
   const enhancedEducationFundingIndex = findHeaderIndex(headers, ['Enhanced Education Funding'])
   const newTotalFundingIndex = findHeaderIndex(headers, ['New Total Funding (ECS + EEF)'])
@@ -129,6 +131,7 @@ async function readTownFundingCsv(): Promise<Map<string, CsvTownFundingRow>> {
       town,
       townKey,
       currentEcsEntitlement: parseNumber(getCell(row, currentEcsIndex)),
+      strapAid: parseNumber(getCell(row, strapAidIndex)),
       percentIncrease: parseNumber(getCell(row, percentIncreaseIndex)),
       enhancedEducationFunding: parseNumber(getCell(row, enhancedEducationFundingIndex)),
       newTotalFunding: parseNumber(getCell(row, newTotalFundingIndex)),
@@ -204,7 +207,7 @@ export async function GET(req: Request): Promise<Response> {
       const csvMatch = csvRows.get(normalizeKey(townName))
       const currentEcsEntitlement =
         getNumber(townEntry?.currentEcsEntitlement) ?? csvMatch?.currentEcsEntitlement ?? 0
-      const strapAid = getNumber(townEntry?.houseGopStrapAid) ?? csvMatch?.enhancedEducationFunding ?? 0
+      const strapAid = csvMatch?.strapAid ?? getNumber(townEntry?.houseGopStrapAid) ?? csvMatch?.enhancedEducationFunding ?? 0
 
       return {
         id: `${normalizeKey(townName) || 'town'}-${index}`,

@@ -8,7 +8,6 @@ import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
-import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
 
 const BASE_CANVAS_WIDTH = 1200
 const BASE_CANVAS_HEIGHT = 1600
@@ -31,6 +30,11 @@ const TOWN_LABEL_HEIGHT_LIMITS = { min: 24, max: 84 }
 const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
+const MAIL_SCENE_BUNDLE_KIND = 'graphics-editor-mail-bundle/v1'
+const TEXT_FONT_OPTIONS = [
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
+] as const
 
 type MediaDoc = {
   id: string
@@ -88,7 +92,7 @@ type TemplateDoc = {
   id: string
   title?: string | null
   backgroundImage?: string | MediaDoc | null
-  scene?: ExperimentalTownScene | null
+  scene?: ExperimentalTownScene | MailSceneBundle | null
   notes?: string | null
 }
 
@@ -99,7 +103,7 @@ type DesignDoc = {
   template?: string | TemplateDoc | null
   primaryTenant?: string | TenantDoc | null
   backgroundImage?: string | MediaDoc | null
-  scene?: ExperimentalTownScene | null
+  scene?: ExperimentalTownScene | MailSceneBundle | null
   exportedMedia?: string | MediaDoc | null
   notes?: string | null
 }
@@ -107,6 +111,13 @@ type DesignDoc = {
 type MailEditorNotes = {
   mode: 'graphics-editor-mail'
   selectedTenantID?: string | null
+}
+
+type MailSceneBundle = {
+  kind: typeof MAIL_SCENE_BUNDLE_KIND
+  frontScene: ExperimentalTownScene
+  backScene: ExperimentalTownScene
+  activeMailSide?: MailSide
 }
 
 type SceneTextElement = {
@@ -158,6 +169,7 @@ type FooterElement = {
   textY: number
   fontSize: number
   color: string
+  fontFamily?: string
   fontStyle?: string
   textDecoration?: string
 }
@@ -250,6 +262,11 @@ type TextSelection = Exclude<Selection, null> & {
   kind: 'eyebrow' | 'headline' | 'subhead' | 'footer' | 'custom-text'
 }
 
+type InlineTextEditorState = {
+  target: TextSelection
+  value: string
+} | null
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const cloneScene = (scene: ExperimentalTownScene): ExperimentalTownScene => JSON.parse(JSON.stringify(scene)) as ExperimentalTownScene
 
@@ -257,9 +274,6 @@ const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
 
 const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
-
-const getNumber = (value: unknown): number | undefined =>
-  typeof value === 'number' && Number.isFinite(value) ? value : undefined
 
 const getMediaDoc = (value: unknown): MediaDoc | null =>
   value && typeof value === 'object' && typeof (value as Record<string, unknown>).id === 'string'
@@ -348,6 +362,9 @@ const normalizeTownKey = (value: string) => value.trim().toLowerCase().replace(/
 const measureTownLabelWidth = (town: string, fontSize = 36) =>
   clamp(Math.ceil(measureText(town.toUpperCase(), `700 ${fontSize}px Arial`)) + 32, TOWN_LABEL_WIDTH_LIMITS.min, TOWN_LABEL_WIDTH_LIMITS.max)
 
+const getRenderedTownLabelWidth = (row: TownSceneRow) =>
+  measureTownLabelWidth(row.town, row.townFontSize)
+
 const wrapTextToWidth = (text: string, font: string, maxWidth: number) => {
   const paragraphs = text.replace(/\r\n/g, '\n').split('\n')
   const lines: string[] = []
@@ -390,7 +407,7 @@ const measureTownStackBounds = (rows: TownSceneRow[]) => {
 
   const left = Math.min(...rows.map((row) => row.labelX))
   const top = Math.min(...rows.map((row) => row.labelY))
-  const right = Math.max(...rows.map((row) => row.labelX + Math.max(row.labelWidth, 300)))
+  const right = Math.max(...rows.map((row) => row.labelX + Math.max(getRenderedTownLabelWidth(row), 300)))
   const bottom = Math.max(...rows.map((row) => row.labelY + measureTownGroupHeight(row)))
 
   return {
@@ -399,6 +416,28 @@ const measureTownStackBounds = (rows: TownSceneRow[]) => {
     width: Math.max(1, right - left),
     height: Math.max(1, bottom - top),
   }
+}
+
+const escapeXml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+
+const sceneBundleToXml = (bundle: MailSceneBundle, tenantLabel: string) => {
+  const serializeNode = (key: string, value: unknown): string => {
+    if (Array.isArray(value)) {
+      return `<${key}>${value.map((item) => serializeNode('item', item)).join('')}</${key}>`
+    }
+    if (value && typeof value === 'object') {
+      return `<${key}>${Object.entries(value as Record<string, unknown>).map(([childKey, childValue]) => serializeNode(childKey, childValue)).join('')}</${key}>`
+    }
+    return `<${key}>${escapeXml(String(value ?? ''))}</${key}>`
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<graphicsEditorMail tenant="${escapeXml(tenantLabel)}">${serializeNode('bundle', bundle)}</graphicsEditorMail>\n`
 }
 
 const relayoutTownRows = (current: ExperimentalTownScene, townColumns: 1 | 2) => {
@@ -413,7 +452,7 @@ const relayoutTownRows = (current: ExperimentalTownScene, townColumns: 1 | 2) =>
 
   let maxFirstColumnWidth = 0
   includedRows.slice(0, rowsPerColumn).forEach((row) => {
-    maxFirstColumnWidth = Math.max(maxFirstColumnWidth, row.labelWidth)
+    maxFirstColumnWidth = Math.max(maxFirstColumnWidth, getRenderedTownLabelWidth(row))
   })
 
   const nextRows = [...current.townRows]
@@ -432,6 +471,7 @@ const relayoutTownRows = (current: ExperimentalTownScene, townColumns: 1 | 2) =>
 
     nextRow.labelX = nextLabelX
     nextRow.labelY = nextLabelY
+    nextRow.labelWidth = getRenderedTownLabelWidth(nextRow)
     nextRow.amountX = nextLabelX + amountOffsetX
     nextRow.amountY = nextLabelY + amountOffsetY
 
@@ -515,6 +555,35 @@ function dataUrlToBlob(dataUrl: string) {
   return new Blob([bytes], { type: mime })
 }
 
+const buildCircularHeadshotDataUrl = async ({
+  image,
+  placement,
+  size,
+}: {
+  image: HTMLImageElement | null
+  placement: { x: number; y: number; width: number; height: number }
+  size: number
+}) => {
+  if (!image || size <= 0) return null
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(size * 2))
+  canvas.height = Math.max(1, Math.round(size * 2))
+  const context = canvas.getContext('2d')
+  if (!context) return null
+  const scale = canvas.width / size
+
+  context.save()
+  context.scale(scale, scale)
+  context.beginPath()
+  context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
+  context.closePath()
+  context.clip()
+  context.drawImage(image, placement.x, placement.y, placement.width, placement.height)
+  context.restore()
+
+  return canvas.toDataURL('image/png')
+}
+
 const buildDesignTitle = (tenantName: string | undefined | null, fallback: string) =>
   tenantName ? `${tenantName} Town Graphic` : fallback || 'Town Graphic'
 
@@ -537,6 +606,15 @@ const buildDesignSearchParams = (tenantID: string) => {
 
 const isExperimentalScene = (value: unknown): value is ExperimentalTownScene =>
   asRecord(value).kind === SCENE_KIND
+
+const isMailSceneBundle = (value: unknown): value is MailSceneBundle => {
+  const record = asRecord(value)
+  return (
+    record.kind === MAIL_SCENE_BUNDLE_KIND &&
+    isExperimentalScene(record.frontScene) &&
+    isExperimentalScene(record.backScene)
+  )
+}
 
 const hasSuperRole = (value: unknown) => {
   if (!value || typeof value !== 'object') return false
@@ -563,6 +641,17 @@ const stringifyMailEditorNotes = (selectedTenantID: string | null | undefined) =
     mode: 'graphics-editor-mail',
     selectedTenantID: selectedTenantID || null,
   } satisfies MailEditorNotes)
+
+const buildMailSceneBundle = (
+  frontScene: ExperimentalTownScene,
+  backScene: ExperimentalTownScene,
+  activeMailSide: MailSide,
+): MailSceneBundle => ({
+  kind: MAIL_SCENE_BUNDLE_KIND,
+  frontScene,
+  backScene,
+  activeMailSide,
+})
 
 const scaleBaseScene = (scene: ExperimentalTownScene) => {
   const scaleX = STAGE_WIDTH / BASE_CANVAS_WIDTH
@@ -645,131 +734,7 @@ const scaleBaseScene = (scene: ExperimentalTownScene) => {
   } satisfies ExperimentalTownScene
 }
 
-const fitBaseSceneToMailStage = (scene: ExperimentalTownScene) => {
-  const scale = Math.min(STAGE_WIDTH / BASE_CANVAS_WIDTH, STAGE_HEIGHT / BASE_CANVAS_HEIGHT)
-  const offsetX = (STAGE_WIDTH - BASE_CANVAS_WIDTH * scale) / 2
-  const offsetY = (STAGE_HEIGHT - BASE_CANVAS_HEIGHT * scale) / 2
-
-  const scaleXValue = (value: number) => offsetX + value * scale
-  const scaleYValue = (value: number) => offsetY + value * scale
-  const scaleSize = (value: number) => value * scale
-
-  return {
-    ...scene,
-    eyebrow: {
-      ...scene.eyebrow,
-      x: scaleXValue(scene.eyebrow.x),
-      y: scaleYValue(scene.eyebrow.y),
-      width: scaleSize(scene.eyebrow.width),
-      fontSize: scaleSize(scene.eyebrow.fontSize),
-      barWidth: scaleSize(scene.eyebrow.barWidth),
-      barHeight: scaleSize(scene.eyebrow.barHeight),
-      paddingX: scaleSize(scene.eyebrow.paddingX),
-      paddingY: scaleSize(scene.eyebrow.paddingY),
-    },
-    headline: {
-      ...scene.headline,
-      x: scaleXValue(scene.headline.x),
-      y: scaleYValue(scene.headline.y),
-      width: scaleSize(scene.headline.width),
-      fontSize: scaleSize(scene.headline.fontSize),
-    },
-    subhead: {
-      ...scene.subhead,
-      x: scaleXValue(scene.subhead.x),
-      y: scaleYValue(scene.subhead.y),
-      dividerWidth: scaleSize(scene.subhead.dividerWidth),
-      dividerHeight: scaleSize(scene.subhead.dividerHeight),
-      fontSize: scaleSize(scene.subhead.fontSize),
-    },
-    footer: {
-      ...scene.footer,
-      x: scaleXValue(scene.footer.x),
-      y: scaleYValue(scene.footer.y),
-      width: scaleSize(scene.footer.width),
-      height: scaleSize(scene.footer.height),
-      textX: scaleXValue(scene.footer.textX),
-      textY: scaleYValue(scene.footer.textY),
-      fontSize: scaleSize(scene.footer.fontSize),
-    },
-    headshot: {
-      ...scene.headshot,
-      x: scaleXValue(scene.headshot.x),
-      y: scaleYValue(scene.headshot.y),
-      size: scaleSize(scene.headshot.size),
-      crop: {
-        ...scene.headshot.crop,
-        offsetX: scaleSize(scene.headshot.crop.offsetX),
-        offsetY: scaleSize(scene.headshot.crop.offsetY),
-      },
-    },
-    customRects: scene.customRects.map((item) => ({
-      ...item,
-      x: scaleXValue(item.x),
-      y: scaleYValue(item.y),
-      width: scaleSize(item.width),
-      height: scaleSize(item.height),
-    })),
-    customTexts: scene.customTexts.map((item) => ({
-      ...item,
-      x: scaleXValue(item.x),
-      y: scaleYValue(item.y),
-      width: scaleSize(item.width),
-      fontSize: scaleSize(item.fontSize),
-    })),
-    townRows: scene.townRows.map((row) => ({
-      ...row,
-      labelX: scaleXValue(row.labelX),
-      labelY: scaleYValue(row.labelY),
-      labelWidth: scaleSize(row.labelWidth),
-      labelHeight: scaleSize(row.labelHeight),
-      amountX: scaleXValue(row.amountX),
-      amountY: scaleYValue(row.amountY),
-      townFontSize: scaleSize(row.townFontSize),
-      amountFontSize: scaleSize(row.amountFontSize),
-    })),
-  } satisfies ExperimentalTownScene
-}
-
-const fitDefaultGraphicSceneToMailStage = () => {
-  const sourceScene = defaultGraphicScene()
-  const sourceWidth = 1200
-  const sourceHeight = 630
-  const scale = Math.min(STAGE_WIDTH / sourceWidth, STAGE_HEIGHT / sourceHeight)
-  const offsetX = (STAGE_WIDTH - sourceWidth * scale) / 2
-  const offsetY = (STAGE_HEIGHT - sourceHeight * scale) / 2
-
-  return {
-    headshot: {
-      x: offsetX + sourceScene.headshots[0]!.x * scale,
-      y: offsetY + sourceScene.headshots[0]!.y * scale,
-      size: sourceScene.headshots[0]!.size * scale,
-    },
-    repName: {
-      x: offsetX + sourceScene.repNameLayers.primary.x * scale,
-      y: offsetY + sourceScene.repNameLayers.primary.y * scale,
-      width: sourceScene.repNameLayers.primary.width * scale,
-      fontSize: (sourceScene.repNameLayers.primary.fontSize || 28) * scale,
-      color: sourceScene.repNameLayers.primary.color || BRAND_RED,
-      fontFamily: sourceScene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif',
-      fontStyle: sourceScene.repNameLayers.primary.fontStyle || '700',
-      align: sourceScene.repNameLayers.primary.align,
-    },
-    headline: {
-      x: offsetX + sourceScene.headlineLayer.x * scale,
-      y: offsetY + sourceScene.headlineLayer.y * scale,
-      width: sourceScene.headlineLayer.width * scale,
-      height: (sourceScene.headlineLayer.height || 190) * scale,
-      fontSize: (sourceScene.headlineLayer.fontSize || 38) * scale,
-      color: sourceScene.headlineLayer.color || BRAND_RED,
-      fontFamily: sourceScene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif',
-      fontStyle: sourceScene.headlineLayer.fontStyle,
-      align: sourceScene.headlineLayer.align,
-    },
-  }
-}
-
-const createBaseScene = (data: TownFundingResponse, tenantName: string | undefined) => {
+const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefined) => {
   const headlineText = deriveDefaultHeadline(data.repInfo?.name)
   const townRows = data.townRows.map((row, index) => {
     const top = 670 + index * 174
@@ -801,7 +766,7 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       y: 70,
       width: 260,
       text: 'REAL RELIEF FOR CONNECTICUT',
-      fontSize: 18,
+      fontSize: 22,
       color: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: '700',
@@ -831,7 +796,7 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
       dividerHeight: 3,
       dividerColor: '#8ea4ea',
       text: 'STRAP Aid funding per town',
-      fontSize: 26,
+      fontSize: 30,
       color: BRAND_BLUE,
       fontFamily: 'Arial',
       fontStyle: 'italic 700',
@@ -888,107 +853,132 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
   })
 }
 
-const createBackScene = (data: TownFundingResponse, tenantName: string | undefined) => {
-  const headlineText = deriveDefaultHeadline(data.repInfo?.name)
-  const defaultGraphicLayout = fitDefaultGraphicSceneToMailStage()
-  const townRows = data.townRows.map((row, index) => {
-    const top = 670 + index * 174
-    return {
-      id: row.id,
-      townKey: normalizeTownKey(row.town),
-      town: row.town,
-      strapAid: row.strapAid,
-      included: true,
-      labelX: 72,
-      labelY: top,
-      labelWidth: measureTownLabelWidth(row.town, 36),
-      labelHeight: 54,
-      amountX: 72,
-      amountY: top + 72,
-      townFontSize: 36,
-      amountFontSize: 74,
-      labelColor: BRAND_RED,
-      textColor: BRAND_BLUE,
-    }
-  })
-
+const createBackScene = (_data: TownFundingResponse, _tenantName: string | undefined) => {
   const scene = {
     kind: SCENE_KIND,
     backgroundMediaID: null,
     eyebrow: {
       id: 'eyebrow',
-      x: 72,
-      y: 70,
+      x: 84,
+      y: 72,
       width: 260,
-      text: 'REAL RELIEF FOR CONNECTICUT',
-      fontSize: 18,
+      text: 'PATHWAY TO AFFORDABILITY',
+      fontSize: 24,
       color: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: '700',
       lineHeight: 1,
-      barWidth: 420,
-      barHeight: 44,
-      paddingX: 16,
-      paddingY: 10,
-      backgroundColor: BRAND_BLUE,
+      barWidth: 470,
+      barHeight: 52,
+      paddingX: 18,
+      paddingY: 12,
+      backgroundColor: BRAND_RED,
     },
     headline: {
       id: 'headline',
-      x: defaultGraphicLayout.headline.x,
-      y: defaultGraphicLayout.headline.y,
-      width: defaultGraphicLayout.headline.width,
-      text: headlineText,
-      fontSize: defaultGraphicLayout.headline.fontSize,
-      color: '#374151',
-      fontFamily: defaultGraphicLayout.headline.fontFamily,
-      fontStyle: defaultGraphicLayout.headline.fontStyle,
+      x: 84,
+      y: 170,
+      width: 760,
+      text: 'A Better Budget\nfor Connecticut',
+      fontSize: 56,
+      color: BRAND_RED,
+      fontFamily: 'Georgia, Times New Roman, serif',
+      fontStyle: '700',
       lineHeight: 1.05,
     },
     subhead: {
       id: 'subhead',
-      x: defaultGraphicLayout.repName.x,
-      y: defaultGraphicLayout.repName.y,
-      dividerWidth: defaultGraphicLayout.repName.width,
-      dividerHeight: 0,
-      dividerColor: 'transparent',
-      text: data.repInfo?.name || 'Representative Name',
-      fontSize: defaultGraphicLayout.repName.fontSize,
-      color: '#4b5563',
-      fontFamily: defaultGraphicLayout.repName.fontFamily,
-      fontStyle: defaultGraphicLayout.repName.fontStyle,
+      x: 86,
+      y: 0,
+      dividerWidth: 340,
+      dividerHeight: 4,
+      dividerColor: '#9ca3af',
+      text: 'Direct town aid. Tax relief. Lower household costs.',
+      fontSize: 30,
+      color: BRAND_BLUE,
+      fontFamily: 'Arial',
+      fontStyle: '700',
     },
     footer: {
       id: 'footer',
       x: 0,
-      y: 1490,
-      width: BASE_CANVAS_WIDTH,
+      y: 920,
+      width: STAGE_WIDTH,
       height: 80,
       backgroundColor: BRAND_RED,
       text: WEBSITE_TEXT,
-      textX: 78,
-      textY: 1510,
+      textX: 80,
+      textY: 940,
       fontSize: 34,
       color: '#ffffff',
       fontStyle: 'italic 700',
     },
     headshot: {
       id: 'headshot',
-      x: defaultGraphicLayout.headshot.x,
-      y: defaultGraphicLayout.headshot.y,
-      size: defaultGraphicLayout.headshot.size,
+      x: STAGE_WIDTH + 120,
+      y: STAGE_HEIGHT + 120,
+      size: 0,
       crop: {
         zoom: 1,
         offsetX: 0,
         offsetY: 0,
       },
     },
-    customRects: [],
-    customTexts: [],
+    customRects: [
+      {
+        id: 'back-highlight-bar',
+        x: 84,
+        y: 598,
+        width: 520,
+        height: 18,
+        fill: BRAND_RED,
+      },
+    ],
+    customTexts: [
+      {
+        id: 'back-copy-left',
+        x: 84,
+        y: 348,
+        width: 640,
+        text:
+          'STRAP sends direct aid to every Connecticut town.\n$365 million in additional town education funding.\nBuilt into the state budget so towns can count on it year after year.\nProperty tax relief starts by lowering the pressure on local budgets.',
+        fontSize: 28,
+        color: '#374151',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1.22,
+      },
+      {
+        id: 'back-copy-right',
+        x: 860,
+        y: 210,
+        width: 620,
+        text:
+          "More than $400 million in tax relief.\nA larger property tax credit for more than 800,000 filers.\nNo tax on Social Security benefits.\nNo tax on tips.\nCut the tax on children's clothing.\nReduce healthcare cost pressure.\nSupport municipal early voting costs.",
+        fontSize: 25,
+        color: '#4b5563',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1.22,
+      },
+      {
+        id: 'back-summary',
+        x: 84,
+        y: 640,
+        width: 1390,
+        text: 'A balanced caucus budget that spends less, protects taxpayers, and delivers real relief to families and municipalities.',
+        fontSize: 30,
+        color: BRAND_RED,
+        fontFamily: 'Georgia, Times New Roman, serif',
+        fontStyle: '700',
+        lineHeight: 1.15,
+      },
+    ],
     townColumns: 1 as const,
-    townRows,
+    townRows: [],
   } satisfies ExperimentalTownScene
 
-  return alignSubheadToHeadline(fitBaseSceneToMailStage(scene))
+  return alignSubheadToHeadline(scene)
 }
 
 const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | undefined, baseScene: ExperimentalTownScene) => {
@@ -1043,6 +1033,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const rightTownStackRef = useRef<Konva.Group | null>(null)
   const townRefs = useRef<Record<string, Konva.Group | null>>({})
   const transformerRef = useRef<Konva.Transformer | null>(null)
+  const frontSceneRef = useRef<ExperimentalTownScene | null>(null)
+  const backSceneRef = useRef<ExperimentalTownScene | null>(null)
+  const activeMailSideRef = useRef<MailSide>(DEFAULT_MAIL_SIDE)
+  const selectionRef = useRef<Selection>(null)
+  const loadingRef = useRef(true)
+  const tenantIDRef = useRef<string | null>(tenantID)
+  const headshotImageRef = useRef<HTMLImageElement | null>(null)
   const undoStackRef = useRef<Record<MailSide, ExperimentalTownScene[]>>({
     front: [],
     back: [],
@@ -1060,6 +1057,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [frontScene, setFrontScene] = useState<ExperimentalTownScene | null>(null)
   const [backScene, setBackScene] = useState<ExperimentalTownScene | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
+  const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
   const [templateID, setTemplateID] = useState('')
   const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
   const [designID, setDesignID] = useState('')
@@ -1069,6 +1067,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
+  const [downloadingPptx, setDownloadingPptx] = useState(false)
+  const [exportingAllReps, setExportingAllReps] = useState(false)
   const [designsSectionOpen, setDesignsSectionOpen] = useState(false)
   const [contentSectionOpen, setContentSectionOpen] = useState(false)
   const [townsSectionOpen, setTownsSectionOpen] = useState(false)
@@ -1093,6 +1093,35 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     [tenantSelectionOptions],
   )
   const scene = activeMailSide === 'front' ? frontScene : backScene
+  const selectedTenantValue = selectedTenantID ? String(selectedTenantID) : ''
+  const tenantIndex = useMemo(
+    () => tenantOptions.findIndex((option) => option.value === selectedTenantValue),
+    [tenantOptions, selectedTenantValue],
+  )
+
+  useEffect(() => {
+    frontSceneRef.current = frontScene
+  }, [frontScene])
+
+  useEffect(() => {
+    backSceneRef.current = backScene
+  }, [backScene])
+
+  useEffect(() => {
+    activeMailSideRef.current = activeMailSide
+  }, [activeMailSide])
+
+  useEffect(() => {
+    selectionRef.current = selection
+  }, [selection])
+
+  useEffect(() => {
+    loadingRef.current = loading
+  }, [loading])
+
+  useEffect(() => {
+    tenantIDRef.current = tenantID
+  }, [tenantID])
 
   const setSceneForSide = (
     side: MailSide,
@@ -1157,14 +1186,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         const nextTemplates = Array.isArray(asRecord(templateJson).docs)
           ? ((asRecord(templateJson).docs as TemplateDoc[]) || [])
             .map(sanitizeTemplateDoc)
-            .filter((doc) => isExperimentalScene(doc.scene))
+            .filter((doc) => isMailSceneBundle(doc.scene) || (isExperimentalScene(doc.scene) && Boolean(parseMailEditorNotes(doc.notes))))
           : []
         const nextDesigns = Array.isArray(asRecord(designJson).docs)
           ? ((asRecord(designJson).docs as DesignDoc[]) || [])
             .map(sanitizeDesignDoc)
-            .filter((doc) => isExperimentalScene(doc.scene))
+            .filter((doc) => isMailSceneBundle(doc.scene) || (isExperimentalScene(doc.scene) && Boolean(parseMailEditorNotes(doc.notes))))
           : []
-        const selectedDesign = requestedDesignID ? nextDesigns.find((item) => item.id === requestedDesignID) : undefined
+        const selectedDesign = requestedDesignID
+          ? nextDesigns.find((item) => item.id === requestedDesignID)
+          : nextDesigns.find((item) => parseMailEditorNotes(item.notes)?.selectedTenantID === tenantID) || nextDesigns[0]
         const selectedTemplate = !selectedDesign && requestedTemplateID ? nextTemplates.find((item) => item.id === requestedTemplateID) : undefined
         const storedTenantID =
           parseMailEditorNotes(selectedDesign?.notes)?.selectedTenantID ||
@@ -1178,15 +1209,19 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
         const frontBaseScene = createBaseScene(nextTownData, tenantName)
         const backBaseScene = createBackScene(nextTownData, tenantName)
+        const selectedDesignBundle = isMailSceneBundle(selectedDesign?.scene) ? selectedDesign.scene : null
+        const selectedTemplateBundle = isMailSceneBundle(selectedTemplate?.scene) ? selectedTemplate.scene : null
+        const selectedDesignScene = isExperimentalScene(selectedDesign?.scene) ? selectedDesign.scene : null
+        const selectedTemplateScene = isExperimentalScene(selectedTemplate?.scene) ? selectedTemplate.scene : null
         const frontNextScene = selectedDesign
-          ? mergeSceneWithFreshData(selectedDesign.scene, frontBaseScene)
+          ? mergeSceneWithFreshData(selectedDesignBundle?.frontScene || selectedDesignScene, frontBaseScene)
           : selectedTemplate
-            ? mergeSceneWithFreshData(selectedTemplate.scene, frontBaseScene)
+            ? mergeSceneWithFreshData(selectedTemplateBundle?.frontScene || selectedTemplateScene, frontBaseScene)
             : frontBaseScene
         const backNextScene = selectedDesign
-          ? mergeSceneWithFreshData(selectedDesign.scene, backBaseScene)
+          ? mergeSceneWithFreshData(selectedDesignBundle?.backScene || selectedDesignScene, backBaseScene)
           : selectedTemplate
-            ? mergeSceneWithFreshData(selectedTemplate.scene, backBaseScene)
+            ? mergeSceneWithFreshData(selectedTemplateBundle?.backScene || selectedTemplateScene, backBaseScene)
             : backBaseScene
 
         if (cancelled) return
@@ -1198,8 +1233,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         clearUndoHistory('back')
         setFrontScene(cloneScene(frontNextScene))
         setBackScene(cloneScene(backNextScene))
-        setActiveMailSide(DEFAULT_MAIL_SIDE)
+        setActiveMailSide(selectedDesignBundle?.activeMailSide || selectedTemplateBundle?.activeMailSide || DEFAULT_MAIL_SIDE)
         setSelection(null)
+        setInlineTextEditor(null)
         clearUndoHistory(DEFAULT_MAIL_SIDE)
         clearUndoHistory('back')
         setTemplateID(selectedTemplate?.id || getString(selectedDesign?.template) || getString(asRecord(selectedDesign?.template).id) || '')
@@ -1263,7 +1299,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     [townData],
   )
   const headshotImage = useLoadedImage(headshotUrl)
-  const backGraphicLayout = useMemo(() => fitDefaultGraphicSceneToMailStage(), [])
+
+  useEffect(() => {
+    headshotImageRef.current = headshotImage
+  }, [headshotImage])
 
   const selectedTownRow = useMemo(() => {
     if (!scene || selection?.kind !== 'town') return null
@@ -1338,6 +1377,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (selection?.kind !== 'headline') {
       setIsResizingHeadline(false)
     }
+  }, [selection])
+
+  useEffect(() => {
+    if (selection && ['eyebrow', 'headline', 'subhead', 'footer', 'custom-text'].includes(selection.kind)) return
+    setInlineTextEditor(null)
   }, [selection])
 
   const setSceneWithoutHistory = (nextScene: ExperimentalTownScene | null, side: MailSide = activeMailSide) => {
@@ -1558,6 +1602,58 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     })
   }
 
+  const switchTenantByOffset = (offset: -1 | 1) => {
+    if (tenantIndex < 0) return
+    const nextTenant = tenantOptions[tenantIndex + offset]
+    if (!nextTenant) return
+    setTenant({ id: nextTenant.value, refresh: true })
+  }
+
+  const getCurrentSceneBundle = (): MailSceneBundle | null => {
+    if (!frontSceneRef.current || !backSceneRef.current) return null
+    return buildMailSceneBundle(frontSceneRef.current, backSceneRef.current, activeMailSideRef.current)
+  }
+
+  const resolveTextLayer = (current: ExperimentalTownScene, target: TextSelection) => resolveSelectedTextLayer(current, target)
+
+  const beginInlineTextEdit = (target: TextSelection) => {
+    const currentScene = getActiveScene()
+    if (!currentScene) return
+    const currentLayer = resolveTextLayer(currentScene, target)
+    if (!currentLayer) return
+    setSelection(target)
+    setInlineTextEditor({ target, value: currentLayer.text || '' })
+  }
+
+  const commitInlineTextEdit = () => {
+    if (!inlineTextEditor) return
+    updateSelectedTextLayer(inlineTextEditor.target, { text: inlineTextEditor.value })
+    setInlineTextEditor(null)
+  }
+
+  const resetCurrentSide = () => {
+    if (!townData) return
+    const nextScene = activeMailSide === 'front' ? createBaseScene(townData, tenantName) : createBackScene(townData, tenantName)
+    clearUndoHistory(activeMailSide)
+    setSceneWithoutHistory(nextScene, activeMailSide)
+    setSelection(null)
+    setInlineTextEditor(null)
+    setMessage(`${activeMailSide === 'front' ? 'Front' : 'Back'} side reset`)
+  }
+
+  const resetAllSides = () => {
+    if (!townData) return
+    const nextFrontScene = createBaseScene(townData, tenantName)
+    const nextBackScene = createBackScene(townData, tenantName)
+    clearUndoHistory('front')
+    clearUndoHistory('back')
+    setSceneWithoutHistory(nextFrontScene, 'front')
+    setSceneWithoutHistory(nextBackScene, 'back')
+    setSelection(null)
+    setInlineTextEditor(null)
+    setMessage('Design reset to defaults')
+  }
+
   const loadTemplate = (nextTemplateID: string) => {
     if (!scene || !townData) return
     setTemplateID(nextTemplateID)
@@ -1580,12 +1676,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }
     const frontBaseScene = createBaseScene(townData, tenantName)
     const backBaseScene = createBackScene(townData, tenantName)
+    const savedBundle = isMailSceneBundle(template.scene) ? template.scene : null
+    const savedScene = isExperimentalScene(template.scene) ? template.scene : null
     setTemplateTitle(template.title || 'Experimental Town Graphic')
     clearUndoHistory('front')
     clearUndoHistory('back')
-    setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, frontBaseScene), 'front')
-    setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, backBaseScene), 'back')
+    setSceneWithoutHistory(mergeSceneWithFreshData(savedBundle?.frontScene || savedScene, frontBaseScene), 'front')
+    setSceneWithoutHistory(mergeSceneWithFreshData(savedBundle?.backScene || savedScene, backBaseScene), 'back')
+    setActiveMailSide(savedBundle?.activeMailSide || DEFAULT_MAIL_SIDE)
     setSelection(null)
+    setInlineTextEditor(null)
   }
 
   const loadDesign = (nextDesignID: string) => {
@@ -1610,13 +1710,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }
     const frontBaseScene = createBaseScene(townData, tenantName)
     const backBaseScene = createBackScene(townData, tenantName)
+    const savedBundle = isMailSceneBundle(design.scene) ? design.scene : null
+    const savedScene = isExperimentalScene(design.scene) ? design.scene : null
     setDesignTitle(design.title || 'Town Graphic')
     setTemplateID(getString(asRecord(design.template).id) || getString(design.template) || '')
     clearUndoHistory('front')
     clearUndoHistory('back')
-    setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, frontBaseScene), 'front')
-    setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, backBaseScene), 'back')
+    setSceneWithoutHistory(mergeSceneWithFreshData(savedBundle?.frontScene || savedScene, frontBaseScene), 'front')
+    setSceneWithoutHistory(mergeSceneWithFreshData(savedBundle?.backScene || savedScene, backBaseScene), 'back')
+    setActiveMailSide(savedBundle?.activeMailSide || DEFAULT_MAIL_SIDE)
     setSelection(null)
+    setInlineTextEditor(null)
   }
 
   const uploadMediaAsset = async (file: File, alt: string) => {
@@ -1651,17 +1755,19 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const buildTemplatePayload = () => {
-    if (!scene) throw new Error('No scene available')
+    const bundle = getCurrentSceneBundle()
+    if (!bundle) throw new Error('No scene available')
     return {
       title: templateTitle || 'Experimental Town Graphic',
       sourceCollection: 'pages',
-      scene,
+      scene: bundle,
       notes: stringifyMailEditorNotes(selectedTenantID ? String(selectedTenantID) : tenantID),
     }
   }
 
   const buildDesignPayload = (exportedMediaID?: string | null) => {
-    if (!scene) throw new Error('No scene available')
+    const bundle = getCurrentSceneBundle()
+    if (!bundle) throw new Error('No scene available')
     return {
       title: designTitle || buildDesignTitle(townData?.tenant?.name || tenantName, 'Town Graphic'),
       template: templateID || null,
@@ -1669,8 +1775,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       sourcePost: null,
       primaryTenant: tenantID || null,
       secondaryTenant: null,
-      titleOverride: scene.headline.text || null,
-      scene,
+      titleOverride: bundle.frontScene.headline.text || null,
+      scene: bundle,
       exportedMedia: exportedMediaID ?? null,
       notes: stringifyMailEditorNotes(selectedTenantID ? String(selectedTenantID) : tenantID),
       tenant: tenantID || null,
@@ -1760,6 +1866,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }
   }
 
+  const waitForStagePaint = async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(undefined))))
+  }
+
   const exportStageDataUrl = async () => {
     const stage = stageRef.current
     if (!stage) return null
@@ -1770,11 +1880,33 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     setSelection(null)
     stage.scale({ x: 1, y: 1 })
     stage.draw()
-    await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+    await waitForStagePaint()
     const dataUrl = stage.toDataURL({ pixelRatio: 2 })
     stage.scale({ x: previousScaleX, y: previousScaleY })
     stage.draw()
     setSelection(previousSelection)
+    return dataUrl
+  }
+
+  const exportSideDataUrl = async (side: MailSide) => {
+    const previousSide = activeMailSideRef.current
+    const previousSelection = selectionRef.current
+
+    if (previousSide !== side) {
+      setSelection(null)
+      setInlineTextEditor(null)
+      setActiveMailSide(side)
+      await waitForStagePaint()
+    }
+
+    const dataUrl = await exportStageDataUrl()
+
+    if (previousSide !== side) {
+      setActiveMailSide(previousSide)
+      await waitForStagePaint()
+      setSelection(previousSelection)
+    }
+
     return dataUrl
   }
 
@@ -1808,10 +1940,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     try {
       const dataUrl = await exportStageDataUrl()
       if (!dataUrl) throw new Error('Failed to render PNG')
-      const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
+      const filenameBase = `${(designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
+        .replace(/(^-|-$)/g, '')}-${activeMailSideRef.current}`
       const link = document.createElement('a')
       link.href = dataUrl
       link.download = `${filenameBase || 'town-graphic'}.png`
@@ -1821,6 +1953,165 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       setMessage('PNG downloaded')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const downloadPptx = async () => {
+    try {
+      setDownloadingPptx(true)
+      const bundle = getCurrentSceneBundle()
+      if (!bundle) throw new Error('No scene bundle available for PPTX export')
+      const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+
+      const [frontCircularHeadshotDataUrl, backCircularHeadshotDataUrl] = await Promise.all([
+        buildCircularHeadshotDataUrl({
+          image: headshotImage,
+          placement: headshotPlacement,
+          size: bundle.frontScene.headshot.size,
+        }),
+        buildCircularHeadshotDataUrl({
+          image: headshotImage,
+          placement: backHeadshotPlacement,
+          size: bundle.backScene.headshot.size,
+        }),
+      ])
+
+      const response = await fetch('/api/graphics-editor-mail/pptx', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          filenameBase,
+          title: designTitle || templateTitle || 'Mailer Graphic',
+          frontScene: bundle.frontScene,
+          backScene: bundle.backScene,
+          frontCircularHeadshotDataUrl: frontCircularHeadshotDataUrl || null,
+          backCircularHeadshotDataUrl: backCircularHeadshotDataUrl || null,
+        }),
+      })
+      if (!response.ok) {
+        const message = await response.text()
+        throw new Error(message || `PPTX export failed (${response.status})`)
+      }
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${filenameBase || 'town-graphic'}.pptx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setMessage('PPTX downloaded')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setDownloadingPptx(false)
+    }
+  }
+
+  const downloadTemplateXml = async () => {
+    try {
+      const bundle = getCurrentSceneBundle()
+      if (!bundle) throw new Error('No scene bundle available')
+      const xml = sceneBundleToXml(bundle, townData?.tenant?.name || tenantName || tenantID || 'unknown-tenant')
+      const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
+      const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${filenameBase || 'town-graphic'}.xml`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setMessage('Template XML downloaded')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const waitForTenantReady = async (nextTenantID: string) => {
+    const deadline = Date.now() + 20000
+
+    while (Date.now() < deadline) {
+      const currentFrontScene = frontSceneRef.current
+      const currentBackScene = backSceneRef.current
+      const needsHeadshot = Boolean((currentFrontScene?.headshot.size || 0) > 0 || (currentBackScene?.headshot.size || 0) > 0)
+
+      if (
+        tenantIDRef.current === nextTenantID &&
+        !loadingRef.current &&
+        currentFrontScene &&
+        currentBackScene &&
+        (!needsHeadshot || headshotImageRef.current)
+      ) {
+        await waitForStagePaint()
+        return
+      }
+
+      await new Promise((resolve) => window.setTimeout(resolve, 120))
+    }
+
+    throw new Error(`Timed out while loading ${nextTenantID}`)
+  }
+
+  const exportAllRepsZip = async () => {
+    if (!tenantOptions.length) return
+
+    const originalTenant = selectedTenantValue
+    const originalSide = activeMailSideRef.current
+    const originalSelection = selectionRef.current
+
+    try {
+      setExportingAllReps(true)
+      setMessage('Exporting all reps…')
+      // @ts-expect-error jszip is available at runtime in this workspace but doesn't expose types here
+      const { default: JSZip } = await import('jszip')
+      const zip = new JSZip()
+
+      for (const option of tenantOptions) {
+        setTenant({ id: option.value, refresh: true })
+        await waitForTenantReady(option.value)
+
+        const [frontDataUrl, backDataUrl] = await Promise.all([exportSideDataUrl('front'), exportSideDataUrl('back')])
+        const folderName = option.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
+        const folder = zip.folder(folderName)
+        const bundle = getCurrentSceneBundle()
+
+        if (frontDataUrl && folder) folder.file('front.png', dataUrlToBlob(frontDataUrl))
+        if (backDataUrl && folder) folder.file('back.png', dataUrlToBlob(backDataUrl))
+        if (bundle && folder) folder.file('source.xml', sceneBundleToXml(bundle, option.label))
+      }
+
+      if (originalTenant) {
+        setTenant({ id: originalTenant, refresh: true })
+        await waitForTenantReady(originalTenant)
+      }
+
+      setActiveMailSide(originalSide)
+      setSelection(originalSelection)
+      await waitForStagePaint()
+
+      const blob = await zip.generateAsync({ type: 'blob' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'graphics-editor-mail-all-reps.zip'
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setMessage('All reps exported')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    } finally {
+      setExportingAllReps(false)
     }
   }
 
@@ -2004,8 +2295,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                           <input type="number" value={Math.round(selectedTownRow.labelY)} onChange={(event) => updateSelectionPosition(selectedTownRow.labelX, Number(event.target.value))} style={controlStyle} />
                         </label>
                         <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Label width</span>
-                          <input type="number" value={Math.round(selectedTownRow.labelWidth)} onChange={(event) => updateTownRow(selectedTownRow.id, { labelWidth: Number(event.target.value) })} style={controlStyle} />
+                          <span style={fieldLabelStyle}>Bar width</span>
+                          <input type="number" value={Math.round(getRenderedTownLabelWidth(selectedTownRow))} readOnly style={{ ...controlStyle, background: '#f8fafc' }} />
                         </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Amount font size</span>
@@ -2017,6 +2308,36 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
   const selectedTextLayer = selectedTextTarget ? resolveSelectedTextLayer(scene, selectedTextTarget) : null
   const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
+  const stageOffsetX = Math.max(0, (stageContainerWidth - previewWidth) / 2)
+  const inlineEditorBox =
+    inlineTextEditor
+      ? (() => {
+          const currentLayer = resolveTextLayer(scene, inlineTextEditor.target)
+          if (!currentLayer) return null
+          const inlineWidth =
+            inlineTextEditor.target.kind === 'subhead'
+              ? scene.subhead.dividerWidth
+              : inlineTextEditor.target.kind === 'footer'
+                ? scene.footer.width
+                : (currentLayer as SceneTextElement).width
+          const width =
+            inlineTextEditor.target.kind === 'subhead' && activeMailSide === 'front'
+              ? Math.max(220, scene.subhead.dividerWidth * previewScale)
+              : Math.max(140, inlineWidth * previewScale)
+          const height =
+            inlineTextEditor.target.kind === 'headline'
+              ? Math.max(120, measureHeadlineHeight(scene.headline) * previewScale)
+              : inlineTextEditor.target.kind === 'subhead'
+                ? Math.max(52, ((scene.subhead.fontSize || 28) + 24) * previewScale)
+                : Math.max(48, ((currentLayer.fontSize || 28) + 18) * previewScale)
+          return {
+            left: stageOffsetX + currentLayer.x * previewScale,
+            top: currentLayer.y * previewScale,
+            width,
+            height,
+          }
+        })()
+      : null
 
   const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
   const backHeadshotPlacement = computeCoverPlacement(
@@ -2078,11 +2399,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               TOWN_FONT_SIZE_LIMITS.min,
               TOWN_FONT_SIZE_LIMITS.max,
             )
-            const nextLabelWidth = clamp(
-              Math.round(row.labelWidth * uniformScale),
-              TOWN_LABEL_WIDTH_LIMITS.min,
-              TOWN_LABEL_WIDTH_LIMITS.max,
-            )
+            const nextLabelWidth = measureTownLabelWidth(row.town, nextTownFontSize)
             const nextLabelHeight = clamp(
               Math.round(row.labelHeight * uniformScale),
               TOWN_LABEL_HEIGHT_LIMITS.min,
@@ -2138,11 +2455,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           x={row.labelX - bounds.x}
           y={row.labelY - bounds.y}
         >
-          <Rect width={row.labelWidth} height={row.labelHeight} fill={row.labelColor} />
+          <Rect width={getRenderedTownLabelWidth(row)} height={row.labelHeight} fill={row.labelColor} />
           <Text
             x={14}
             y={8}
-            width={row.labelWidth - 22}
+            width={getRenderedTownLabelWidth(row) - 22}
             text={row.town.toUpperCase()}
             fontFamily="Arial"
             fontSize={row.townFontSize}
@@ -2201,6 +2518,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <Button onClick={downloadPng} buttonStyle="secondary">
             Download PNG
           </Button>
+          <Button onClick={downloadPptx} disabled={downloadingPptx} buttonStyle="secondary">
+            {downloadingPptx ? 'Building PPTX…' : 'Download PPTX'}
+          </Button>
+          <Button onClick={downloadTemplateXml} buttonStyle="secondary">
+            Export XML
+          </Button>
+          <Button onClick={exportAllRepsZip} disabled={exportingAllReps || tenantOptions.length === 0} buttonStyle="secondary">
+            {exportingAllReps ? 'Exporting ZIP…' : 'Export All ZIP'}
+          </Button>
           {isSuperAdmin ? (
             <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
               {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
@@ -2208,6 +2534,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           ) : null}
           <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
             {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
+          </Button>
+          <Button onClick={resetCurrentSide} buttonStyle="secondary">
+            Reset Side
+          </Button>
+          <Button onClick={resetAllSides} buttonStyle="secondary">
+            Reset All
           </Button>
           <Button onClick={() => undoLastChange()} disabled={undoStackRef.current[activeMailSide].length === 0} buttonStyle="secondary">
             Undo
@@ -2243,6 +2575,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               <Button
                 onClick={() => {
                   setSelection(null)
+                  setInlineTextEditor(null)
                   setActiveMailSide('front')
                 }}
                 buttonStyle={activeMailSide === 'front' ? 'primary' : 'secondary'}
@@ -2252,6 +2585,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               <Button
                 onClick={() => {
                   setSelection(null)
+                  setInlineTextEditor(null)
                   setActiveMailSide('back')
                 }}
                 buttonStyle={activeMailSide === 'back' ? 'primary' : 'secondary'}
@@ -2263,20 +2597,38 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           {isMounted && tenantOptions.length > 0 ? (
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Switch tenant</span>
-              <select
-                value={selectedTenantID ? String(selectedTenantID) : ''}
-                onChange={(event) => {
-                  const nextTenantID = event.target.value || undefined
-                  setTenant({ id: nextTenantID, refresh: true })
-                }}
-                style={controlStyle}
-              >
-                {tenantOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '48px minmax(0, 1fr) 48px', gap: 8 }}>
+                  <button type="button" onClick={() => switchTenantByOffset(-1)} style={secondaryButtonStyle} disabled={tenantIndex <= 0}>
+                    ←
+                  </button>
+                  <select
+                    value={selectedTenantValue}
+                    onChange={(event) => {
+                      const nextTenantID = event.target.value || undefined
+                      setTenant({ id: nextTenantID, refresh: true })
+                    }}
+                    style={controlStyle}
+                  >
+                    {tenantOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => switchTenantByOffset(1)}
+                    style={secondaryButtonStyle}
+                    disabled={tenantIndex < 0 || tenantIndex >= tenantOptions.length - 1}
+                  >
+                    →
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  {tenantIndex >= 0 ? `${tenantIndex + 1} of ${tenantOptions.length}` : `${tenantOptions.length} reps`}
+                </div>
+              </div>
             </label>
           ) : null}
         </section>
@@ -2323,7 +2675,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Subhead / Rep name</span>
+              <span style={fieldLabelStyle}>Subhead</span>
               <input
                 value={scene.subhead.text}
                 onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
@@ -2453,13 +2805,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       />
                     </label>
                     <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Box width</span>
-                      <input
-                        type="number"
-                        value={row.labelWidth}
-                        onChange={(event) => updateTownRow(row.id, { labelWidth: Number(event.target.value) || row.labelWidth })}
-                        style={controlStyle}
-                      />
+                      <span style={fieldLabelStyle}>Bar width</span>
+                      <input type="number" value={getRenderedTownLabelWidth(row)} readOnly style={{ ...controlStyle, background: '#f8fafc' }} />
                     </label>
                   </div>
                 </div>
@@ -2527,7 +2874,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <div style={{ display: 'grid', gap: 0 }}>
             <strong style={{ fontSize: 15, color: '#0f172a', lineHeight: 1.1 }}>Canvas</strong>
             <span style={{ fontSize: 10, color: '#64748b', lineHeight: 1.1 }}>
-              Click to select, drag to move.
+              Click to select, drag to move, double-click text to edit.
             </span>
           </div>
           <label style={{ display: 'grid', gap: 2 }}>
@@ -2586,6 +2933,24 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               Underline
             </button>
             <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font</span>
+              <select
+                value={selectedTextLayer?.fontFamily || TEXT_FONT_OPTIONS[0].value}
+                onChange={(event) => {
+                  if (!selectedTextTarget || !selectedTextLayer) return
+                  updateSelectedTextLayer(selectedTextTarget, { fontFamily: event.target.value })
+                }}
+                style={{ ...controlStyle, width: 160, padding: '8px 10px' }}
+                disabled={!isTextToolbarActive}
+              >
+                {TEXT_FONT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
               <input
                 type="number"
@@ -2632,6 +2997,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             display: 'flex',
             justifyContent: 'center',
             overflow: 'hidden',
+            position: 'relative',
+            borderRadius: 18,
+            background: '#e5e7eb',
+            padding: 10,
           }}
         >
           <Stage
@@ -2756,6 +3125,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         fill={scene.eyebrow.color}
                         textDecoration={scene.eyebrow.textDecoration}
                         wrap="none"
+                        onDblClick={() => beginInlineTextEdit({ kind: 'eyebrow', id: scene.eyebrow.id })}
                       />
                     </Group>
 
@@ -2787,6 +3157,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         lineHeight={scene.headline.lineHeight || 1.04}
                         fill={scene.headline.color}
                         textDecoration={scene.headline.textDecoration}
+                        onDblClick={() => beginInlineTextEdit({ kind: 'headline', id: scene.headline.id })}
                       />
                     </Group>
 
@@ -2807,6 +3178,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         fontStyle={scene.subhead.fontStyle}
                         fill={scene.subhead.color}
                         textDecoration={scene.subhead.textDecoration}
+                        onDblClick={() => beginInlineTextEdit({ kind: 'subhead', id: scene.subhead.id })}
                       />
                     </Group>
 
@@ -2839,46 +3211,49 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         fontStyle={scene.footer.fontStyle}
                         fill={scene.footer.color}
                         textDecoration={scene.footer.textDecoration}
+                        onDblClick={() => beginInlineTextEdit({ kind: 'footer', id: scene.footer.id })}
                       />
                     </Group>
 
-                    <Group
-                      x={scene.headshot.x}
-                      y={scene.headshot.y}
-                      ref={headshotRef}
-                      draggable
-                      onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                      onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                      onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
-                      onTransformEnd={(event) => {
-                        const node = event.target
-                        const scale = Math.max(node.scaleX(), node.scaleY())
-                        const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
-                        node.scaleX(1)
-                        node.scaleY(1)
-                        updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
-                      }}
-                    >
+                    {scene.headshot.size > 0 ? (
                       <Group
-                        clipFunc={(ctx) => {
-                          ctx.beginPath()
-                          ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
-                          ctx.closePath()
+                        x={scene.headshot.x}
+                        y={scene.headshot.y}
+                        ref={headshotRef}
+                        draggable
+                        onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                        onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                        onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const scale = Math.max(node.scaleX(), node.scaleY())
+                          const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
                         }}
                       >
-                        {headshotImage ? (
-                          <KonvaImage
-                            image={headshotImage}
-                            x={headshotPlacement.x}
-                            y={headshotPlacement.y}
-                            width={headshotPlacement.width}
-                            height={headshotPlacement.height}
-                            onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                            onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                          />
-                        ) : null}
+                        <Group
+                          clipFunc={(ctx) => {
+                            ctx.beginPath()
+                            ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
+                            ctx.closePath()
+                          }}
+                        >
+                          {headshotImage ? (
+                            <KonvaImage
+                              image={headshotImage}
+                              x={headshotPlacement.x}
+                              y={headshotPlacement.y}
+                              width={headshotPlacement.width}
+                              height={headshotPlacement.height}
+                              onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                              onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                            />
+                          ) : null}
+                        </Group>
                       </Group>
-                    </Group>
+                    ) : null}
 
                     <Rect
                       x={STAGE_WIDTH - MAIL_PLACEHOLDER_WIDTH}
@@ -2959,59 +3334,62 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                           fill={item.color}
                           lineHeight={item.lineHeight || 1.1}
                           textDecoration={item.textDecoration}
+                          onDblClick={() => beginInlineTextEdit({ kind: 'custom-text', id: item.id })}
                         />
                       </Group>
                     ))}
 
-                    <Group
-                      x={scene.headshot.x}
-                      y={scene.headshot.y}
-                      ref={headshotRef}
-                      draggable
-                      onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                      onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                      onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
-                      onTransformEnd={(event) => {
-                        const node = event.target
-                        const scale = Math.max(node.scaleX(), node.scaleY())
-                        const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
-                        node.scaleX(1)
-                        node.scaleY(1)
-                        updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
-                      }}
-                    >
+                    {scene.headshot.size > 0 ? (
                       <Group
-                        clipFunc={(ctx) => {
-                          ctx.beginPath()
-                          ctx.arc(
-                            scene.headshot.size / 2,
-                            scene.headshot.size / 2,
-                            scene.headshot.size / 2,
-                            0,
-                            Math.PI * 2,
-                          )
-                          ctx.closePath()
+                        x={scene.headshot.x}
+                        y={scene.headshot.y}
+                        ref={headshotRef}
+                        draggable
+                        onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                        onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                        onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const scale = Math.max(node.scaleX(), node.scaleY())
+                          const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
                         }}
                       >
-                        {headshotImage ? (
-                          <KonvaImage
-                            image={headshotImage}
-                            x={backHeadshotPlacement.x}
-                            y={backHeadshotPlacement.y}
-                            width={backHeadshotPlacement.width}
-                            height={backHeadshotPlacement.height}
-                            onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                            onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                          />
-                        ) : (
-                          <Rect
-                            width={scene.headshot.size}
-                            height={scene.headshot.size}
-                            fill="rgba(148, 163, 184, 0.35)"
-                          />
-                        )}
+                        <Group
+                          clipFunc={(ctx) => {
+                            ctx.beginPath()
+                            ctx.arc(
+                              scene.headshot.size / 2,
+                              scene.headshot.size / 2,
+                              scene.headshot.size / 2,
+                              0,
+                              Math.PI * 2,
+                            )
+                            ctx.closePath()
+                          }}
+                        >
+                          {headshotImage ? (
+                            <KonvaImage
+                              image={headshotImage}
+                              x={backHeadshotPlacement.x}
+                              y={backHeadshotPlacement.y}
+                              width={backHeadshotPlacement.width}
+                              height={backHeadshotPlacement.height}
+                              onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                              onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                            />
+                          ) : (
+                            <Rect
+                              width={scene.headshot.size}
+                              height={scene.headshot.size}
+                              fill="rgba(148, 163, 184, 0.35)"
+                            />
+                          )}
+                        </Group>
                       </Group>
-                    </Group>
+                    ) : null}
 
                     <Group
                       x={scene.subhead.x}
@@ -3040,6 +3418,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         fill={scene.subhead.color}
                         textDecoration={scene.subhead.textDecoration}
                         align="left"
+                        onDblClick={() => beginInlineTextEdit({ kind: 'subhead', id: scene.subhead.id })}
                       />
                     </Group>
 
@@ -3065,7 +3444,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                           x={-12}
                           y={-12}
                           width={scene.headline.width + 24}
-                          height={Math.max(backGraphicLayout.headline.height, measureHeadlineHeight(scene.headline)) + 24}
+                          height={measureHeadlineHeight(scene.headline) + 24}
                           stroke="#0ea5e9"
                           dash={[10, 6]}
                           cornerRadius={14}
@@ -3073,16 +3452,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       ) : null}
                       <Text
                         width={scene.headline.width}
-                        height={backGraphicLayout.headline.height}
+                        height={measureHeadlineHeight(scene.headline)}
                         text={scene.headline.text}
                         fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.headline.fontSize}
                         fontStyle={scene.headline.fontStyle}
                         fill="#374151"
-                        align={backGraphicLayout.headline.align}
+                        align="left"
                         verticalAlign="middle"
                         lineHeight={scene.headline.lineHeight || 1.05}
                         textDecoration={scene.headline.textDecoration}
+                        onDblClick={() => beginInlineTextEdit({ kind: 'headline', id: scene.headline.id })}
                       />
                     </Group>
                   </>
@@ -3096,7 +3476,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 enabledAnchors={
                   selection?.kind === 'headline' || selection?.kind === 'custom-text'
                     ? ['middle-left', 'middle-right']
-                    : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right' || selection?.kind === 'custom-rect'
+                    : selection?.kind === 'custom-rect'
+                      ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+                    : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'headshot'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
@@ -3140,6 +3522,59 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               </Group>
             </Layer>
           </Stage>
+          {inlineTextEditor && inlineEditorBox ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: inlineEditorBox.left + 10,
+                top: inlineEditorBox.top + 10,
+                width: inlineEditorBox.width,
+                minHeight: inlineEditorBox.height,
+                zIndex: 40,
+              }}
+            >
+              <textarea
+                autoFocus
+                value={inlineTextEditor.value}
+                onChange={(event) => setInlineTextEditor((current) => (current ? { ...current, value: event.target.value } : current))}
+                onBlur={commitInlineTextEdit}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault()
+                    commitInlineTextEdit()
+                    return
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    setInlineTextEditor(null)
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: inlineEditorBox.height,
+                  resize: 'none',
+                  padding: '10px 12px',
+                  borderRadius: 14,
+                  border: '2px solid #0ea5e9',
+                  background: 'rgba(255,255,255,0.98)',
+                  color: selectedTextLayer?.color || '#111827',
+                  fontFamily: selectedTextLayer?.fontFamily || 'Arial',
+                  fontSize: `${Math.max(14, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
+                  fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
+                  fontWeight:
+                    selectedTextLayer?.fontStyle?.includes('800') ||
+                    selectedTextLayer?.fontStyle?.includes('900') ||
+                    selectedTextLayer?.fontStyle?.includes('700') ||
+                    selectedTextLayer?.fontStyle?.toLowerCase().includes('bold')
+                      ? 700
+                      : 400,
+                  textDecoration: selectedTextLayer?.textDecoration || 'none',
+                  lineHeight: 1.12,
+                  boxShadow: '0 18px 45px rgba(14,165,233,0.18)',
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       </section>
     </div>
