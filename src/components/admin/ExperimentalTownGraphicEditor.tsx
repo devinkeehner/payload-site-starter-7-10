@@ -188,6 +188,7 @@ type ExperimentalTownScene = {
   subhead: SubheadElement
   footer: FooterElement
   headshot: HeadshotElement
+  townColumns: 1 | 2
   townRows: TownSceneRow[]
 }
 
@@ -198,6 +199,8 @@ type Selection =
   | { kind: 'footer'; id: string }
   | { kind: 'headshot'; id: string }
   | { kind: 'towns'; id: 'town-stack' }
+  | { kind: 'towns-left'; id: 'town-stack-left' }
+  | { kind: 'towns-right'; id: 'town-stack-right' }
   | { kind: 'town'; id: string }
   | null
 
@@ -206,6 +209,7 @@ type TextSelection = Exclude<Selection, null> & {
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+const cloneScene = (scene: ExperimentalTownScene): ExperimentalTownScene => JSON.parse(JSON.stringify(scene)) as ExperimentalTownScene
 
 const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
@@ -358,6 +362,55 @@ const measureTownStackBounds = (rows: TownSceneRow[]) => {
     y: top,
     width: Math.max(1, right - left),
     height: Math.max(1, bottom - top),
+  }
+}
+
+const relayoutTownRows = (current: ExperimentalTownScene, townColumns: 1 | 2) => {
+  const includedRows = current.townRows.filter((row) => row.included)
+  if (!includedRows.length) return { ...current, townColumns }
+
+  const startX = Math.min(...includedRows.map((row) => row.labelX))
+  const startY = Math.min(...includedRows.map((row) => row.labelY))
+  const columnGap = 68
+  const rowGap = 40
+  const rowsPerColumn = townColumns === 2 ? Math.ceil(includedRows.length / 2) : includedRows.length
+
+  let maxFirstColumnWidth = 0
+  includedRows.slice(0, rowsPerColumn).forEach((row) => {
+    maxFirstColumnWidth = Math.max(maxFirstColumnWidth, row.labelWidth)
+  })
+
+  const nextRows = [...current.townRows]
+  let firstColumnY = startY
+  let secondColumnY = startY
+
+  includedRows.forEach((row, index) => {
+    const nextRow = nextRows.find((candidate) => candidate.id === row.id)
+    if (!nextRow) return
+
+    const columnIndex = townColumns === 2 && index >= rowsPerColumn ? 1 : 0
+    const nextLabelX = columnIndex === 0 ? startX : startX + maxFirstColumnWidth + columnGap
+    const nextLabelY = columnIndex === 0 ? firstColumnY : secondColumnY
+    const amountOffsetX = nextRow.amountX - nextRow.labelX
+    const amountOffsetY = nextRow.amountY - nextRow.labelY
+
+    nextRow.labelX = nextLabelX
+    nextRow.labelY = nextLabelY
+    nextRow.amountX = nextLabelX + amountOffsetX
+    nextRow.amountY = nextLabelY + amountOffsetY
+
+    const rowHeight = measureTownGroupHeight(nextRow)
+    if (columnIndex === 0) {
+      firstColumnY += rowHeight + rowGap
+    } else {
+      secondColumnY += rowHeight + rowGap
+    }
+  })
+
+  return {
+    ...current,
+    townColumns,
+    townRows: nextRows,
   }
 }
 
@@ -570,6 +623,7 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
         offsetY: 0,
       },
     },
+    townColumns: 1 as const,
     townRows,
   } satisfies ExperimentalTownScene
 
@@ -599,6 +653,7 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
         ...savedScene.headshot?.crop,
       },
     },
+    townColumns: savedScene.townColumns === 2 ? 2 : 1,
     townRows: baseScene.townRows.map((row) => {
       const savedRow = savedRowsByKey.get(row.townKey)
       return savedRow ? { ...row, ...savedRow, town: row.town, townKey: row.townKey } : row
@@ -643,8 +698,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
   const townStackRef = useRef<Konva.Group | null>(null)
+  const leftTownStackRef = useRef<Konva.Group | null>(null)
+  const rightTownStackRef = useRef<Konva.Group | null>(null)
   const townRefs = useRef<Record<string, Konva.Group | null>>({})
   const transformerRef = useRef<Konva.Transformer | null>(null)
+  const undoStackRef = useRef<ExperimentalTownScene[]>([])
+  const skipHistoryRef = useRef(false)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
   const [isResizingHeadline, setIsResizingHeadline] = useState(false)
@@ -665,6 +724,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
+  const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
 
   const tenantOptions = useMemo<TenantSelectOption[]>(
     () =>
@@ -743,7 +803,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         setTemplates(nextTemplates)
         setDesigns(nextDesigns)
         setMediaOptions(dedupeMediaOptions(nextMedia))
-        setScene(nextScene)
+        clearUndoHistory()
+        setSceneWithoutHistory(nextScene)
         setTemplateID(selectedTemplate?.id || getString(selectedDesign?.template) || getString(asRecord(selectedDesign?.template).id) || '')
         setTemplateTitle(selectedTemplate?.title || 'Experimental Town Graphic')
         setDesignID(selectedDesign?.id || '')
@@ -764,6 +825,25 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       cancelled = true
     }
   }, [isMounted, requestedDesignID, requestedTemplateID, tenantID, tenantName])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isUndo = (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z'
+      if (!isUndo) return
+      const target = event.target as HTMLElement | null
+      const isTextInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        Boolean(target?.isContentEditable)
+      if (isTextInput) return
+      event.preventDefault()
+      undoLastChange()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   const previewScale = useMemo(() => {
     const fallbackHeight = viewportHeight > 0 ? Math.min(MAX_PREVIEW_HEIGHT, Math.max(520, viewportHeight - 220)) : MAX_PREVIEW_HEIGHT
@@ -795,6 +875,20 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const includedTownRows = useMemo(() => (scene ? scene.townRows.filter((row) => row.included) : []), [scene])
   const townStackBounds = useMemo(() => measureTownStackBounds(includedTownRows), [includedTownRows])
+  const townRowsPerColumn = useMemo(
+    () => (scene?.townColumns === 2 ? Math.ceil(includedTownRows.length / 2) : includedTownRows.length),
+    [includedTownRows.length, scene?.townColumns],
+  )
+  const leftTownRows = useMemo(
+    () => (scene?.townColumns === 2 ? includedTownRows.slice(0, townRowsPerColumn) : includedTownRows),
+    [includedTownRows, scene?.townColumns, townRowsPerColumn],
+  )
+  const rightTownRows = useMemo(
+    () => (scene?.townColumns === 2 ? includedTownRows.slice(townRowsPerColumn) : []),
+    [includedTownRows, scene?.townColumns, townRowsPerColumn],
+  )
+  const leftTownBounds = useMemo(() => measureTownStackBounds(leftTownRows), [leftTownRows])
+  const rightTownBounds = useMemo(() => measureTownStackBounds(rightTownRows), [rightTownRows])
 
   const selectedTextTarget = useMemo<TextSelection | null>(() => {
     if (!selection) return null
@@ -810,6 +904,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           ? headshotRef.current
           : selection?.kind === 'towns'
             ? townStackRef.current
+          : selection?.kind === 'towns-left'
+            ? leftTownStackRef.current
+          : selection?.kind === 'towns-right'
+            ? rightTownStackRef.current
           : selection?.kind === 'town'
             ? townRefs.current[selection.id] || null
           : null
@@ -831,8 +929,33 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     }
   }, [selection])
 
+  const setSceneWithoutHistory = (nextScene: ExperimentalTownScene | null) => {
+    skipHistoryRef.current = true
+    setScene(nextScene)
+  }
+
   const updateScene = (updater: (current: ExperimentalTownScene) => ExperimentalTownScene) => {
-    setScene((current) => (current ? updater(current) : current))
+    setScene((current) => {
+      if (!current) return current
+      if (!skipHistoryRef.current) {
+        undoStackRef.current = [...undoStackRef.current.slice(-49), cloneScene(current)]
+      } else {
+        skipHistoryRef.current = false
+      }
+      return updater(current)
+    })
+  }
+
+  const clearUndoHistory = () => {
+    undoStackRef.current = []
+  }
+
+  const undoLastChange = () => {
+    const previousScene = undoStackRef.current.pop()
+    if (!previousScene) return
+    setSceneWithoutHistory(previousScene)
+    setSelection(null)
+    setMessage('Undid last change')
   }
 
   const syncSubheadToHeadline = (current: ExperimentalTownScene) => alignSubheadToHeadline(current)
@@ -876,6 +999,34 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           ...current,
           townRows: current.townRows.map((row) =>
             row.included
+              ? {
+                  ...row,
+                  labelX: row.labelX + deltaX,
+                  labelY: row.labelY + deltaY,
+                  amountX: row.amountX + deltaX,
+                  amountY: row.amountY + deltaY,
+                }
+              : row,
+          ),
+        }
+      })
+    }
+    if (selection.kind === 'towns-left' || selection.kind === 'towns-right') {
+      updateScene((current) => {
+        const includedRows = current.townRows.filter((row) => row.included)
+        const rowsPerColumn = current.townColumns === 2 ? Math.ceil(includedRows.length / 2) : includedRows.length
+        const columnRows =
+          selection.kind === 'towns-left'
+            ? includedRows.slice(0, rowsPerColumn)
+            : includedRows.slice(rowsPerColumn)
+        const bounds = measureTownStackBounds(columnRows)
+        const columnRowIDs = new Set(columnRows.map((row) => row.id))
+        const deltaX = x - bounds.x
+        const deltaY = y - bounds.y
+        return {
+          ...current,
+          townRows: current.townRows.map((row) =>
+            columnRowIDs.has(row.id)
               ? {
                   ...row,
                   labelX: row.labelX + deltaX,
@@ -935,7 +1086,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     setTemplateID(nextTemplateID)
     if (!nextTemplateID) {
       const baseScene = createBaseScene(townData, tenantName)
-      setScene(baseScene)
+      clearUndoHistory()
+      setSceneWithoutHistory(baseScene)
       setSelection(null)
       return
     }
@@ -943,7 +1095,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!template) return
     const baseScene = createBaseScene(townData, tenantName)
     setTemplateTitle(template.title || 'Experimental Town Graphic')
-    setScene(mergeSceneWithFreshData(template.scene, baseScene))
+    clearUndoHistory()
+    setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, baseScene))
     setSelection(null)
   }
 
@@ -952,7 +1105,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     setDesignID(nextDesignID)
     if (!nextDesignID) {
       const baseScene = createBaseScene(townData, tenantName)
-      setScene(baseScene)
+      clearUndoHistory()
+      setSceneWithoutHistory(baseScene)
       setSelection(null)
       return
     }
@@ -961,7 +1115,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     const baseScene = createBaseScene(townData, tenantName)
     setDesignTitle(design.title || 'Town Graphic')
     setTemplateID(getString(asRecord(design.template).id) || getString(design.template) || '')
-    setScene(mergeSceneWithFreshData(design.scene, baseScene))
+    clearUndoHistory()
+    setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, baseScene))
     setSelection(null)
   }
 
@@ -1024,6 +1179,20 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       notes: 'experimental-town-graphic',
       tenant: tenantID || null,
     }
+  }
+
+  const moveTownRow = (rowID: string, direction: -1 | 1) => {
+    updateScene((current) => {
+      const index = current.townRows.findIndex((row) => row.id === rowID)
+      if (index === -1) return current
+      const nextIndex = index + direction
+      if (nextIndex < 0 || nextIndex >= current.townRows.length) return current
+      const nextRows = [...current.townRows]
+      const [movedRow] = nextRows.splice(index, 1)
+      if (!movedRow) return current
+      nextRows.splice(nextIndex, 0, movedRow)
+      return relayoutTownRows({ ...current, townRows: nextRows }, current.townColumns)
+    })
   }
 
   const saveTemplate = async () => {
@@ -1303,6 +1472,143 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
   const backgroundPlacement = computeCoverPlacement(backgroundImage, STAGE_WIDTH, STAGE_HEIGHT)
 
+  const renderTownStack = (
+    rows: TownSceneRow[],
+    bounds: { x: number; y: number; width: number; height: number },
+    stackSelection: Extract<Selection, { kind: 'towns' | 'towns-left' | 'towns-right' }>,
+    stackRef: React.MutableRefObject<Konva.Group | null>,
+  ) => (
+    <Group
+      ref={stackRef}
+      x={bounds.x}
+      y={bounds.y}
+      draggable={rows.length > 0}
+      onDragEnd={(event) => {
+        setSelection(stackSelection)
+        updateSelectionPosition(event.target.x(), event.target.y())
+      }}
+      onMouseDown={() => setSelection(stackSelection)}
+      onTransformEnd={(event) => {
+        const node = event.target
+        const rawScale = Math.max(node.scaleX(), node.scaleY())
+        const nextBoundsWidth = clamp(
+          Math.round(bounds.width * rawScale),
+          TOWN_LABEL_WIDTH_LIMITS.min,
+          STAGE_WIDTH - 40,
+        )
+        const nextBoundsHeight = clamp(
+          Math.round(bounds.height * rawScale),
+          TOWN_GROUP_HEIGHT_LIMITS.min,
+          STAGE_HEIGHT - 80,
+        )
+        const uniformScale = Math.min(
+          nextBoundsWidth / Math.max(bounds.width, 1),
+          nextBoundsHeight / Math.max(bounds.height, 1),
+        )
+        const originX = bounds.x
+        const originY = bounds.y
+        const rowIDs = new Set(rows.map((row) => row.id))
+
+        node.scaleX(1)
+        node.scaleY(1)
+
+        updateScene((current) => ({
+          ...current,
+          townRows: current.townRows.map((row) => {
+            if (!rowIDs.has(row.id)) return row
+
+            const relativeX = row.labelX - originX
+            const relativeY = row.labelY - originY
+            const nextTownFontSize = clamp(
+              Math.round(row.townFontSize * uniformScale),
+              TOWN_FONT_SIZE_LIMITS.min,
+              TOWN_FONT_SIZE_LIMITS.max,
+            )
+            const nextLabelWidth = clamp(
+              Math.round(row.labelWidth * uniformScale),
+              TOWN_LABEL_WIDTH_LIMITS.min,
+              TOWN_LABEL_WIDTH_LIMITS.max,
+            )
+            const nextLabelHeight = clamp(
+              Math.round(row.labelHeight * uniformScale),
+              TOWN_LABEL_HEIGHT_LIMITS.min,
+              TOWN_LABEL_HEIGHT_LIMITS.max,
+            )
+            const nextAmountFontSize = clamp(
+              Math.round(row.amountFontSize * uniformScale),
+              TOWN_AMOUNT_FONT_SIZE_LIMITS.min,
+              TOWN_AMOUNT_FONT_SIZE_LIMITS.max,
+            )
+            const nextLabelX = node.x() + Math.round(relativeX * uniformScale)
+            const nextLabelY = node.y() + Math.round(relativeY * uniformScale)
+            const nextAmountOffsetX = Math.max(0, Math.round((row.amountX - row.labelX) * uniformScale))
+            const nextAmountGap = clamp(
+              Math.round((row.amountY - row.labelY - row.labelHeight) * uniformScale),
+              10,
+              40,
+            )
+            const nextAmountOffsetY = nextLabelHeight + nextAmountGap
+
+            return {
+              ...row,
+              labelX: nextLabelX,
+              labelY: nextLabelY,
+              labelWidth: nextLabelWidth,
+              labelHeight: nextLabelHeight,
+              townFontSize: nextTownFontSize,
+              amountFontSize: nextAmountFontSize,
+              amountX: nextLabelX + nextAmountOffsetX,
+              amountY: nextLabelY + nextAmountOffsetY,
+            }
+          }),
+        }))
+      }}
+    >
+      {selection?.kind === stackSelection.kind ? (
+        <Rect
+          x={-10}
+          y={-12}
+          width={bounds.width + 20}
+          height={bounds.height + 24}
+          stroke="#0ea5e9"
+          dash={[10, 6]}
+          cornerRadius={12}
+        />
+      ) : null}
+      {rows.map((row) => (
+        <Group
+          key={row.id}
+          ref={(node) => {
+            townRefs.current[row.id] = node
+          }}
+          x={row.labelX - bounds.x}
+          y={row.labelY - bounds.y}
+        >
+          <Rect width={row.labelWidth} height={row.labelHeight} fill={row.labelColor} />
+          <Text
+            x={14}
+            y={8}
+            width={row.labelWidth - 22}
+            text={row.town.toUpperCase()}
+            fontFamily="Arial"
+            fontSize={row.townFontSize}
+            fontStyle="700"
+            fill="#ffffff"
+          />
+          <Text
+            x={row.amountX - row.labelX}
+            y={row.amountY - row.labelY}
+            text={formatCurrency(row.strapAid)}
+            fontFamily="Arial"
+            fontSize={row.amountFontSize}
+            fontStyle="700"
+            fill={row.textColor}
+          />
+        </Group>
+      ))}
+    </Group>
+  )
+
   return (
     <div
       style={{
@@ -1357,30 +1663,6 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         </section>
 
         <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Templates</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Open template</span>
-            <select value={templateID} onChange={(event) => loadTemplate(event.target.value)} style={controlStyle}>
-              <option value="">Default layout</option>
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.title || 'Untitled template'}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Template title</span>
-            <input value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} style={controlStyle} />
-          </label>
-          {isSuperAdmin ? (
-            <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
-              {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
-            </Button>
-          ) : null}
-        </section>
-
-        <section style={{ display: 'grid', gap: 10 }}>
           <div style={sectionLabelStyle}>Designs</div>
           <label style={{ display: 'grid', gap: 6 }}>
             <span style={fieldLabelStyle}>Open design</span>
@@ -1397,8 +1679,31 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             <span style={fieldLabelStyle}>Design title</span>
             <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
           </label>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <span style={fieldLabelStyle}>Background image</span>
+            <select
+              value={scene.backgroundMediaID || ''}
+              onChange={(event) =>
+                updateScene((current) => ({
+                  ...current,
+                  backgroundMediaID: event.target.value || null,
+                }))
+              }
+              style={controlStyle}
+            >
+              <option value="">Default district/banner image</option>
+              {mediaOptions.map((media) => (
+                <option key={media.id} value={media.id}>
+                  {media.title || media.filename || media.alt || media.id}
+                </option>
+              ))}
+            </select>
+          </div>
           <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
             {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
+          </Button>
+          <Button onClick={undoLastChange} disabled={undoStackRef.current.length === 0} buttonStyle="secondary">
+            Undo
           </Button>
         </section>
 
@@ -1473,6 +1778,19 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
         <section style={{ display: 'grid', gap: 12 }}>
           <div style={sectionLabelStyle}>Towns</div>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={fieldLabelStyle}>Town layout</span>
+            <select
+              value={scene.townColumns}
+              onChange={(event) =>
+                updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
+              }
+              style={controlStyle}
+            >
+              <option value={1}>Single column</option>
+              <option value={2}>Two columns</option>
+            </select>
+          </label>
           {scene.townRows.map((row) => (
             <div key={row.id} style={slotCardStyle}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -1480,9 +1798,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
                   {row.town}
                 </label>
-                <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
-                  Select
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveTownRow(row.id, 1)}
+                    style={secondaryButtonStyle}
+                    disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}
+                  >
+                    ↓
+                  </button>
+                  <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
+                    Select
+                  </button>
+                </div>
               </div>
               <label style={{ display: 'grid', gap: 6 }}>
                 <span style={fieldLabelStyle}>STRAP Aid</span>
@@ -1534,6 +1865,32 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         </section>
 
         {message ? <div style={hintStyle}>{message}</div> : null}
+
+        <details open={templateSectionOpen} onToggle={(event) => setTemplateSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Templates</summary>
+          <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Open template</span>
+              <select value={templateID} onChange={(event) => loadTemplate(event.target.value)} style={controlStyle}>
+                <option value="">Default layout</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.title || 'Untitled template'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Template title</span>
+              <input value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} style={controlStyle} />
+            </label>
+            {isSuperAdmin ? (
+              <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
+                {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
+              </Button>
+            ) : null}
+          </div>
+        </details>
       </aside>
 
       <section
@@ -1541,24 +1898,24 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           borderRadius: 24,
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.9)',
-          padding: 16,
+          padding: 6,
           overflow: 'hidden',
           minWidth: 0,
         }}
       >
-        <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-          <strong style={{ fontSize: 16, color: '#0f172a' }}>Canvas</strong>
-          <span style={{ fontSize: 12, color: '#64748b' }}>
-            Click an element to select it, then drag it directly on the canvas. The left panel keeps the text/town editing workflow.
-          </span>
-        </div>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 12 }}>
-          <label style={{ display: 'grid', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <div style={{ display: 'grid', gap: 0 }}>
+            <strong style={{ fontSize: 15, color: '#0f172a', lineHeight: 1.1 }}>Canvas</strong>
+            <span style={{ fontSize: 10, color: '#64748b', lineHeight: 1.1 }}>
+              Click to select, drag to move.
+            </span>
+          </div>
+          <label style={{ display: 'grid', gap: 2 }}>
             <span style={fieldLabelStyle}>Preview zoom</span>
             <select
               value={String(previewZoom)}
               onChange={(event) => setPreviewZoom(Number(event.target.value))}
-              style={{ ...controlStyle, width: 110, padding: '8px 10px' }}
+              style={{ ...controlStyle, width: 104, padding: '6px 8px' }}
             >
               <option value="0.75">75%</option>
               <option value="0.9">90%</option>
@@ -1772,130 +2129,14 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 />
               </Group>
 
-              <Group
-                ref={townStackRef}
-                x={townStackBounds.x}
-                y={townStackBounds.y}
-                draggable={includedTownRows.length > 0}
-                onDragEnd={(event) => {
-                  setSelection({ kind: 'towns', id: 'town-stack' })
-                  updateSelectionPosition(event.target.x(), event.target.y())
-                }}
-                onMouseDown={() => setSelection({ kind: 'towns', id: 'town-stack' })}
-                onTransformEnd={(event) => {
-                  const node = event.target
-                  const rawScale = Math.max(node.scaleX(), node.scaleY())
-                  const nextBoundsWidth = clamp(
-                    Math.round(townStackBounds.width * rawScale),
-                    TOWN_LABEL_WIDTH_LIMITS.min,
-                    STAGE_WIDTH - 40,
-                  )
-                  const nextBoundsHeight = clamp(
-                    Math.round(townStackBounds.height * rawScale),
-                    TOWN_GROUP_HEIGHT_LIMITS.min,
-                    STAGE_HEIGHT - 80,
-                  )
-                  const uniformScale = Math.min(
-                    nextBoundsWidth / Math.max(townStackBounds.width, 1),
-                    nextBoundsHeight / Math.max(townStackBounds.height, 1),
-                  )
-                  const originX = townStackBounds.x
-                  const originY = townStackBounds.y
-
-                  node.scaleX(1)
-                  node.scaleY(1)
-
-                  updateScene((current) => ({
-                    ...current,
-                    townRows: current.townRows.map((row) => {
-                      if (!row.included) return row
-
-                      const relativeX = row.labelX - originX
-                      const relativeY = row.labelY - originY
-                      const nextTownFontSize = clamp(
-                        Math.round(row.townFontSize * uniformScale),
-                        TOWN_FONT_SIZE_LIMITS.min,
-                        TOWN_FONT_SIZE_LIMITS.max,
-                      )
-                      const nextLabelWidth = clamp(
-                        Math.round(row.labelWidth * uniformScale),
-                        TOWN_LABEL_WIDTH_LIMITS.min,
-                        TOWN_LABEL_WIDTH_LIMITS.max,
-                      )
-                      const nextLabelHeight = clamp(
-                        Math.round(row.labelHeight * uniformScale),
-                        TOWN_LABEL_HEIGHT_LIMITS.min,
-                        TOWN_LABEL_HEIGHT_LIMITS.max,
-                      )
-                      const nextAmountFontSize = clamp(
-                        Math.round(row.amountFontSize * uniformScale),
-                        TOWN_AMOUNT_FONT_SIZE_LIMITS.min,
-                        TOWN_AMOUNT_FONT_SIZE_LIMITS.max,
-                      )
-                      const nextLabelX = node.x() + Math.round(relativeX * uniformScale)
-                      const nextLabelY = node.y() + Math.round(relativeY * uniformScale)
-                      const nextAmountOffsetX = Math.max(0, Math.round((row.amountX - row.labelX) * uniformScale))
-                      const nextAmountGap = clamp(Math.round((row.amountY - row.labelY - row.labelHeight) * uniformScale), 10, 40)
-                      const nextAmountOffsetY = nextLabelHeight + nextAmountGap
-
-                      return {
-                        ...row,
-                        labelX: nextLabelX,
-                        labelY: nextLabelY,
-                        labelWidth: nextLabelWidth,
-                        labelHeight: nextLabelHeight,
-                        townFontSize: nextTownFontSize,
-                        amountFontSize: nextAmountFontSize,
-                        amountX: nextLabelX + nextAmountOffsetX,
-                        amountY: nextLabelY + nextAmountOffsetY,
-                      }
-                    }),
-                  }))
-                }}
-              >
-                {selection?.kind === 'towns' ? (
-                  <Rect
-                    x={-10}
-                    y={-12}
-                    width={townStackBounds.width + 20}
-                    height={townStackBounds.height + 24}
-                    stroke="#0ea5e9"
-                    dash={[10, 6]}
-                    cornerRadius={12}
-                  />
-                ) : null}
-                {includedTownRows.map((row) => (
-                  <Group
-                    key={row.id}
-                    ref={(node) => {
-                      townRefs.current[row.id] = node
-                    }}
-                    x={row.labelX - townStackBounds.x}
-                    y={row.labelY - townStackBounds.y}
-                  >
-                    <Rect width={row.labelWidth} height={row.labelHeight} fill={row.labelColor} />
-                    <Text
-                      x={14}
-                      y={8}
-                      width={row.labelWidth - 22}
-                      text={row.town.toUpperCase()}
-                      fontFamily="Arial"
-                      fontSize={row.townFontSize}
-                      fontStyle="700"
-                      fill="#ffffff"
-                    />
-                    <Text
-                      x={row.amountX - row.labelX}
-                      y={row.amountY - row.labelY}
-                      text={formatCurrency(row.strapAid)}
-                      fontFamily="Arial"
-                      fontSize={row.amountFontSize}
-                      fontStyle="700"
-                      fill={row.textColor}
-                    />
-                  </Group>
-                ))}
-              </Group>
+              {scene.townColumns === 2 ? (
+                <>
+                  {renderTownStack(leftTownRows, leftTownBounds, { kind: 'towns-left', id: 'town-stack-left' }, leftTownStackRef)}
+                  {renderTownStack(rightTownRows, rightTownBounds, { kind: 'towns-right', id: 'town-stack-right' }, rightTownStackRef)}
+                </>
+              ) : (
+                renderTownStack(includedTownRows, townStackBounds, { kind: 'towns', id: 'town-stack' }, townStackRef)
+              )}
 
               <Group
                 x={scene.footer.x}
@@ -1965,7 +2206,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 enabledAnchors={
                   selection?.kind === 'headline'
                     ? ['middle-left', 'middle-right']
-                    : selection?.kind === 'towns'
+                    : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'headshot'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
@@ -1981,7 +2222,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                     return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
                   }
 
-                  if (selection?.kind === 'towns') {
+                  if (selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right') {
                     const scale = Math.max(
                       newBox.width / Math.max(oldBox.width, 1),
                       newBox.height / Math.max(oldBox.height, 1),
@@ -2058,6 +2299,22 @@ const sectionLabelStyle: React.CSSProperties = {
   fontSize: 13,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
+}
+
+const detailsStyle: React.CSSProperties = {
+  borderRadius: 16,
+  border: '1px solid rgba(17, 24, 39, 0.1)',
+  background: 'rgba(248, 250, 252, 0.82)',
+  padding: '12px 14px',
+}
+
+const detailsSummaryStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  fontWeight: 700,
+  fontSize: 13,
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  color: '#111827',
 }
 
 const fieldLabelStyle: React.CSSProperties = {
