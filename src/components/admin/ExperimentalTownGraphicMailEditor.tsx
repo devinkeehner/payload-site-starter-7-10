@@ -2042,14 +2042,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     while (Date.now() < deadline) {
       const currentFrontScene = frontSceneRef.current
       const currentBackScene = backSceneRef.current
-      const needsHeadshot = Boolean((currentFrontScene?.headshot.size || 0) > 0 || (currentBackScene?.headshot.size || 0) > 0)
 
       if (
         tenantIDRef.current === nextTenantID &&
         !loadingRef.current &&
         currentFrontScene &&
-        currentBackScene &&
-        (!needsHeadshot || headshotImageRef.current)
+        currentBackScene
       ) {
         await waitForStagePaint()
         return
@@ -2074,19 +2072,43 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       // @ts-expect-error jszip is available at runtime in this workspace but doesn't expose types here
       const { default: JSZip } = await import('jszip')
       const zip = new JSZip()
+      const skippedTenants: Array<{ label: string; id: string; reason: string }> = []
+      let exportedCount = 0
 
       for (const option of tenantOptions) {
-        setTenant({ id: option.value, refresh: true })
-        await waitForTenantReady(option.value)
+        try {
+          setTenant({ id: option.value, refresh: true })
+          await waitForTenantReady(option.value)
 
-        const [frontDataUrl, backDataUrl] = await Promise.all([exportSideDataUrl('front'), exportSideDataUrl('back')])
-        const folderName = option.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
-        const folder = zip.folder(folderName)
-        const bundle = getCurrentSceneBundle()
+          const [frontDataUrl, backDataUrl] = await Promise.all([exportSideDataUrl('front'), exportSideDataUrl('back')])
+          const folderName = option.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
+          const folder = zip.folder(folderName)
+          const bundle = getCurrentSceneBundle()
 
-        if (frontDataUrl && folder) folder.file('front.png', dataUrlToBlob(frontDataUrl))
-        if (backDataUrl && folder) folder.file('back.png', dataUrlToBlob(backDataUrl))
-        if (bundle && folder) folder.file('source.xml', sceneBundleToXml(bundle, option.label))
+          if (!frontDataUrl || !backDataUrl || !folder || !bundle) {
+            throw new Error('Missing rendered export data')
+          }
+
+          folder.file('front.png', dataUrlToBlob(frontDataUrl))
+          folder.file('back.png', dataUrlToBlob(backDataUrl))
+          folder.file('source.xml', sceneBundleToXml(bundle, option.label))
+          exportedCount += 1
+        } catch (error) {
+          skippedTenants.push({
+            label: option.label,
+            id: option.value,
+            reason: error instanceof Error ? error.message : String(error),
+          })
+        }
+      }
+
+      if (skippedTenants.length) {
+        zip.file(
+          'skipped-tenants.txt',
+          skippedTenants
+            .map((item) => `${item.label} (${item.id})\n${item.reason}`)
+            .join('\n\n'),
+        )
       }
 
       if (originalTenant) {
@@ -2107,7 +2129,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       link.click()
       link.remove()
       URL.revokeObjectURL(url)
-      setMessage('All reps exported')
+      setMessage(
+        skippedTenants.length
+          ? `Exported ${exportedCount} reps. Skipped ${skippedTenants.length}; see skipped-tenants.txt in the zip.`
+          : `Exported ${exportedCount} reps.`,
+      )
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
