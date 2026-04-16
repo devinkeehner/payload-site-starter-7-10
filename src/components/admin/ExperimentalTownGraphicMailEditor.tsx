@@ -6,6 +6,7 @@ import type Konva from 'konva'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+import { PDFDocument } from 'pdf-lib'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 
@@ -31,6 +32,7 @@ const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
 const MAIL_SCENE_BUNDLE_KIND = 'graphics-editor-mail-bundle/v1'
+const EXPORT_ALL_REP_COOLDOWN_MS = 350
 const TEXT_FONT_OPTIONS = [
   { label: 'Arial', value: 'Arial' },
   { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
@@ -553,6 +555,36 @@ function dataUrlToBlob(dataUrl: string) {
   const bytes = new Uint8Array(binary.length)
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
   return new Blob([bytes], { type: mime })
+}
+
+const dataUrlToBytes = (dataUrl: string) => {
+  const blob = dataUrlToBlob(dataUrl)
+  return blob.arrayBuffer().then((buffer) => new Uint8Array(buffer))
+}
+
+const bytesToHex = (bytes: Uint8Array) =>
+  Array.from(bytes)
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')
+
+const isPngBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('89504e470d0a1a0a')
+
+const isJpegBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('ffd8ff')
+
+const buildPdfBlobFromDataUrl = async (dataUrl: string) => {
+  const pdf = await PDFDocument.create()
+  const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
+  const bytes = await dataUrlToBytes(dataUrl)
+  const image = isPngBytes(bytes) ? await pdf.embedPng(bytes) : isJpegBytes(bytes) ? await pdf.embedJpg(bytes) : null
+  if (!image) throw new Error('Unsupported image format for PDF export')
+  page.drawImage(image, {
+    x: 0,
+    y: 0,
+    width: STAGE_WIDTH,
+    height: STAGE_HEIGHT,
+  })
+  const pdfBytes = await pdf.save()
+  return new Blob([pdfBytes], { type: 'application/pdf' })
 }
 
 const buildCircularHeadshotDataUrl = async ({
@@ -2083,15 +2115,18 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const [frontDataUrl, backDataUrl] = await Promise.all([exportSideDataUrl('front'), exportSideDataUrl('back')])
           const folderName = option.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
           const folder = zip.folder(folderName)
-          const bundle = getCurrentSceneBundle()
 
-          if (!frontDataUrl || !backDataUrl || !folder || !bundle) {
+          if (!frontDataUrl || !backDataUrl || !folder) {
             throw new Error('Missing rendered export data')
           }
 
-          folder.file('front.png', dataUrlToBlob(frontDataUrl))
-          folder.file('back.png', dataUrlToBlob(backDataUrl))
-          folder.file('source.xml', sceneBundleToXml(bundle, option.label))
+          const [frontPdfBlob, backPdfBlob] = await Promise.all([
+            buildPdfBlobFromDataUrl(frontDataUrl),
+            buildPdfBlobFromDataUrl(backDataUrl),
+          ])
+
+          folder.file('front.pdf', frontPdfBlob)
+          folder.file('back.pdf', backPdfBlob)
           exportedCount += 1
         } catch (error) {
           skippedTenants.push({
@@ -2099,6 +2134,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             id: option.value,
             reason: error instanceof Error ? error.message : String(error),
           })
+        } finally {
+          await new Promise((resolve) => window.setTimeout(resolve, EXPORT_ALL_REP_COOLDOWN_MS))
         }
       }
 
