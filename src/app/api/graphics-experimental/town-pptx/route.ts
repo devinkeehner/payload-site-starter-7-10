@@ -8,6 +8,7 @@ const STAGE_HEIGHT = 1600
 const PPTX_LAYOUT_NAME = 'TOWN_GRAPHIC_EDITOR'
 const PPTX_WIDTH_IN = 7.5
 const PPTX_HEIGHT_IN = 10
+const BAR_TEXT_Y_ADJUST = -4
 
 const toPptxX = (value: number) => (value / STAGE_WIDTH) * PPTX_WIDTH_IN
 const toPptxY = (value: number) => (value / STAGE_HEIGHT) * PPTX_HEIGHT_IN
@@ -22,6 +23,13 @@ const normalizeHexColor = (value: string | null | undefined, fallback = '000000'
   if (/^[0-9a-f]{6}$/i.test(trimmed)) return trimmed.toUpperCase()
   return fallback
 }
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(value || 0)
 
 const measureHeadlineHeight = (headline: { text: string; width: number; fontSize: number; lineHeight?: number }) => {
   const sanitized = headline.text.replace(/\r/g, '')
@@ -95,7 +103,7 @@ export async function POST(req: NextRequest) {
     })
     slide.addText(scene.eyebrow.text, {
       x: toPptxX(scene.eyebrow.x + scene.eyebrow.paddingX),
-      y: toPptxY(scene.eyebrow.y + scene.eyebrow.paddingY),
+      y: toPptxY(scene.eyebrow.y + scene.eyebrow.paddingY + BAR_TEXT_Y_ADJUST),
       w: toPptxW(scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2),
       h: toPptxH(scene.eyebrow.barHeight),
       fontFace: scene.eyebrow.fontFamily || 'Arial',
@@ -160,7 +168,7 @@ export async function POST(req: NextRequest) {
       })
       slide.addText(String(row.town || '').toUpperCase(), {
         x: toPptxX(row.labelX + 14),
-        y: toPptxY(row.labelY + 8),
+        y: toPptxY(row.labelY + 8 + BAR_TEXT_Y_ADJUST),
         w: toPptxW(row.labelWidth - 22),
         h: toPptxH(row.labelHeight),
         fontFace: 'Arial',
@@ -171,7 +179,7 @@ export async function POST(req: NextRequest) {
         fit: 'shrink',
         breakLine: false,
       })
-      slide.addText(String(row.strapAidFormatted || row.amountText || row.strapAid || ''), {
+      slide.addText(String(row.strapAidFormatted || row.amountText || formatCurrency(Number(row.strapAid) || 0)), {
         x: toPptxX(row.amountX),
         y: toPptxY(row.amountY),
         w: toPptxW(420),
@@ -196,7 +204,7 @@ export async function POST(req: NextRequest) {
     })
     slide.addText(scene.footer.text, {
       x: toPptxX(scene.footer.textX),
-      y: toPptxY(scene.footer.textY),
+      y: toPptxY(scene.footer.textY + BAR_TEXT_Y_ADJUST),
       w: toPptxW(scene.footer.width - scene.footer.textX - 32),
       h: toPptxH(scene.footer.fontSize * 1.4),
       fontFace: 'Arial',

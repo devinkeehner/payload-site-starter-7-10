@@ -174,6 +174,29 @@ type HeadshotElement = {
   }
 }
 
+type CustomRectElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  fill: string
+}
+
+type CustomTextElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  text: string
+  fontSize: number
+  color: string
+  fontFamily?: string
+  fontStyle?: string
+  lineHeight?: number
+  textDecoration?: string
+}
+
 const sanitizeTemplateDoc = (item: TemplateDoc) => ({ ...item, backgroundImage: null })
 const sanitizeDesignDoc = (item: DesignDoc) => ({ ...item, backgroundImage: null })
 
@@ -203,6 +226,8 @@ type ExperimentalTownScene = {
   subhead: SubheadElement
   footer: FooterElement
   headshot: HeadshotElement
+  customRects: CustomRectElement[]
+  customTexts: CustomTextElement[]
   townColumns: 1 | 2
   townRows: TownSceneRow[]
 }
@@ -213,6 +238,8 @@ type Selection =
   | { kind: 'subhead'; id: string }
   | { kind: 'footer'; id: string }
   | { kind: 'headshot'; id: string }
+  | { kind: 'custom-rect'; id: string }
+  | { kind: 'custom-text'; id: string }
   | { kind: 'towns'; id: 'town-stack' }
   | { kind: 'towns-left'; id: 'town-stack-left' }
   | { kind: 'towns-right'; id: 'town-stack-right' }
@@ -220,7 +247,7 @@ type Selection =
   | null
 
 type TextSelection = Exclude<Selection, null> & {
-  kind: 'eyebrow' | 'headline' | 'subhead' | 'footer'
+  kind: 'eyebrow' | 'headline' | 'subhead' | 'footer' | 'custom-text'
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -590,6 +617,20 @@ const scaleBaseScene = (scene: ExperimentalTownScene) => {
         offsetY: scene.headshot.crop.offsetY * scaleY,
       },
     },
+    customRects: scene.customRects.map((item) => ({
+      ...item,
+      x: item.x * scaleX,
+      y: item.y * scaleY,
+      width: item.width * scaleX,
+      height: item.height * scaleY,
+    })),
+    customTexts: scene.customTexts.map((item) => ({
+      ...item,
+      x: item.x * scaleX,
+      y: item.y * scaleY,
+      width: item.width * scaleX,
+      fontSize: item.fontSize * scaleY,
+    })),
     townRows: scene.townRows.map((row) => ({
       ...row,
       labelX: row.labelX * scaleX,
@@ -662,6 +703,20 @@ const fitBaseSceneToMailStage = (scene: ExperimentalTownScene) => {
         offsetY: scaleSize(scene.headshot.crop.offsetY),
       },
     },
+    customRects: scene.customRects.map((item) => ({
+      ...item,
+      x: scaleXValue(item.x),
+      y: scaleYValue(item.y),
+      width: scaleSize(item.width),
+      height: scaleSize(item.height),
+    })),
+    customTexts: scene.customTexts.map((item) => ({
+      ...item,
+      x: scaleXValue(item.x),
+      y: scaleYValue(item.y),
+      width: scaleSize(item.width),
+      fontSize: scaleSize(item.fontSize),
+    })),
     townRows: scene.townRows.map((row) => ({
       ...row,
       labelX: scaleXValue(row.labelX),
@@ -806,6 +861,8 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
         offsetY: 0,
       },
     },
+    customRects: [],
+    customTexts: [],
     townColumns: 1 as const,
     townRows,
   } satisfies ExperimentalTownScene
@@ -925,6 +982,8 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         offsetY: 0,
       },
     },
+    customRects: [],
+    customTexts: [],
     townColumns: 1 as const,
     townRows,
   } satisfies ExperimentalTownScene
@@ -955,6 +1014,8 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
         ...savedScene.headshot?.crop,
       },
     },
+    customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
+    customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
     townColumns: savedScene.townColumns === 2 ? 2 : 1,
     townRows: baseScene.townRows.map((row) => {
       const savedRow = savedRowsByKey.get(row.townKey)
@@ -975,6 +1036,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const stageRef = useRef<Konva.Stage | null>(null)
   const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
+  const customRectRefs = useRef<Record<string, Konva.Group | null>>({})
+  const customTextRefs = useRef<Record<string, Konva.Group | null>>({})
   const townStackRef = useRef<Konva.Group | null>(null)
   const leftTownStackRef = useRef<Konva.Group | null>(null)
   const rightTownStackRef = useRef<Konva.Group | null>(null)
@@ -1193,7 +1256,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }, [previewZoom, stageContainerWidth, viewportHeight])
   const previewWidth = STAGE_WIDTH * previewScale
   const previewHeight = STAGE_HEIGHT * previewScale
-  const transformerAnchorSize = useMemo(() => clamp(Math.round(12 / Math.max(previewScale, 0.72)), 12, 16), [previewScale])
+  const transformerAnchorSize = useMemo(() => clamp(Math.round(9 / Math.max(previewScale, 0.72)), 8, 11), [previewScale])
 
   const headshotUrl = useMemo(
     () => readMediaUrl(townData?.standardMedia?.mobileHeadshot) || undefined,
@@ -1205,6 +1268,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const selectedTownRow = useMemo(() => {
     if (!scene || selection?.kind !== 'town') return null
     return scene.townRows.find((row) => row.id === selection.id) || null
+  }, [scene, selection])
+
+  const selectedCustomRect = useMemo(() => {
+    if (!scene || selection?.kind !== 'custom-rect') return null
+    return scene.customRects.find((item) => item.id === selection.id) || null
+  }, [scene, selection])
+
+  const selectedCustomText = useMemo(() => {
+    if (!scene || selection?.kind !== 'custom-text') return null
+    return scene.customTexts.find((item) => item.id === selection.id) || null
   }, [scene, selection])
 
   const includedTownRows = useMemo(() => (scene ? scene.townRows.filter((row) => row.included) : []), [scene])
@@ -1226,7 +1299,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
   const selectedTextTarget = useMemo<TextSelection | null>(() => {
     if (!selection) return null
-    return ['eyebrow', 'headline', 'subhead', 'footer'].includes(selection.kind) ? (selection as TextSelection) : null
+    return ['eyebrow', 'headline', 'subhead', 'footer', 'custom-text'].includes(selection.kind) ? (selection as TextSelection) : null
   }, [selection])
 
   useEffect(() => {
@@ -1236,6 +1309,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ? headlineRef.current
         : selection?.kind === 'headshot'
           ? headshotRef.current
+          : selection?.kind === 'custom-rect'
+            ? customRectRefs.current[selection.id] || null
+          : selection?.kind === 'custom-text'
+            ? customTextRefs.current[selection.id] || null
           : selection?.kind === 'towns'
             ? townStackRef.current
           : selection?.kind === 'towns-left'
@@ -1306,6 +1383,58 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }))
   }
 
+  const addCustomRect = () => {
+    updateScene((current) => ({
+      ...current,
+      customRects: [
+        ...current.customRects,
+        {
+          id: `custom-rect-${Date.now()}`,
+          x: 120,
+          y: 120,
+          width: 320,
+          height: 56,
+          fill: BRAND_RED,
+        },
+      ],
+    }))
+  }
+
+  const addCustomText = () => {
+    updateScene((current) => ({
+      ...current,
+      customTexts: [
+        ...current.customTexts,
+        {
+          id: `custom-text-${Date.now()}`,
+          x: 140,
+          y: 136,
+          width: 280,
+          text: 'Custom text',
+          fontSize: 28,
+          color: '#111111',
+          fontFamily: 'Arial',
+          fontStyle: '700',
+          lineHeight: 1.1,
+        },
+      ],
+    }))
+  }
+
+  const updateCustomRect = (rectID: string, patch: Partial<CustomRectElement>) => {
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.map((item) => (item.id === rectID ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const updateCustomText = (textID: string, patch: Partial<CustomTextElement>) => {
+    updateScene((current) => ({
+      ...current,
+      customTexts: current.customTexts.map((item) => (item.id === textID ? { ...item, ...patch } : item)),
+    }))
+  }
+
   const updateSelectionPosition = (x: number, y: number) => {
     if (!scene || !selection) return
     if (selection.kind === 'eyebrow') updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, x, y } }))
@@ -1328,6 +1457,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       })
     }
     if (selection.kind === 'headshot') updateScene((current) => ({ ...current, headshot: { ...current.headshot, x, y } }))
+    if (selection.kind === 'custom-rect') updateCustomRect(selection.id, { x, y })
+    if (selection.kind === 'custom-text') updateCustomText(selection.id, { x, y })
     if (selection.kind === 'towns') {
       updateScene((current) => {
         const rows = current.townRows.filter((row) => row.included)
@@ -1408,6 +1539,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (target.kind === 'eyebrow') return current.eyebrow
     if (target.kind === 'headline') return current.headline
     if (target.kind === 'subhead') return current.subhead
+    if (target.kind === 'custom-text') return current.customTexts.find((item) => item.id === target.id) || null
     return current.footer
   }
 
@@ -1416,6 +1548,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       if (target.kind === 'eyebrow') return { ...current, eyebrow: { ...current.eyebrow, ...patch } }
       if (target.kind === 'headline') return syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } })
       if (target.kind === 'subhead') return { ...current, subhead: { ...current.subhead, ...patch } }
+      if (target.kind === 'custom-text') {
+        return {
+          ...current,
+          customTexts: current.customTexts.map((item) => (item.id === target.id ? { ...item, ...patch } : item)),
+        }
+      }
       return { ...current, footer: { ...current.footer, ...patch } }
     })
   }
@@ -1801,7 +1939,59 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     </label>
                   </div>
                 )
-              : selection?.kind === 'town' && selectedTownRow
+              : selection?.kind === 'custom-rect' && selectedCustomRect
+                ? (
+                    <div style={slotCardStyle}>
+                      <strong style={{ fontSize: 13 }}>Selected: Rectangle</strong>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Fill</span>
+                        <input value={selectedCustomRect.fill} onChange={(event) => updateCustomRect(selectedCustomRect.id, { fill: event.target.value })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>X</span>
+                        <input type="number" value={Math.round(selectedCustomRect.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), selectedCustomRect.y)} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Y</span>
+                        <input type="number" value={Math.round(selectedCustomRect.y)} onChange={(event) => updateSelectionPosition(selectedCustomRect.x, Number(event.target.value))} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Width</span>
+                        <input type="number" value={Math.round(selectedCustomRect.width)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { width: Number(event.target.value) || selectedCustomRect.width })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Height</span>
+                        <input type="number" value={Math.round(selectedCustomRect.height)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { height: Number(event.target.value) || selectedCustomRect.height })} style={controlStyle} />
+                      </label>
+                    </div>
+                  )
+                : selection?.kind === 'custom-text' && selectedCustomText
+                  ? (
+                      <div style={slotCardStyle}>
+                        <strong style={{ fontSize: 13 }}>Selected: Text Box</strong>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Text</span>
+                          <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 90 }} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>X</span>
+                          <input type="number" value={Math.round(selectedCustomText.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), selectedCustomText.y)} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Y</span>
+                          <input type="number" value={Math.round(selectedCustomText.y)} onChange={(event) => updateSelectionPosition(selectedCustomText.x, Number(event.target.value))} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Width</span>
+                          <input type="number" value={Math.round(selectedCustomText.width)} onChange={(event) => updateCustomText(selectedCustomText.id, { width: Number(event.target.value) || selectedCustomText.width })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Font size</span>
+                          <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
+                        </label>
+                      </div>
+                    )
+                  : selection?.kind === 'town' && selectedTownRow
                   ? (
                       <div style={slotCardStyle}>
                         <strong style={{ fontSize: 13 }}>Selected: {selectedTownRow.town}</strong>
@@ -2140,6 +2330,26 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 style={controlStyle}
               />
             </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button
+                onClick={() => {
+                  addCustomRect()
+                  setMessage('Added rectangle')
+                }}
+                buttonStyle="secondary"
+              >
+                Add Rectangle
+              </Button>
+              <Button
+                onClick={() => {
+                  addCustomText()
+                  setMessage('Added text box')
+                }}
+                buttonStyle="secondary"
+              >
+                Add Text Box
+              </Button>
+            </div>
             <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
             <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               <label style={{ display: 'grid', gap: 6 }}>
@@ -2454,6 +2664,76 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
                 {activeMailSide === 'front' ? (
                   <>
+                    {scene.customRects.map((item) => (
+                      <Group
+                        key={item.id}
+                        ref={(node) => {
+                          customRectRefs.current[item.id] = node
+                        }}
+                        x={item.x}
+                        y={item.y}
+                        draggable
+                        onDragEnd={(event) => {
+                          setSelection({ kind: 'custom-rect', id: item.id })
+                          updateCustomRect(item.id, { x: event.target.x(), y: event.target.y() })
+                        }}
+                        onMouseDown={() => setSelection({ kind: 'custom-rect', id: item.id })}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const nextWidth = Math.max(40, Math.round(item.width * node.scaleX()))
+                          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateCustomRect(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                        }}
+                      >
+                        {selection?.kind === 'custom-rect' && selection.id === item.id ? (
+                          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                        ) : null}
+                        <Rect width={item.width} height={item.height} fill={item.fill} />
+                      </Group>
+                    ))}
+
+                    {scene.customTexts.map((item) => (
+                      <Group
+                        key={item.id}
+                        ref={(node) => {
+                          customTextRefs.current[item.id] = node
+                        }}
+                        x={item.x}
+                        y={item.y}
+                        draggable
+                        onDragEnd={(event) => {
+                          setSelection({ kind: 'custom-text', id: item.id })
+                          updateCustomText(item.id, { x: event.target.x(), y: event.target.y() })
+                        }}
+                        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
+                        onTransformStart={() => setIsResizingHeadline(true)}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateCustomText(item.id, { x: node.x(), y: node.y(), width: nextWidth })
+                          setIsResizingHeadline(false)
+                        }}
+                      >
+                        {selection?.kind === 'custom-text' && selection.id === item.id ? (
+                          <Rect x={-8} y={-8} width={item.width + 16} height={Math.max(item.fontSize * 2, 48)} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                        ) : null}
+                        <Text
+                          width={item.width}
+                          text={item.text}
+                          fontFamily={item.fontFamily || 'Arial'}
+                          fontSize={item.fontSize}
+                          fontStyle={item.fontStyle}
+                          fill={item.color}
+                          lineHeight={item.lineHeight || 1.1}
+                          textDecoration={item.textDecoration}
+                        />
+                      </Group>
+                    ))}
+
                     <Group
                       x={scene.eyebrow.x}
                       y={scene.eyebrow.y}
@@ -2613,6 +2893,76 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   </>
                 ) : (
                   <>
+                    {scene.customRects.map((item) => (
+                      <Group
+                        key={item.id}
+                        ref={(node) => {
+                          customRectRefs.current[item.id] = node
+                        }}
+                        x={item.x}
+                        y={item.y}
+                        draggable
+                        onDragEnd={(event) => {
+                          setSelection({ kind: 'custom-rect', id: item.id })
+                          updateCustomRect(item.id, { x: event.target.x(), y: event.target.y() })
+                        }}
+                        onMouseDown={() => setSelection({ kind: 'custom-rect', id: item.id })}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const nextWidth = Math.max(40, Math.round(item.width * node.scaleX()))
+                          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateCustomRect(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                        }}
+                      >
+                        {selection?.kind === 'custom-rect' && selection.id === item.id ? (
+                          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                        ) : null}
+                        <Rect width={item.width} height={item.height} fill={item.fill} />
+                      </Group>
+                    ))}
+
+                    {scene.customTexts.map((item) => (
+                      <Group
+                        key={item.id}
+                        ref={(node) => {
+                          customTextRefs.current[item.id] = node
+                        }}
+                        x={item.x}
+                        y={item.y}
+                        draggable
+                        onDragEnd={(event) => {
+                          setSelection({ kind: 'custom-text', id: item.id })
+                          updateCustomText(item.id, { x: event.target.x(), y: event.target.y() })
+                        }}
+                        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
+                        onTransformStart={() => setIsResizingHeadline(true)}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateCustomText(item.id, { x: node.x(), y: node.y(), width: nextWidth })
+                          setIsResizingHeadline(false)
+                        }}
+                      >
+                        {selection?.kind === 'custom-text' && selection.id === item.id ? (
+                          <Rect x={-8} y={-8} width={item.width + 16} height={Math.max(item.fontSize * 2, 48)} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                        ) : null}
+                        <Text
+                          width={item.width}
+                          text={item.text}
+                          fontFamily={item.fontFamily || 'Arial'}
+                          fontSize={item.fontSize}
+                          fontStyle={item.fontStyle}
+                          fill={item.color}
+                          lineHeight={item.lineHeight || 1.1}
+                          textDecoration={item.textDecoration}
+                        />
+                      </Group>
+                    ))}
+
                     <Group
                       x={scene.headshot.x}
                       y={scene.headshot.y}
@@ -2742,10 +3092,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 ref={transformerRef}
                 rotateEnabled={false}
                 flipEnabled={false}
+                keepRatio={selection?.kind === 'headshot'}
                 enabledAnchors={
-                  selection?.kind === 'headline'
+                  selection?.kind === 'headline' || selection?.kind === 'custom-text'
                     ? ['middle-left', 'middle-right']
-                    : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
+                    : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right' || selection?.kind === 'custom-rect'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'headshot'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
@@ -2759,6 +3110,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   if (selection?.kind === 'headline') {
                     const nextWidth = clamp(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
                     return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'custom-text') {
+                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'custom-rect') {
+                    return { ...newBox, width: Math.max(40, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
                   }
 
                   if (selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right') {
