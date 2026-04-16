@@ -571,18 +571,20 @@ const isPngBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('89504e47
 
 const isJpegBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('ffd8ff')
 
-const buildPdfBlobFromDataUrl = async (dataUrl: string) => {
+const buildPdfBlobFromDataUrls = async (dataUrls: string[]) => {
   const pdf = await PDFDocument.create()
-  const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
-  const bytes = await dataUrlToBytes(dataUrl)
-  const image = isPngBytes(bytes) ? await pdf.embedPng(bytes) : isJpegBytes(bytes) ? await pdf.embedJpg(bytes) : null
-  if (!image) throw new Error('Unsupported image format for PDF export')
-  page.drawImage(image, {
-    x: 0,
-    y: 0,
-    width: STAGE_WIDTH,
-    height: STAGE_HEIGHT,
-  })
+  for (const dataUrl of dataUrls) {
+    const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
+    const bytes = await dataUrlToBytes(dataUrl)
+    const image = isPngBytes(bytes) ? await pdf.embedPng(bytes) : isJpegBytes(bytes) ? await pdf.embedJpg(bytes) : null
+    if (!image) throw new Error('Unsupported image format for PDF export')
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: STAGE_WIDTH,
+      height: STAGE_HEIGHT,
+    })
+  }
   const pdfBytes = await pdf.save()
   return new Blob([pdfBytes], { type: 'application/pdf' })
 }
@@ -2120,13 +2122,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             throw new Error('Missing rendered export data')
           }
 
-          const [frontPdfBlob, backPdfBlob] = await Promise.all([
-            buildPdfBlobFromDataUrl(frontDataUrl),
-            buildPdfBlobFromDataUrl(backDataUrl),
-          ])
-
-          folder.file('front.pdf', frontPdfBlob)
-          folder.file('back.pdf', backPdfBlob)
+          const pdfBlob = await buildPdfBlobFromDataUrls([frontDataUrl, backDataUrl])
+          folder.file(`${folderName}.pdf`, pdfBlob)
           exportedCount += 1
         } catch (error) {
           skippedTenants.push({
