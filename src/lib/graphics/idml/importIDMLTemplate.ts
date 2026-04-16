@@ -140,14 +140,14 @@ const parseAttributes = (input: string) => {
 
 const parseBounds = (value: string | undefined): IDMLBounds | null => {
   if (!value) return null
-  const parts = value
+  const rawParts = value
     .trim()
     .split(/\s+/)
     .map((part) => Number(part))
 
-  if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) return null
+  if (rawParts.length !== 4 || rawParts.some((part) => !Number.isFinite(part))) return null
 
-  const [top, left, bottom, right] = parts
+  const [top, left, bottom, right] = rawParts as [number, number, number, number]
   return {
     top,
     left,

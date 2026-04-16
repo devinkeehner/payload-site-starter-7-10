@@ -137,6 +137,8 @@ type ExportRequest = {
   backScene?: ExperimentalTownScene
   frontCircularHeadshotDataUrl?: string | null
   backCircularHeadshotDataUrl?: string | null
+  frontDataUrl?: string
+  backDataUrl?: string
 }
 
 const normalizeHexColor = (value: string | null | undefined, fallback = '000000') => {
@@ -158,6 +160,20 @@ const formatCurrency = (value: number) =>
     currency: 'USD',
     maximumFractionDigits: 0,
   }).format(value || 0)
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+const measureTownLabelWidth = (town: string, fontSize = 36) => {
+  const text = String(town || '').toUpperCase()
+  let units = 0
+  for (const char of text) {
+    if (char === ' ') units += 0.38
+    else if ('IJ'.includes(char)) units += 0.42
+    else if ('MW'.includes(char)) units += 0.92
+    else units += 0.66
+  }
+  return clamp(Math.ceil(units * fontSize) + 44, 90, 760)
+}
 
 const measureWrappedTextHeight = ({
   text,
@@ -219,11 +235,13 @@ const addTextBlock = (
 }
 
 const renderSceneToSlide = ({
+  pptx,
   slide,
   scene,
   headshotDataUrl,
   includePlaceholder,
 }: {
+  pptx: PptxGenJS
   slide: PptxGenJS.Slide
   scene: ExperimentalTownScene
   headshotDataUrl?: string | null
@@ -232,7 +250,7 @@ const renderSceneToSlide = ({
   slide.background = { color: 'F7F4EF' }
 
   for (const item of scene.customRects || []) {
-    slide.addShape(PptxGenJS.ShapeType.rect, {
+    slide.addShape(pptx.ShapeType.rect, {
       x: toPptxX(item.x),
       y: toPptxY(item.y),
       w: toPptxW(item.width),
@@ -246,7 +264,7 @@ const renderSceneToSlide = ({
     addTextBlock(slide, item)
   }
 
-  slide.addShape(PptxGenJS.ShapeType.rect, {
+  slide.addShape(pptx.ShapeType.rect, {
     x: toPptxX(scene.eyebrow.x),
     y: toPptxY(scene.eyebrow.y),
     w: toPptxW(scene.eyebrow.barWidth),
@@ -276,7 +294,7 @@ const renderSceneToSlide = ({
 
   addTextBlock(slide, scene.headline)
 
-  slide.addShape(PptxGenJS.ShapeType.rect, {
+  slide.addShape(pptx.ShapeType.rect, {
     x: toPptxX(scene.subhead.x),
     y: toPptxY(scene.subhead.y),
     w: toPptxW(scene.subhead.dividerWidth),
@@ -305,10 +323,11 @@ const renderSceneToSlide = ({
   })
 
   for (const row of (scene.townRows || []).filter((item) => item.included)) {
-    slide.addShape(PptxGenJS.ShapeType.rect, {
+    const renderedLabelWidth = measureTownLabelWidth(row.town, row.townFontSize)
+    slide.addShape(pptx.ShapeType.rect, {
       x: toPptxX(row.labelX),
       y: toPptxY(row.labelY),
-      w: toPptxW(row.labelWidth),
+      w: toPptxW(renderedLabelWidth),
       h: toPptxH(row.labelHeight),
       line: { color: normalizeHexColor(row.labelColor), transparency: 100 },
       fill: { color: normalizeHexColor(row.labelColor) },
@@ -316,8 +335,8 @@ const renderSceneToSlide = ({
 
     slide.addText(String(row.town || '').toUpperCase(), {
       x: toPptxX(row.labelX + 14),
-      y: toPptxY(row.labelY + 8 + BAR_TEXT_Y_ADJUST),
-      w: toPptxW(Math.max(row.labelWidth - 22, 60)),
+      y: toPptxY(row.labelY + 9 + BAR_TEXT_Y_ADJUST),
+      w: toPptxW(Math.max(renderedLabelWidth - 14, 60)),
       h: toPptxH(row.labelHeight),
       fontFace: 'Arial',
       fontSize: toPptxFontSize(row.townFontSize),
@@ -343,7 +362,7 @@ const renderSceneToSlide = ({
     })
   }
 
-  slide.addShape(PptxGenJS.ShapeType.rect, {
+  slide.addShape(pptx.ShapeType.rect, {
     x: toPptxX(scene.footer.x),
     y: toPptxY(scene.footer.y),
     w: toPptxW(scene.footer.width),
@@ -382,7 +401,7 @@ const renderSceneToSlide = ({
   }
 
   if (includePlaceholder) {
-    slide.addShape(PptxGenJS.ShapeType.roundRect, {
+    slide.addShape(pptx.ShapeType.roundRect, {
       x: toPptxX(STAGE_WIDTH - PLACEHOLDER_WIDTH),
       y: toPptxY(STAGE_HEIGHT - PLACEHOLDER_HEIGHT),
       w: toPptxW(PLACEHOLDER_WIDTH),
@@ -399,10 +418,6 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as ExportRequest
     const frontScene = body.frontScene
     const backScene = body.backScene
-
-    if (!frontScene || !backScene) {
-      return new NextResponse('Missing PPTX export payload', { status: 400 })
-    }
 
     const filenameBase = (body.filenameBase || 'town-graphic')
       .toLowerCase()
@@ -421,21 +436,43 @@ export async function POST(req: NextRequest) {
       bodyFontFace: 'Arial',
     }
 
-    const frontSlide = pptx.addSlide()
-    renderSceneToSlide({
-      slide: frontSlide,
-      scene: frontScene,
-      headshotDataUrl: body.frontCircularHeadshotDataUrl,
-      includePlaceholder: true,
-    })
+    if (frontScene && backScene) {
+      const frontSlide = pptx.addSlide()
+      renderSceneToSlide({
+        pptx,
+        slide: frontSlide,
+        scene: frontScene,
+        headshotDataUrl: body.frontCircularHeadshotDataUrl,
+        includePlaceholder: true,
+      })
 
-    const backSlide = pptx.addSlide()
-    renderSceneToSlide({
-      slide: backSlide,
-      scene: backScene,
-      headshotDataUrl: body.backCircularHeadshotDataUrl,
-      includePlaceholder: false,
-    })
+      const backSlide = pptx.addSlide()
+      renderSceneToSlide({
+        pptx,
+        slide: backSlide,
+        scene: backScene,
+        headshotDataUrl: body.backCircularHeadshotDataUrl,
+        includePlaceholder: false,
+      })
+    } else if (body.frontDataUrl && body.backDataUrl) {
+      ;[
+        { data: body.frontDataUrl },
+        { data: body.backDataUrl },
+      ].forEach((side) => {
+        const slide = pptx.addSlide()
+        slide.background = { color: 'F3F4F6' }
+        slide.addImage({
+          data: side.data,
+          x: 0,
+          y: 0,
+          w: PPTX_WIDTH_IN,
+          h: PPTX_HEIGHT_IN,
+        })
+      })
+    } else {
+      const receivedKeys = Object.keys(body || {}).join(', ')
+      return new NextResponse(`Missing PPTX export payload. Received keys: ${receivedKeys || 'none'}`, { status: 400 })
+    }
 
     const output = (await pptx.write({
       outputType: 'nodebuffer',
