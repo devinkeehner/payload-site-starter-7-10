@@ -6,7 +6,7 @@ import type Konva from 'konva'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 
@@ -32,7 +32,7 @@ const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
 const MAIL_SCENE_BUNDLE_KIND = 'graphics-editor-mail-bundle/v1'
-const EXPORT_ALL_REP_COOLDOWN_MS = 350
+const EXPORT_ALL_REP_COOLDOWN_MS = 1000
 const TEXT_FONT_OPTIONS = [
   { label: 'Arial', value: 'Arial' },
   { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
@@ -557,38 +557,6 @@ function dataUrlToBlob(dataUrl: string) {
   return new Blob([bytes], { type: mime })
 }
 
-const dataUrlToBytes = (dataUrl: string) => {
-  const blob = dataUrlToBlob(dataUrl)
-  return blob.arrayBuffer().then((buffer) => new Uint8Array(buffer))
-}
-
-const bytesToHex = (bytes: Uint8Array) =>
-  Array.from(bytes)
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('')
-
-const isPngBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('89504e470d0a1a0a')
-
-const isJpegBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('ffd8ff')
-
-const buildPdfBlobFromDataUrls = async (dataUrls: string[]) => {
-  const pdf = await PDFDocument.create()
-  for (const dataUrl of dataUrls) {
-    const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
-    const bytes = await dataUrlToBytes(dataUrl)
-    const image = isPngBytes(bytes) ? await pdf.embedPng(bytes) : isJpegBytes(bytes) ? await pdf.embedJpg(bytes) : null
-    if (!image) throw new Error('Unsupported image format for PDF export')
-    page.drawImage(image, {
-      x: 0,
-      y: 0,
-      width: STAGE_WIDTH,
-      height: STAGE_HEIGHT,
-    })
-  }
-  const pdfBytes = await pdf.save()
-  return new Blob([pdfBytes], { type: 'application/pdf' })
-}
-
 const buildCircularHeadshotDataUrl = async ({
   image,
   placement,
@@ -616,6 +584,375 @@ const buildCircularHeadshotDataUrl = async ({
   context.restore()
 
   return canvas.toDataURL('image/png')
+}
+
+const bytesToHex = (bytes: Uint8Array) =>
+  Array.from(bytes)
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('')
+
+const dataUrlToBytes = async (dataUrl: string) => {
+  const blob = dataUrlToBlob(dataUrl)
+  const buffer = await blob.arrayBuffer()
+  return new Uint8Array(buffer)
+}
+
+const isPngBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('89504e470d0a1a0a')
+
+const isJpegBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('ffd8ff')
+
+const colorToRgb = (value: string, fallback = '#000000') => {
+  const normalized = (value || fallback).trim()
+  const match = normalized.match(/^#?([0-9a-f]{6})$/i)
+  if (!match?.[1]) return rgb(0, 0, 0)
+  const hex = match[1]
+  return rgb(
+    Number.parseInt(hex.slice(0, 2), 16) / 255,
+    Number.parseInt(hex.slice(2, 4), 16) / 255,
+    Number.parseInt(hex.slice(4, 6), 16) / 255,
+  )
+}
+
+const getPdfFontName = (fontFamily?: string, fontStyle?: string) => {
+  const family = (fontFamily || '').toLowerCase()
+  const style = (fontStyle || '').toLowerCase()
+  const isBold = style.includes('700') || style.includes('bold')
+  const isItalic = style.includes('italic') || style.includes('oblique')
+  const prefersSerif = family.includes('georgia') || family.includes('times')
+
+  if (prefersSerif) {
+    if (isBold && isItalic) return StandardFonts.TimesRomanBoldItalic
+    if (isBold) return StandardFonts.TimesRomanBold
+    if (isItalic) return StandardFonts.TimesRomanItalic
+    return StandardFonts.TimesRoman
+  }
+
+  if (isBold && isItalic) return StandardFonts.HelveticaBoldOblique
+  if (isBold) return StandardFonts.HelveticaBold
+  if (isItalic) return StandardFonts.HelveticaOblique
+  return StandardFonts.Helvetica
+}
+
+const drawWrappedPdfText = async ({
+  doc,
+  page,
+  text,
+  x,
+  y,
+  width,
+  fontFamily,
+  fontStyle,
+  fontSize,
+  color,
+  lineHeight,
+}: {
+  doc: PDFDocument
+  page: import('pdf-lib').PDFPage
+  text: string
+  x: number
+  y: number
+  width: number
+  fontFamily?: string
+  fontStyle?: string
+  fontSize: number
+  color: string
+  lineHeight?: number
+}) => {
+  const font = await doc.embedFont(getPdfFontName(fontFamily, fontStyle))
+  const lines = wrapTextToWidth(text || '', `${fontSize}px ${fontFamily || 'Arial'}`, width)
+  const lineGap = fontSize * (lineHeight || 1.1)
+
+  lines.forEach((line, index) => {
+    page.drawText(line, {
+      x,
+      y: STAGE_HEIGHT - y - fontSize - index * lineGap,
+      size: fontSize,
+      font,
+      color: colorToRgb(color),
+    })
+  })
+}
+
+const drawPdfImageBytes = async ({
+  doc,
+  page,
+  assetBytes,
+  x,
+  y,
+  width,
+  height,
+}: {
+  doc: PDFDocument
+  page: import('pdf-lib').PDFPage
+  assetBytes: Uint8Array
+  x: number
+  y: number
+  width: number
+  height: number
+}) => {
+  const image = isPngBytes(assetBytes) ? await doc.embedPng(assetBytes) : isJpegBytes(assetBytes) ? await doc.embedJpg(assetBytes) : null
+  if (!image) throw new Error('Unsupported image format for PDF export')
+  page.drawImage(image, {
+    x,
+    y: STAGE_HEIGHT - y - height,
+    width,
+    height,
+  })
+}
+
+const buildRectanglePngBytes = ({
+  width,
+  height,
+  color,
+}: {
+  width: number
+  height: number
+  color: string
+}) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(width))
+  canvas.height = Math.max(1, Math.round(height))
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('Failed to build rectangle image for PDF export')
+  context.fillStyle = color
+  context.fillRect(0, 0, canvas.width, canvas.height)
+  return dataUrlToBytes(canvas.toDataURL('image/png'))
+}
+
+const buildPdfBlobFromSceneBundle = async ({
+  bundle,
+  headshotImage,
+}: {
+  bundle: MailSceneBundle
+  headshotImage: HTMLImageElement | null
+}) => {
+  const pdf = await PDFDocument.create()
+
+  const drawScenePage = async (scene: ExperimentalTownScene, options: { includePlaceholder: boolean }) => {
+    const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
+
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width: STAGE_WIDTH,
+      height: STAGE_HEIGHT,
+      color: colorToRgb('#f7f4ef'),
+    })
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width: STAGE_WIDTH,
+      height: STAGE_HEIGHT,
+      color: rgb(1, 1, 1),
+      opacity: 0.66,
+    })
+
+    for (const item of scene.customRects) {
+      const rectBytes = await buildRectanglePngBytes({
+        width: item.width,
+        height: item.height,
+        color: item.fill,
+      })
+      await drawPdfImageBytes({
+        doc: pdf,
+        page,
+        assetBytes: rectBytes,
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        height: item.height,
+      })
+    }
+
+    for (const item of scene.customTexts) {
+      await drawWrappedPdfText({
+        doc: pdf,
+        page,
+        text: item.text,
+        x: item.x,
+        y: item.y,
+        width: item.width,
+        fontFamily: item.fontFamily,
+        fontStyle: item.fontStyle,
+        fontSize: item.fontSize,
+        color: item.color,
+        lineHeight: item.lineHeight,
+      })
+    }
+
+    const eyebrowBarBytes = await buildRectanglePngBytes({
+      width: scene.eyebrow.barWidth,
+      height: scene.eyebrow.barHeight,
+      color: scene.eyebrow.backgroundColor,
+    })
+    await drawPdfImageBytes({
+      doc: pdf,
+      page,
+      assetBytes: eyebrowBarBytes,
+      x: scene.eyebrow.x,
+      y: scene.eyebrow.y,
+      width: scene.eyebrow.barWidth,
+      height: scene.eyebrow.barHeight,
+    })
+
+    await drawWrappedPdfText({
+      doc: pdf,
+      page,
+      text: scene.eyebrow.text,
+      x: scene.eyebrow.x + scene.eyebrow.paddingX,
+      y: scene.eyebrow.y + scene.eyebrow.paddingY,
+      width: scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2,
+      fontFamily: scene.eyebrow.fontFamily,
+      fontStyle: scene.eyebrow.fontStyle,
+      fontSize: scene.eyebrow.fontSize,
+      color: scene.eyebrow.color,
+      lineHeight: scene.eyebrow.lineHeight,
+    })
+
+    await drawWrappedPdfText({
+      doc: pdf,
+      page,
+      text: scene.headline.text,
+      x: scene.headline.x,
+      y: scene.headline.y,
+      width: scene.headline.width,
+      fontFamily: scene.headline.fontFamily,
+      fontStyle: scene.headline.fontStyle,
+      fontSize: scene.headline.fontSize,
+      color: scene.headline.color,
+      lineHeight: scene.headline.lineHeight,
+    })
+
+    page.drawRectangle({
+      x: scene.subhead.x,
+      y: STAGE_HEIGHT - scene.subhead.y - scene.subhead.dividerHeight,
+      width: scene.subhead.dividerWidth,
+      height: scene.subhead.dividerHeight,
+      color: colorToRgb(scene.subhead.dividerColor),
+    })
+
+    await drawWrappedPdfText({
+      doc: pdf,
+      page,
+      text: scene.subhead.text,
+      x: scene.subhead.x,
+      y: scene.subhead.y + 14,
+      width: Math.max(scene.subhead.dividerWidth + 120, 320),
+      fontFamily: scene.subhead.fontFamily,
+      fontStyle: scene.subhead.fontStyle,
+      fontSize: scene.subhead.fontSize,
+      color: scene.subhead.color,
+    })
+
+    for (const row of scene.townRows.filter((nextRow) => nextRow.included)) {
+      const renderedLabelWidth = getRenderedTownLabelWidth(row)
+      const townBarBytes = await buildRectanglePngBytes({
+        width: renderedLabelWidth,
+        height: row.labelHeight,
+        color: row.labelColor,
+      })
+      await drawPdfImageBytes({
+        doc: pdf,
+        page,
+        assetBytes: townBarBytes,
+        x: row.labelX,
+        y: row.labelY,
+        width: renderedLabelWidth,
+        height: row.labelHeight,
+      })
+
+      await drawWrappedPdfText({
+        doc: pdf,
+        page,
+        text: row.town.toUpperCase(),
+        x: row.labelX + 14,
+        y: row.labelY + 7,
+        width: Math.max(renderedLabelWidth - 14, 60),
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        fontSize: row.townFontSize,
+        color: '#ffffff',
+      })
+
+      await drawWrappedPdfText({
+        doc: pdf,
+        page,
+        text: formatCurrency(row.strapAid),
+        x: row.amountX,
+        y: row.amountY,
+        width: 420,
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        fontSize: row.amountFontSize,
+        color: row.textColor,
+      })
+    }
+
+    const footerBarBytes = await buildRectanglePngBytes({
+      width: scene.footer.width,
+      height: scene.footer.height,
+      color: scene.footer.backgroundColor,
+    })
+    await drawPdfImageBytes({
+      doc: pdf,
+      page,
+      assetBytes: footerBarBytes,
+      x: scene.footer.x,
+      y: scene.footer.y,
+      width: scene.footer.width,
+      height: scene.footer.height,
+    })
+
+    await drawWrappedPdfText({
+      doc: pdf,
+      page,
+      text: scene.footer.text,
+      x: scene.footer.textX,
+      y: scene.footer.textY,
+      width: scene.footer.width - scene.footer.textX - 32,
+      fontFamily: scene.footer.fontFamily || 'Arial',
+      fontStyle: scene.footer.fontStyle,
+      fontSize: scene.footer.fontSize,
+      color: scene.footer.color,
+    })
+
+    const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
+    const circularHeadshotDataUrl = await buildCircularHeadshotDataUrl({
+      image: headshotImage,
+      placement: headshotPlacement,
+      size: scene.headshot.size,
+    })
+
+    if (circularHeadshotDataUrl) {
+      await drawPdfImageBytes({
+        doc: pdf,
+        page,
+        assetBytes: await dataUrlToBytes(circularHeadshotDataUrl),
+        x: scene.headshot.x,
+        y: scene.headshot.y,
+        width: scene.headshot.size,
+        height: scene.headshot.size,
+      })
+    }
+
+    if (options.includePlaceholder) {
+      page.drawRectangle({
+        x: STAGE_WIDTH - MAIL_PLACEHOLDER_WIDTH,
+        y: 0,
+        width: MAIL_PLACEHOLDER_WIDTH,
+        height: MAIL_PLACEHOLDER_HEIGHT,
+        color: colorToRgb('#ffffff'),
+        borderColor: colorToRgb('#94a3b8'),
+        borderWidth: 2,
+      })
+    }
+  }
+
+  await drawScenePage(bundle.frontScene, { includePlaceholder: true })
+  await drawScenePage(bundle.backScene, { includePlaceholder: false })
+
+  const pdfBytes = await pdf.save()
+  return new Blob([pdfBytes], { type: 'application/pdf' })
 }
 
 const buildDesignTitle = (tenantName: string | undefined | null, fallback: string) =>
@@ -1922,28 +2259,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     return dataUrl
   }
 
-  const exportSideDataUrl = async (side: MailSide) => {
-    const previousSide = activeMailSideRef.current
-    const previousSelection = selectionRef.current
-
-    if (previousSide !== side) {
-      setSelection(null)
-      setInlineTextEditor(null)
-      setActiveMailSide(side)
-      await waitForStagePaint()
-    }
-
-    const dataUrl = await exportStageDataUrl()
-
-    if (previousSide !== side) {
-      setActiveMailSide(previousSide)
-      await waitForStagePaint()
-      setSelection(previousSelection)
-    }
-
-    return dataUrl
-  }
-
   const saveToMediaGallery = async () => {
     if (!scene) return
     setSavingMedia(true)
@@ -2114,15 +2429,18 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           setTenant({ id: option.value, refresh: true })
           await waitForTenantReady(option.value)
 
-          const [frontDataUrl, backDataUrl] = await Promise.all([exportSideDataUrl('front'), exportSideDataUrl('back')])
           const folderName = option.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
           const folder = zip.folder(folderName)
+          const bundle = getCurrentSceneBundle()
 
-          if (!frontDataUrl || !backDataUrl || !folder) {
-            throw new Error('Missing rendered export data')
+          if (!folder || !bundle) {
+            throw new Error('Missing scene bundle for PDF export')
           }
 
-          const pdfBlob = await buildPdfBlobFromDataUrls([frontDataUrl, backDataUrl])
+          const pdfBlob = await buildPdfBlobFromSceneBundle({
+            bundle,
+            headshotImage: headshotImageRef.current,
+          })
           folder.file(`${folderName}.pdf`, pdfBlob)
           exportedCount += 1
         } catch (error) {
