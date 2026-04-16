@@ -6,23 +6,25 @@ import type Konva from 'konva'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
+import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
 
-const STAGE_WIDTH = 1200
-const STAGE_HEIGHT = 1600
+const BASE_CANVAS_WIDTH = 1200
+const BASE_CANVAS_HEIGHT = 1600
+const STAGE_WIDTH = 1600
+const STAGE_HEIGHT = 1000
 const MAX_PREVIEW_WIDTH = 760
 const MAX_PREVIEW_HEIGHT = 900
 const SCENE_KIND = 'experimental-town-graphic/v1'
-const MAIL_SIDE_BLOCK_WIDTH = 360
-const MAIL_SIDE_BLOCK_HEIGHT = 220
-const MAIL_SIDE_BLOCK_MARGIN = 32
-const MAIL_SIDE_BLOCK_LABEL = 'SIDE 1'
-const BRAND_BLUE = '#1d2f8c'
-const BRAND_RED = '#c3202f'
-const BRAND_COLORS = [BRAND_BLUE, '#8ea4ea', BRAND_RED, '#ffffff', '#111827']
+type MailSide = 'front' | 'back'
+const DEFAULT_MAIL_SIDE: MailSide = 'front'
+const BRAND_BLUE = '#6b7280'
+const BRAND_RED = '#334155'
+const BRAND_COLORS = [BRAND_BLUE, '#9ca3af', BRAND_RED, '#ffffff', '#111827']
 const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
+const MAIL_PLACEHOLDER_WIDTH = 560
+const MAIL_PLACEHOLDER_HEIGHT = 364
 const HEADLINE_WIDTH_LIMITS = { min: 240, max: 1060 }
 const TOWN_LABEL_WIDTH_LIMITS = { min: 90, max: 760 }
 const TOWN_LABEL_HEIGHT_LIMITS = { min: 24, max: 84 }
@@ -102,6 +104,11 @@ type DesignDoc = {
   notes?: string | null
 }
 
+type MailEditorNotes = {
+  mode: 'graphics-editor-mail'
+  selectedTenantID?: string | null
+}
+
 type SceneTextElement = {
   id: string
   x: number
@@ -167,6 +174,9 @@ type HeadshotElement = {
   }
 }
 
+const sanitizeTemplateDoc = (item: TemplateDoc) => ({ ...item, backgroundImage: null })
+const sanitizeDesignDoc = (item: DesignDoc) => ({ ...item, backgroundImage: null })
+
 type TownSceneRow = {
   id: string
   townKey: string
@@ -228,12 +238,6 @@ const getMediaDoc = (value: unknown): MediaDoc | null =>
   value && typeof value === 'object' && typeof (value as Record<string, unknown>).id === 'string'
     ? (value as MediaDoc)
     : null
-
-const getMediaID = (value: unknown): string | null => {
-  if (typeof value === 'string' && value) return value
-  const mediaDoc = getMediaDoc(value)
-  return mediaDoc?.id || null
-}
 
 const proxiedUrl = (url: string | undefined | null) => {
   if (typeof url !== 'string' || !url) return undefined
@@ -484,270 +488,6 @@ function dataUrlToBlob(dataUrl: string) {
   return new Blob([bytes], { type: mime })
 }
 
-const dataUrlToBytes = (dataUrl: string) => {
-  const [, content] = dataUrl.split(',')
-  const binary = atob(content || '')
-  const bytes = new Uint8Array(binary.length)
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
-  return bytes
-}
-
-const bytesToHex = (bytes: Uint8Array) => Array.from(bytes.slice(0, 8)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
-
-const isPngBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('89504e470d0a1a0a')
-
-const isJpegBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('ffd8ff')
-
-const htmlImageToPngBytes = (image: HTMLImageElement) => {
-  const width = Math.max(1, image.naturalWidth || image.width || 1)
-  const height = Math.max(1, image.naturalHeight || image.height || 1)
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Failed to rasterize image for PDF export')
-  context.drawImage(image, 0, 0, width, height)
-  return dataUrlToBytes(canvas.toDataURL('image/png'))
-}
-
-const colorToRgb = (value: string, fallback = '#000000') => {
-  const normalized = (value || fallback).trim()
-  const match = normalized.match(/^#?([0-9a-f]{6})$/i)
-  if (!match?.[1]) return rgb(0, 0, 0)
-  const hex = match[1]
-  return rgb(
-    Number.parseInt(hex.slice(0, 2), 16) / 255,
-    Number.parseInt(hex.slice(2, 4), 16) / 255,
-    Number.parseInt(hex.slice(4, 6), 16) / 255,
-  )
-}
-
-const getPdfFontName = (fontFamily?: string, fontStyle?: string) => {
-  const family = (fontFamily || '').toLowerCase()
-  const style = (fontStyle || '').toLowerCase()
-  const isBold = style.includes('700') || style.includes('bold')
-  const isItalic = style.includes('italic') || style.includes('oblique')
-  const prefersSerif = family.includes('georgia') || family.includes('times')
-
-  if (prefersSerif) {
-    if (isBold && isItalic) return StandardFonts.TimesRomanBoldItalic
-    if (isBold) return StandardFonts.TimesRomanBold
-    if (isItalic) return StandardFonts.TimesRomanItalic
-    return StandardFonts.TimesRoman
-  }
-
-  if (isBold && isItalic) return StandardFonts.HelveticaBoldOblique
-  if (isBold) return StandardFonts.HelveticaBold
-  if (isItalic) return StandardFonts.HelveticaOblique
-  return StandardFonts.Helvetica
-}
-
-const drawWrappedPdfText = async ({
-  doc,
-  page,
-  text,
-  x,
-  y,
-  width,
-  fontFamily,
-  fontStyle,
-  fontSize,
-  color,
-  lineHeight,
-}: {
-  doc: PDFDocument
-  page: import('pdf-lib').PDFPage
-  text: string
-  x: number
-  y: number
-  width: number
-  fontFamily?: string
-  fontStyle?: string
-  fontSize: number
-  color: string
-  lineHeight?: number
-}) => {
-  const font = await doc.embedFont(getPdfFontName(fontFamily, fontStyle))
-  const lines = wrapTextToWidth(text || '', `${fontSize}px ${fontFamily || 'Arial'}`, width)
-  const lineGap = fontSize * (lineHeight || 1.1)
-
-  lines.forEach((line, index) => {
-    page.drawText(line, {
-      x,
-      y: STAGE_HEIGHT - y - fontSize - index * lineGap,
-      size: fontSize,
-      font,
-      color: colorToRgb(color),
-    })
-  })
-}
-
-const drawPdfImageBytes = async ({
-  doc,
-  page,
-  assetBytes,
-  x,
-  y,
-  width,
-  height,
-}: {
-  doc: PDFDocument
-  page: import('pdf-lib').PDFPage
-  assetBytes: Uint8Array
-  x: number
-  y: number
-  width: number
-  height: number
-}) => {
-  const image = isPngBytes(assetBytes) ? await doc.embedPng(assetBytes) : isJpegBytes(assetBytes) ? await doc.embedJpg(assetBytes) : null
-  if (!image) throw new Error('Unsupported image format for PDF export')
-  page.drawImage(image, {
-    x,
-    y: STAGE_HEIGHT - y - height,
-    width,
-    height,
-  })
-}
-
-const buildCircularHeadshotDataUrl = async ({
-  image,
-  placement,
-  size,
-}: {
-  image: HTMLImageElement | null
-  placement: { x: number; y: number; width: number; height: number }
-  size: number
-}) => {
-  if (!image) return null
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(size * 2))
-  canvas.height = Math.max(1, Math.round(size * 2))
-  const context = canvas.getContext('2d')
-  if (!context) return null
-  const scale = canvas.width / size
-
-  context.save()
-  context.scale(scale, scale)
-  context.beginPath()
-  context.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2)
-  context.closePath()
-  context.clip()
-  context.drawImage(image, placement.x, placement.y, placement.width, placement.height)
-  context.restore()
-
-  return canvas.toDataURL('image/png')
-}
-
-const buildRectanglePngBytes = ({
-  width,
-  height,
-  color,
-}: {
-  width: number
-  height: number
-  color: string
-}) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(width))
-  canvas.height = Math.max(1, Math.round(height))
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Failed to build rectangle image for PDF export')
-  context.fillStyle = color
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  return dataUrlToBytes(canvas.toDataURL('image/png'))
-}
-
-const buildRectangleDataUrl = ({
-  width,
-  height,
-  color,
-}: {
-  width: number
-  height: number
-  color: string
-}) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(width))
-  canvas.height = Math.max(1, Math.round(height))
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Failed to build rectangle image for export')
-  context.fillStyle = color
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL('image/png')
-}
-
-const buildBackgroundPdfBytes = ({
-  image,
-  placement,
-  overlayOpacity,
-}: {
-  image: HTMLImageElement | null
-  placement: { x: number; y: number; width: number; height: number }
-  overlayOpacity: number
-}) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = STAGE_WIDTH
-  canvas.height = STAGE_HEIGHT
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Failed to build background image for PDF export')
-
-  context.fillStyle = '#f7f4ef'
-  context.fillRect(0, 0, canvas.width, canvas.height)
-
-  if (image) {
-    context.drawImage(image, placement.x, placement.y, placement.width, placement.height)
-  }
-
-  context.fillStyle = `rgba(255,255,255,${overlayOpacity})`
-  context.fillRect(0, 0, canvas.width, canvas.height)
-
-  return dataUrlToBytes(canvas.toDataURL('image/png'))
-}
-
-const buildBackgroundDataUrl = ({
-  image,
-  placement,
-  overlayOpacity,
-}: {
-  image: HTMLImageElement | null
-  placement: { x: number; y: number; width: number; height: number }
-  overlayOpacity: number
-}) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = STAGE_WIDTH
-  canvas.height = STAGE_HEIGHT
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Failed to build background image for export')
-
-  context.fillStyle = '#f7f4ef'
-  context.fillRect(0, 0, canvas.width, canvas.height)
-
-  if (image) {
-    context.drawImage(image, placement.x, placement.y, placement.width, placement.height)
-  }
-
-  context.fillStyle = `rgba(255,255,255,${overlayOpacity})`
-  context.fillRect(0, 0, canvas.width, canvas.height)
-
-  return canvas.toDataURL('image/png')
-}
-
-const stripDataUrlPrefix = (dataUrl: string) => dataUrl.replace(/^data:/, '')
-
-const normalizeHexColor = (value: string, fallback = '000000') => {
-  const normalized = (value || fallback).trim().replace(/^#/, '')
-  return /^[0-9a-f]{6}$/i.test(normalized) ? normalized : fallback
-}
-
-const dedupeMediaOptions = (docs: MediaDoc[]) => {
-  const seen = new Set<string>()
-  return docs.filter((item) => {
-    if (!item.id || seen.has(item.id)) return false
-    seen.add(item.id)
-    return true
-  })
-}
-
 const buildDesignTitle = (tenantName: string | undefined | null, fallback: string) =>
   tenantName ? `${tenantName} Town Graphic` : fallback || 'Town Graphic'
 
@@ -768,14 +508,6 @@ const buildDesignSearchParams = (tenantID: string) => {
   return params
 }
 
-const buildMediaSearchParams = (tenantID: string) =>
-  new URLSearchParams({
-    limit: '36',
-    depth: '0',
-    sort: '-updatedAt',
-    'where[tenant][equals]': tenantID,
-  })
-
 const isExperimentalScene = (value: unknown): value is ExperimentalTownScene =>
   asRecord(value).kind === SCENE_KIND
 
@@ -783,6 +515,203 @@ const hasSuperRole = (value: unknown) => {
   if (!value || typeof value !== 'object') return false
   const roles = (value as { roles?: unknown }).roles
   return Array.isArray(roles) && roles.includes('super')
+}
+
+const parseMailEditorNotes = (value: string | null | undefined): MailEditorNotes | null => {
+  if (!value) return null
+  try {
+    const parsed = JSON.parse(value) as Record<string, unknown>
+    if (parsed.mode !== 'graphics-editor-mail') return null
+    return {
+      mode: 'graphics-editor-mail',
+      selectedTenantID: typeof parsed.selectedTenantID === 'string' ? parsed.selectedTenantID : null,
+    }
+  } catch {
+    return null
+  }
+}
+
+const stringifyMailEditorNotes = (selectedTenantID: string | null | undefined) =>
+  JSON.stringify({
+    mode: 'graphics-editor-mail',
+    selectedTenantID: selectedTenantID || null,
+  } satisfies MailEditorNotes)
+
+const scaleBaseScene = (scene: ExperimentalTownScene) => {
+  const scaleX = STAGE_WIDTH / BASE_CANVAS_WIDTH
+  const scaleY = STAGE_HEIGHT / BASE_CANVAS_HEIGHT
+
+  return {
+    ...scene,
+    eyebrow: {
+      ...scene.eyebrow,
+      x: scene.eyebrow.x * scaleX,
+      y: scene.eyebrow.y * scaleY,
+      width: scene.eyebrow.width * scaleX,
+      fontSize: scene.eyebrow.fontSize * scaleY,
+      barWidth: scene.eyebrow.barWidth * scaleX,
+      barHeight: scene.eyebrow.barHeight * scaleY,
+      paddingX: scene.eyebrow.paddingX * scaleX,
+      paddingY: scene.eyebrow.paddingY * scaleY,
+    },
+    headline: {
+      ...scene.headline,
+      x: scene.headline.x * scaleX,
+      y: scene.headline.y * scaleY,
+      width: scene.headline.width * scaleX,
+      fontSize: scene.headline.fontSize * scaleY,
+    },
+    subhead: {
+      ...scene.subhead,
+      x: scene.subhead.x * scaleX,
+      y: scene.subhead.y * scaleY,
+      dividerWidth: scene.subhead.dividerWidth * scaleX,
+      dividerHeight: scene.subhead.dividerHeight * scaleY,
+      fontSize: scene.subhead.fontSize * scaleY,
+    },
+    footer: {
+      ...scene.footer,
+      x: scene.footer.x * scaleX,
+      y: scene.footer.y * scaleY,
+      width: scene.footer.width * scaleX,
+      height: scene.footer.height * scaleY,
+      textX: scene.footer.textX * scaleX,
+      textY: scene.footer.textY * scaleY,
+      fontSize: scene.footer.fontSize * scaleY,
+    },
+    headshot: {
+      ...scene.headshot,
+      x: scene.headshot.x * scaleX,
+      y: scene.headshot.y * scaleY,
+      size: scene.headshot.size * scaleY,
+      crop: {
+        ...scene.headshot.crop,
+        offsetX: scene.headshot.crop.offsetX * scaleX,
+        offsetY: scene.headshot.crop.offsetY * scaleY,
+      },
+    },
+    townRows: scene.townRows.map((row) => ({
+      ...row,
+      labelX: row.labelX * scaleX,
+      labelY: row.labelY * scaleY,
+      labelWidth: row.labelWidth * scaleX,
+      labelHeight: row.labelHeight * scaleY,
+      amountX: row.amountX * scaleX,
+      amountY: row.amountY * scaleY,
+      townFontSize: row.townFontSize * scaleY,
+      amountFontSize: row.amountFontSize * scaleY,
+    })),
+  } satisfies ExperimentalTownScene
+}
+
+const fitBaseSceneToMailStage = (scene: ExperimentalTownScene) => {
+  const scale = Math.min(STAGE_WIDTH / BASE_CANVAS_WIDTH, STAGE_HEIGHT / BASE_CANVAS_HEIGHT)
+  const offsetX = (STAGE_WIDTH - BASE_CANVAS_WIDTH * scale) / 2
+  const offsetY = (STAGE_HEIGHT - BASE_CANVAS_HEIGHT * scale) / 2
+
+  const scaleXValue = (value: number) => offsetX + value * scale
+  const scaleYValue = (value: number) => offsetY + value * scale
+  const scaleSize = (value: number) => value * scale
+
+  return {
+    ...scene,
+    eyebrow: {
+      ...scene.eyebrow,
+      x: scaleXValue(scene.eyebrow.x),
+      y: scaleYValue(scene.eyebrow.y),
+      width: scaleSize(scene.eyebrow.width),
+      fontSize: scaleSize(scene.eyebrow.fontSize),
+      barWidth: scaleSize(scene.eyebrow.barWidth),
+      barHeight: scaleSize(scene.eyebrow.barHeight),
+      paddingX: scaleSize(scene.eyebrow.paddingX),
+      paddingY: scaleSize(scene.eyebrow.paddingY),
+    },
+    headline: {
+      ...scene.headline,
+      x: scaleXValue(scene.headline.x),
+      y: scaleYValue(scene.headline.y),
+      width: scaleSize(scene.headline.width),
+      fontSize: scaleSize(scene.headline.fontSize),
+    },
+    subhead: {
+      ...scene.subhead,
+      x: scaleXValue(scene.subhead.x),
+      y: scaleYValue(scene.subhead.y),
+      dividerWidth: scaleSize(scene.subhead.dividerWidth),
+      dividerHeight: scaleSize(scene.subhead.dividerHeight),
+      fontSize: scaleSize(scene.subhead.fontSize),
+    },
+    footer: {
+      ...scene.footer,
+      x: scaleXValue(scene.footer.x),
+      y: scaleYValue(scene.footer.y),
+      width: scaleSize(scene.footer.width),
+      height: scaleSize(scene.footer.height),
+      textX: scaleXValue(scene.footer.textX),
+      textY: scaleYValue(scene.footer.textY),
+      fontSize: scaleSize(scene.footer.fontSize),
+    },
+    headshot: {
+      ...scene.headshot,
+      x: scaleXValue(scene.headshot.x),
+      y: scaleYValue(scene.headshot.y),
+      size: scaleSize(scene.headshot.size),
+      crop: {
+        ...scene.headshot.crop,
+        offsetX: scaleSize(scene.headshot.crop.offsetX),
+        offsetY: scaleSize(scene.headshot.crop.offsetY),
+      },
+    },
+    townRows: scene.townRows.map((row) => ({
+      ...row,
+      labelX: scaleXValue(row.labelX),
+      labelY: scaleYValue(row.labelY),
+      labelWidth: scaleSize(row.labelWidth),
+      labelHeight: scaleSize(row.labelHeight),
+      amountX: scaleXValue(row.amountX),
+      amountY: scaleYValue(row.amountY),
+      townFontSize: scaleSize(row.townFontSize),
+      amountFontSize: scaleSize(row.amountFontSize),
+    })),
+  } satisfies ExperimentalTownScene
+}
+
+const fitDefaultGraphicSceneToMailStage = () => {
+  const sourceScene = defaultGraphicScene()
+  const sourceWidth = 1200
+  const sourceHeight = 630
+  const scale = Math.min(STAGE_WIDTH / sourceWidth, STAGE_HEIGHT / sourceHeight)
+  const offsetX = (STAGE_WIDTH - sourceWidth * scale) / 2
+  const offsetY = (STAGE_HEIGHT - sourceHeight * scale) / 2
+
+  return {
+    headshot: {
+      x: offsetX + sourceScene.headshots[0]!.x * scale,
+      y: offsetY + sourceScene.headshots[0]!.y * scale,
+      size: sourceScene.headshots[0]!.size * scale,
+    },
+    repName: {
+      x: offsetX + sourceScene.repNameLayers.primary.x * scale,
+      y: offsetY + sourceScene.repNameLayers.primary.y * scale,
+      width: sourceScene.repNameLayers.primary.width * scale,
+      fontSize: (sourceScene.repNameLayers.primary.fontSize || 28) * scale,
+      color: sourceScene.repNameLayers.primary.color || BRAND_RED,
+      fontFamily: sourceScene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif',
+      fontStyle: sourceScene.repNameLayers.primary.fontStyle || '700',
+      align: sourceScene.repNameLayers.primary.align,
+    },
+    headline: {
+      x: offsetX + sourceScene.headlineLayer.x * scale,
+      y: offsetY + sourceScene.headlineLayer.y * scale,
+      width: sourceScene.headlineLayer.width * scale,
+      height: (sourceScene.headlineLayer.height || 190) * scale,
+      fontSize: (sourceScene.headlineLayer.fontSize || 38) * scale,
+      color: sourceScene.headlineLayer.color || BRAND_RED,
+      fontFamily: sourceScene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif',
+      fontStyle: sourceScene.headlineLayer.fontStyle,
+      align: sourceScene.headlineLayer.align,
+    },
+  }
 }
 
 const createBaseScene = (data: TownFundingResponse, tenantName: string | undefined) => {
@@ -808,15 +737,9 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
     }
   })
 
-  const fallbackBackgroundID =
-    getMediaID(data.standardMedia?.districtImage) ||
-    getMediaID(data.standardMedia?.bannerImage) ||
-    getMediaID(data.standardMedia?.defaultFeaturedImage) ||
-    null
-
   const scene = {
     kind: SCENE_KIND,
-    backgroundMediaID: fallbackBackgroundID,
+    backgroundMediaID: null,
     eyebrow: {
       id: 'eyebrow',
       x: 72,
@@ -887,7 +810,126 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
     townRows,
   } satisfies ExperimentalTownScene
 
-  return alignSubheadToHeadline(scene)
+  const scaledScene = scaleBaseScene(scene)
+
+  return alignSubheadToHeadline({
+    ...scaledScene,
+    headline: {
+      ...scaledScene.headline,
+      fontSize: 50,
+    },
+    headshot: {
+      ...scaledScene.headshot,
+      x: 475,
+      y: 180,
+      size: 496,
+      crop: {
+        ...scaledScene.headshot.crop,
+        zoom: 1,
+      },
+    },
+  })
+}
+
+const createBackScene = (data: TownFundingResponse, tenantName: string | undefined) => {
+  const headlineText = deriveDefaultHeadline(data.repInfo?.name)
+  const defaultGraphicLayout = fitDefaultGraphicSceneToMailStage()
+  const townRows = data.townRows.map((row, index) => {
+    const top = 670 + index * 174
+    return {
+      id: row.id,
+      townKey: normalizeTownKey(row.town),
+      town: row.town,
+      strapAid: row.strapAid,
+      included: true,
+      labelX: 72,
+      labelY: top,
+      labelWidth: measureTownLabelWidth(row.town, 36),
+      labelHeight: 54,
+      amountX: 72,
+      amountY: top + 72,
+      townFontSize: 36,
+      amountFontSize: 74,
+      labelColor: BRAND_RED,
+      textColor: BRAND_BLUE,
+    }
+  })
+
+  const scene = {
+    kind: SCENE_KIND,
+    backgroundMediaID: null,
+    eyebrow: {
+      id: 'eyebrow',
+      x: 72,
+      y: 70,
+      width: 260,
+      text: 'REAL RELIEF FOR CONNECTICUT',
+      fontSize: 18,
+      color: '#ffffff',
+      fontFamily: 'Arial',
+      fontStyle: '700',
+      lineHeight: 1,
+      barWidth: 420,
+      barHeight: 44,
+      paddingX: 16,
+      paddingY: 10,
+      backgroundColor: BRAND_BLUE,
+    },
+    headline: {
+      id: 'headline',
+      x: defaultGraphicLayout.headline.x,
+      y: defaultGraphicLayout.headline.y,
+      width: defaultGraphicLayout.headline.width,
+      text: headlineText,
+      fontSize: defaultGraphicLayout.headline.fontSize,
+      color: '#374151',
+      fontFamily: defaultGraphicLayout.headline.fontFamily,
+      fontStyle: defaultGraphicLayout.headline.fontStyle,
+      lineHeight: 1.05,
+    },
+    subhead: {
+      id: 'subhead',
+      x: defaultGraphicLayout.repName.x,
+      y: defaultGraphicLayout.repName.y,
+      dividerWidth: defaultGraphicLayout.repName.width,
+      dividerHeight: 0,
+      dividerColor: 'transparent',
+      text: data.repInfo?.name || 'Representative Name',
+      fontSize: defaultGraphicLayout.repName.fontSize,
+      color: '#4b5563',
+      fontFamily: defaultGraphicLayout.repName.fontFamily,
+      fontStyle: defaultGraphicLayout.repName.fontStyle,
+    },
+    footer: {
+      id: 'footer',
+      x: 0,
+      y: 1490,
+      width: BASE_CANVAS_WIDTH,
+      height: 80,
+      backgroundColor: BRAND_RED,
+      text: WEBSITE_TEXT,
+      textX: 78,
+      textY: 1510,
+      fontSize: 34,
+      color: '#ffffff',
+      fontStyle: 'italic 700',
+    },
+    headshot: {
+      id: 'headshot',
+      x: defaultGraphicLayout.headshot.x,
+      y: defaultGraphicLayout.headshot.y,
+      size: defaultGraphicLayout.headshot.size,
+      crop: {
+        zoom: 1,
+        offsetX: 0,
+        offsetY: 0,
+      },
+    },
+    townColumns: 1 as const,
+    townRows,
+  } satisfies ExperimentalTownScene
+
+  return alignSubheadToHeadline(fitBaseSceneToMailStage(scene))
 }
 
 const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | undefined, baseScene: ExperimentalTownScene) => {
@@ -900,7 +942,7 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
   return alignSubheadToHeadline({
     ...baseScene,
     ...savedScene,
-    backgroundMediaID: savedScene.backgroundMediaID ?? baseScene.backgroundMediaID,
+    backgroundMediaID: null,
     eyebrow: { ...baseScene.eyebrow, ...savedScene.eyebrow },
     headline: { ...baseScene.headline, ...savedScene.headline },
     subhead: { ...baseScene.subhead, ...savedScene.subhead },
@@ -921,31 +963,7 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
   } satisfies ExperimentalTownScene)
 }
 
-const getBackgroundPreview = (scene: ExperimentalTownScene, data: TownFundingResponse | null, templates: TemplateDoc[], designs: DesignDoc[]) => {
-  const selectedID = scene.backgroundMediaID
-  if (!selectedID) {
-    return readMediaUrl(data?.standardMedia?.districtImage) ||
-      readMediaUrl(data?.standardMedia?.bannerImage) ||
-      readMediaUrl(data?.standardMedia?.defaultFeaturedImage) ||
-      undefined
-  }
-
-  const mediaDoc =
-    getMediaDoc(data?.standardMedia?.districtImage) && getMediaID(data?.standardMedia?.districtImage) === selectedID
-      ? getMediaDoc(data?.standardMedia?.districtImage)
-      : getMediaDoc(data?.standardMedia?.bannerImage) && getMediaID(data?.standardMedia?.bannerImage) === selectedID
-        ? getMediaDoc(data?.standardMedia?.bannerImage)
-        : getMediaDoc(data?.standardMedia?.defaultFeaturedImage) &&
-            getMediaID(data?.standardMedia?.defaultFeaturedImage) === selectedID
-          ? getMediaDoc(data?.standardMedia?.defaultFeaturedImage)
-          : templates.map((template) => getMediaDoc(template.backgroundImage)).find((item) => item?.id === selectedID) ||
-            designs.map((design) => getMediaDoc(design.backgroundImage)).find((item) => item?.id === selectedID) ||
-            null
-
-  return proxiedUrl(mediaDoc?.url || mediaDoc?.thumbnailURL || null)
-}
-
-export const ExperimentalTownGraphicEditor: React.FC = () => {
+export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const { user } = useAuth()
   const { options: tenantSelectionOptions = [], selectedTenantID, setTenant } = useTenantSelection()
   const { tenantID, tenantName } = useActiveTenant()
@@ -962,17 +980,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const rightTownStackRef = useRef<Konva.Group | null>(null)
   const townRefs = useRef<Record<string, Konva.Group | null>>({})
   const transformerRef = useRef<Konva.Transformer | null>(null)
-  const undoStackRef = useRef<ExperimentalTownScene[]>([])
+  const undoStackRef = useRef<Record<MailSide, ExperimentalTownScene[]>>({
+    front: [],
+    back: [],
+  })
   const skipHistoryRef = useRef(false)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
   const [isResizingHeadline, setIsResizingHeadline] = useState(false)
   const [previewZoom, setPreviewZoom] = useState(1)
+  const [activeMailSide, setActiveMailSide] = useState<MailSide>(DEFAULT_MAIL_SIDE)
 
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [townData, setTownData] = useState<TownFundingResponse | null>(null)
-  const [scene, setScene] = useState<ExperimentalTownScene | null>(null)
+  const [frontScene, setFrontScene] = useState<ExperimentalTownScene | null>(null)
+  const [backScene, setBackScene] = useState<ExperimentalTownScene | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
   const [templateID, setTemplateID] = useState('')
   const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
@@ -980,10 +1003,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const [designTitle, setDesignTitle] = useState('Town Graphic')
   const [templates, setTemplates] = useState<TemplateDoc[]>([])
   const [designs, setDesigns] = useState<DesignDoc[]>([])
-  const [mediaOptions, setMediaOptions] = useState<MediaDoc[]>([])
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
+  const [designsSectionOpen, setDesignsSectionOpen] = useState(false)
+  const [contentSectionOpen, setContentSectionOpen] = useState(false)
+  const [townsSectionOpen, setTownsSectionOpen] = useState(false)
+  const [inspectorSectionOpen, setInspectorSectionOpen] = useState(false)
   const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
 
   const tenantOptions = useMemo<TenantSelectOption[]>(
@@ -1003,6 +1029,28 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         : [],
     [tenantSelectionOptions],
   )
+  const scene = activeMailSide === 'front' ? frontScene : backScene
+
+  const setSceneForSide = (
+    side: MailSide,
+    nextScene: ExperimentalTownScene | null | ((current: ExperimentalTownScene | null) => ExperimentalTownScene | null),
+  ) => {
+    if (typeof nextScene === 'function') {
+      const updater = nextScene
+      if (side === 'front') {
+        setFrontScene(updater)
+      } else {
+        setBackScene(updater)
+      }
+      return
+    }
+
+    if (side === 'front') {
+      setFrontScene(nextScene)
+    } else {
+      setBackScene(nextScene)
+    }
+  }
 
   useEffect(() => {
     setIsMounted(true)
@@ -1013,7 +1061,11 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!tenantID) {
       setLoading(false)
       setTownData(null)
-      setScene(null)
+      setActiveMailSide(DEFAULT_MAIL_SIDE)
+      setFrontScene(null)
+      setBackScene(null)
+      clearUndoHistory('front')
+      clearUndoHistory('back')
       return
     }
 
@@ -1024,47 +1076,69 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       setMessage(null)
 
       try {
-        const [townResponse, templateResponse, designResponse, mediaResponse] = await Promise.all([
+        const [townResponse, templateResponse, designResponse] = await Promise.all([
           fetch(`/api/graphics-experimental/town-funding?tenant=${tenantID}`, { credentials: 'include' }),
           fetch(`/api/graphic-templates?${buildTemplateSearchParams().toString()}`, { credentials: 'include' }),
           fetch(`/api/graphic-designs?${buildDesignSearchParams(tenantID).toString()}`, { credentials: 'include' }),
-          fetch(`/api/media?${buildMediaSearchParams(tenantID).toString()}`, { credentials: 'include' }),
         ])
 
-        const [townJson, templateJson, designJson, mediaJson] = await Promise.all([
+        const [townJson, templateJson, designJson] = await Promise.all([
           townResponse.json(),
           templateResponse.json(),
           designResponse.json(),
-          mediaResponse.json(),
         ])
 
         if (!townResponse.ok) throw new Error(getString(asRecord(townJson).message) || 'Failed to load town data')
 
         const nextTownData = townJson as TownFundingResponse
         const nextTemplates = Array.isArray(asRecord(templateJson).docs)
-          ? ((asRecord(templateJson).docs as TemplateDoc[]) || []).filter((doc) => isExperimentalScene(doc.scene))
+          ? ((asRecord(templateJson).docs as TemplateDoc[]) || [])
+            .map(sanitizeTemplateDoc)
+            .filter((doc) => isExperimentalScene(doc.scene))
           : []
         const nextDesigns = Array.isArray(asRecord(designJson).docs)
-          ? ((asRecord(designJson).docs as DesignDoc[]) || []).filter((doc) => isExperimentalScene(doc.scene))
+          ? ((asRecord(designJson).docs as DesignDoc[]) || [])
+            .map(sanitizeDesignDoc)
+            .filter((doc) => isExperimentalScene(doc.scene))
           : []
-        const nextMedia = Array.isArray(asRecord(mediaJson).docs) ? ((asRecord(mediaJson).docs as MediaDoc[]) || []) : []
-        const baseScene = createBaseScene(nextTownData, tenantName)
         const selectedDesign = requestedDesignID ? nextDesigns.find((item) => item.id === requestedDesignID) : undefined
         const selectedTemplate = !selectedDesign && requestedTemplateID ? nextTemplates.find((item) => item.id === requestedTemplateID) : undefined
-        const nextScene = selectedDesign
-          ? mergeSceneWithFreshData(selectedDesign.scene, baseScene)
+        const storedTenantID =
+          parseMailEditorNotes(selectedDesign?.notes)?.selectedTenantID ||
+          parseMailEditorNotes(selectedTemplate?.notes)?.selectedTenantID ||
+          null
+
+        if (storedTenantID && storedTenantID !== tenantID) {
+          setTenant({ id: storedTenantID, refresh: true })
+          return
+        }
+
+        const frontBaseScene = createBaseScene(nextTownData, tenantName)
+        const backBaseScene = createBackScene(nextTownData, tenantName)
+        const frontNextScene = selectedDesign
+          ? mergeSceneWithFreshData(selectedDesign.scene, frontBaseScene)
           : selectedTemplate
-            ? mergeSceneWithFreshData(selectedTemplate.scene, baseScene)
-            : baseScene
+            ? mergeSceneWithFreshData(selectedTemplate.scene, frontBaseScene)
+            : frontBaseScene
+        const backNextScene = selectedDesign
+          ? mergeSceneWithFreshData(selectedDesign.scene, backBaseScene)
+          : selectedTemplate
+            ? mergeSceneWithFreshData(selectedTemplate.scene, backBaseScene)
+            : backBaseScene
 
         if (cancelled) return
 
         setTownData(nextTownData)
         setTemplates(nextTemplates)
         setDesigns(nextDesigns)
-        setMediaOptions(dedupeMediaOptions(nextMedia))
-        clearUndoHistory()
-        setSceneWithoutHistory(nextScene)
+        clearUndoHistory('front')
+        clearUndoHistory('back')
+        setFrontScene(cloneScene(frontNextScene))
+        setBackScene(cloneScene(backNextScene))
+        setActiveMailSide(DEFAULT_MAIL_SIDE)
+        setSelection(null)
+        clearUndoHistory(DEFAULT_MAIL_SIDE)
+        clearUndoHistory('back')
         setTemplateID(selectedTemplate?.id || getString(selectedDesign?.template) || getString(asRecord(selectedDesign?.template).id) || '')
         setTemplateTitle(selectedTemplate?.title || 'Experimental Town Graphic')
         setDesignID(selectedDesign?.id || '')
@@ -1073,7 +1147,11 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         if (!cancelled) {
           setMessage(error instanceof Error ? error.message : String(error))
           setTownData(null)
-          setScene(null)
+          setFrontScene(null)
+          setBackScene(null)
+          setActiveMailSide(DEFAULT_MAIL_SIDE)
+          clearUndoHistory('front')
+          clearUndoHistory('back')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -1117,16 +1195,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const previewHeight = STAGE_HEIGHT * previewScale
   const transformerAnchorSize = useMemo(() => clamp(Math.round(12 / Math.max(previewScale, 0.72)), 12, 16), [previewScale])
 
-  const backgroundUrl = useMemo(
-    () => (scene ? getBackgroundPreview(scene, townData, templates, designs) : undefined),
-    [designs, scene, templates, townData],
-  )
   const headshotUrl = useMemo(
     () => readMediaUrl(townData?.standardMedia?.mobileHeadshot) || undefined,
     [townData],
   )
-  const backgroundImage = useLoadedImage(backgroundUrl)
   const headshotImage = useLoadedImage(headshotUrl)
+  const backGraphicLayout = useMemo(() => fitDefaultGraphicSceneToMailStage(), [])
 
   const selectedTownRow = useMemo(() => {
     if (!scene || selection?.kind !== 'town') return null
@@ -1189,31 +1263,36 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     }
   }, [selection])
 
-  const setSceneWithoutHistory = (nextScene: ExperimentalTownScene | null) => {
+  const setSceneWithoutHistory = (nextScene: ExperimentalTownScene | null, side: MailSide = activeMailSide) => {
     skipHistoryRef.current = true
-    setScene(nextScene)
+    setSceneForSide(side, nextScene)
   }
 
-  const updateScene = (updater: (current: ExperimentalTownScene) => ExperimentalTownScene) => {
-    setScene((current) => {
-      if (!current) return current
-      if (!skipHistoryRef.current) {
-        undoStackRef.current = [...undoStackRef.current.slice(-49), cloneScene(current)]
-      } else {
-        skipHistoryRef.current = false
-      }
-      return updater(current)
-    })
+  const getActiveScene = (side: MailSide = activeMailSide) => (side === 'front' ? frontScene : backScene)
+
+  const updateScene = (
+    updater: (current: ExperimentalTownScene) => ExperimentalTownScene,
+    side: MailSide = activeMailSide,
+  ) => {
+    const currentScene = getActiveScene(side)
+    if (!currentScene) return
+    if (!skipHistoryRef.current) {
+      undoStackRef.current[side] = [...undoStackRef.current[side].slice(-49), cloneScene(currentScene)]
+    } else {
+      skipHistoryRef.current = false
+    }
+    const nextScene = updater(currentScene)
+    setSceneForSide(side, nextScene)
   }
 
-  const clearUndoHistory = () => {
-    undoStackRef.current = []
+  const clearUndoHistory = (side: MailSide = activeMailSide) => {
+    undoStackRef.current[side] = []
   }
 
-  const undoLastChange = () => {
-    const previousScene = undoStackRef.current.pop()
+  const undoLastChange = (side: MailSide = activeMailSide) => {
+    const previousScene = undoStackRef.current[side].pop()
     if (!previousScene) return
-    setSceneWithoutHistory(previousScene)
+    setSceneWithoutHistory(previousScene, side)
     setSelection(null)
     setMessage('Undid last change')
   }
@@ -1345,18 +1424,29 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!scene || !townData) return
     setTemplateID(nextTemplateID)
     if (!nextTemplateID) {
-      const baseScene = createBaseScene(townData, tenantName)
-      clearUndoHistory()
-      setSceneWithoutHistory(baseScene)
+      const frontBaseScene = createBaseScene(townData, tenantName)
+      const backBaseScene = createBackScene(townData, tenantName)
+      clearUndoHistory('front')
+      clearUndoHistory('back')
+      setSceneWithoutHistory(frontBaseScene, 'front')
+      setSceneWithoutHistory(backBaseScene, 'back')
       setSelection(null)
       return
     }
     const template = templates.find((item) => item.id === nextTemplateID)
     if (!template) return
-    const baseScene = createBaseScene(townData, tenantName)
+    const storedNotes = parseMailEditorNotes(template.notes)
+    if (storedNotes?.selectedTenantID && storedNotes.selectedTenantID !== tenantID) {
+      setTenant({ id: storedNotes.selectedTenantID, refresh: true })
+      return
+    }
+    const frontBaseScene = createBaseScene(townData, tenantName)
+    const backBaseScene = createBackScene(townData, tenantName)
     setTemplateTitle(template.title || 'Experimental Town Graphic')
-    clearUndoHistory()
-    setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, baseScene))
+    clearUndoHistory('front')
+    clearUndoHistory('back')
+    setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, frontBaseScene), 'front')
+    setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, backBaseScene), 'back')
     setSelection(null)
   }
 
@@ -1364,19 +1454,30 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!scene || !townData) return
     setDesignID(nextDesignID)
     if (!nextDesignID) {
-      const baseScene = createBaseScene(townData, tenantName)
-      clearUndoHistory()
-      setSceneWithoutHistory(baseScene)
+      const frontBaseScene = createBaseScene(townData, tenantName)
+      const backBaseScene = createBackScene(townData, tenantName)
+      clearUndoHistory('front')
+      clearUndoHistory('back')
+      setSceneWithoutHistory(frontBaseScene, 'front')
+      setSceneWithoutHistory(backBaseScene, 'back')
       setSelection(null)
       return
     }
     const design = designs.find((item) => item.id === nextDesignID)
     if (!design) return
-    const baseScene = createBaseScene(townData, tenantName)
+    const storedNotes = parseMailEditorNotes(design.notes)
+    if (storedNotes?.selectedTenantID && storedNotes.selectedTenantID !== tenantID) {
+      setTenant({ id: storedNotes.selectedTenantID, refresh: true })
+      return
+    }
+    const frontBaseScene = createBaseScene(townData, tenantName)
+    const backBaseScene = createBackScene(townData, tenantName)
     setDesignTitle(design.title || 'Town Graphic')
     setTemplateID(getString(asRecord(design.template).id) || getString(design.template) || '')
-    clearUndoHistory()
-    setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, baseScene))
+    clearUndoHistory('front')
+    clearUndoHistory('back')
+    setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, frontBaseScene), 'front')
+    setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, backBaseScene), 'back')
     setSelection(null)
   }
 
@@ -1408,7 +1509,6 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     }
 
     if (!mediaDoc.id) throw new Error('Upload did not return a media id')
-    setMediaOptions((current) => dedupeMediaOptions([mediaDoc, ...current]))
     return mediaDoc
   }
 
@@ -1417,9 +1517,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     return {
       title: templateTitle || 'Experimental Town Graphic',
       sourceCollection: 'pages',
-      backgroundImage: scene.backgroundMediaID || null,
       scene,
-      notes: 'experimental-town-graphic',
+      notes: stringifyMailEditorNotes(selectedTenantID ? String(selectedTenantID) : tenantID),
     }
   }
 
@@ -1432,11 +1531,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       sourcePost: null,
       primaryTenant: tenantID || null,
       secondaryTenant: null,
-      backgroundImage: scene.backgroundMediaID || null,
       titleOverride: scene.headline.text || null,
       scene,
       exportedMedia: exportedMediaID ?? null,
-      notes: 'experimental-town-graphic',
+      notes: stringifyMailEditorNotes(selectedTenantID ? String(selectedTenantID) : tenantID),
       tenant: tenantID || null,
     }
   }
@@ -1475,7 +1573,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       if (savedDoc?.id) {
         setTemplateID(savedDoc.id)
         setTemplates((current) => {
-          const next = [savedDoc, ...current.filter((item) => item.id !== savedDoc.id)]
+          const normalizedSavedDoc = sanitizeTemplateDoc(savedDoc)
+          const next = [normalizedSavedDoc, ...current.filter((item) => item.id !== normalizedSavedDoc.id)]
           return next.slice(0, 50)
         })
       }
@@ -1500,7 +1599,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     )
     const data = await response.json()
     if (!response.ok) throw new Error(getString(asRecord(data).message) || 'Failed to save design')
-    const savedDoc = ((asRecord(data).doc || data) as DesignDoc) || null
+    const savedDoc = sanitizeDesignDoc(((asRecord(data).doc || data) as DesignDoc) || null)
     if (savedDoc?.id) {
       setDesignID(savedDoc.id)
       setDesigns((current) => [savedDoc, ...current.filter((item) => item.id !== savedDoc.id)].slice(0, 50))
@@ -1523,7 +1622,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     }
   }
 
-  const exportStageDataUrl = async (mimeType: 'image/png' | 'image/jpeg' = 'image/png') => {
+  const exportStageDataUrl = async () => {
     const stage = stageRef.current
     if (!stage) return null
     const previousSelection = selection
@@ -1534,11 +1633,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     stage.scale({ x: 1, y: 1 })
     stage.draw()
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
-    const dataUrl = stage.toDataURL({
-      pixelRatio: 2,
-      mimeType,
-      quality: mimeType === 'image/jpeg' ? 1 : undefined,
-    })
+    const dataUrl = stage.toDataURL({ pixelRatio: 2 })
     stage.scale({ x: previousScaleX, y: previousScaleY })
     stage.draw()
     setSelection(previousSelection)
@@ -1586,252 +1681,6 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       link.click()
       link.remove()
       setMessage('PNG downloaded')
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  const downloadPdf = async () => {
-    try {
-      if (!scene) throw new Error('No scene available for PDF export')
-      const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-      const pdf = await PDFDocument.create()
-      const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
-      const backgroundBytes = buildBackgroundPdfBytes({
-        image: backgroundImage,
-        placement: backgroundPlacement,
-        overlayOpacity: 0.66,
-      })
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: backgroundBytes,
-        x: 0,
-        y: 0,
-        width: STAGE_WIDTH,
-        height: STAGE_HEIGHT,
-      })
-
-      const eyebrowBarBytes = buildRectanglePngBytes({
-        width: scene.eyebrow.barWidth,
-        height: scene.eyebrow.barHeight,
-        color: scene.eyebrow.backgroundColor,
-      })
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: eyebrowBarBytes,
-        x: scene.eyebrow.x,
-        y: scene.eyebrow.y,
-        width: scene.eyebrow.barWidth,
-        height: scene.eyebrow.barHeight,
-      })
-
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: scene.eyebrow.text,
-        x: scene.eyebrow.x + scene.eyebrow.paddingX,
-        y: scene.eyebrow.y + scene.eyebrow.paddingY,
-        width: scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2,
-        fontFamily: scene.eyebrow.fontFamily,
-        fontStyle: scene.eyebrow.fontStyle,
-        fontSize: scene.eyebrow.fontSize,
-        color: scene.eyebrow.color,
-        lineHeight: scene.eyebrow.lineHeight,
-      })
-
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: scene.headline.text,
-        x: scene.headline.x,
-        y: scene.headline.y,
-        width: scene.headline.width,
-        fontFamily: scene.headline.fontFamily,
-        fontStyle: scene.headline.fontStyle,
-        fontSize: scene.headline.fontSize,
-        color: scene.headline.color,
-        lineHeight: scene.headline.lineHeight,
-      })
-
-      page.drawRectangle({
-        x: scene.subhead.x,
-        y: STAGE_HEIGHT - scene.subhead.y - scene.subhead.dividerHeight,
-        width: scene.subhead.dividerWidth,
-        height: scene.subhead.dividerHeight,
-        color: colorToRgb(scene.subhead.dividerColor),
-      })
-
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: scene.subhead.text,
-        x: scene.subhead.x,
-        y: scene.subhead.y + 14,
-        width: Math.max(scene.subhead.dividerWidth + 120, 320),
-        fontFamily: scene.subhead.fontFamily,
-        fontStyle: scene.subhead.fontStyle,
-        fontSize: scene.subhead.fontSize,
-        color: scene.subhead.color,
-      })
-
-      for (const row of scene.townRows.filter((nextRow) => nextRow.included)) {
-        const townBarBytes = buildRectanglePngBytes({
-          width: row.labelWidth,
-          height: row.labelHeight,
-          color: row.labelColor,
-        })
-        await drawPdfImageBytes({
-          doc: pdf,
-          page,
-          assetBytes: townBarBytes,
-          x: row.labelX,
-          y: row.labelY,
-          width: row.labelWidth,
-          height: row.labelHeight,
-        })
-
-        await drawWrappedPdfText({
-          doc: pdf,
-          page,
-          text: row.town.toUpperCase(),
-          x: row.labelX + 14,
-          y: row.labelY + 8,
-          width: row.labelWidth - 22,
-          fontFamily: 'Arial',
-          fontStyle: '700',
-          fontSize: row.townFontSize,
-          color: '#ffffff',
-        })
-
-        await drawWrappedPdfText({
-          doc: pdf,
-          page,
-          text: formatCurrency(row.strapAid),
-          x: row.amountX,
-          y: row.amountY,
-          width: 420,
-          fontFamily: 'Arial',
-          fontStyle: '700',
-          fontSize: row.amountFontSize,
-          color: row.textColor,
-        })
-      }
-
-      const footerBarBytes = buildRectanglePngBytes({
-        width: scene.footer.width,
-        height: scene.footer.height,
-        color: scene.footer.backgroundColor,
-      })
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: footerBarBytes,
-        x: scene.footer.x,
-        y: scene.footer.y,
-        width: scene.footer.width,
-        height: scene.footer.height,
-      })
-
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: scene.footer.text,
-        x: scene.footer.textX,
-        y: scene.footer.textY,
-        width: scene.footer.width - scene.footer.textX - 32,
-        fontFamily: 'Arial',
-        fontStyle: scene.footer.fontStyle,
-        fontSize: scene.footer.fontSize,
-        color: scene.footer.color,
-      })
-
-      const circularHeadshotDataUrl = await buildCircularHeadshotDataUrl({
-        image: headshotImage,
-        placement: headshotPlacement,
-        size: scene.headshot.size,
-      })
-
-      if (circularHeadshotDataUrl) {
-        await drawPdfImageBytes({
-          doc: pdf,
-          page,
-          assetBytes: dataUrlToBytes(circularHeadshotDataUrl),
-          x: scene.headshot.x,
-          y: scene.headshot.y,
-          width: scene.headshot.size,
-          height: scene.headshot.size,
-        })
-      }
-
-      const pdfBytes = await pdf.save()
-      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' })
-      const pdfUrl = URL.createObjectURL(pdfBlob)
-      const link = document.createElement('a')
-      link.href = pdfUrl
-      link.download = `${filenameBase || 'town-graphic'}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(pdfUrl)
-      setMessage('PDF downloaded')
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error))
-    }
-  }
-
-  const downloadPptx = async () => {
-    try {
-      if (!scene) throw new Error('No scene available for PPTX export')
-
-      const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '')
-
-      const backgroundDataUrl = buildBackgroundDataUrl({
-        image: backgroundImage,
-        placement: backgroundPlacement,
-        overlayOpacity: 0.66,
-      })
-
-      const circularHeadshotDataUrl = await buildCircularHeadshotDataUrl({
-        image: headshotImage,
-        placement: headshotPlacement,
-        size: scene.headshot.size,
-      })
-
-      const response = await fetch('/api/graphics-experimental/town-pptx', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          filenameBase,
-          title: designTitle || templateTitle || 'Town Graphic',
-          scene,
-          backgroundDataUrl,
-          circularHeadshotDataUrl: circularHeadshotDataUrl || null,
-        }),
-      })
-
-      if (!response.ok) {
-        const message = await response.text()
-        throw new Error(message || `PPTX export failed (${response.status})`)
-      }
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `${filenameBase || 'town-graphic'}.pptx`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-      setMessage('PPTX downloaded')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     }
@@ -1980,7 +1829,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
 
   const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
-  const backgroundPlacement = computeCoverPlacement(backgroundImage, STAGE_WIDTH, STAGE_HEIGHT)
+  const backHeadshotPlacement = computeCoverPlacement(
+    headshotImage,
+    scene.headshot.size,
+    scene.headshot.size,
+    scene.headshot.crop,
+  )
 
   const renderTownStack = (
     rows: TownSceneRow[],
@@ -2125,10 +1979,52 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         display: 'grid',
         gap: 20,
         gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
+        gridTemplateRows: 'auto 1fr',
         padding: 24,
         alignItems: 'start',
       }}
     >
+      <section
+        style={{
+          gridColumn: '1 / -1',
+          borderRadius: 20,
+          border: '1px solid rgba(17, 24, 39, 0.12)',
+          background: 'rgba(255,255,255,0.94)',
+          padding: '12px 14px',
+          display: 'flex',
+          gap: 10,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'grid', gap: 2 }}>
+          <strong style={{ fontSize: 15, color: '#0f172a' }}>Graphics Editor Mail</strong>
+          <span style={{ fontSize: 12, color: '#64748b' }}>
+            Tenant {townData.tenant?.name || tenantName || tenantID} · Side {activeMailSide}
+          </span>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Button onClick={saveToMediaGallery} disabled={savingMedia} buttonStyle="secondary">
+            {savingMedia ? 'Saving…' : 'Save to Media'}
+          </Button>
+          <Button onClick={downloadPng} buttonStyle="secondary">
+            Download PNG
+          </Button>
+          {isSuperAdmin ? (
+            <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
+              {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
+            </Button>
+          ) : null}
+          <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
+            {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
+          </Button>
+          <Button onClick={() => undoLastChange()} disabled={undoStackRef.current[activeMailSide].length === 0} buttonStyle="secondary">
+            Undo
+          </Button>
+        </div>
+      </section>
+
       <aside
         style={{
           borderRadius: 20,
@@ -2151,6 +2047,29 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             <br />
             Design: <strong>{designID || 'unsaved'}</strong>
           </div>
+          <div style={{ display: 'grid', gap: 6 }}>
+            <span style={fieldLabelStyle}>Mail side</span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button
+                onClick={() => {
+                  setSelection(null)
+                  setActiveMailSide('front')
+                }}
+                buttonStyle={activeMailSide === 'front' ? 'primary' : 'secondary'}
+              >
+                Front
+              </Button>
+              <Button
+                onClick={() => {
+                  setSelection(null)
+                  setActiveMailSide('back')
+                }}
+                buttonStyle={activeMailSide === 'back' ? 'primary' : 'secondary'}
+              >
+                Back
+              </Button>
+            </div>
+          </div>
           {isMounted && tenantOptions.length > 0 ? (
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Switch tenant</span>
@@ -2172,213 +2091,188 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           ) : null}
         </section>
 
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Designs</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Open design</span>
-            <select value={designID} onChange={(event) => loadDesign(event.target.value)} style={controlStyle}>
-              <option value="">Default layout</option>
-              {designs.map((design) => (
-                <option key={design.id} value={design.id}>
-                  {design.title || 'Untitled design'}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Design title</span>
-            <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
-          </label>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Background image</span>
-            <select
-              value={scene.backgroundMediaID || ''}
-              onChange={(event) =>
-                updateScene((current) => ({
-                  ...current,
-                  backgroundMediaID: event.target.value || null,
-                }))
-              }
-              style={controlStyle}
-            >
-              <option value="">Default district/banner image</option>
-              {mediaOptions.map((media) => (
-                <option key={media.id} value={media.id}>
-                  {media.title || media.filename || media.alt || media.id}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
-            {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
-          </Button>
-          <Button onClick={undoLastChange} disabled={undoStackRef.current.length === 0} buttonStyle="secondary">
-            Undo
-          </Button>
-        </section>
-
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Copy</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Eyebrow</span>
-            <input
-              value={scene.eyebrow.text}
-              onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, text: event.target.value } }))}
-              style={controlStyle}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Headline</span>
-            <textarea
-              rows={5}
-              value={scene.headline.text}
-              onChange={(event) => updateHeadline({ text: event.target.value })}
-              style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Subhead</span>
-            <input
-              value={scene.subhead.text}
-              onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
-              style={controlStyle}
-            />
-          </label>
-          <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
-          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        <details open={designsSectionOpen} onToggle={(event) => setDesignsSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Designs</summary>
+          <div style={accordionBodyStyle}>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Footer text size</span>
+              <span style={fieldLabelStyle}>Open design</span>
+              <select value={designID} onChange={(event) => loadDesign(event.target.value)} style={controlStyle}>
+                <option value="">Default layout</option>
+                {designs.map((design) => (
+                  <option key={design.id} value={design.id}>
+                    {design.title || 'Untitled design'}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Design title</span>
+              <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
+            </label>
+          </div>
+        </details>
+
+        <details open={contentSectionOpen} onToggle={(event) => setContentSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Content Editor</summary>
+          <div style={accordionBodyStyle}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Eyebrow</span>
               <input
-                type="number"
-                value={scene.footer.fontSize}
-                onChange={(event) =>
-                  updateScene((current) => ({
-                    ...current,
-                    footer: {
-                      ...current.footer,
-                      fontSize: Number(event.target.value) || current.footer.fontSize,
-                    },
-                  }))
-                }
+                value={scene.eyebrow.text}
+                onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, text: event.target.value } }))}
                 style={controlStyle}
               />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Footer bar height</span>
+              <span style={fieldLabelStyle}>Headline</span>
+              <textarea
+                rows={5}
+                value={scene.headline.text}
+                onChange={(event) => updateHeadline({ text: event.target.value })}
+                style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Subhead / Rep name</span>
               <input
-                type="number"
-                value={scene.footer.height}
-                onChange={(event) =>
-                  updateScene((current) => {
-                    const nextHeight = Number(event.target.value) || current.footer.height
-                    return {
+                value={scene.subhead.text}
+                onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
+                style={controlStyle}
+              />
+            </label>
+            <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
+            <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Footer text size</span>
+                <input
+                  type="number"
+                  value={scene.footer.fontSize}
+                  onChange={(event) =>
+                    updateScene((current) => ({
                       ...current,
                       footer: {
                         ...current.footer,
-                        height: nextHeight,
+                        fontSize: Number(event.target.value) || current.footer.fontSize,
                       },
-                    }
-                  })
-                }
-                style={controlStyle}
-              />
-            </label>
-          </div>
-        </section>
-
-        <section style={{ display: 'grid', gap: 12 }}>
-          <div style={sectionLabelStyle}>Towns</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Town layout</span>
-            <select
-              value={scene.townColumns}
-              onChange={(event) =>
-                updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
-              }
-              style={controlStyle}
-            >
-              <option value={1}>Single column</option>
-              <option value={2}>Two columns</option>
-            </select>
-          </label>
-          {scene.townRows.map((row) => (
-            <div key={row.id} style={slotCardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
-                  <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
-                  {row.town}
-                </label>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveTownRow(row.id, 1)}
-                    style={secondaryButtonStyle}
-                    disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}
-                  >
-                    ↓
-                  </button>
-                  <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
-                    Select
-                  </button>
-                </div>
-              </div>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>STRAP Aid</span>
-                <input
-                  type="number"
-                  value={row.strapAid}
-                  onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
+                    }))
+                  }
                   style={controlStyle}
                 />
               </label>
-              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>Town size</span>
-                  <input
-                    type="number"
-                    value={row.townFontSize}
-                    onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
-                    style={controlStyle}
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>Box width</span>
-                  <input
-                    type="number"
-                    value={row.labelWidth}
-                    onChange={(event) => updateTownRow(row.id, { labelWidth: Number(event.target.value) || row.labelWidth })}
-                    style={controlStyle}
-                  />
-                </label>
-              </div>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Footer bar height</span>
+                <input
+                  type="number"
+                  value={scene.footer.height}
+                  onChange={(event) =>
+                    updateScene((current) => {
+                      const nextHeight = Number(event.target.value) || current.footer.height
+                      return {
+                        ...current,
+                        footer: {
+                          ...current.footer,
+                          height: nextHeight,
+                        },
+                      }
+                    })
+                  }
+                  style={controlStyle}
+                />
+              </label>
             </div>
-          ))}
-        </section>
+          </div>
+        </details>
 
-        {selectedElementPanel ? (
-          <section style={{ display: 'none', gap: 12 }}>
-            <div style={sectionLabelStyle}>Selected Element</div>
-            {selectedElementPanel}
-          </section>
-        ) : null}
+        <details open={townsSectionOpen} onToggle={(event) => setTownsSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Towns</summary>
+          <div style={accordionBodyStyle}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Town layout</span>
+              <select
+                value={scene.townColumns}
+                onChange={(event) =>
+                  updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
+                }
+                style={controlStyle}
+              >
+                <option value={1}>Single column</option>
+                <option value={2}>Two columns</option>
+              </select>
+            </label>
+            {scene.townRows.map((row) => (
+              <details key={row.id} style={nestedDetailsStyle}>
+                <summary style={nestedSummaryStyle}>
+                  <span>{row.town}</span>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>{formatCurrency(row.strapAid)}</span>
+                </summary>
+                <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
+                      <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
+                      Include town
+                    </label>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
+                        ↑
+                      </button>
+                      <button type="button" onClick={() => moveTownRow(row.id, 1)} style={secondaryButtonStyle} disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}>
+                        ↓
+                      </button>
+                      <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
+                        Select
+                      </button>
+                    </div>
+                  </div>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={fieldLabelStyle}>STRAP Aid</span>
+                    <input
+                      type="number"
+                      value={row.strapAid}
+                      onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
+                      style={controlStyle}
+                    />
+                  </label>
+                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={fieldLabelStyle}>Town size</span>
+                      <input
+                        type="number"
+                        value={row.townFontSize}
+                        onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
+                        style={controlStyle}
+                      />
+                    </label>
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={fieldLabelStyle}>Box width</span>
+                      <input
+                        type="number"
+                        value={row.labelWidth}
+                        onChange={(event) => updateTownRow(row.id, { labelWidth: Number(event.target.value) || row.labelWidth })}
+                        style={controlStyle}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </details>
+            ))}
+          </div>
+        </details>
 
-        <section style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Button onClick={saveToMediaGallery} disabled={savingMedia} buttonStyle="secondary">
-            {savingMedia ? 'Saving…' : 'Save to Media'}
-          </Button>
-          <Button onClick={downloadPng} buttonStyle="secondary">
-            Download PNG
-          </Button>
-          <Button onClick={downloadPdf} buttonStyle="secondary">
-            Download PDF
-          </Button>
-          <Button onClick={downloadPptx} buttonStyle="secondary">
-            Download PPTX
-          </Button>
-        </section>
+        <details open={inspectorSectionOpen} onToggle={(event) => setInspectorSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Object Coordinates + Size</summary>
+          <div style={accordionBodyStyle}>
+            {selection ? (
+              <>
+                <div style={hintStyle}>
+                  Selected: <strong>{selection.kind === 'town' && selectedTownRow ? selectedTownRow.town : selection.kind}</strong>
+                </div>
+                {selectedElementPanel}
+              </>
+            ) : (
+              <div style={hintStyle}>Select an object on the canvas to inspect and edit its coordinates and size.</div>
+            )}
+          </div>
+        </details>
 
         {message ? <div style={hintStyle}>{message}</div> : null}
 
@@ -2556,188 +2450,293 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   ctx.closePath()
                 }}
               >
-              <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="#f7f4ef" />
-              {backgroundImage ? (
-                <KonvaImage
-                  image={backgroundImage}
-                  x={backgroundPlacement.x}
-                  y={backgroundPlacement.y}
-                  width={backgroundPlacement.width}
-                  height={backgroundPlacement.height}
-                  opacity={0.96}
-                />
-              ) : null}
-              <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
-              <Group
-                x={STAGE_WIDTH - MAIL_SIDE_BLOCK_WIDTH - MAIL_SIDE_BLOCK_MARGIN}
-                y={STAGE_HEIGHT - MAIL_SIDE_BLOCK_HEIGHT - MAIL_SIDE_BLOCK_MARGIN}
-              >
-                <Rect
-                  width={MAIL_SIDE_BLOCK_WIDTH}
-                  height={MAIL_SIDE_BLOCK_HEIGHT}
-                  fill="rgba(203, 213, 225, 0.72)"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                  cornerRadius={16}
-                />
-                <Text
-                  x={12}
-                  y={(MAIL_SIDE_BLOCK_HEIGHT - 34) / 2}
-                  width={MAIL_SIDE_BLOCK_WIDTH - 24}
-                  align="center"
-                  text={MAIL_SIDE_BLOCK_LABEL}
-                  fontSize={28}
-                  fontStyle="700"
-                  fontFamily="Arial"
-                  fill="#0f172a"
-                />
-              </Group>
-
-              <Group
-                x={scene.eyebrow.x}
-                y={scene.eyebrow.y}
-                draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'eyebrow', id: scene.eyebrow.id })}
-              >
-                {selection?.kind === 'eyebrow' ? (
-                  <Rect x={-8} y={-8} width={scene.eyebrow.barWidth + 16} height={scene.eyebrow.barHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                ) : null}
-                <Rect width={scene.eyebrow.barWidth} height={scene.eyebrow.barHeight} fill={scene.eyebrow.backgroundColor} />
-                <Text
-                  x={scene.eyebrow.paddingX}
-                  y={scene.eyebrow.paddingY}
-                  width={scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2}
-                  text={scene.eyebrow.text}
-                  fontFamily={scene.eyebrow.fontFamily || 'Arial'}
-                  fontSize={scene.eyebrow.fontSize}
-                  fontStyle={scene.eyebrow.fontStyle}
-                  fill={scene.eyebrow.color}
-                  textDecoration={scene.eyebrow.textDecoration}
-                  wrap="none"
-                />
-              </Group>
-
-              <Group
-                x={scene.headline.x}
-                y={scene.headline.y}
-                ref={headlineRef}
-                draggable={selection?.kind === 'headline' && !isResizingHeadline}
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
-                onTransformStart={() => setIsResizingHeadline(true)}
-                onTransformEnd={(event) => {
-                  const node = event.target
-                  const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
-                  node.scaleX(1)
-                  node.scaleY(1)
-                  updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
-                  setIsResizingHeadline(false)
-                }}
-              >
-                {selection?.kind === 'headline' ? (
-                  <Rect x={-12} y={-12} width={scene.headline.width + 24} height={measureHeadlineHeight(scene.headline) + 24} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={14} />
-                ) : null}
-                <Text
-                  width={scene.headline.width}
-                  text={scene.headline.text}
-                  fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
-                  fontSize={scene.headline.fontSize}
-                  lineHeight={scene.headline.lineHeight || 1.04}
-                  fill={scene.headline.color}
-                  textDecoration={scene.headline.textDecoration}
-                />
-              </Group>
-
-              <Group
-                x={scene.subhead.x}
-                y={scene.subhead.y}
-                onMouseDown={() => setSelection({ kind: 'subhead', id: scene.subhead.id })}
-              >
-                {selection?.kind === 'subhead' ? (
-                  <Rect x={-10} y={-12} width={Math.max(scene.subhead.dividerWidth + 20, 320)} height={74} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={12} />
-                ) : null}
-                <Rect width={scene.subhead.dividerWidth} height={scene.subhead.dividerHeight} fill={scene.subhead.dividerColor} />
-                <Text
-                  y={14}
-                  text={scene.subhead.text}
-                  fontFamily={scene.subhead.fontFamily || 'Arial'}
-                  fontSize={scene.subhead.fontSize}
-                  fontStyle={scene.subhead.fontStyle}
-                  fill={scene.subhead.color}
-                  textDecoration={scene.subhead.textDecoration}
-                />
-              </Group>
-
-              {scene.townColumns === 2 ? (
-                <>
-                  {renderTownStack(leftTownRows, leftTownBounds, { kind: 'towns-left', id: 'town-stack-left' }, leftTownStackRef)}
-                  {renderTownStack(rightTownRows, rightTownBounds, { kind: 'towns-right', id: 'town-stack-right' }, rightTownStackRef)}
-                </>
-              ) : (
-                renderTownStack(includedTownRows, townStackBounds, { kind: 'towns', id: 'town-stack' }, townStackRef)
-              )}
-
-              <Group
-                x={scene.footer.x}
-                y={scene.footer.y}
-                draggable
-                onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'footer', id: scene.footer.id })}
-              >
-                {selection?.kind === 'footer' ? (
-                  <Rect x={-8} y={-8} width={scene.footer.width + 16} height={scene.footer.height + 16} stroke="#0ea5e9" dash={[10, 6]} />
-                ) : null}
-                <Rect width={scene.footer.width} height={scene.footer.height} fill={scene.footer.backgroundColor} />
-                <Text
-                  x={scene.footer.textX - scene.footer.x}
-                  y={scene.footer.textY - scene.footer.y}
-                  text={scene.footer.text}
-                  fontFamily="Arial"
-                  fontSize={scene.footer.fontSize}
-                  fontStyle={scene.footer.fontStyle}
-                  fill={scene.footer.color}
-                  textDecoration={scene.footer.textDecoration}
-                />
-              </Group>
-
-              <Group
-                  x={scene.headshot.x}
-                  y={scene.headshot.y}
-                  ref={headshotRef}
-                  draggable
-                  onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                  onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                  onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
-                  onTransformEnd={(event) => {
-                    const node = event.target
-                    const scale = Math.max(node.scaleX(), node.scaleY())
-                    const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
-                    node.scaleX(1)
-                    node.scaleY(1)
-                    updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
-                  }}
-                >
-                  <Group
-                    clipFunc={(ctx) => {
-                      ctx.beginPath()
-                      ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
-                      ctx.closePath()
-                    }}
-                  >
-                    {headshotImage ? (
-                      <KonvaImage
-                        image={headshotImage}
-                        x={headshotPlacement.x}
-                        y={headshotPlacement.y}
-                        width={headshotPlacement.width}
-                        height={headshotPlacement.height}
-                        onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                        onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="#f7f4ef" />
+                <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
+                {activeMailSide === 'front' ? (
+                  <>
+                    <Group
+                      x={scene.eyebrow.x}
+                      y={scene.eyebrow.y}
+                      draggable
+                      onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
+                      onMouseDown={() => setSelection({ kind: 'eyebrow', id: scene.eyebrow.id })}
+                    >
+                      {selection?.kind === 'eyebrow' ? (
+                        <Rect x={-8} y={-8} width={scene.eyebrow.barWidth + 16} height={scene.eyebrow.barHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                      ) : null}
+                      <Rect width={scene.eyebrow.barWidth} height={scene.eyebrow.barHeight} fill={scene.eyebrow.backgroundColor} />
+                      <Text
+                        x={scene.eyebrow.paddingX}
+                        y={scene.eyebrow.paddingY}
+                        width={scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2}
+                        text={scene.eyebrow.text}
+                        fontFamily={scene.eyebrow.fontFamily || 'Arial'}
+                        fontSize={scene.eyebrow.fontSize}
+                        fontStyle={scene.eyebrow.fontStyle}
+                        fill={scene.eyebrow.color}
+                        textDecoration={scene.eyebrow.textDecoration}
+                        wrap="none"
                       />
-                    ) : null}
-                  </Group>
-                </Group>
+                    </Group>
+
+                    <Group
+                      x={scene.headline.x}
+                      y={scene.headline.y}
+                      ref={headlineRef}
+                      draggable={selection?.kind === 'headline' && !isResizingHeadline}
+                      onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
+                      onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
+                      onTransformStart={() => setIsResizingHeadline(true)}
+                      onTransformEnd={(event) => {
+                        const node = event.target
+                        const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
+                        node.scaleX(1)
+                        node.scaleY(1)
+                        updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
+                        setIsResizingHeadline(false)
+                      }}
+                    >
+                      {selection?.kind === 'headline' ? (
+                        <Rect x={-12} y={-12} width={scene.headline.width + 24} height={measureHeadlineHeight(scene.headline) + 24} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={14} />
+                      ) : null}
+                      <Text
+                        width={scene.headline.width}
+                        text={scene.headline.text}
+                        fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
+                        fontSize={scene.headline.fontSize}
+                        lineHeight={scene.headline.lineHeight || 1.04}
+                        fill={scene.headline.color}
+                        textDecoration={scene.headline.textDecoration}
+                      />
+                    </Group>
+
+                    <Group
+                      x={scene.subhead.x}
+                      y={scene.subhead.y}
+                      onMouseDown={() => setSelection({ kind: 'subhead', id: scene.subhead.id })}
+                    >
+                      {selection?.kind === 'subhead' ? (
+                        <Rect x={-10} y={-12} width={Math.max(scene.subhead.dividerWidth + 20, 320)} height={74} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={12} />
+                      ) : null}
+                      <Rect width={scene.subhead.dividerWidth} height={scene.subhead.dividerHeight} fill={scene.subhead.dividerColor} />
+                      <Text
+                        y={14}
+                        text={scene.subhead.text}
+                        fontFamily={scene.subhead.fontFamily || 'Arial'}
+                        fontSize={scene.subhead.fontSize}
+                        fontStyle={scene.subhead.fontStyle}
+                        fill={scene.subhead.color}
+                        textDecoration={scene.subhead.textDecoration}
+                      />
+                    </Group>
+
+                    {scene.townColumns === 2 ? (
+                      <>
+                        {renderTownStack(leftTownRows, leftTownBounds, { kind: 'towns-left', id: 'town-stack-left' }, leftTownStackRef)}
+                        {renderTownStack(rightTownRows, rightTownBounds, { kind: 'towns-right', id: 'town-stack-right' }, rightTownStackRef)}
+                      </>
+                    ) : (
+                      renderTownStack(includedTownRows, townStackBounds, { kind: 'towns', id: 'town-stack' }, townStackRef)
+                    )}
+
+                    <Group
+                      x={scene.footer.x}
+                      y={scene.footer.y}
+                      draggable
+                      onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
+                      onMouseDown={() => setSelection({ kind: 'footer', id: scene.footer.id })}
+                    >
+                      {selection?.kind === 'footer' ? (
+                        <Rect x={-8} y={-8} width={scene.footer.width + 16} height={scene.footer.height + 16} stroke="#0ea5e9" dash={[10, 6]} />
+                      ) : null}
+                      <Rect width={scene.footer.width} height={scene.footer.height} fill={scene.footer.backgroundColor} />
+                      <Text
+                        x={scene.footer.textX - scene.footer.x}
+                        y={scene.footer.textY - scene.footer.y}
+                        text={scene.footer.text}
+                        fontFamily="Arial"
+                        fontSize={scene.footer.fontSize}
+                        fontStyle={scene.footer.fontStyle}
+                        fill={scene.footer.color}
+                        textDecoration={scene.footer.textDecoration}
+                      />
+                    </Group>
+
+                    <Group
+                      x={scene.headshot.x}
+                      y={scene.headshot.y}
+                      ref={headshotRef}
+                      draggable
+                      onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                      onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                      onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
+                      onTransformEnd={(event) => {
+                        const node = event.target
+                        const scale = Math.max(node.scaleX(), node.scaleY())
+                        const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
+                        node.scaleX(1)
+                        node.scaleY(1)
+                        updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
+                      }}
+                    >
+                      <Group
+                        clipFunc={(ctx) => {
+                          ctx.beginPath()
+                          ctx.arc(scene.headshot.size / 2, scene.headshot.size / 2, scene.headshot.size / 2, 0, Math.PI * 2)
+                          ctx.closePath()
+                        }}
+                      >
+                        {headshotImage ? (
+                          <KonvaImage
+                            image={headshotImage}
+                            x={headshotPlacement.x}
+                            y={headshotPlacement.y}
+                            width={headshotPlacement.width}
+                            height={headshotPlacement.height}
+                            onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                            onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                          />
+                        ) : null}
+                      </Group>
+                    </Group>
+
+                    <Rect
+                      x={STAGE_WIDTH - MAIL_PLACEHOLDER_WIDTH}
+                      y={STAGE_HEIGHT - MAIL_PLACEHOLDER_HEIGHT}
+                      width={MAIL_PLACEHOLDER_WIDTH}
+                      height={MAIL_PLACEHOLDER_HEIGHT}
+                      fill="#ffffff"
+                      stroke="#94a3b8"
+                      strokeWidth={2}
+                      cornerRadius={16}
+                    />
+                  </>
+                ) : (
+                  <>
+                    <Group
+                      x={scene.headshot.x}
+                      y={scene.headshot.y}
+                      ref={headshotRef}
+                      draggable
+                      onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                      onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                      onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
+                      onTransformEnd={(event) => {
+                        const node = event.target
+                        const scale = Math.max(node.scaleX(), node.scaleY())
+                        const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
+                        node.scaleX(1)
+                        node.scaleY(1)
+                        updateHeadshot({ x: node.x(), y: node.y(), size: nextSize })
+                      }}
+                    >
+                      <Group
+                        clipFunc={(ctx) => {
+                          ctx.beginPath()
+                          ctx.arc(
+                            scene.headshot.size / 2,
+                            scene.headshot.size / 2,
+                            scene.headshot.size / 2,
+                            0,
+                            Math.PI * 2,
+                          )
+                          ctx.closePath()
+                        }}
+                      >
+                        {headshotImage ? (
+                          <KonvaImage
+                            image={headshotImage}
+                            x={backHeadshotPlacement.x}
+                            y={backHeadshotPlacement.y}
+                            width={backHeadshotPlacement.width}
+                            height={backHeadshotPlacement.height}
+                            onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                            onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                          />
+                        ) : (
+                          <Rect
+                            width={scene.headshot.size}
+                            height={scene.headshot.size}
+                            fill="rgba(148, 163, 184, 0.35)"
+                          />
+                        )}
+                      </Group>
+                    </Group>
+
+                    <Group
+                      x={scene.subhead.x}
+                      y={scene.subhead.y}
+                      draggable
+                      onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
+                      onMouseDown={() => setSelection({ kind: 'subhead', id: scene.subhead.id })}
+                    >
+                      {selection?.kind === 'subhead' ? (
+                        <Rect
+                          x={-10}
+                          y={-12}
+                          width={Math.max(scene.subhead.dividerWidth + 20, 220)}
+                          height={Math.max(scene.subhead.fontSize + 28, 56)}
+                          stroke="#0ea5e9"
+                          dash={[10, 6]}
+                          cornerRadius={12}
+                        />
+                      ) : null}
+                      <Text
+                        width={scene.subhead.dividerWidth}
+                        text={scene.subhead.text}
+                        fontFamily={scene.subhead.fontFamily || 'Georgia, Times New Roman, serif'}
+                        fontSize={scene.subhead.fontSize}
+                        fontStyle={scene.subhead.fontStyle}
+                        fill={scene.subhead.color}
+                        textDecoration={scene.subhead.textDecoration}
+                        align="left"
+                      />
+                    </Group>
+
+                    <Group
+                      x={scene.headline.x}
+                      y={scene.headline.y}
+                      ref={headlineRef}
+                      draggable={selection?.kind === 'headline' && !isResizingHeadline}
+                      onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
+                      onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
+                      onTransformStart={() => setIsResizingHeadline(true)}
+                      onTransformEnd={(event) => {
+                        const node = event.target
+                        const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
+                        node.scaleX(1)
+                        node.scaleY(1)
+                        updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
+                        setIsResizingHeadline(false)
+                      }}
+                    >
+                      {selection?.kind === 'headline' ? (
+                        <Rect
+                          x={-12}
+                          y={-12}
+                          width={scene.headline.width + 24}
+                          height={Math.max(backGraphicLayout.headline.height, measureHeadlineHeight(scene.headline)) + 24}
+                          stroke="#0ea5e9"
+                          dash={[10, 6]}
+                          cornerRadius={14}
+                        />
+                      ) : null}
+                      <Text
+                        width={scene.headline.width}
+                        height={backGraphicLayout.headline.height}
+                        text={scene.headline.text}
+                        fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
+                        fontSize={scene.headline.fontSize}
+                        fontStyle={scene.headline.fontStyle}
+                        fill="#374151"
+                        align={backGraphicLayout.headline.align}
+                        verticalAlign="middle"
+                        lineHeight={scene.headline.lineHeight || 1.05}
+                        textDecoration={scene.headline.textDecoration}
+                      />
+                    </Group>
+                  </>
+                )}
 
               <Transformer
                 ref={transformerRef}
@@ -2834,13 +2833,6 @@ const toolbarButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const sectionLabelStyle: React.CSSProperties = {
-  fontWeight: 700,
-  fontSize: 13,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
-}
-
 const detailsStyle: React.CSSProperties = {
   borderRadius: 16,
   border: '1px solid rgba(17, 24, 39, 0.1)',
@@ -2854,6 +2846,29 @@ const detailsSummaryStyle: React.CSSProperties = {
   fontSize: 13,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
+  color: '#111827',
+}
+
+const accordionBodyStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 12,
+  marginTop: 12,
+}
+
+const nestedDetailsStyle: React.CSSProperties = {
+  borderRadius: 14,
+  border: '1px solid rgba(17, 24, 39, 0.08)',
+  background: '#ffffff',
+  padding: '10px 12px',
+}
+
+const nestedSummaryStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  gap: 8,
+  fontWeight: 700,
   color: '#111827',
 }
 
