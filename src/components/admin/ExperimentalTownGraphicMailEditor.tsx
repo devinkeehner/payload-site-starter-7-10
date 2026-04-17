@@ -6,7 +6,6 @@ import type Konva from 'konva'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 
@@ -32,7 +31,6 @@ const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
 const MAIL_SCENE_BUNDLE_KIND = 'graphics-editor-mail-bundle/v1'
-const EXPORT_ALL_REP_COOLDOWN_MS = 1000
 const TEXT_FONT_OPTIONS = [
   { label: 'Arial', value: 'Arial' },
   { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
@@ -88,6 +86,18 @@ type TownFundingResponse = {
 type TenantSelectOption = {
   label: string
   value: string
+}
+
+type MailExportJobState = {
+  id: string
+  status: 'queued' | 'running' | 'complete' | 'error'
+  total: number
+  completed: number
+  currentTenantLabel: string | null
+  skippedCount: number
+  error: string | null
+  downloadName: string
+  downloadUrl: string | null
 }
 
 type TemplateDoc = {
@@ -586,375 +596,6 @@ const buildCircularHeadshotDataUrl = async ({
   return canvas.toDataURL('image/png')
 }
 
-const bytesToHex = (bytes: Uint8Array) =>
-  Array.from(bytes)
-    .map((value) => value.toString(16).padStart(2, '0'))
-    .join('')
-
-const dataUrlToBytes = async (dataUrl: string) => {
-  const blob = dataUrlToBlob(dataUrl)
-  const buffer = await blob.arrayBuffer()
-  return new Uint8Array(buffer)
-}
-
-const isPngBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('89504e470d0a1a0a')
-
-const isJpegBytes = (bytes: Uint8Array) => bytesToHex(bytes).startsWith('ffd8ff')
-
-const colorToRgb = (value: string, fallback = '#000000') => {
-  const normalized = (value || fallback).trim()
-  const match = normalized.match(/^#?([0-9a-f]{6})$/i)
-  if (!match?.[1]) return rgb(0, 0, 0)
-  const hex = match[1]
-  return rgb(
-    Number.parseInt(hex.slice(0, 2), 16) / 255,
-    Number.parseInt(hex.slice(2, 4), 16) / 255,
-    Number.parseInt(hex.slice(4, 6), 16) / 255,
-  )
-}
-
-const getPdfFontName = (fontFamily?: string, fontStyle?: string) => {
-  const family = (fontFamily || '').toLowerCase()
-  const style = (fontStyle || '').toLowerCase()
-  const isBold = style.includes('700') || style.includes('bold')
-  const isItalic = style.includes('italic') || style.includes('oblique')
-  const prefersSerif = family.includes('georgia') || family.includes('times')
-
-  if (prefersSerif) {
-    if (isBold && isItalic) return StandardFonts.TimesRomanBoldItalic
-    if (isBold) return StandardFonts.TimesRomanBold
-    if (isItalic) return StandardFonts.TimesRomanItalic
-    return StandardFonts.TimesRoman
-  }
-
-  if (isBold && isItalic) return StandardFonts.HelveticaBoldOblique
-  if (isBold) return StandardFonts.HelveticaBold
-  if (isItalic) return StandardFonts.HelveticaOblique
-  return StandardFonts.Helvetica
-}
-
-const drawWrappedPdfText = async ({
-  doc,
-  page,
-  text,
-  x,
-  y,
-  width,
-  fontFamily,
-  fontStyle,
-  fontSize,
-  color,
-  lineHeight,
-}: {
-  doc: PDFDocument
-  page: import('pdf-lib').PDFPage
-  text: string
-  x: number
-  y: number
-  width: number
-  fontFamily?: string
-  fontStyle?: string
-  fontSize: number
-  color: string
-  lineHeight?: number
-}) => {
-  const font = await doc.embedFont(getPdfFontName(fontFamily, fontStyle))
-  const lines = wrapTextToWidth(text || '', `${fontSize}px ${fontFamily || 'Arial'}`, width)
-  const lineGap = fontSize * (lineHeight || 1.1)
-
-  lines.forEach((line, index) => {
-    page.drawText(line, {
-      x,
-      y: STAGE_HEIGHT - y - fontSize - index * lineGap,
-      size: fontSize,
-      font,
-      color: colorToRgb(color),
-    })
-  })
-}
-
-const drawPdfImageBytes = async ({
-  doc,
-  page,
-  assetBytes,
-  x,
-  y,
-  width,
-  height,
-}: {
-  doc: PDFDocument
-  page: import('pdf-lib').PDFPage
-  assetBytes: Uint8Array
-  x: number
-  y: number
-  width: number
-  height: number
-}) => {
-  const image = isPngBytes(assetBytes) ? await doc.embedPng(assetBytes) : isJpegBytes(assetBytes) ? await doc.embedJpg(assetBytes) : null
-  if (!image) throw new Error('Unsupported image format for PDF export')
-  page.drawImage(image, {
-    x,
-    y: STAGE_HEIGHT - y - height,
-    width,
-    height,
-  })
-}
-
-const buildRectanglePngBytes = ({
-  width,
-  height,
-  color,
-}: {
-  width: number
-  height: number
-  color: string
-}) => {
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.max(1, Math.round(width))
-  canvas.height = Math.max(1, Math.round(height))
-  const context = canvas.getContext('2d')
-  if (!context) throw new Error('Failed to build rectangle image for PDF export')
-  context.fillStyle = color
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  return dataUrlToBytes(canvas.toDataURL('image/png'))
-}
-
-const buildPdfBlobFromSceneBundle = async ({
-  bundle,
-  headshotImage,
-}: {
-  bundle: MailSceneBundle
-  headshotImage: HTMLImageElement | null
-}) => {
-  const pdf = await PDFDocument.create()
-
-  const drawScenePage = async (scene: ExperimentalTownScene, options: { includePlaceholder: boolean }) => {
-    const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
-
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: STAGE_WIDTH,
-      height: STAGE_HEIGHT,
-      color: colorToRgb('#f7f4ef'),
-    })
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: STAGE_WIDTH,
-      height: STAGE_HEIGHT,
-      color: rgb(1, 1, 1),
-      opacity: 0.66,
-    })
-
-    for (const item of scene.customRects) {
-      const rectBytes = await buildRectanglePngBytes({
-        width: item.width,
-        height: item.height,
-        color: item.fill,
-      })
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: rectBytes,
-        x: item.x,
-        y: item.y,
-        width: item.width,
-        height: item.height,
-      })
-    }
-
-    for (const item of scene.customTexts) {
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: item.text,
-        x: item.x,
-        y: item.y,
-        width: item.width,
-        fontFamily: item.fontFamily,
-        fontStyle: item.fontStyle,
-        fontSize: item.fontSize,
-        color: item.color,
-        lineHeight: item.lineHeight,
-      })
-    }
-
-    const eyebrowBarBytes = await buildRectanglePngBytes({
-      width: scene.eyebrow.barWidth,
-      height: scene.eyebrow.barHeight,
-      color: scene.eyebrow.backgroundColor,
-    })
-    await drawPdfImageBytes({
-      doc: pdf,
-      page,
-      assetBytes: eyebrowBarBytes,
-      x: scene.eyebrow.x,
-      y: scene.eyebrow.y,
-      width: scene.eyebrow.barWidth,
-      height: scene.eyebrow.barHeight,
-    })
-
-    await drawWrappedPdfText({
-      doc: pdf,
-      page,
-      text: scene.eyebrow.text,
-      x: scene.eyebrow.x + scene.eyebrow.paddingX,
-      y: scene.eyebrow.y + scene.eyebrow.paddingY,
-      width: scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2,
-      fontFamily: scene.eyebrow.fontFamily,
-      fontStyle: scene.eyebrow.fontStyle,
-      fontSize: scene.eyebrow.fontSize,
-      color: scene.eyebrow.color,
-      lineHeight: scene.eyebrow.lineHeight,
-    })
-
-    await drawWrappedPdfText({
-      doc: pdf,
-      page,
-      text: scene.headline.text,
-      x: scene.headline.x,
-      y: scene.headline.y,
-      width: scene.headline.width,
-      fontFamily: scene.headline.fontFamily,
-      fontStyle: scene.headline.fontStyle,
-      fontSize: scene.headline.fontSize,
-      color: scene.headline.color,
-      lineHeight: scene.headline.lineHeight,
-    })
-
-    page.drawRectangle({
-      x: scene.subhead.x,
-      y: STAGE_HEIGHT - scene.subhead.y - scene.subhead.dividerHeight,
-      width: scene.subhead.dividerWidth,
-      height: scene.subhead.dividerHeight,
-      color: colorToRgb(scene.subhead.dividerColor),
-    })
-
-    await drawWrappedPdfText({
-      doc: pdf,
-      page,
-      text: scene.subhead.text,
-      x: scene.subhead.x,
-      y: scene.subhead.y + 14,
-      width: Math.max(scene.subhead.dividerWidth + 120, 320),
-      fontFamily: scene.subhead.fontFamily,
-      fontStyle: scene.subhead.fontStyle,
-      fontSize: scene.subhead.fontSize,
-      color: scene.subhead.color,
-    })
-
-    for (const row of scene.townRows.filter((nextRow) => nextRow.included)) {
-      const renderedLabelWidth = getRenderedTownLabelWidth(row)
-      const townBarBytes = await buildRectanglePngBytes({
-        width: renderedLabelWidth,
-        height: row.labelHeight,
-        color: row.labelColor,
-      })
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: townBarBytes,
-        x: row.labelX,
-        y: row.labelY,
-        width: renderedLabelWidth,
-        height: row.labelHeight,
-      })
-
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: row.town.toUpperCase(),
-        x: row.labelX + 14,
-        y: row.labelY + 7,
-        width: Math.max(renderedLabelWidth - 14, 60),
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        fontSize: row.townFontSize,
-        color: '#ffffff',
-      })
-
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: formatCurrency(row.strapAid),
-        x: row.amountX,
-        y: row.amountY,
-        width: 420,
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        fontSize: row.amountFontSize,
-        color: row.textColor,
-      })
-    }
-
-    const footerBarBytes = await buildRectanglePngBytes({
-      width: scene.footer.width,
-      height: scene.footer.height,
-      color: scene.footer.backgroundColor,
-    })
-    await drawPdfImageBytes({
-      doc: pdf,
-      page,
-      assetBytes: footerBarBytes,
-      x: scene.footer.x,
-      y: scene.footer.y,
-      width: scene.footer.width,
-      height: scene.footer.height,
-    })
-
-    await drawWrappedPdfText({
-      doc: pdf,
-      page,
-      text: scene.footer.text,
-      x: scene.footer.textX,
-      y: scene.footer.textY,
-      width: scene.footer.width - scene.footer.textX - 32,
-      fontFamily: scene.footer.fontFamily || 'Arial',
-      fontStyle: scene.footer.fontStyle,
-      fontSize: scene.footer.fontSize,
-      color: scene.footer.color,
-    })
-
-    const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
-    const circularHeadshotDataUrl = await buildCircularHeadshotDataUrl({
-      image: headshotImage,
-      placement: headshotPlacement,
-      size: scene.headshot.size,
-    })
-
-    if (circularHeadshotDataUrl) {
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: await dataUrlToBytes(circularHeadshotDataUrl),
-        x: scene.headshot.x,
-        y: scene.headshot.y,
-        width: scene.headshot.size,
-        height: scene.headshot.size,
-      })
-    }
-
-    if (options.includePlaceholder) {
-      page.drawRectangle({
-        x: STAGE_WIDTH - MAIL_PLACEHOLDER_WIDTH,
-        y: 0,
-        width: MAIL_PLACEHOLDER_WIDTH,
-        height: MAIL_PLACEHOLDER_HEIGHT,
-        color: colorToRgb('#ffffff'),
-        borderColor: colorToRgb('#94a3b8'),
-        borderWidth: 2,
-      })
-    }
-  }
-
-  await drawScenePage(bundle.frontScene, { includePlaceholder: true })
-  await drawScenePage(bundle.backScene, { includePlaceholder: false })
-
-  const pdfBytes = await pdf.save()
-  return new Blob([pdfBytes], { type: 'application/pdf' })
-}
-
 const buildDesignTitle = (tenantName: string | undefined | null, fallback: string) =>
   tenantName ? `${tenantName} Town Graphic` : fallback || 'Town Graphic'
 
@@ -1440,6 +1081,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [savingMedia, setSavingMedia] = useState(false)
   const [downloadingPptx, setDownloadingPptx] = useState(false)
   const [exportingAllReps, setExportingAllReps] = useState(false)
+  const [mailExportJob, setMailExportJob] = useState<MailExportJobState | null>(null)
   const [designsSectionOpen, setDesignsSectionOpen] = useState(false)
   const [contentSectionOpen, setContentSectionOpen] = useState(false)
   const [townsSectionOpen, setTownsSectionOpen] = useState(false)
@@ -1652,6 +1294,38 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  useEffect(() => {
+    if (!mailExportJob || (mailExportJob.status !== 'queued' && mailExportJob.status !== 'running')) return
+
+    const interval = window.setInterval(async () => {
+      try {
+        const response = await fetch(`/api/graphics-editor-mail/export-all?jobId=${encodeURIComponent(mailExportJob.id)}`, {
+          credentials: 'include',
+        })
+        const json = (await response.json()) as MailExportJobState | { message?: string }
+        if (!response.ok) throw new Error(getString(asRecord(json).message) || 'Failed to poll export job')
+        const nextJob = json as MailExportJobState
+        setMailExportJob(nextJob)
+        if (nextJob.status === 'complete') {
+          setExportingAllReps(false)
+          setMessage(
+            nextJob.skippedCount
+              ? `Exported ${nextJob.completed} reps. Skipped ${nextJob.skippedCount}.`
+              : `Exported ${nextJob.completed} reps.`,
+          )
+        } else if (nextJob.status === 'error') {
+          setExportingAllReps(false)
+          setMessage(nextJob.error || 'Export job failed')
+        }
+      } catch (error) {
+        setExportingAllReps(false)
+        setMessage(error instanceof Error ? error.message : String(error))
+      }
+    }, 2000)
+
+    return () => window.clearInterval(interval)
+  }, [mailExportJob])
 
   const previewScale = useMemo(() => {
     const fallbackHeight = viewportHeight > 0 ? Math.min(MAX_PREVIEW_HEIGHT, Math.max(520, viewportHeight - 220)) : MAX_PREVIEW_HEIGHT
@@ -2385,112 +2059,53 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }
   }
 
-  const waitForTenantReady = async (nextTenantID: string) => {
-    const deadline = Date.now() + 20000
-
-    while (Date.now() < deadline) {
-      const currentFrontScene = frontSceneRef.current
-      const currentBackScene = backSceneRef.current
-
-      if (
-        tenantIDRef.current === nextTenantID &&
-        !loadingRef.current &&
-        currentFrontScene &&
-        currentBackScene
-      ) {
-        await waitForStagePaint()
-        return
-      }
-
-      await new Promise((resolve) => window.setTimeout(resolve, 120))
-    }
-
-    throw new Error(`Timed out while loading ${nextTenantID}`)
-  }
-
   const exportAllRepsZip = async () => {
     if (!tenantOptions.length) return
 
-    const originalTenant = selectedTenantValue
-    const originalSide = activeMailSideRef.current
-    const originalSelection = selectionRef.current
-
     try {
       setExportingAllReps(true)
-      setMessage('Exporting all reps…')
-      // @ts-expect-error jszip is available at runtime in this workspace but doesn't expose types here
-      const { default: JSZip } = await import('jszip')
-      const zip = new JSZip()
-      const skippedTenants: Array<{ label: string; id: string; reason: string }> = []
-      let exportedCount = 0
-
-      for (const option of tenantOptions) {
-        try {
-          setTenant({ id: option.value, refresh: true })
-          await waitForTenantReady(option.value)
-
-          const folderName = option.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
-          const folder = zip.folder(folderName)
-          const bundle = getCurrentSceneBundle()
-
-          if (!folder || !bundle) {
-            throw new Error('Missing scene bundle for PDF export')
-          }
-
-          const pdfBlob = await buildPdfBlobFromSceneBundle({
-            bundle,
-            headshotImage: headshotImageRef.current,
-          })
-          folder.file(`${folderName}.pdf`, pdfBlob)
-          exportedCount += 1
-        } catch (error) {
-          skippedTenants.push({
-            label: option.label,
-            id: option.value,
-            reason: error instanceof Error ? error.message : String(error),
-          })
-        } finally {
-          await new Promise((resolve) => window.setTimeout(resolve, EXPORT_ALL_REP_COOLDOWN_MS))
-        }
+      setMailExportJob(null)
+      setMessage('Starting server export…')
+      const response = await fetch('/api/graphics-editor-mail/export-all', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          tenantOptions,
+          requestedDesignID,
+          requestedTemplateID,
+        }),
+      })
+      const json = (await response.json()) as { jobID?: string; message?: string }
+      if (!response.ok || !json.jobID) {
+        throw new Error(getString(asRecord(json).message) || 'Failed to start export job')
       }
-
-      if (skippedTenants.length) {
-        zip.file(
-          'skipped-tenants.txt',
-          skippedTenants
-            .map((item) => `${item.label} (${item.id})\n${item.reason}`)
-            .join('\n\n'),
-        )
-      }
-
-      if (originalTenant) {
-        setTenant({ id: originalTenant, refresh: true })
-        await waitForTenantReady(originalTenant)
-      }
-
-      setActiveMailSide(originalSide)
-      setSelection(originalSelection)
-      await waitForStagePaint()
-
-      const blob = await zip.generateAsync({ type: 'blob' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = 'graphics-editor-mail-all-reps.zip'
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(url)
-      setMessage(
-        skippedTenants.length
-          ? `Exported ${exportedCount} reps. Skipped ${skippedTenants.length}; see skipped-tenants.txt in the zip.`
-          : `Exported ${exportedCount} reps.`,
-      )
+      setMailExportJob({
+        id: json.jobID,
+        status: 'queued',
+        total: tenantOptions.length,
+        completed: 0,
+        currentTenantLabel: null,
+        skippedCount: 0,
+        error: null,
+        downloadName: 'graphics-editor-mail-all-reps.zip',
+        downloadUrl: null,
+      })
+      setMessage('Server export started…')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : String(error))
-    } finally {
       setExportingAllReps(false)
+      setMessage(error instanceof Error ? error.message : String(error))
     }
+  }
+
+  const downloadMailExportJob = () => {
+    if (!mailExportJob?.downloadUrl) return
+    const link = document.createElement('a')
+    link.href = mailExportJob.downloadUrl
+    link.download = mailExportJob.downloadName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
   }
 
   if (!isMounted) {
@@ -2903,8 +2518,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             Export XML
           </Button>
           <Button onClick={exportAllRepsZip} disabled={exportingAllReps || tenantOptions.length === 0} buttonStyle="secondary">
-            {exportingAllReps ? 'Exporting ZIP…' : 'Export All ZIP'}
+            {exportingAllReps ? 'Building Server ZIP…' : 'Export All ZIP'}
           </Button>
+          {mailExportJob?.status === 'complete' && mailExportJob.downloadUrl ? (
+            <Button onClick={downloadMailExportJob} buttonStyle="secondary">
+              Download ZIP
+            </Button>
+          ) : null}
           {isSuperAdmin ? (
             <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
               {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
@@ -2923,6 +2543,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             Undo
           </Button>
         </div>
+        {mailExportJob ? (
+          <div style={{ fontSize: 12, color: '#475569' }}>
+            {mailExportJob.status === 'running' || mailExportJob.status === 'queued'
+              ? `Server export: ${mailExportJob.completed}/${mailExportJob.total}${mailExportJob.currentTenantLabel ? `, working on ${mailExportJob.currentTenantLabel}` : ''}`
+              : mailExportJob.status === 'complete'
+                ? `Server export ready. ${mailExportJob.completed}/${mailExportJob.total} complete${mailExportJob.skippedCount ? `, ${mailExportJob.skippedCount} skipped` : ''}.`
+                : mailExportJob.error
+                  ? `Server export failed: ${mailExportJob.error}`
+                  : null}
+          </div>
+        ) : null}
       </section>
 
       <aside
