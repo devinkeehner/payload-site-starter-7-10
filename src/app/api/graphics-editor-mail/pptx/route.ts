@@ -102,6 +102,17 @@ type CustomTextElement = {
   textDecoration?: string
 }
 
+type CustomImageElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  mediaID: string
+  sourceUrl: string
+  alt?: string
+}
+
 type TownSceneRow = {
   id: string
   town: string
@@ -125,6 +136,7 @@ type ExperimentalTownScene = {
   subhead: SubheadElement
   footer: FooterElement
   headshot: HeadshotElement
+  customImages: CustomImageElement[]
   customRects: CustomRectElement[]
   customTexts: CustomTextElement[]
   townRows: TownSceneRow[]
@@ -202,6 +214,24 @@ const measureWrappedTextHeight = ({
   return Math.max(fontSize * lineHeight, lineCount * fontSize * lineHeight)
 }
 
+const resolveAbsoluteUrl = (url: string, origin: string) => {
+  try {
+    return new URL(url, origin).toString()
+  } catch {
+    return null
+  }
+}
+
+const fetchImageAsDataUrl = async (url: string, origin: string) => {
+  const absoluteUrl = resolveAbsoluteUrl(url, origin)
+  if (!absoluteUrl) return null
+  const response = await fetch(absoluteUrl, { cache: 'no-store' })
+  if (!response.ok) return null
+  const contentType = response.headers.get('content-type') || 'image/png'
+  const buffer = Buffer.from(await response.arrayBuffer())
+  return `data:${contentType};base64,${buffer.toString('base64')}`
+}
+
 const addTextBlock = (
   slide: PptxGenJS.Slide,
   block: {
@@ -239,15 +269,29 @@ const renderSceneToSlide = ({
   slide,
   scene,
   headshotDataUrl,
+  customImageDataUrls,
   includePlaceholder,
 }: {
   pptx: PptxGenJS
   slide: PptxGenJS.Slide
   scene: ExperimentalTownScene
   headshotDataUrl?: string | null
+  customImageDataUrls?: Record<string, string | null>
   includePlaceholder: boolean
 }) => {
   slide.background = { color: 'F7F4EF' }
+
+  for (const item of scene.customImages || []) {
+    const dataUrl = customImageDataUrls?.[item.id]
+    if (!dataUrl) continue
+    slide.addImage({
+      data: dataUrl,
+      x: toPptxX(item.x),
+      y: toPptxY(item.y),
+      w: toPptxW(item.width),
+      h: toPptxH(item.height),
+    })
+  }
 
   for (const item of scene.customRects || []) {
     slide.addShape(pptx.ShapeType.rect, {
@@ -418,6 +462,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as ExportRequest
     const frontScene = body.frontScene
     const backScene = body.backScene
+    const origin = new URL(req.url).origin
 
     const filenameBase = (body.filenameBase || 'town-graphic')
       .toLowerCase()
@@ -437,12 +482,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (frontScene && backScene) {
+      const [frontCustomImageDataUrls, backCustomImageDataUrls] = await Promise.all([
+        Promise.all((frontScene.customImages || []).map(async (item) => [item.id, await fetchImageAsDataUrl(item.sourceUrl, origin)] as const)).then(Object.fromEntries),
+        Promise.all((backScene.customImages || []).map(async (item) => [item.id, await fetchImageAsDataUrl(item.sourceUrl, origin)] as const)).then(Object.fromEntries),
+      ])
       const frontSlide = pptx.addSlide()
       renderSceneToSlide({
         pptx,
         slide: frontSlide,
         scene: frontScene,
         headshotDataUrl: body.frontCircularHeadshotDataUrl,
+        customImageDataUrls: frontCustomImageDataUrls,
         includePlaceholder: true,
       })
 
@@ -452,6 +502,7 @@ export async function POST(req: NextRequest) {
         slide: backSlide,
         scene: backScene,
         headshotDataUrl: body.backCircularHeadshotDataUrl,
+        customImageDataUrls: backCustomImageDataUrls,
         includePlaceholder: false,
       })
     } else if (body.frontDataUrl && body.backDataUrl) {

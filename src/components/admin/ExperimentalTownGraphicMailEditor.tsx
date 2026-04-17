@@ -22,6 +22,13 @@ const BRAND_BLUE = '#6b7280'
 const BRAND_RED = '#334155'
 const BRAND_COLORS = [BRAND_BLUE, '#9ca3af', BRAND_RED, '#ffffff', '#111827']
 const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
+const MAILER_BACKSIDE_ONE_ASSET_BASE = '/graphics-editor-mail/mailer-backside-one'
+const MAILER_BACKSIDE_ONE_ASSETS = {
+  paper: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/notepaper.png`,
+  qr: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/qr.png`,
+  arrow: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/arrow.png`,
+  screenshot: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/site-screenshot.png`,
+} as const
 const MAIL_PLACEHOLDER_WIDTH = 560
 const MAIL_PLACEHOLDER_HEIGHT = 364
 const HEADLINE_WIDTH_LIMITS = { min: 240, max: 1060 }
@@ -221,6 +228,17 @@ type CustomTextElement = {
   textDecoration?: string
 }
 
+type CustomImageElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  mediaID: string
+  sourceUrl: string
+  alt?: string
+}
+
 const sanitizeTemplateDoc = (item: TemplateDoc) => ({ ...item, backgroundImage: null })
 const sanitizeDesignDoc = (item: DesignDoc) => ({ ...item, backgroundImage: null })
 
@@ -250,6 +268,7 @@ type ExperimentalTownScene = {
   subhead: SubheadElement
   footer: FooterElement
   headshot: HeadshotElement
+  customImages: CustomImageElement[]
   customRects: CustomRectElement[]
   customTexts: CustomTextElement[]
   townColumns: 1 | 2
@@ -262,6 +281,7 @@ type Selection =
   | { kind: 'subhead'; id: string }
   | { kind: 'footer'; id: string }
   | { kind: 'headshot'; id: string }
+  | { kind: 'custom-image'; id: string }
   | { kind: 'custom-rect'; id: string }
   | { kind: 'custom-text'; id: string }
   | { kind: 'towns'; id: 'town-stack' }
@@ -291,6 +311,11 @@ const getMediaDoc = (value: unknown): MediaDoc | null =>
   value && typeof value === 'object' && typeof (value as Record<string, unknown>).id === 'string'
     ? (value as MediaDoc)
     : null
+
+const readRawMediaUrl = (value: unknown) => {
+  const mediaDoc = getMediaDoc(value)
+  return mediaDoc?.url || mediaDoc?.thumbnailURL || undefined
+}
 
 const proxiedUrl = (url: string | undefined | null) => {
   if (typeof url !== 'string' || !url) return undefined
@@ -326,6 +351,42 @@ function useLoadedImage(src: string | undefined) {
   }, [src])
 
   return image
+}
+
+function useLoadedImages(srcByID: Record<string, string | undefined>) {
+  const [images, setImages] = useState<Record<string, HTMLImageElement | null>>({})
+
+  useEffect(() => {
+    const entries = Object.entries(srcByID)
+    if (!entries.length) {
+      setImages({})
+      return
+    }
+
+    let cancelled = false
+    setImages((current) => {
+      const next: Record<string, HTMLImageElement | null> = {}
+      for (const [id] of entries) next[id] = current[id] || null
+      return next
+    })
+
+    entries.forEach(([id, src]) => {
+      if (!src) return
+      const nextImage = new window.Image()
+      nextImage.crossOrigin = 'anonymous'
+      nextImage.onload = () => {
+        if (cancelled) return
+        setImages((current) => ({ ...current, [id]: nextImage }))
+      }
+      nextImage.src = src
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [srcByID])
+
+  return images
 }
 
 function useContainerWidth() {
@@ -718,6 +779,13 @@ const scaleBaseScene = (scene: ExperimentalTownScene) => {
         offsetY: scene.headshot.crop.offsetY * scaleY,
       },
     },
+    customImages: scene.customImages.map((item) => ({
+      ...item,
+      x: item.x * scaleX,
+      y: item.y * scaleY,
+      width: item.width * scaleX,
+      height: item.height * scaleY,
+    })),
     customRects: scene.customRects.map((item) => ({
       ...item,
       x: item.x * scaleX,
@@ -838,6 +906,7 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
         offsetY: 0,
       },
     },
+    customImages: [],
     customRects: [],
     customTexts: [],
     townColumns: 1 as const,
@@ -865,65 +934,93 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
   })
 }
 
-const createBackScene = (_data: TownFundingResponse, _tenantName: string | undefined) => {
+const createBackScene = (data: TownFundingResponse, tenantName: string | undefined) => {
+  const repName = data.repInfo?.name?.trim() || tenantName?.trim() || 'State Representative'
+  const backTownColumns = 2
+  const rowsPerColumn = Math.ceil(data.townRows.length / 2)
+  const backTownRows = data.townRows.map((row, index) => {
+    const columnIndex = index >= rowsPerColumn ? 1 : 0
+    const indexInColumn = columnIndex === 0 ? index : index - rowsPerColumn
+    const labelX = columnIndex === 0 ? 28 : 255
+    const labelY = 360 + indexInColumn * 112
+
+    return {
+      id: row.id,
+      townKey: normalizeTownKey(row.town),
+      town: row.town,
+      strapAid: row.strapAid,
+      included: true,
+      labelX,
+      labelY,
+      labelWidth: measureTownLabelWidth(row.town, 24),
+      labelHeight: 36,
+      amountX: labelX,
+      amountY: labelY + 44,
+      townFontSize: 24,
+      amountFontSize: 40,
+      labelColor: BRAND_RED,
+      textColor: BRAND_BLUE,
+    }
+  })
+
   const scene = {
     kind: SCENE_KIND,
     backgroundMediaID: null,
     eyebrow: {
       id: 'eyebrow',
-      x: 84,
-      y: 72,
-      width: 260,
-      text: 'PATHWAY TO AFFORDABILITY',
-      fontSize: 24,
+      x: 24,
+      y: 28,
+      width: 460,
+      text: 'PITCHING REAL RELIEF FOR CONNECTICUT',
+      fontSize: 16,
       color: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: '700',
       lineHeight: 1,
-      barWidth: 470,
-      barHeight: 52,
-      paddingX: 18,
-      paddingY: 12,
-      backgroundColor: BRAND_RED,
+      barWidth: 452,
+      barHeight: 32,
+      paddingX: 12,
+      paddingY: 7,
+      backgroundColor: '#111111',
     },
     headline: {
       id: 'headline',
-      x: 84,
-      y: 170,
-      width: 760,
-      text: 'A Better Budget\nfor Connecticut',
-      fontSize: 56,
-      color: BRAND_RED,
+      x: 24,
+      y: 92,
+      width: 485,
+      text: `${buildRepShortName(repName).replace('Rep. ', '')} Announces\nSchools/Taxpayers Relief &\nAffordability Plan (STRAP)`,
+      fontSize: 30,
+      color: '#111111',
       fontFamily: 'Georgia, Times New Roman, serif',
       fontStyle: '700',
       lineHeight: 1.05,
     },
     subhead: {
       id: 'subhead',
-      x: 86,
+      x: 24,
       y: 0,
-      dividerWidth: 340,
-      dividerHeight: 4,
-      dividerColor: '#9ca3af',
-      text: 'Direct town aid. Tax relief. Lower household costs.',
-      fontSize: 30,
-      color: BRAND_BLUE,
+      dividerWidth: 120,
+      dividerHeight: 2,
+      dividerColor: '#111111',
+      text: 'STRAP FUNDING PER TOWN',
+      fontSize: 16,
+      color: '#111111',
       fontFamily: 'Arial',
-      fontStyle: '700',
+      fontStyle: 'italic 700',
     },
     footer: {
       id: 'footer',
       x: 0,
-      y: 920,
-      width: STAGE_WIDTH,
-      height: 80,
-      backgroundColor: BRAND_RED,
-      text: WEBSITE_TEXT,
-      textX: 80,
-      textY: 940,
-      fontSize: 34,
-      color: '#ffffff',
-      fontStyle: 'italic 700',
+      y: 0,
+      width: 0,
+      height: 0,
+      backgroundColor: '#ffffff',
+      text: '',
+      textX: 0,
+      textY: 0,
+      fontSize: 12,
+      color: '#111111',
+      fontStyle: '400',
     },
     headshot: {
       id: 'headshot',
@@ -936,58 +1033,250 @@ const createBackScene = (_data: TownFundingResponse, _tenantName: string | undef
         offsetY: 0,
       },
     },
+    customImages: [
+      {
+        id: 'back-note-paper',
+        x: 1025,
+        y: 4,
+        width: 700,
+        height: 500,
+        mediaID: 'mailer-backside-one-paper',
+        sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.paper,
+        alt: 'Fast facts paper',
+      },
+      {
+        id: 'back-site-screenshot',
+        x: 615,
+        y: 592,
+        width: 400,
+        height: 245,
+        mediaID: 'mailer-backside-one-screenshot',
+        sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.screenshot,
+        alt: 'Budget website screenshot',
+      },
+      {
+        id: 'back-arrow',
+        x: 1188,
+        y: 695,
+        width: 118,
+        height: 160,
+        mediaID: 'mailer-backside-one-arrow',
+        sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.arrow,
+        alt: 'Arrow',
+      },
+      {
+        id: 'back-qr',
+        x: 1322,
+        y: 695,
+        width: 138,
+        height: 138,
+        mediaID: 'mailer-backside-one-qr',
+        sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.qr,
+        alt: 'QR code',
+      },
+    ],
     customRects: [
       {
-        id: 'back-highlight-bar',
-        x: 84,
-        y: 598,
-        width: 520,
-        height: 18,
-        fill: BRAND_RED,
+        id: 'back-divider',
+        x: 553,
+        y: 0,
+        width: 4,
+        height: STAGE_HEIGHT,
+        fill: '#111111',
+      },
+      {
+        id: 'back-monitor-frame',
+        x: 560,
+        y: 556,
+        width: 476,
+        height: 333,
+        fill: '#111111',
+      },
+      {
+        id: 'back-monitor-screen',
+        x: 590,
+        y: 589,
+        width: 416,
+        height: 260,
+        fill: '#ffffff',
+      },
+      {
+        id: 'back-monitor-stand',
+        x: 760,
+        y: 889,
+        width: 80,
+        height: 72,
+        fill: '#b8b8b8',
+      },
+      {
+        id: 'back-monitor-base',
+        x: 730,
+        y: 950,
+        width: 140,
+        height: 14,
+        fill: '#c6c6c6',
+      },
+      {
+        id: 'back-qr-border-top',
+        x: 1176,
+        y: 609,
+        width: 410,
+        height: 3,
+        fill: '#111111',
+      },
+      {
+        id: 'back-qr-border-right',
+        x: 1583,
+        y: 609,
+        width: 3,
+        height: 344,
+        fill: '#111111',
+      },
+      {
+        id: 'back-qr-border-bottom',
+        x: 1072,
+        y: 951,
+        width: 514,
+        height: 3,
+        fill: '#111111',
+      },
+      {
+        id: 'back-qr-border-left',
+        x: 1072,
+        y: 609,
+        width: 3,
+        height: 391,
+        fill: '#111111',
       },
     ],
     customTexts: [
       {
-        id: 'back-copy-left',
-        x: 84,
-        y: 348,
-        width: 640,
-        text:
-          'STRAP sends direct aid to every Connecticut town.\n$365 million in additional town education funding.\nBuilt into the state budget so towns can count on it year after year.\nProperty tax relief starts by lowering the pressure on local budgets.',
-        fontSize: 28,
-        color: '#374151',
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        lineHeight: 1.22,
-      },
-      {
-        id: 'back-copy-right',
-        x: 860,
-        y: 210,
-        width: 620,
-        text:
-          "More than $400 million in tax relief.\nA larger property tax credit for more than 800,000 filers.\nNo tax on Social Security benefits.\nNo tax on tips.\nCut the tax on children's clothing.\nReduce healthcare cost pressure.\nSupport municipal early voting costs.",
-        fontSize: 25,
-        color: '#4b5563',
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        lineHeight: 1.22,
-      },
-      {
-        id: 'back-summary',
-        x: 84,
-        y: 640,
-        width: 1390,
-        text: 'A balanced caucus budget that spends less, protects taxpayers, and delivers real relief to families and municipalities.',
-        fontSize: 30,
-        color: BRAND_RED,
+        id: 'back-office-title',
+        x: 24,
+        y: 58,
+        width: 220,
+        text: 'State Representative',
+        fontSize: 18,
+        color: '#111111',
         fontFamily: 'Georgia, Times New Roman, serif',
+        fontStyle: '400',
+        lineHeight: 1,
+      },
+      {
+        id: 'back-tax-relief-title',
+        x: 598,
+        y: 18,
+        width: 470,
+        text: 'TAX AND FEE RELIEF',
+        fontSize: 32,
+        color: '#111111',
+        fontFamily: 'Arial',
         fontStyle: '700',
-        lineHeight: 1.15,
+        lineHeight: 1,
+      },
+      {
+        id: 'back-tax-relief-copy',
+        x: 598,
+        y: 76,
+        width: 580,
+        text:
+          "Increase property tax credit\nReduce healthcare costs\nLower vehicle sales tax\nNo tax on tips\nEliminate many license fees\nEliminate Social Security tax\nRemove Passport to Parks fee\nEliminate children's clothing taxes\nProvide $2.5 million to help municipalities cover early voting costs.",
+        fontSize: 18,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '400',
+        lineHeight: 1.25,
+      },
+      {
+        id: 'back-fast-facts-title',
+        x: 1128,
+        y: 78,
+        width: 360,
+        text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
+        fontSize: 18,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1.05,
+      },
+      {
+        id: 'back-fast-facts-copy',
+        x: 1160,
+        y: 132,
+        width: 260,
+        text:
+          "Spends less than budgets from legislative Democrats and Governor\n\nSustainable: Doesn't rely on volatile, one-time revenues\n\nProvides more than $400 million in tax relief\n\nMore than $167 million below the spending cap\n\nReclaims CT revenue from New York",
+        fontSize: 14,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: 'italic 700',
+        lineHeight: 1.12,
+      },
+      {
+        id: 'back-funding-title',
+        x: 24,
+        y: 640,
+        width: 360,
+        text: 'How the plan is funded',
+        fontSize: 20,
+        color: '#1d4ed8',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1,
+        textDecoration: 'underline',
+      },
+      {
+        id: 'back-funding-copy',
+        x: 24,
+        y: 696,
+        width: 470,
+        text:
+          'Recover $340 million by challenging New York’s “convenience of employer” rule.\nSave $153 million by budgeting state employee positions based on realistic hiring trends rather than funding all vacancies at once.',
+        fontSize: 18,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '400',
+        lineHeight: 1.22,
+      },
+      {
+        id: 'back-qr-title',
+        x: 1118,
+        y: 620,
+        width: 430,
+        text: 'SCAN FOR MORE DETAILS',
+        fontSize: 22,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1,
+      },
+      {
+        id: 'back-qr-or-visit',
+        x: 1104,
+        y: 860,
+        width: 56,
+        text: 'OR\nVISIT:',
+        fontSize: 18,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1.05,
+      },
+      {
+        id: 'back-qr-website',
+        x: 1184,
+        y: 882,
+        width: 300,
+        text: WEBSITE_TEXT,
+        fontSize: 22,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1,
       },
     ],
-    townColumns: 1 as const,
-    townRows: [],
+    townColumns: backTownColumns as 1 | 2,
+    townRows: backTownRows,
   } satisfies ExperimentalTownScene
 
   return alignSubheadToHeadline(scene)
@@ -1016,6 +1305,7 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
         ...savedScene.headshot?.crop,
       },
     },
+    customImages: Array.isArray(savedScene.customImages) ? savedScene.customImages : baseScene.customImages,
     customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
     customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
     townColumns: savedScene.townColumns === 2 ? 2 : 1,
@@ -1038,6 +1328,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const stageRef = useRef<Konva.Stage | null>(null)
   const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
+  const customImageRefs = useRef<Record<string, Konva.Group | null>>({})
   const customRectRefs = useRef<Record<string, Konva.Group | null>>({})
   const customTextRefs = useRef<Record<string, Konva.Group | null>>({})
   const townStackRef = useRef<Konva.Group | null>(null)
@@ -1344,6 +1635,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     [townData],
   )
   const headshotImage = useLoadedImage(headshotUrl)
+  const customImageUrls = useMemo(
+    () =>
+      scene
+        ? Object.fromEntries(scene.customImages.map((item) => [item.id, proxiedUrl(item.sourceUrl) || undefined]))
+        : {},
+    [scene],
+  )
+  const customImages = useLoadedImages(customImageUrls)
 
   useEffect(() => {
     headshotImageRef.current = headshotImage
@@ -1357,6 +1656,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const selectedCustomRect = useMemo(() => {
     if (!scene || selection?.kind !== 'custom-rect') return null
     return scene.customRects.find((item) => item.id === selection.id) || null
+  }, [scene, selection])
+
+  const selectedCustomImage = useMemo(() => {
+    if (!scene || selection?.kind !== 'custom-image') return null
+    return scene.customImages.find((item) => item.id === selection.id) || null
   }, [scene, selection])
 
   const selectedCustomText = useMemo(() => {
@@ -1393,6 +1697,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ? headlineRef.current
         : selection?.kind === 'headshot'
           ? headshotRef.current
+          : selection?.kind === 'custom-image'
+            ? customImageRefs.current[selection.id] || null
           : selection?.kind === 'custom-rect'
             ? customRectRefs.current[selection.id] || null
           : selection?.kind === 'custom-text'
@@ -1510,6 +1816,35 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }))
   }
 
+  const addCustomImage = (mediaDoc: MediaDoc) => {
+    const rawUrl = readRawMediaUrl(mediaDoc)
+    if (!rawUrl) throw new Error('Uploaded media did not include a URL')
+
+    updateScene((current) => ({
+      ...current,
+      customImages: [
+        ...current.customImages,
+        {
+          id: `custom-image-${Date.now()}`,
+          x: 180,
+          y: 180,
+          width: 240,
+          height: 240,
+          mediaID: mediaDoc.id,
+          sourceUrl: rawUrl,
+          alt: mediaDoc.alt || mediaDoc.title || mediaDoc.filename || 'Custom image',
+        },
+      ],
+    }))
+  }
+
+  const updateCustomImage = (imageID: string, patch: Partial<CustomImageElement>) => {
+    updateScene((current) => ({
+      ...current,
+      customImages: current.customImages.map((item) => (item.id === imageID ? { ...item, ...patch } : item)),
+    }))
+  }
+
   const updateCustomRect = (rectID: string, patch: Partial<CustomRectElement>) => {
     updateScene((current) => ({
       ...current,
@@ -1546,6 +1881,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       })
     }
     if (selection.kind === 'headshot') updateScene((current) => ({ ...current, headshot: { ...current.headshot, x, y } }))
+    if (selection.kind === 'custom-image') updateCustomImage(selection.id, { x, y })
     if (selection.kind === 'custom-rect') updateCustomRect(selection.id, { x, y })
     if (selection.kind === 'custom-text') updateCustomText(selection.id, { x, y })
     if (selection.kind === 'towns') {
@@ -1797,6 +2133,21 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
     if (!mediaDoc.id) throw new Error('Upload did not return a media id')
     return mediaDoc
+  }
+
+  const handleAddCustomImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    try {
+      setMessage(null)
+      const mediaDoc = await uploadMediaAsset(file, file.name.replace(/\.[^.]+$/, ''))
+      addCustomImage(mediaDoc)
+      setMessage('Image added')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    }
   }
 
   const buildTemplatePayload = () => {
@@ -2223,7 +2574,29 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     </label>
                   </div>
                 )
-              : selection?.kind === 'custom-rect' && selectedCustomRect
+              : selection?.kind === 'custom-image' && selectedCustomImage
+                ? (
+                    <div style={slotCardStyle}>
+                      <strong style={{ fontSize: 13 }}>Selected: Image</strong>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>X</span>
+                        <input type="number" value={Math.round(selectedCustomImage.x)} onChange={(event) => updateSelectionPosition(Number(event.target.value), selectedCustomImage.y)} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Y</span>
+                        <input type="number" value={Math.round(selectedCustomImage.y)} onChange={(event) => updateSelectionPosition(selectedCustomImage.x, Number(event.target.value))} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Width</span>
+                        <input type="number" value={Math.round(selectedCustomImage.width)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { width: Math.max(20, Number(event.target.value) || selectedCustomImage.width) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Height</span>
+                        <input type="number" value={Math.round(selectedCustomImage.height)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { height: Math.max(20, Number(event.target.value) || selectedCustomImage.height) })} style={controlStyle} />
+                      </label>
+                    </div>
+                  )
+                : selection?.kind === 'custom-rect' && selectedCustomRect
                 ? (
                     <div style={slotCardStyle}>
                       <strong style={{ fontSize: 13 }}>Selected: Rectangle</strong>
@@ -2711,6 +3084,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 Add Text Box
               </Button>
             </div>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Add Image</span>
+              <input type="file" accept="image/*" onChange={handleAddCustomImage} style={controlStyle} />
+            </label>
             <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
             <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               <label style={{ display: 'grid', gap: 6 }}>
@@ -3042,6 +3419,36 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
                 {activeMailSide === 'front' ? (
                   <>
+                    {scene.customImages.map((item) => (
+                      <Group
+                        key={item.id}
+                        ref={(node) => {
+                          customImageRefs.current[item.id] = node
+                        }}
+                        x={item.x}
+                        y={item.y}
+                        draggable
+                        onDragEnd={(event) => {
+                          setSelection({ kind: 'custom-image', id: item.id })
+                          updateCustomImage(item.id, { x: event.target.x(), y: event.target.y() })
+                        }}
+                        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
+                          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateCustomImage(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                        }}
+                      >
+                        {selection?.kind === 'custom-image' && selection.id === item.id ? (
+                          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                        ) : null}
+                        {customImages[item.id] ? <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} /> : <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />}
+                      </Group>
+                    ))}
+
                     {scene.customRects.map((item) => (
                       <Group
                         key={item.id}
@@ -3277,6 +3684,36 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   </>
                 ) : (
                   <>
+                    {scene.customImages.map((item) => (
+                      <Group
+                        key={item.id}
+                        ref={(node) => {
+                          customImageRefs.current[item.id] = node
+                        }}
+                        x={item.x}
+                        y={item.y}
+                        draggable
+                        onDragEnd={(event) => {
+                          setSelection({ kind: 'custom-image', id: item.id })
+                          updateCustomImage(item.id, { x: event.target.x(), y: event.target.y() })
+                        }}
+                        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
+                        onTransformEnd={(event) => {
+                          const node = event.target
+                          const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
+                          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+                          node.scaleX(1)
+                          node.scaleY(1)
+                          updateCustomImage(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                        }}
+                      >
+                        {selection?.kind === 'custom-image' && selection.id === item.id ? (
+                          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                        ) : null}
+                        {customImages[item.id] ? <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} /> : <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />}
+                      </Group>
+                    ))}
+
                     {scene.customRects.map((item) => (
                       <Group
                         key={item.id}
@@ -3481,10 +3918,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 ref={transformerRef}
                 rotateEnabled={false}
                 flipEnabled={false}
-                keepRatio={selection?.kind === 'headshot'}
+                keepRatio={selection?.kind === 'headshot' || selection?.kind === 'custom-image'}
                 enabledAnchors={
                   selection?.kind === 'headline' || selection?.kind === 'custom-text'
                     ? ['middle-left', 'middle-right']
+                    : selection?.kind === 'custom-image'
+                      ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'custom-rect'
                       ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
@@ -3509,6 +3948,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
                   if (selection?.kind === 'custom-rect') {
                     return { ...newBox, width: Math.max(40, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'custom-image') {
+                    return { ...newBox, width: Math.max(20, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
                   }
 
                   if (selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right') {
