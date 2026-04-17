@@ -19,6 +19,8 @@ const BRAND_RED = '#334155'
 const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
 const MAIL_PLACEHOLDER_WIDTH = 560
 const MAIL_PLACEHOLDER_HEIGHT = 364
+const TOWN_LABEL_PADDING_X = 16
+const TOWN_LABEL_MIN_WIDTH = 90
 
 type TenantSelectOption = {
   label: string
@@ -336,8 +338,6 @@ const measureTextApprox = (text: string, fontSize: number, fontFamily?: string) 
 
 const measureTownLabelWidth = (town: string, fontSize = 36) =>
   clamp(Math.ceil(measureTextApprox(String(town || '').toUpperCase(), fontSize, 'Arial')) + 32, 90, 760)
-
-const getRenderedTownLabelWidth = (row: TownSceneRow) => measureTownLabelWidth(row.town, row.townFontSize)
 
 const wrapTextToWidth = (text: string, fontSize: number, maxWidth: number, fontFamily?: string) => {
   const paragraphs = text.replace(/\r\n/g, '\n').split('\n')
@@ -952,6 +952,7 @@ const buildPdfBufferFromSceneBundle = async ({
 
   const drawScenePage = async (scene: ExperimentalTownScene, options: { includePlaceholder: boolean }) => {
     const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
+    const townLabelFont = await pdf.embedFont(StandardFonts.HelveticaBold)
 
     page.drawRectangle({
       x: 0,
@@ -1055,33 +1056,26 @@ const buildPdfBufferFromSceneBundle = async ({
     })
 
     for (const row of scene.townRows.filter((nextRow) => nextRow.included)) {
-      const renderedLabelWidth = getRenderedTownLabelWidth(row)
-      const townBarBytes = await buildRectanglePngBuffer({
-        width: renderedLabelWidth,
-        height: row.labelHeight,
-        color: row.labelColor,
-      })
-      await drawPdfImageBytes({
-        doc: pdf,
-        page,
-        assetBytes: townBarBytes,
+      const labelText = row.town.toUpperCase()
+      const labelTextWidth = townLabelFont.widthOfTextAtSize(labelText, row.townFontSize)
+      const renderedLabelWidth = Math.max(TOWN_LABEL_MIN_WIDTH, Math.ceil(labelTextWidth + TOWN_LABEL_PADDING_X * 2))
+      const labelTextHeight = townLabelFont.heightAtSize(row.townFontSize)
+      const labelTextY = STAGE_HEIGHT - row.labelY - row.labelHeight + (row.labelHeight - labelTextHeight) / 2
+
+      page.drawRectangle({
         x: row.labelX,
-        y: row.labelY,
+        y: STAGE_HEIGHT - row.labelY - row.labelHeight,
         width: renderedLabelWidth,
         height: row.labelHeight,
+        color: colorToRgb(row.labelColor),
       })
 
-      await drawWrappedPdfText({
-        doc: pdf,
-        page,
-        text: row.town.toUpperCase(),
-        x: row.labelX + 14,
-        y: row.labelY + 7,
-        width: Math.max(renderedLabelWidth - 14, 60),
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        fontSize: row.townFontSize,
-        color: '#ffffff',
+      page.drawText(labelText, {
+        x: row.labelX + TOWN_LABEL_PADDING_X,
+        y: labelTextY,
+        size: row.townFontSize,
+        font: townLabelFont,
+        color: colorToRgb('#ffffff'),
       })
 
       await drawWrappedPdfText({
