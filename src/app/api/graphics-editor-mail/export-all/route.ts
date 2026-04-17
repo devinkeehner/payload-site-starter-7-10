@@ -21,6 +21,7 @@ const MAIL_PLACEHOLDER_WIDTH = 560
 const MAIL_PLACEHOLDER_HEIGHT = 364
 const TOWN_LABEL_PADDING_X = 16
 const TOWN_LABEL_MIN_WIDTH = 90
+const TOWN_LABEL_TEXT_Y_ADJUST = 2
 
 type TenantSelectOption = {
   label: string
@@ -1060,7 +1061,8 @@ const buildPdfBufferFromSceneBundle = async ({
       const labelTextWidth = townLabelFont.widthOfTextAtSize(labelText, row.townFontSize)
       const renderedLabelWidth = Math.max(TOWN_LABEL_MIN_WIDTH, Math.ceil(labelTextWidth + TOWN_LABEL_PADDING_X * 2))
       const labelTextHeight = townLabelFont.heightAtSize(row.townFontSize)
-      const labelTextY = STAGE_HEIGHT - row.labelY - row.labelHeight + (row.labelHeight - labelTextHeight) / 2
+      const labelTextY =
+        STAGE_HEIGHT - row.labelY - row.labelHeight + (row.labelHeight - labelTextHeight) / 2 + TOWN_LABEL_TEXT_Y_ADJUST
 
       page.drawRectangle({
         x: row.labelX,
