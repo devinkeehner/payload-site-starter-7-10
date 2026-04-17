@@ -7,6 +7,16 @@ import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } fro
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
+import {
+  EDITOR_COMPONENTS,
+  createEditorNodeID,
+  duplicateRect,
+  duplicateText,
+  formatAutosaveLabel,
+  getShortcutNudgeDistance,
+  isEditableTarget,
+  useEditorAutosave,
+} from '@/components/admin/graphicsEditorShared'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 
 const BASE_CANVAS_WIDTH = 1200
@@ -29,6 +39,113 @@ const MAILER_BACKSIDE_ONE_ASSETS = {
   arrow: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/arrow.png`,
   screenshot: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/site-screenshot.png`,
 } as const
+const MAILER_BACKSIDE_ONE_ROTATION = {
+  paper: -118.4,
+  arrow: 163.9,
+} as const
+const MAILER_BACKSIDE_ONE_FAST_FACTS = [
+  {
+    id: 'back-fast-facts-paper-title',
+    x: 1077,
+    y: 39,
+    width: 416,
+    text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
+    fontSize: 18,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-spends',
+    x: 1107,
+    y: 67,
+    width: 629,
+    text: 'Spends less than budgets from\nlegislative Democrats and Governor',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-sustainable',
+    x: 1154,
+    y: 168,
+    width: 517,
+    text: "Sustainable: Doesn’t rely on\nvolatile, one-time revenues",
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-relief',
+    x: 1197,
+    y: 242,
+    width: 481,
+    text: 'Provides more than $400\nmillion in tax relief',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-cap',
+    x: 1236,
+    y: 318,
+    width: 445,
+    text: 'More than $167 million\nbelow the spending cap',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-reclaims',
+    x: 1276,
+    y: 387,
+    width: 430,
+    text: 'Reclaims CT revenue\nfrom New York',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+] as const
+const LEGACY_BACKSIDE_REMOVED_TEXT_IDS = new Set(['back-fast-facts-title', 'back-fast-facts-copy'])
+const LEGACY_BACKSIDE_REMOVED_RECT_IDS = new Set(['back-divider'])
+const LEGACY_BACKSIDE_IMAGE_SIGNATURES = {
+  'back-note-paper': { x: 1025, y: 4, width: 700, height: 500 },
+  'back-site-screenshot': { x: 615, y: 592, width: 400, height: 245 },
+  'back-arrow': { x: 1188, y: 695, width: 118, height: 160 },
+  'back-qr': { x: 1322, y: 695, width: 138, height: 138 },
+} as const
+const LEGACY_BACKSIDE_RECT_SIGNATURES = {
+  'back-divider': { x: 553, y: 0, width: 4, height: STAGE_HEIGHT },
+  'back-monitor-frame': { x: 560, y: 556, width: 476, height: 333 },
+  'back-monitor-screen': { x: 590, y: 589, width: 416, height: 260 },
+  'back-monitor-stand': { x: 760, y: 889, width: 80, height: 72 },
+  'back-monitor-base': { x: 730, y: 950, width: 140, height: 14 },
+  'back-qr-border-top': { x: 1176, y: 609, width: 410, height: 3 },
+  'back-qr-border-right': { x: 1583, y: 609, width: 3, height: 344 },
+  'back-qr-border-bottom': { x: 1072, y: 951, width: 514, height: 3 },
+  'back-qr-border-left': { x: 1072, y: 609, width: 3, height: 391 },
+} as const
+const LEGACY_BACKSIDE_TEXT_SIGNATURES = {
+  'back-office-title': { x: 24, y: 58, width: 220, text: 'State Representative' },
+  'back-tax-relief-title': { x: 598, y: 18, width: 470, text: 'TAX AND FEE RELIEF' },
+  'back-tax-relief-copy': {
+    x: 598,
+    y: 76,
+    width: 580,
+    text:
+      "Increase property tax credit\nReduce healthcare costs\nLower vehicle sales tax\nNo tax on tips\nEliminate many license fees\nEliminate Social Security tax\nRemove Passport to Parks fee\nEliminate children's clothing taxes\nProvide $2.5 million to help municipalities cover early voting costs.",
+  },
+  'back-funding-title': { x: 24, y: 640, width: 360, text: 'How the plan is funded' },
+  'back-funding-copy': {
+    x: 24,
+    y: 696,
+    width: 470,
+    text:
+      'Recover $340 million by challenging New York’s “convenience of employer” rule.\nSave $153 million by budgeting state employee positions based on realistic hiring trends rather than funding all vacancies at once.',
+  },
+  'back-qr-title': { x: 1136, y: 639, width: 430, text: 'SCAN FOR MORE DETAILS' },
+  'back-qr-or-visit': { x: 1128, y: 877, width: 74, text: 'OR\nVISIT:' },
+  'back-qr-website': { x: 1208, y: 935, width: 360, text: WEBSITE_TEXT },
+} as const
 const MAIL_PLACEHOLDER_WIDTH = 560
 const MAIL_PLACEHOLDER_HEIGHT = 364
 const HEADLINE_WIDTH_LIMITS = { min: 240, max: 1060 }
@@ -40,6 +157,8 @@ const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
 const MAIL_SCENE_BUNDLE_KIND = 'graphics-editor-mail-bundle/v1'
 const TEXT_FONT_OPTIONS = [
   { label: 'Arial', value: 'Arial' },
+  { label: 'Arial Narrow', value: '"Arial Narrow", Arial, sans-serif' },
+  { label: 'Comic Sans', value: '"Comic Sans MS", "Marker Felt", cursive' },
   { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
 ] as const
 
@@ -219,6 +338,7 @@ type CustomTextElement = {
   x: number
   y: number
   width: number
+  rotation?: number
   text: string
   fontSize: number
   color: string
@@ -234,6 +354,7 @@ type CustomImageElement = {
   y: number
   width: number
   height: number
+  rotation?: number
   mediaID: string
   sourceUrl: string
   alt?: string
@@ -470,6 +591,14 @@ const measureHeadlineHeight = (headline: SceneTextElement) => {
   const lineHeight = headline.lineHeight || 1.05
   const lines = wrapTextToWidth(headline.text || '', `${fontSize}px ${fontFamily}`, headline.width)
   return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
+}
+
+const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight'>) => {
+  const fontSize = item.fontSize || 28
+  const fontFamily = item.fontFamily || 'Arial'
+  const lineHeight = item.lineHeight || 1.1
+  const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
+  return Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
 }
 
 const measureTownGroupHeight = (row: TownSceneRow) =>
@@ -941,8 +1070,9 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
   const backTownRows = data.townRows.map((row, index) => {
     const columnIndex = index >= rowsPerColumn ? 1 : 0
     const indexInColumn = columnIndex === 0 ? index : index - rowsPerColumn
-    const labelX = columnIndex === 0 ? 28 : 255
-    const labelY = 360 + indexInColumn * 112
+    const labelX = columnIndex === 0 ? 28 : 292
+    const amountX = columnIndex === 0 ? 19 : 284
+    const labelY = 352 + indexInColumn * 137
 
     return {
       id: row.id,
@@ -954,8 +1084,8 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       labelY,
       labelWidth: measureTownLabelWidth(row.town, 24),
       labelHeight: 36,
-      amountX: labelX,
-      amountY: labelY + 44,
+      amountX,
+      amountY: labelY + 37,
       townFontSize: 24,
       amountFontSize: 40,
       labelColor: BRAND_RED,
@@ -968,28 +1098,28 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     backgroundMediaID: null,
     eyebrow: {
       id: 'eyebrow',
-      x: 24,
-      y: 28,
-      width: 460,
+      x: 33,
+      y: 30,
+      width: 488,
       text: 'PITCHING REAL RELIEF FOR CONNECTICUT',
-      fontSize: 16,
+      fontSize: 14,
       color: '#ffffff',
-      fontFamily: 'Arial',
+      fontFamily: '"Arial Narrow", Arial, sans-serif',
       fontStyle: '700',
       lineHeight: 1,
-      barWidth: 452,
-      barHeight: 32,
-      paddingX: 12,
-      paddingY: 7,
+      barWidth: 488,
+      barHeight: 20,
+      paddingX: 10,
+      paddingY: 4,
       backgroundColor: '#111111',
     },
     headline: {
       id: 'headline',
-      x: 24,
-      y: 92,
-      width: 485,
+      x: 21,
+      y: 90,
+      width: 520,
       text: `${buildRepShortName(repName).replace('Rep. ', '')} Announces\nSchools/Taxpayers Relief &\nAffordability Plan (STRAP)`,
-      fontSize: 30,
+      fontSize: 31,
       color: '#111111',
       fontFamily: 'Georgia, Times New Roman, serif',
       fontStyle: '700',
@@ -999,13 +1129,13 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       id: 'subhead',
       x: 24,
       y: 0,
-      dividerWidth: 120,
-      dividerHeight: 2,
+      dividerWidth: 0,
+      dividerHeight: 0,
       dividerColor: '#111111',
       text: 'STRAP FUNDING PER TOWN',
       fontSize: 16,
       color: '#111111',
-      fontFamily: 'Arial',
+      fontFamily: '"Arial Narrow", Arial, sans-serif',
       fontStyle: 'italic 700',
     },
     footer: {
@@ -1036,40 +1166,42 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     customImages: [
       {
         id: 'back-note-paper',
-        x: 1025,
-        y: 4,
-        width: 700,
-        height: 500,
+        x: 1071,
+        y: 65,
+        width: 1121,
+        height: 800,
+        rotation: MAILER_BACKSIDE_ONE_ROTATION.paper,
         mediaID: 'mailer-backside-one-paper',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.paper,
         alt: 'Fast facts paper',
       },
       {
         id: 'back-site-screenshot',
-        x: 615,
-        y: 592,
-        width: 400,
-        height: 245,
+        x: 643,
+        y: 586,
+        width: 337,
+        height: 208,
         mediaID: 'mailer-backside-one-screenshot',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.screenshot,
         alt: 'Budget website screenshot',
       },
       {
         id: 'back-arrow',
-        x: 1188,
-        y: 695,
+        x: 1228,
+        y: 703,
         width: 118,
         height: 160,
+        rotation: MAILER_BACKSIDE_ONE_ROTATION.arrow,
         mediaID: 'mailer-backside-one-arrow',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.arrow,
         alt: 'Arrow',
       },
       {
         id: 'back-qr',
-        x: 1322,
-        y: 695,
-        width: 138,
-        height: 138,
+        x: 1358,
+        y: 686,
+        width: 258,
+        height: 258,
         mediaID: 'mailer-backside-one-qr',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.qr,
         alt: 'QR code',
@@ -1077,84 +1209,92 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     ],
     customRects: [
       {
-        id: 'back-divider',
-        x: 553,
-        y: 0,
-        width: 4,
-        height: STAGE_HEIGHT,
+        id: 'back-divider-left',
+        x: 581,
+        y: -2,
+        width: 2,
+        height: STAGE_HEIGHT + 4,
+        fill: '#111111',
+      },
+      {
+        id: 'back-divider-right',
+        x: 590,
+        y: -42,
+        width: 1,
+        height: STAGE_HEIGHT + 86,
         fill: '#111111',
       },
       {
         id: 'back-monitor-frame',
-        x: 560,
-        y: 556,
-        width: 476,
-        height: 333,
+        x: 557,
+        y: 564,
+        width: 565,
+        height: 341,
         fill: '#111111',
       },
       {
         id: 'back-monitor-screen',
-        x: 590,
-        y: 589,
-        width: 416,
-        height: 260,
+        x: 581,
+        y: 590,
+        width: 516,
+        height: 290,
         fill: '#ffffff',
       },
       {
         id: 'back-monitor-stand',
-        x: 760,
-        y: 889,
-        width: 80,
-        height: 72,
-        fill: '#b8b8b8',
+        x: 557,
+        y: 905,
+        width: 565,
+        height: 53,
+        fill: '#f1f1f1',
       },
       {
         id: 'back-monitor-base',
-        x: 730,
-        y: 950,
-        width: 140,
-        height: 14,
-        fill: '#c6c6c6',
+        x: 741,
+        y: 957,
+        width: 196,
+        height: 59,
+        fill: '#f7f7f7',
       },
       {
         id: 'back-qr-border-top',
-        x: 1176,
-        y: 609,
-        width: 410,
-        height: 3,
+        x: 1102,
+        y: 619,
+        width: 563,
+        height: 2,
         fill: '#111111',
       },
       {
         id: 'back-qr-border-right',
-        x: 1583,
-        y: 609,
-        width: 3,
-        height: 344,
+        x: 1664,
+        y: 619,
+        width: 2,
+        height: 424,
         fill: '#111111',
       },
       {
         id: 'back-qr-border-bottom',
-        x: 1072,
-        y: 951,
-        width: 514,
-        height: 3,
+        x: 1102,
+        y: 1042,
+        width: 563,
+        height: 2,
         fill: '#111111',
       },
       {
         id: 'back-qr-border-left',
-        x: 1072,
-        y: 609,
-        width: 3,
-        height: 391,
+        x: 1102,
+        y: 619,
+        width: 2,
+        height: 424,
         fill: '#111111',
       },
     ],
     customTexts: [
       {
         id: 'back-office-title',
-        x: 24,
+        x: 21,
         y: 58,
-        width: 220,
+        width: 240,
         text: 'State Representative',
         fontSize: 18,
         color: '#111111',
@@ -1164,20 +1304,20 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-tax-relief-title',
-        x: 598,
-        y: 18,
-        width: 470,
+        x: 622,
+        y: 16,
+        width: 652,
         text: 'TAX AND FEE RELIEF',
-        fontSize: 32,
+        fontSize: 34,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1,
       },
       {
         id: 'back-tax-relief-copy',
-        x: 598,
-        y: 76,
+        x: 622,
+        y: 92,
         width: 580,
         text:
           "Increase property tax credit\nReduce healthcare costs\nLower vehicle sales tax\nNo tax on tips\nEliminate many license fees\nEliminate Social Security tax\nRemove Passport to Parks fee\nEliminate children's clothing taxes\nProvide $2.5 million to help municipalities cover early voting costs.",
@@ -1188,35 +1328,10 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         lineHeight: 1.25,
       },
       {
-        id: 'back-fast-facts-title',
-        x: 1128,
-        y: 78,
-        width: 360,
-        text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
-        fontSize: 18,
-        color: '#111111',
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        lineHeight: 1.05,
-      },
-      {
-        id: 'back-fast-facts-copy',
-        x: 1160,
-        y: 132,
-        width: 260,
-        text:
-          "Spends less than budgets from legislative Democrats and Governor\n\nSustainable: Doesn't rely on volatile, one-time revenues\n\nProvides more than $400 million in tax relief\n\nMore than $167 million below the spending cap\n\nReclaims CT revenue from New York",
-        fontSize: 14,
-        color: '#111111',
-        fontFamily: 'Arial',
-        fontStyle: 'italic 700',
-        lineHeight: 1.12,
-      },
-      {
         id: 'back-funding-title',
-        x: 24,
-        y: 640,
-        width: 360,
+        x: 19,
+        y: 659,
+        width: 529,
         text: 'How the plan is funded',
         fontSize: 20,
         color: '#1d4ed8',
@@ -1227,9 +1342,9 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-funding-copy',
-        x: 24,
-        y: 696,
-        width: 470,
+        x: 21,
+        y: 707,
+        width: 523,
         text:
           'Recover $340 million by challenging New York’s “convenience of employer” rule.\nSave $153 million by budgeting state employee positions based on realistic hiring trends rather than funding all vacancies at once.',
         fontSize: 18,
@@ -1238,39 +1353,45 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         fontStyle: '400',
         lineHeight: 1.22,
       },
+      ...MAILER_BACKSIDE_ONE_FAST_FACTS.map((item) => ({
+        ...item,
+        color: '#111111',
+        lineHeight: 1.05,
+        rotation: MAILER_BACKSIDE_ONE_ROTATION.paper / 4.16,
+      })),
       {
         id: 'back-qr-title',
-        x: 1118,
-        y: 620,
-        width: 430,
+        x: 1136,
+        y: 639,
+        width: 551,
         text: 'SCAN FOR MORE DETAILS',
         fontSize: 22,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1,
       },
       {
         id: 'back-qr-or-visit',
-        x: 1104,
-        y: 860,
-        width: 56,
+        x: 1138,
+        y: 899,
+        width: 136,
         text: 'OR\nVISIT:',
         fontSize: 18,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1.05,
       },
       {
         id: 'back-qr-website',
-        x: 1184,
-        y: 882,
-        width: 300,
+        x: 1112,
+        y: 939,
+        width: 483,
         text: WEBSITE_TEXT,
         fontSize: 22,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1,
       },
@@ -1288,6 +1409,63 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
   const savedRowsByKey = new Map(
     (savedScene.townRows || []).map((row) => [row.townKey || normalizeTownKey(row.town), row] as const),
   )
+  const baseCustomImagesByID = new Map(baseScene.customImages.map((item) => [item.id, item] as const))
+  const baseCustomRectsByID = new Map(baseScene.customRects.map((item) => [item.id, item] as const))
+  const baseCustomTextsByID = new Map(baseScene.customTexts.map((item) => [item.id, item] as const))
+
+  const mergedCustomImagesByID = new Map(baseScene.customImages.map((item) => [item.id, item] as const))
+  if (Array.isArray(savedScene.customImages)) {
+    for (const item of savedScene.customImages) {
+        const legacy = LEGACY_BACKSIDE_IMAGE_SIGNATURES[item.id as keyof typeof LEGACY_BACKSIDE_IMAGE_SIGNATURES]
+        const baseItem = baseCustomImagesByID.get(item.id)
+        if (!legacy || !baseItem) {
+          mergedCustomImagesByID.set(item.id, item)
+          continue
+        }
+        mergedCustomImagesByID.set(
+          item.id,
+          item.x === legacy.x && item.y === legacy.y && item.width === legacy.width && item.height === legacy.height
+            ? baseItem
+            : item,
+        )
+    }
+  }
+
+  const mergedCustomRectsByID = new Map(baseScene.customRects.map((item) => [item.id, item] as const))
+  if (Array.isArray(savedScene.customRects)) {
+    for (const item of savedScene.customRects) {
+        if (LEGACY_BACKSIDE_REMOVED_RECT_IDS.has(item.id)) continue
+        const legacy = LEGACY_BACKSIDE_RECT_SIGNATURES[item.id as keyof typeof LEGACY_BACKSIDE_RECT_SIGNATURES]
+        const baseItem = baseCustomRectsByID.get(item.id)
+        if (!legacy || !baseItem) {
+          mergedCustomRectsByID.set(item.id, item)
+          continue
+        }
+        mergedCustomRectsByID.set(
+          item.id,
+          item.x === legacy.x && item.y === legacy.y && item.width === legacy.width && item.height === legacy.height
+            ? baseItem
+            : item,
+        )
+    }
+  }
+
+  const mergedCustomTextsByID = new Map(baseScene.customTexts.map((item) => [item.id, item] as const))
+  if (Array.isArray(savedScene.customTexts)) {
+    for (const item of savedScene.customTexts) {
+      if (LEGACY_BACKSIDE_REMOVED_TEXT_IDS.has(item.id)) continue
+      const legacy = LEGACY_BACKSIDE_TEXT_SIGNATURES[item.id as keyof typeof LEGACY_BACKSIDE_TEXT_SIGNATURES]
+      const baseItem = baseCustomTextsByID.get(item.id)
+      if (!legacy || !baseItem) {
+        mergedCustomTextsByID.set(item.id, item)
+        continue
+      }
+      mergedCustomTextsByID.set(
+        item.id,
+        item.x === legacy.x && item.y === legacy.y && item.width === legacy.width && item.text === legacy.text ? baseItem : item,
+      )
+    }
+  }
 
   return alignSubheadToHeadline({
     ...baseScene,
@@ -1305,9 +1483,9 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
         ...savedScene.headshot?.crop,
       },
     },
-    customImages: Array.isArray(savedScene.customImages) ? savedScene.customImages : baseScene.customImages,
-    customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
-    customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
+    customImages: [...mergedCustomImagesByID.values()],
+    customRects: [...mergedCustomRectsByID.values()],
+    customTexts: [...mergedCustomTextsByID.values()],
     townColumns: savedScene.townColumns === 2 ? 2 : 1,
     townRows: baseScene.townRows.map((row) => {
       const savedRow = savedRowsByKey.get(row.townKey)
@@ -1347,6 +1525,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     front: [],
     back: [],
   })
+  const redoStackRef = useRef<Record<MailSide, ExperimentalTownScene[]>>({
+    front: [],
+    back: [],
+  })
   const skipHistoryRef = useRef(false)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
@@ -1378,6 +1560,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [townsSectionOpen, setTownsSectionOpen] = useState(false)
   const [inspectorSectionOpen, setInspectorSectionOpen] = useState(false)
   const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
+  const [sceneRevision, setSceneRevision] = useState(0)
 
   const tenantOptions = useMemo<TenantSelectOption[]>(
     () =>
@@ -1460,6 +1643,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       setActiveMailSide(DEFAULT_MAIL_SIDE)
       setFrontScene(null)
       setBackScene(null)
+      setSceneRevision(0)
       clearUndoHistory('front')
       clearUndoHistory('back')
       return
@@ -1533,6 +1717,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         setTownData(nextTownData)
         setTemplates(nextTemplates)
         setDesigns(nextDesigns)
+        setSceneRevision(0)
         clearUndoHistory('front')
         clearUndoHistory('back')
         setFrontScene(cloneScene(frontNextScene))
@@ -1553,6 +1738,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           setFrontScene(null)
           setBackScene(null)
           setActiveMailSide(DEFAULT_MAIL_SIDE)
+          setSceneRevision(0)
           clearUndoHistory('front')
           clearUndoHistory('back')
         }
@@ -1566,25 +1752,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       cancelled = true
     }
   }, [isMounted, requestedDesignID, requestedTemplateID, tenantID, tenantName])
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const isUndo = (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z'
-      if (!isUndo) return
-      const target = event.target as HTMLElement | null
-      const isTextInput =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        Boolean(target?.isContentEditable)
-      if (isTextInput) return
-      event.preventDefault()
-      undoLastChange()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
 
   useEffect(() => {
     if (!mailExportJob || (mailExportJob.status !== 'queued' && mailExportJob.status !== 'running')) return
@@ -1750,6 +1917,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!currentScene) return
     if (!skipHistoryRef.current) {
       undoStackRef.current[side] = [...undoStackRef.current[side].slice(-49), cloneScene(currentScene)]
+      redoStackRef.current[side] = []
+      setSceneRevision((revision) => revision + 1)
     } else {
       skipHistoryRef.current = false
     }
@@ -1759,14 +1928,25 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
   const clearUndoHistory = (side: MailSide = activeMailSide) => {
     undoStackRef.current[side] = []
+    redoStackRef.current[side] = []
   }
 
   const undoLastChange = (side: MailSide = activeMailSide) => {
     const previousScene = undoStackRef.current[side].pop()
-    if (!previousScene) return
+    const currentScene = getActiveScene(side)
+    if (!previousScene || !currentScene) return
+    redoStackRef.current[side] = [...redoStackRef.current[side].slice(-49), cloneScene(currentScene)]
     setSceneWithoutHistory(previousScene, side)
     setSelection(null)
-    setMessage('Undid last change')
+  }
+
+  const redoLastChange = (side: MailSide = activeMailSide) => {
+    const nextScene = redoStackRef.current[side].pop()
+    const currentScene = getActiveScene(side)
+    if (!nextScene || !currentScene) return
+    undoStackRef.current[side] = [...undoStackRef.current[side].slice(-49), cloneScene(currentScene)]
+    setSceneWithoutHistory(nextScene, side)
+    setSelection(null)
   }
 
   const syncSubheadToHeadline = (current: ExperimentalTownScene) => alignSubheadToHeadline(current)
@@ -2041,6 +2221,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!nextTemplateID) {
       const frontBaseScene = createBaseScene(townData, tenantName)
       const backBaseScene = createBackScene(townData, tenantName)
+      setSceneRevision(0)
       clearUndoHistory('front')
       clearUndoHistory('back')
       setSceneWithoutHistory(frontBaseScene, 'front')
@@ -2060,6 +2241,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     const savedBundle = isMailSceneBundle(template.scene) ? template.scene : null
     const savedScene = isExperimentalScene(template.scene) ? template.scene : null
     setTemplateTitle(template.title || 'Experimental Town Graphic')
+    setSceneRevision(0)
     clearUndoHistory('front')
     clearUndoHistory('back')
     setSceneWithoutHistory(mergeSceneWithFreshData(savedBundle?.frontScene || savedScene, frontBaseScene), 'front')
@@ -2075,6 +2257,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!nextDesignID) {
       const frontBaseScene = createBaseScene(townData, tenantName)
       const backBaseScene = createBackScene(townData, tenantName)
+      setSceneRevision(0)
       clearUndoHistory('front')
       clearUndoHistory('back')
       setSceneWithoutHistory(frontBaseScene, 'front')
@@ -2095,6 +2278,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     const savedScene = isExperimentalScene(design.scene) ? design.scene : null
     setDesignTitle(design.title || 'Town Graphic')
     setTemplateID(getString(asRecord(design.template).id) || getString(design.template) || '')
+    setSceneRevision(0)
     clearUndoHistory('front')
     clearUndoHistory('back')
     setSceneWithoutHistory(mergeSceneWithFreshData(savedBundle?.frontScene || savedScene, frontBaseScene), 'front')
@@ -2148,6 +2332,140 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     }
+  }
+
+  const insertComponent = (componentID: string, side: MailSide = activeMailSide) => {
+    const component = EDITOR_COMPONENTS.find((item) => item.id === componentID)
+    if (!component) return
+    const bundle = component.build({
+      brandBlue: BRAND_BLUE,
+      brandRed: BRAND_RED,
+      stageHeight: STAGE_HEIGHT,
+      stageWidth: STAGE_WIDTH,
+      websiteText: WEBSITE_TEXT,
+    })
+    let selectedID = ''
+    updateScene((current) => {
+      selectedID = bundle.texts[0]?.id || bundle.rects[0]?.id || ''
+      return {
+        ...current,
+        customRects: [...current.customRects, ...bundle.rects],
+        customTexts: [...current.customTexts, ...bundle.texts],
+      }
+    }, side)
+    if (selectedID) {
+      const isText = bundle.texts.some((item) => item.id === selectedID)
+      setSelection(isText ? { kind: 'custom-text', id: selectedID } : { kind: 'custom-rect', id: selectedID })
+    }
+    setMessage(`${component.label} inserted on ${side}`)
+  }
+
+  const duplicateSelectedCustomObject = (side: MailSide = activeMailSide) => {
+    const currentScene = getActiveScene(side)
+    if (!currentScene || !selection) return false
+
+    if (selection.kind === 'custom-rect') {
+      const current = currentScene.customRects.find((item) => item.id === selection.id)
+      if (!current) return false
+      const nextRect = duplicateRect(current)
+      updateScene((draft) => ({
+        ...draft,
+        customRects: [...draft.customRects, nextRect],
+      }), side)
+      setSelection({ kind: 'custom-rect', id: nextRect.id })
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      const current = currentScene.customTexts.find((item) => item.id === selection.id)
+      if (!current) return false
+      const nextText = duplicateText(current)
+      updateScene((draft) => ({
+        ...draft,
+        customTexts: [...draft.customTexts, nextText],
+      }), side)
+      setSelection({ kind: 'custom-text', id: nextText.id })
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      const current = currentScene.customImages.find((item) => item.id === selection.id)
+      if (!current) return false
+      const nextImage = {
+        ...current,
+        id: createEditorNodeID('custom-image'),
+        x: current.x + 28,
+        y: current.y + 28,
+      }
+      updateScene((draft) => ({
+        ...draft,
+        customImages: [...draft.customImages, nextImage],
+      }), side)
+      setSelection({ kind: 'custom-image', id: nextImage.id })
+      return true
+    }
+
+    return false
+  }
+
+  const deleteSelectedCustomObject = (side: MailSide = activeMailSide) => {
+    if (!selection) return false
+
+    if (selection.kind === 'custom-rect') {
+      updateScene((current) => ({
+        ...current,
+        customRects: current.customRects.filter((item) => item.id !== selection.id),
+      }), side)
+      setSelection(null)
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      updateScene((current) => ({
+        ...current,
+        customTexts: current.customTexts.filter((item) => item.id !== selection.id),
+      }), side)
+      setSelection(null)
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      updateScene((current) => ({
+        ...current,
+        customImages: current.customImages.filter((item) => item.id !== selection.id),
+      }), side)
+      setSelection(null)
+      return true
+    }
+
+    return false
+  }
+
+  const nudgeSelectedObject = (deltaX: number, deltaY: number, side: MailSide = activeMailSide) => {
+    if (!selection) return false
+
+    if (selection.kind === 'custom-rect') {
+      const current = getActiveScene(side)?.customRects.find((item) => item.id === selection.id)
+      if (!current) return false
+      updateCustomRect(selection.id, { x: current.x + deltaX, y: current.y + deltaY })
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      const current = getActiveScene(side)?.customTexts.find((item) => item.id === selection.id)
+      if (!current) return false
+      updateCustomText(selection.id, { x: current.x + deltaX, y: current.y + deltaY })
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      const current = getActiveScene(side)?.customImages.find((item) => item.id === selection.id)
+      if (!current) return false
+      updateCustomImage(selection.id, { x: current.x + deltaX, y: current.y + deltaY })
+      return true
+    }
+
+    return false
   }
 
   const buildTemplatePayload = () => {
@@ -2254,6 +2572,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     setMessage(null)
     try {
       await saveDesign()
+      markSaved()
       setMessage('Design saved')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -2261,6 +2580,77 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       setSavingDesign(false)
     }
   }
+
+  const { autosaveState, markSaved, resetAutosave } = useEditorAutosave({
+    enabled: Boolean(scene && !loading),
+    revision: sceneRevision,
+    onError: (message) => setMessage(message),
+    onSave: async () => {
+      await saveDesign()
+    },
+  })
+
+  useEffect(() => {
+    if (loading) return
+    if (sceneRevision === 0) resetAutosave()
+  }, [loading, resetAutosave, sceneRevision])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) return
+
+      const modifier = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
+
+      if (modifier && !event.shiftKey && key === 'z') {
+        event.preventDefault()
+        undoLastChange()
+        return
+      }
+
+      if ((modifier && event.shiftKey && key === 'z') || (modifier && key === 'y')) {
+        event.preventDefault()
+        redoLastChange()
+        return
+      }
+
+      if (modifier && key === 'd') {
+        if (!duplicateSelectedCustomObject()) return
+        event.preventDefault()
+        return
+      }
+
+      if (modifier && key === 's') {
+        event.preventDefault()
+        void handleSaveDesign()
+        return
+      }
+
+      if (event.key === 'Escape') {
+        setSelection(null)
+        setInlineTextEditor(null)
+        return
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (!deleteSelectedCustomObject()) return
+        event.preventDefault()
+        return
+      }
+
+      if (event.key.startsWith('Arrow')) {
+        const distance = getShortcutNudgeDistance(event)
+        const deltaX = event.key === 'ArrowLeft' ? -distance : event.key === 'ArrowRight' ? distance : 0
+        const deltaY = event.key === 'ArrowUp' ? -distance : event.key === 'ArrowDown' ? distance : 0
+        if (!deltaX && !deltaY) return
+        if (!nudgeSelectedObject(deltaX, deltaY)) return
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [deleteSelectedCustomObject, duplicateSelectedCustomObject, handleSaveDesign, nudgeSelectedObject, redoLastChange, undoLastChange])
 
   const waitForStagePaint = async () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(undefined))))
@@ -2302,6 +2692,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         designTitle || templateTitle || 'Town Graphic',
       )
       await saveDesign(mediaDoc.id)
+      markSaved()
       setMessage('Saved to Media Gallery')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -2590,12 +2981,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         <span style={fieldLabelStyle}>Width</span>
                         <input type="number" value={Math.round(selectedCustomImage.width)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { width: Math.max(20, Number(event.target.value) || selectedCustomImage.width) })} style={controlStyle} />
                       </label>
-                      <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={fieldLabelStyle}>Height</span>
-                        <input type="number" value={Math.round(selectedCustomImage.height)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { height: Math.max(20, Number(event.target.value) || selectedCustomImage.height) })} style={controlStyle} />
-                      </label>
-                    </div>
-                  )
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={fieldLabelStyle}>Height</span>
+                      <input type="number" value={Math.round(selectedCustomImage.height)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { height: Math.max(20, Number(event.target.value) || selectedCustomImage.height) })} style={controlStyle} />
+                    </label>
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={fieldLabelStyle}>Rotation</span>
+                      <input type="number" step={0.1} value={selectedCustomImage.rotation || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
+                    </label>
+                  </div>
+                )
                 : selection?.kind === 'custom-rect' && selectedCustomRect
                 ? (
                     <div style={slotCardStyle}>
@@ -2624,8 +3019,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   )
                 : selection?.kind === 'custom-text' && selectedCustomText
                   ? (
-                      <div style={slotCardStyle}>
-                        <strong style={{ fontSize: 13 }}>Selected: Text Box</strong>
+                    <div style={slotCardStyle}>
+                      <strong style={{ fontSize: 13 }}>Selected: Text Box</strong>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Rotation</span>
+                          <input type="number" step={0.1} value={selectedCustomText.rotation || 0} onChange={(event) => updateCustomText(selectedCustomText.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
+                        </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Text</span>
                           <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 90 }} />
@@ -2642,11 +3041,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                           <span style={fieldLabelStyle}>Width</span>
                           <input type="number" value={Math.round(selectedCustomText.width)} onChange={(event) => updateCustomText(selectedCustomText.id, { width: Number(event.target.value) || selectedCustomText.width })} style={controlStyle} />
                         </label>
-                        <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Font size</span>
-                          <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
-                        </label>
-                      </div>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Font size</span>
+                        <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
+                      </label>
+                    </div>
                     )
                   : selection?.kind === 'town' && selectedTownRow
                   ? (
@@ -2846,6 +3245,122 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     </Group>
   )
 
+  const renderCustomImageNode = (item: CustomImageElement) => {
+    const rotation = item.rotation || 0
+
+    return (
+      <Group
+        key={item.id}
+        ref={(node) => {
+          customImageRefs.current[item.id] = node
+        }}
+        x={item.x + item.width / 2}
+        y={item.y + item.height / 2}
+        offsetX={item.width / 2}
+        offsetY={item.height / 2}
+        rotation={rotation}
+        draggable
+        onDragEnd={(event) => {
+          const node = event.target
+          setSelection({ kind: 'custom-image', id: item.id })
+          updateCustomImage(item.id, {
+            x: node.x() - item.width / 2,
+            y: node.y() - item.height / 2,
+          })
+        }}
+        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
+        onTransformEnd={(event) => {
+          const node = event.target
+          const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
+          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+          const nextRotation = Number(node.rotation().toFixed(1))
+          node.scaleX(1)
+          node.scaleY(1)
+          node.offsetX(nextWidth / 2)
+          node.offsetY(nextHeight / 2)
+          updateCustomImage(item.id, {
+            x: node.x() - nextWidth / 2,
+            y: node.y() - nextHeight / 2,
+            width: nextWidth,
+            height: nextHeight,
+            rotation: nextRotation,
+          })
+        }}
+      >
+        {selection?.kind === 'custom-image' && selection.id === item.id ? (
+          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+        ) : null}
+        {customImages[item.id] ? (
+          <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} />
+        ) : (
+          <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />
+        )}
+      </Group>
+    )
+  }
+
+  const renderCustomTextNode = (item: CustomTextElement) => {
+    const textHeight = measureCustomTextHeight(item)
+    const rotation = item.rotation || 0
+
+    return (
+      <Group
+        key={item.id}
+        ref={(node) => {
+          customTextRefs.current[item.id] = node
+        }}
+        x={item.x + item.width / 2}
+        y={item.y + textHeight / 2}
+        offsetX={item.width / 2}
+        offsetY={textHeight / 2}
+        rotation={rotation}
+        draggable
+        onDragEnd={(event) => {
+          const node = event.target
+          setSelection({ kind: 'custom-text', id: item.id })
+          updateCustomText(item.id, {
+            x: node.x() - item.width / 2,
+            y: node.y() - textHeight / 2,
+          })
+        }}
+        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
+        onTransformStart={() => setIsResizingHeadline(true)}
+        onTransformEnd={(event) => {
+          const node = event.target
+          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
+          const nextRotation = Number(node.rotation().toFixed(1))
+          const nextHeight = measureCustomTextHeight({ ...item, width: nextWidth })
+          node.scaleX(1)
+          node.scaleY(1)
+          node.offsetX(nextWidth / 2)
+          node.offsetY(nextHeight / 2)
+          updateCustomText(item.id, {
+            x: node.x() - nextWidth / 2,
+            y: node.y() - nextHeight / 2,
+            width: nextWidth,
+            rotation: nextRotation,
+          })
+          setIsResizingHeadline(false)
+        }}
+      >
+        {selection?.kind === 'custom-text' && selection.id === item.id ? (
+          <Rect x={-8} y={-8} width={item.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+        ) : null}
+        <Text
+          width={item.width}
+          text={item.text}
+          fontFamily={item.fontFamily || 'Arial'}
+          fontSize={item.fontSize}
+          fontStyle={item.fontStyle}
+          fill={item.color}
+          lineHeight={item.lineHeight || 1.1}
+          textDecoration={item.textDecoration}
+          onDblClick={() => beginInlineTextEdit({ kind: 'custom-text', id: item.id })}
+        />
+      </Group>
+    )
+  }
+
   return (
     <div
       style={{
@@ -2915,6 +3430,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <Button onClick={() => undoLastChange()} disabled={undoStackRef.current[activeMailSide].length === 0} buttonStyle="secondary">
             Undo
           </Button>
+          <Button onClick={() => redoLastChange()} disabled={redoStackRef.current[activeMailSide].length === 0} buttonStyle="secondary">
+            Redo
+          </Button>
+        </div>
+        <div style={{ fontSize: 12, color: '#475569' }}>
+          Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
         </div>
         {mailExportJob ? (
           <div style={{ fontSize: 12, color: '#475569' }}>
@@ -3088,6 +3609,25 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               <span style={fieldLabelStyle}>Add Image</span>
               <input type="file" accept="image/*" onChange={handleAddCustomImage} style={controlStyle} />
             </label>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <span style={fieldLabelStyle}>Reusable components</span>
+              {EDITOR_COMPONENTS.map((component) => (
+                <button
+                  key={component.id}
+                  type="button"
+                  onClick={() => insertComponent(component.id)}
+                  style={{
+                    ...secondaryButtonStyle,
+                    display: 'grid',
+                    justifyItems: 'start',
+                    gap: 4,
+                  }}
+                >
+                  <strong>{component.label}</strong>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>{component.description}</span>
+                </button>
+              ))}
+            </div>
             <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
             <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
               <label style={{ display: 'grid', gap: 6 }}>
@@ -3209,6 +3749,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 <div style={hintStyle}>
                   Selected: <strong>{selection.kind === 'town' && selectedTownRow ? selectedTownRow.town : selection.kind}</strong>
                 </div>
+                {selection.kind === 'custom-image' || selection.kind === 'custom-rect' || selection.kind === 'custom-text' ? (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button onClick={() => duplicateSelectedCustomObject()} buttonStyle="secondary">Duplicate</Button>
+                    <Button onClick={() => deleteSelectedCustomObject()} buttonStyle="secondary">Delete</Button>
+                  </div>
+                ) : null}
                 {selectedElementPanel}
               </>
             ) : (
@@ -3277,6 +3823,24 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               <option value="1.25">125%</option>
             </select>
           </label>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '4px 6px 8px' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Selection</span>
+          <Button onClick={() => { setSelection(null); setInlineTextEditor(null) }} buttonStyle="secondary">Clear</Button>
+          <Button
+            onClick={() => duplicateSelectedCustomObject()}
+            disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
+            buttonStyle="secondary"
+          >
+            Duplicate
+          </Button>
+          <Button
+            onClick={() => deleteSelectedCustomObject()}
+            disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
+            buttonStyle="secondary"
+          >
+            Delete
+          </Button>
         </div>
         <div style={textToolbarStyle}>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
@@ -3419,35 +3983,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
                 {activeMailSide === 'front' ? (
                   <>
-                    {scene.customImages.map((item) => (
-                      <Group
-                        key={item.id}
-                        ref={(node) => {
-                          customImageRefs.current[item.id] = node
-                        }}
-                        x={item.x}
-                        y={item.y}
-                        draggable
-                        onDragEnd={(event) => {
-                          setSelection({ kind: 'custom-image', id: item.id })
-                          updateCustomImage(item.id, { x: event.target.x(), y: event.target.y() })
-                        }}
-                        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
-                        onTransformEnd={(event) => {
-                          const node = event.target
-                          const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
-                          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
-                          node.scaleX(1)
-                          node.scaleY(1)
-                          updateCustomImage(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
-                        }}
-                      >
-                        {selection?.kind === 'custom-image' && selection.id === item.id ? (
-                          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                        ) : null}
-                        {customImages[item.id] ? <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} /> : <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />}
-                      </Group>
-                    ))}
+                    {scene.customImages.map(renderCustomImageNode)}
 
                     {scene.customRects.map((item) => (
                       <Group
@@ -3479,45 +4015,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       </Group>
                     ))}
 
-                    {scene.customTexts.map((item) => (
-                      <Group
-                        key={item.id}
-                        ref={(node) => {
-                          customTextRefs.current[item.id] = node
-                        }}
-                        x={item.x}
-                        y={item.y}
-                        draggable
-                        onDragEnd={(event) => {
-                          setSelection({ kind: 'custom-text', id: item.id })
-                          updateCustomText(item.id, { x: event.target.x(), y: event.target.y() })
-                        }}
-                        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
-                        onTransformStart={() => setIsResizingHeadline(true)}
-                        onTransformEnd={(event) => {
-                          const node = event.target
-                          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
-                          node.scaleX(1)
-                          node.scaleY(1)
-                          updateCustomText(item.id, { x: node.x(), y: node.y(), width: nextWidth })
-                          setIsResizingHeadline(false)
-                        }}
-                      >
-                        {selection?.kind === 'custom-text' && selection.id === item.id ? (
-                          <Rect x={-8} y={-8} width={item.width + 16} height={Math.max(item.fontSize * 2, 48)} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                        ) : null}
-                        <Text
-                          width={item.width}
-                          text={item.text}
-                          fontFamily={item.fontFamily || 'Arial'}
-                          fontSize={item.fontSize}
-                          fontStyle={item.fontStyle}
-                          fill={item.color}
-                          lineHeight={item.lineHeight || 1.1}
-                          textDecoration={item.textDecoration}
-                        />
-                      </Group>
-                    ))}
+                    {scene.customTexts.map(renderCustomTextNode)}
 
                     <Group
                       x={scene.eyebrow.x}
@@ -3684,35 +4182,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {scene.customImages.map((item) => (
-                      <Group
-                        key={item.id}
-                        ref={(node) => {
-                          customImageRefs.current[item.id] = node
-                        }}
-                        x={item.x}
-                        y={item.y}
-                        draggable
-                        onDragEnd={(event) => {
-                          setSelection({ kind: 'custom-image', id: item.id })
-                          updateCustomImage(item.id, { x: event.target.x(), y: event.target.y() })
-                        }}
-                        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
-                        onTransformEnd={(event) => {
-                          const node = event.target
-                          const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
-                          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
-                          node.scaleX(1)
-                          node.scaleY(1)
-                          updateCustomImage(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
-                        }}
-                      >
-                        {selection?.kind === 'custom-image' && selection.id === item.id ? (
-                          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                        ) : null}
-                        {customImages[item.id] ? <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} /> : <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />}
-                      </Group>
-                    ))}
+                    {scene.customImages.map(renderCustomImageNode)}
 
                     {scene.customRects.map((item) => (
                       <Group
@@ -3744,46 +4214,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       </Group>
                     ))}
 
-                    {scene.customTexts.map((item) => (
-                      <Group
-                        key={item.id}
-                        ref={(node) => {
-                          customTextRefs.current[item.id] = node
-                        }}
-                        x={item.x}
-                        y={item.y}
-                        draggable
-                        onDragEnd={(event) => {
-                          setSelection({ kind: 'custom-text', id: item.id })
-                          updateCustomText(item.id, { x: event.target.x(), y: event.target.y() })
-                        }}
-                        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
-                        onTransformStart={() => setIsResizingHeadline(true)}
-                        onTransformEnd={(event) => {
-                          const node = event.target
-                          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
-                          node.scaleX(1)
-                          node.scaleY(1)
-                          updateCustomText(item.id, { x: node.x(), y: node.y(), width: nextWidth })
-                          setIsResizingHeadline(false)
-                        }}
-                      >
-                        {selection?.kind === 'custom-text' && selection.id === item.id ? (
-                          <Rect x={-8} y={-8} width={item.width + 16} height={Math.max(item.fontSize * 2, 48)} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                        ) : null}
-                        <Text
-                          width={item.width}
-                          text={item.text}
-                          fontFamily={item.fontFamily || 'Arial'}
-                          fontSize={item.fontSize}
-                          fontStyle={item.fontStyle}
-                          fill={item.color}
-                          lineHeight={item.lineHeight || 1.1}
-                          textDecoration={item.textDecoration}
-                          onDblClick={() => beginInlineTextEdit({ kind: 'custom-text', id: item.id })}
-                        />
-                      </Group>
-                    ))}
+                    {scene.customTexts.map(renderCustomTextNode)}
 
                     {scene.headshot.size > 0 ? (
                       <Group
@@ -3916,7 +4347,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
               <Transformer
                 ref={transformerRef}
-                rotateEnabled={false}
+                rotateEnabled={selection?.kind === 'custom-image' || selection?.kind === 'custom-text'}
                 flipEnabled={false}
                 keepRatio={selection?.kind === 'headshot' || selection?.kind === 'custom-image'}
                 enabledAnchors={
@@ -3943,7 +4374,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   }
 
                   if (selection?.kind === 'custom-text') {
-                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height), rotation: 0 }
+                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height) }
                   }
 
                   if (selection?.kind === 'custom-rect') {
@@ -3951,7 +4382,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   }
 
                   if (selection?.kind === 'custom-image') {
-                    return { ...newBox, width: Math.max(20, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
+                    return { ...newBox, width: Math.max(20, newBox.width), height: Math.max(20, newBox.height) }
                   }
 
                   if (selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right') {

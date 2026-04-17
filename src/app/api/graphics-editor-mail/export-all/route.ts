@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload, type PayloadRequest } from 'payload'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib'
 import sharp from 'sharp'
 
 import configPromise from '@payload-config'
@@ -23,6 +23,113 @@ const MAILER_BACKSIDE_ONE_ASSETS = {
   qr: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/qr.png`,
   arrow: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/arrow.png`,
   screenshot: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/site-screenshot.png`,
+} as const
+const MAILER_BACKSIDE_ONE_ROTATION = {
+  paper: -118.4,
+  arrow: 163.9,
+} as const
+const MAILER_BACKSIDE_ONE_FAST_FACTS = [
+  {
+    id: 'back-fast-facts-paper-title',
+    x: 1077,
+    y: 39,
+    width: 416,
+    text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
+    fontSize: 18,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-spends',
+    x: 1107,
+    y: 67,
+    width: 629,
+    text: 'Spends less than budgets from\nlegislative Democrats and Governor',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-sustainable',
+    x: 1154,
+    y: 168,
+    width: 517,
+    text: "Sustainable: Doesn’t rely on\nvolatile, one-time revenues",
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-relief',
+    x: 1197,
+    y: 242,
+    width: 481,
+    text: 'Provides more than $400\nmillion in tax relief',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-cap',
+    x: 1236,
+    y: 318,
+    width: 445,
+    text: 'More than $167 million\nbelow the spending cap',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+  {
+    id: 'back-fast-facts-paper-reclaims',
+    x: 1276,
+    y: 387,
+    width: 430,
+    text: 'Reclaims CT revenue\nfrom New York',
+    fontSize: 13,
+    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontStyle: '700',
+  },
+] as const
+const LEGACY_BACKSIDE_REMOVED_TEXT_IDS = new Set(['back-fast-facts-title', 'back-fast-facts-copy'])
+const LEGACY_BACKSIDE_REMOVED_RECT_IDS = new Set(['back-divider'])
+const LEGACY_BACKSIDE_IMAGE_SIGNATURES = {
+  'back-note-paper': { x: 1025, y: 4, width: 700, height: 500 },
+  'back-site-screenshot': { x: 615, y: 592, width: 400, height: 245 },
+  'back-arrow': { x: 1188, y: 695, width: 118, height: 160 },
+  'back-qr': { x: 1322, y: 695, width: 138, height: 138 },
+} as const
+const LEGACY_BACKSIDE_RECT_SIGNATURES = {
+  'back-divider': { x: 553, y: 0, width: 4, height: STAGE_HEIGHT },
+  'back-monitor-frame': { x: 560, y: 556, width: 476, height: 333 },
+  'back-monitor-screen': { x: 590, y: 589, width: 416, height: 260 },
+  'back-monitor-stand': { x: 760, y: 889, width: 80, height: 72 },
+  'back-monitor-base': { x: 730, y: 950, width: 140, height: 14 },
+  'back-qr-border-top': { x: 1176, y: 609, width: 410, height: 3 },
+  'back-qr-border-right': { x: 1583, y: 609, width: 3, height: 344 },
+  'back-qr-border-bottom': { x: 1072, y: 951, width: 514, height: 3 },
+  'back-qr-border-left': { x: 1072, y: 609, width: 3, height: 391 },
+} as const
+const LEGACY_BACKSIDE_TEXT_SIGNATURES = {
+  'back-office-title': { x: 24, y: 58, width: 220, text: 'State Representative' },
+  'back-tax-relief-title': { x: 598, y: 18, width: 470, text: 'TAX AND FEE RELIEF' },
+  'back-tax-relief-copy': {
+    x: 598,
+    y: 76,
+    width: 580,
+    text:
+      "Increase property tax credit\nReduce healthcare costs\nLower vehicle sales tax\nNo tax on tips\nEliminate many license fees\nEliminate Social Security tax\nRemove Passport to Parks fee\nEliminate children's clothing taxes\nProvide $2.5 million to help municipalities cover early voting costs.",
+  },
+  'back-funding-title': { x: 24, y: 640, width: 360, text: 'How the plan is funded' },
+  'back-funding-copy': {
+    x: 24,
+    y: 696,
+    width: 470,
+    text:
+      'Recover $340 million by challenging New York’s “convenience of employer” rule.\nSave $153 million by budgeting state employee positions based on realistic hiring trends rather than funding all vacancies at once.',
+  },
+  'back-qr-title': { x: 1136, y: 639, width: 430, text: 'SCAN FOR MORE DETAILS' },
+  'back-qr-or-visit': { x: 1128, y: 877, width: 74, text: 'OR\nVISIT:' },
+  'back-qr-website': { x: 1208, y: 935, width: 360, text: WEBSITE_TEXT },
 } as const
 const MAIL_PLACEHOLDER_WIDTH = 560
 const MAIL_PLACEHOLDER_HEIGHT = 364
@@ -159,6 +266,7 @@ type CustomTextElement = {
   x: number
   y: number
   width: number
+  rotation?: number
   text: string
   fontSize: number
   color: string
@@ -174,6 +282,7 @@ type CustomImageElement = {
   y: number
   width: number
   height: number
+  rotation?: number
   mediaID: string
   sourceUrl: string
   alt?: string
@@ -623,8 +732,9 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
   const backTownRows = data.townRows.map((row, index) => {
     const columnIndex = index >= rowsPerColumn ? 1 : 0
     const indexInColumn = columnIndex === 0 ? index : index - rowsPerColumn
-    const labelX = columnIndex === 0 ? 28 : 255
-    const labelY = 360 + indexInColumn * 112
+    const labelX = columnIndex === 0 ? 28 : 292
+    const amountX = columnIndex === 0 ? 19 : 284
+    const labelY = 352 + indexInColumn * 137
 
     return {
       id: row.id,
@@ -636,8 +746,8 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       labelY,
       labelWidth: measureTownLabelWidth(row.town, 24),
       labelHeight: 36,
-      amountX: labelX,
-      amountY: labelY + 44,
+      amountX,
+      amountY: labelY + 37,
       townFontSize: 24,
       amountFontSize: 40,
       labelColor: BRAND_RED,
@@ -650,28 +760,28 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     backgroundMediaID: null,
     eyebrow: {
       id: 'eyebrow',
-      x: 24,
-      y: 28,
-      width: 460,
+      x: 33,
+      y: 30,
+      width: 488,
       text: 'PITCHING REAL RELIEF FOR CONNECTICUT',
-      fontSize: 16,
+      fontSize: 14,
       color: '#ffffff',
-      fontFamily: 'Arial',
+      fontFamily: '"Arial Narrow", Arial, sans-serif',
       fontStyle: '700',
       lineHeight: 1,
-      barWidth: 452,
-      barHeight: 52,
-      paddingX: 12,
-      paddingY: 7,
+      barWidth: 488,
+      barHeight: 20,
+      paddingX: 10,
+      paddingY: 4,
       backgroundColor: '#111111',
     },
     headline: {
       id: 'headline',
-      x: 24,
-      y: 92,
-      width: 485,
+      x: 21,
+      y: 90,
+      width: 520,
       text: `${buildRepShortName(repName).replace('Rep. ', '')} Announces\nSchools/Taxpayers Relief &\nAffordability Plan (STRAP)`,
-      fontSize: 30,
+      fontSize: 31,
       color: '#111111',
       fontFamily: 'Georgia, Times New Roman, serif',
       fontStyle: '700',
@@ -681,13 +791,13 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       id: 'subhead',
       x: 24,
       y: 0,
-      dividerWidth: 120,
-      dividerHeight: 4,
+      dividerWidth: 0,
+      dividerHeight: 0,
       dividerColor: '#111111',
       text: 'STRAP FUNDING PER TOWN',
       fontSize: 16,
       color: '#111111',
-      fontFamily: 'Arial',
+      fontFamily: '"Arial Narrow", Arial, sans-serif',
       fontStyle: 'italic 700',
     },
     footer: {
@@ -714,40 +824,42 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     customImages: [
       {
         id: 'back-note-paper',
-        x: 1025,
-        y: 4,
-        width: 700,
-        height: 500,
+        x: 1071,
+        y: 65,
+        width: 1121,
+        height: 800,
+        rotation: MAILER_BACKSIDE_ONE_ROTATION.paper,
         mediaID: 'mailer-backside-one-paper',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.paper,
         alt: 'Fast facts paper',
       },
       {
         id: 'back-site-screenshot',
-        x: 615,
-        y: 592,
-        width: 400,
-        height: 245,
+        x: 643,
+        y: 586,
+        width: 337,
+        height: 208,
         mediaID: 'mailer-backside-one-screenshot',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.screenshot,
         alt: 'Budget website screenshot',
       },
       {
         id: 'back-arrow',
-        x: 1188,
-        y: 695,
+        x: 1228,
+        y: 703,
         width: 118,
         height: 160,
+        rotation: MAILER_BACKSIDE_ONE_ROTATION.arrow,
         mediaID: 'mailer-backside-one-arrow',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.arrow,
         alt: 'Arrow',
       },
       {
         id: 'back-qr',
-        x: 1322,
-        y: 695,
-        width: 138,
-        height: 138,
+        x: 1358,
+        y: 686,
+        width: 258,
+        height: 258,
         mediaID: 'mailer-backside-one-qr',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.qr,
         alt: 'QR code',
@@ -755,84 +867,92 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     ],
     customRects: [
       {
-        id: 'back-divider',
-        x: 553,
-        y: 0,
-        width: 4,
-        height: STAGE_HEIGHT,
+        id: 'back-divider-left',
+        x: 581,
+        y: -2,
+        width: 2,
+        height: STAGE_HEIGHT + 4,
+        fill: '#111111',
+      },
+      {
+        id: 'back-divider-right',
+        x: 590,
+        y: -42,
+        width: 1,
+        height: STAGE_HEIGHT + 86,
         fill: '#111111',
       },
       {
         id: 'back-monitor-frame',
-        x: 560,
-        y: 556,
-        width: 476,
-        height: 333,
+        x: 557,
+        y: 564,
+        width: 565,
+        height: 341,
         fill: '#111111',
       },
       {
         id: 'back-monitor-screen',
-        x: 590,
-        y: 589,
-        width: 416,
-        height: 260,
+        x: 581,
+        y: 590,
+        width: 516,
+        height: 290,
         fill: '#ffffff',
       },
       {
         id: 'back-monitor-stand',
-        x: 760,
-        y: 889,
-        width: 80,
-        height: 72,
-        fill: '#b8b8b8',
+        x: 557,
+        y: 905,
+        width: 565,
+        height: 53,
+        fill: '#f1f1f1',
       },
       {
         id: 'back-monitor-base',
-        x: 730,
-        y: 950,
-        width: 140,
-        height: 14,
-        fill: '#c6c6c6',
+        x: 741,
+        y: 957,
+        width: 196,
+        height: 59,
+        fill: '#f7f7f7',
       },
       {
         id: 'back-qr-border-top',
-        x: 1176,
-        y: 609,
-        width: 410,
-        height: 3,
+        x: 1102,
+        y: 619,
+        width: 563,
+        height: 2,
         fill: '#111111',
       },
       {
         id: 'back-qr-border-right',
-        x: 1583,
-        y: 609,
-        width: 3,
-        height: 344,
+        x: 1664,
+        y: 619,
+        width: 2,
+        height: 424,
         fill: '#111111',
       },
       {
         id: 'back-qr-border-bottom',
-        x: 1072,
-        y: 951,
-        width: 514,
-        height: 3,
+        x: 1102,
+        y: 1042,
+        width: 563,
+        height: 2,
         fill: '#111111',
       },
       {
         id: 'back-qr-border-left',
-        x: 1072,
-        y: 609,
-        width: 3,
-        height: 391,
+        x: 1102,
+        y: 619,
+        width: 2,
+        height: 424,
         fill: '#111111',
       },
     ],
     customTexts: [
       {
         id: 'back-office-title',
-        x: 24,
+        x: 21,
         y: 58,
-        width: 220,
+        width: 240,
         text: 'State Representative',
         fontSize: 18,
         color: '#111111',
@@ -842,20 +962,20 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-tax-relief-title',
-        x: 598,
-        y: 18,
-        width: 470,
+        x: 622,
+        y: 16,
+        width: 652,
         text: 'TAX AND FEE RELIEF',
-        fontSize: 32,
+        fontSize: 34,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1,
       },
       {
         id: 'back-tax-relief-copy',
-        x: 598,
-        y: 76,
+        x: 622,
+        y: 92,
         width: 580,
         text:
           "Increase property tax credit\nReduce healthcare costs\nLower vehicle sales tax\nNo tax on tips\nEliminate many license fees\nEliminate Social Security tax\nRemove Passport to Parks fee\nEliminate children's clothing taxes\nProvide $2.5 million to help municipalities cover early voting costs.",
@@ -866,35 +986,10 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         lineHeight: 1.25,
       },
       {
-        id: 'back-fast-facts-title',
-        x: 1128,
-        y: 78,
-        width: 360,
-        text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
-        fontSize: 18,
-        color: '#111111',
-        fontFamily: 'Arial',
-        fontStyle: '700',
-        lineHeight: 1.05,
-      },
-      {
-        id: 'back-fast-facts-copy',
-        x: 1160,
-        y: 132,
-        width: 260,
-        text:
-          "Spends less than budgets from legislative Democrats and Governor\n\nSustainable: Doesn't rely on volatile, one-time revenues\n\nProvides more than $400 million in tax relief\n\nMore than $167 million below the spending cap\n\nReclaims CT revenue from New York",
-        fontSize: 14,
-        color: '#111111',
-        fontFamily: 'Arial',
-        fontStyle: 'italic 700',
-        lineHeight: 1.12,
-      },
-      {
         id: 'back-funding-title',
-        x: 24,
-        y: 640,
-        width: 360,
+        x: 19,
+        y: 659,
+        width: 529,
         text: 'How the plan is funded',
         fontSize: 20,
         color: '#1d4ed8',
@@ -905,9 +1000,9 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-funding-copy',
-        x: 24,
-        y: 696,
-        width: 470,
+        x: 21,
+        y: 707,
+        width: 523,
         text:
           'Recover $340 million by challenging New York’s “convenience of employer” rule.\nSave $153 million by budgeting state employee positions based on realistic hiring trends rather than funding all vacancies at once.',
         fontSize: 18,
@@ -916,39 +1011,45 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         fontStyle: '400',
         lineHeight: 1.22,
       },
+      ...MAILER_BACKSIDE_ONE_FAST_FACTS.map((item) => ({
+        ...item,
+        color: '#111111',
+        lineHeight: 1.05,
+        rotation: MAILER_BACKSIDE_ONE_ROTATION.paper / 4.16,
+      })),
       {
         id: 'back-qr-title',
-        x: 1118,
-        y: 620,
-        width: 430,
+        x: 1136,
+        y: 639,
+        width: 551,
         text: 'SCAN FOR MORE DETAILS',
         fontSize: 22,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1,
       },
       {
         id: 'back-qr-or-visit',
-        x: 1104,
-        y: 860,
-        width: 56,
+        x: 1138,
+        y: 899,
+        width: 136,
         text: 'OR\nVISIT:',
         fontSize: 18,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1.05,
       },
       {
         id: 'back-qr-website',
-        x: 1184,
-        y: 882,
-        width: 300,
+        x: 1112,
+        y: 939,
+        width: 483,
         text: WEBSITE_TEXT,
         fontSize: 22,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
         lineHeight: 1,
       },
@@ -962,6 +1063,64 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
 
 const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | undefined, baseScene: ExperimentalTownScene) => {
   if (!savedScene || !isExperimentalScene(savedScene)) return baseScene
+
+  const baseCustomImagesByID = new Map(baseScene.customImages.map((item) => [item.id, item] as const))
+  const baseCustomRectsByID = new Map(baseScene.customRects.map((item) => [item.id, item] as const))
+  const baseCustomTextsByID = new Map(baseScene.customTexts.map((item) => [item.id, item] as const))
+  const mergedCustomImagesByID = new Map(baseScene.customImages.map((item) => [item.id, item] as const))
+  if (Array.isArray(savedScene.customImages)) {
+    for (const item of savedScene.customImages) {
+      const legacy = LEGACY_BACKSIDE_IMAGE_SIGNATURES[item.id as keyof typeof LEGACY_BACKSIDE_IMAGE_SIGNATURES]
+      const baseItem = baseCustomImagesByID.get(item.id)
+      if (!legacy || !baseItem) {
+        mergedCustomImagesByID.set(item.id, item)
+        continue
+      }
+      mergedCustomImagesByID.set(
+        item.id,
+        item.x === legacy.x && item.y === legacy.y && item.width === legacy.width && item.height === legacy.height
+          ? baseItem
+          : item,
+      )
+    }
+  }
+
+  const mergedCustomRectsByID = new Map(baseScene.customRects.map((item) => [item.id, item] as const))
+  if (Array.isArray(savedScene.customRects)) {
+    for (const item of savedScene.customRects) {
+      if (LEGACY_BACKSIDE_REMOVED_RECT_IDS.has(item.id)) continue
+      const legacy = LEGACY_BACKSIDE_RECT_SIGNATURES[item.id as keyof typeof LEGACY_BACKSIDE_RECT_SIGNATURES]
+      const baseItem = baseCustomRectsByID.get(item.id)
+      if (!legacy || !baseItem) {
+        mergedCustomRectsByID.set(item.id, item)
+        continue
+      }
+      mergedCustomRectsByID.set(
+        item.id,
+        item.x === legacy.x && item.y === legacy.y && item.width === legacy.width && item.height === legacy.height
+          ? baseItem
+          : item,
+      )
+    }
+  }
+
+  const mergedCustomTextsByID = new Map(baseScene.customTexts.map((item) => [item.id, item] as const))
+  if (Array.isArray(savedScene.customTexts)) {
+    for (const item of savedScene.customTexts) {
+      if (LEGACY_BACKSIDE_REMOVED_TEXT_IDS.has(item.id)) continue
+      const legacy = LEGACY_BACKSIDE_TEXT_SIGNATURES[item.id as keyof typeof LEGACY_BACKSIDE_TEXT_SIGNATURES]
+      const baseItem = baseCustomTextsByID.get(item.id)
+      if (!legacy || !baseItem) {
+        mergedCustomTextsByID.set(item.id, item)
+        continue
+      }
+      mergedCustomTextsByID.set(
+        item.id,
+        item.x === legacy.x && item.y === legacy.y && item.width === legacy.width && item.text === legacy.text ? baseItem : item,
+      )
+    }
+  }
+
   return alignSubheadToHeadline({
     ...baseScene,
     ...savedScene,
@@ -978,9 +1137,9 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
         ...savedScene.headshot?.crop,
       },
     },
-    customImages: Array.isArray(savedScene.customImages) ? savedScene.customImages : baseScene.customImages,
-    customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
-    customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
+    customImages: [...mergedCustomImagesByID.values()],
+    customRects: [...mergedCustomRectsByID.values()],
+    customTexts: [...mergedCustomTextsByID.values()],
     townColumns: savedScene.townColumns === 2 ? 2 : 1,
     townRows: baseScene.townRows.map((baseRow) => {
       const match = (savedScene.townRows || []).find((row) => (row.townKey || normalizeTownKey(row.town)) === baseRow.townKey)
@@ -1041,6 +1200,7 @@ const drawWrappedPdfText = async ({
   fontSize,
   color,
   lineHeight,
+  rotation,
 }: {
   doc: PDFDocument
   page: import('pdf-lib').PDFPage
@@ -1053,6 +1213,7 @@ const drawWrappedPdfText = async ({
   fontSize: number
   color: string
   lineHeight?: number
+  rotation?: number
 }) => {
   const font = await doc.embedFont(getPdfFontName(fontFamily, fontStyle))
   const lines = wrapTextToWidth(text || '', fontSize, width, fontFamily)
@@ -1065,6 +1226,7 @@ const drawWrappedPdfText = async ({
       size: fontSize,
       font,
       color: colorToRgb(color),
+      rotate: rotation ? degrees(rotation) : undefined,
     })
   })
 }
@@ -1119,6 +1281,49 @@ const drawPdfImageBytes = async ({
     width,
     height,
   })
+}
+
+const buildTransformedImageBuffer = async ({
+  assetBytes,
+  width,
+  height,
+  rotation = 0,
+}: {
+  assetBytes: Uint8Array
+  width: number
+  height: number
+  rotation?: number
+}) => {
+  const resized = await sharp(assetBytes)
+    .resize(Math.max(1, Math.round(width)), Math.max(1, Math.round(height)), { fit: 'fill' })
+    .png()
+    .toBuffer()
+
+  if (Math.abs(rotation) < 0.05) {
+    return {
+      buffer: resized,
+      width,
+      height,
+      offsetX: 0,
+      offsetY: 0,
+    }
+  }
+
+  const rotated = await sharp(resized)
+    .rotate(rotation, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+    .png()
+    .toBuffer()
+  const rotatedMeta = await sharp(rotated).metadata()
+  const rotatedWidth = rotatedMeta.width || Math.round(width)
+  const rotatedHeight = rotatedMeta.height || Math.round(height)
+
+  return {
+    buffer: rotated,
+    width: rotatedWidth,
+    height: rotatedHeight,
+    offsetX: (width - rotatedWidth) / 2,
+    offsetY: (height - rotatedHeight) / 2,
+  }
 }
 
 const resolveAbsoluteUrl = (url: string, origin: string) => {
@@ -1234,7 +1439,21 @@ const buildPdfBufferFromSceneBundle = async ({
       if (!absoluteUrl) continue
       const assetBytes = await fetchBuffer(absoluteUrl)
       if (!assetBytes) continue
-      await drawPdfImageBytes({ doc: pdf, page, assetBytes, x: item.x, y: item.y, width: item.width, height: item.height })
+      const transformed = await buildTransformedImageBuffer({
+        assetBytes,
+        width: item.width,
+        height: item.height,
+        rotation: item.rotation,
+      })
+      await drawPdfImageBytes({
+        doc: pdf,
+        page,
+        assetBytes: transformed.buffer,
+        x: item.x + transformed.offsetX,
+        y: item.y + transformed.offsetY,
+        width: transformed.width,
+        height: transformed.height,
+      })
     }
 
     for (const item of scene.customRects) {
@@ -1255,6 +1474,7 @@ const buildPdfBufferFromSceneBundle = async ({
         fontSize: item.fontSize,
         color: item.color,
         lineHeight: item.lineHeight,
+        rotation: item.rotation,
       })
     }
 

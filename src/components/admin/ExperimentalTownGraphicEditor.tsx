@@ -9,6 +9,16 @@ import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
+import {
+  EDITOR_COMPONENTS,
+  createEditorNodeID,
+  duplicateRect,
+  duplicateText,
+  formatAutosaveLabel,
+  getShortcutNudgeDistance,
+  isEditableTarget,
+  useEditorAutosave,
+} from '@/components/admin/graphicsEditorShared'
 
 const STAGE_WIDTH = 1200
 const STAGE_HEIGHT = 1600
@@ -29,6 +39,10 @@ const TOWN_LABEL_HEIGHT_LIMITS = { min: 24, max: 84 }
 const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
+const TEXT_FONT_OPTIONS = [
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
+] as const
 
 type MediaDoc = {
   id: string
@@ -151,6 +165,7 @@ type FooterElement = {
   textY: number
   fontSize: number
   color: string
+  fontFamily?: string
   fontStyle?: string
   textDecoration?: string
 }
@@ -165,6 +180,40 @@ type HeadshotElement = {
     offsetX: number
     offsetY: number
   }
+}
+
+type CustomRectElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  fill: string
+}
+
+type CustomTextElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  text: string
+  fontSize: number
+  color: string
+  fontFamily?: string
+  fontStyle?: string
+  lineHeight?: number
+  textDecoration?: string
+}
+
+type CustomImageElement = {
+  id: string
+  x: number
+  y: number
+  width: number
+  height: number
+  mediaID: string
+  sourceUrl: string
+  alt?: string
 }
 
 type TownSceneRow = {
@@ -193,6 +242,9 @@ type ExperimentalTownScene = {
   subhead: SubheadElement
   footer: FooterElement
   headshot: HeadshotElement
+  customImages: CustomImageElement[]
+  customRects: CustomRectElement[]
+  customTexts: CustomTextElement[]
   townColumns: 1 | 2
   townRows: TownSceneRow[]
 }
@@ -203,6 +255,9 @@ type Selection =
   | { kind: 'subhead'; id: string }
   | { kind: 'footer'; id: string }
   | { kind: 'headshot'; id: string }
+  | { kind: 'custom-image'; id: string }
+  | { kind: 'custom-rect'; id: string }
+  | { kind: 'custom-text'; id: string }
   | { kind: 'towns'; id: 'town-stack' }
   | { kind: 'towns-left'; id: 'town-stack-left' }
   | { kind: 'towns-right'; id: 'town-stack-right' }
@@ -210,7 +265,7 @@ type Selection =
   | null
 
 type TextSelection = Exclude<Selection, null> & {
-  kind: 'eyebrow' | 'headline' | 'subhead' | 'footer'
+  kind: 'eyebrow' | 'headline' | 'subhead' | 'footer' | 'custom-text'
 }
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -246,6 +301,12 @@ const readMediaUrl = (value: unknown) => {
   return proxiedUrl(mediaDoc?.url || mediaDoc?.thumbnailURL || null)
 }
 
+const readRawMediaUrl = (value: unknown) => {
+  const mediaDoc = getMediaDoc(value)
+  const url = mediaDoc?.url || mediaDoc?.thumbnailURL || null
+  return typeof url === 'string' && url ? url : null
+}
+
 function useLoadedImage(src: string | undefined) {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
 
@@ -269,6 +330,38 @@ function useLoadedImage(src: string | undefined) {
   }, [src])
 
   return image
+}
+
+function useLoadedImages(urls: Record<string, string | undefined>) {
+  const [images, setImages] = useState<Record<string, HTMLImageElement | null>>({})
+
+  useEffect(() => {
+    const entries = Object.entries(urls)
+    if (!entries.length) {
+      setImages({})
+      return
+    }
+
+    let cancelled = false
+    setImages({})
+
+    entries.forEach(([key, src]) => {
+      if (!src) return
+      const nextImage = new window.Image()
+      nextImage.crossOrigin = 'anonymous'
+      nextImage.onload = () => {
+        if (cancelled) return
+        setImages((current) => ({ ...current, [key]: nextImage }))
+      }
+      nextImage.src = src
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [urls])
+
+  return images
 }
 
 function useContainerWidth() {
@@ -349,6 +442,14 @@ const measureHeadlineHeight = (headline: SceneTextElement) => {
   const lineHeight = headline.lineHeight || 1.05
   const lines = wrapTextToWidth(headline.text || '', `${fontSize}px ${fontFamily}`, headline.width)
   return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
+}
+
+const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight'>) => {
+  const fontSize = item.fontSize || 28
+  const fontFamily = item.fontFamily || 'Arial'
+  const lineHeight = item.lineHeight || 1.1
+  const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
+  return Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
 }
 
 const measureTownGroupHeight = (row: TownSceneRow) =>
@@ -883,6 +984,9 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
         offsetY: 0,
       },
     },
+    customImages: [],
+    customRects: [],
+    customTexts: [],
     townColumns: 1 as const,
     townRows,
   } satisfies ExperimentalTownScene
@@ -913,6 +1017,9 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
         ...savedScene.headshot?.crop,
       },
     },
+    customImages: Array.isArray(savedScene.customImages) ? savedScene.customImages : baseScene.customImages,
+    customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
+    customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
     townColumns: savedScene.townColumns === 2 ? 2 : 1,
     townRows: baseScene.townRows.map((row) => {
       const savedRow = savedRowsByKey.get(row.townKey)
@@ -957,12 +1064,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const stageRef = useRef<Konva.Stage | null>(null)
   const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
+  const customImageRefs = useRef<Record<string, Konva.Group | null>>({})
+  const customRectRefs = useRef<Record<string, Konva.Group | null>>({})
+  const customTextRefs = useRef<Record<string, Konva.Group | null>>({})
   const townStackRef = useRef<Konva.Group | null>(null)
   const leftTownStackRef = useRef<Konva.Group | null>(null)
   const rightTownStackRef = useRef<Konva.Group | null>(null)
   const townRefs = useRef<Record<string, Konva.Group | null>>({})
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const undoStackRef = useRef<ExperimentalTownScene[]>([])
+  const redoStackRef = useRef<ExperimentalTownScene[]>([])
   const skipHistoryRef = useRef(false)
   const isSuperAdmin = hasSuperRole(user)
   const [isMounted, setIsMounted] = useState(false)
@@ -985,6 +1096,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
   const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
+  const [sceneRevision, setSceneRevision] = useState(0)
 
   const tenantOptions = useMemo<TenantSelectOption[]>(
     () =>
@@ -1063,6 +1175,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         setTemplates(nextTemplates)
         setDesigns(nextDesigns)
         setMediaOptions(dedupeMediaOptions(nextMedia))
+        setSceneRevision(0)
         clearUndoHistory()
         setSceneWithoutHistory(nextScene)
         setTemplateID(selectedTemplate?.id || getString(selectedDesign?.template) || getString(asRecord(selectedDesign?.template).id) || '')
@@ -1086,25 +1199,6 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     }
   }, [isMounted, requestedDesignID, requestedTemplateID, tenantID, tenantName])
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const isUndo = (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z'
-      if (!isUndo) return
-      const target = event.target as HTMLElement | null
-      const isTextInput =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement ||
-        Boolean(target?.isContentEditable)
-      if (isTextInput) return
-      event.preventDefault()
-      undoLastChange()
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
-
   const previewScale = useMemo(() => {
     const fallbackHeight = viewportHeight > 0 ? Math.min(MAX_PREVIEW_HEIGHT, Math.max(520, viewportHeight - 220)) : MAX_PREVIEW_HEIGHT
     const fallbackScale = Math.min(1, MAX_PREVIEW_WIDTH / STAGE_WIDTH, fallbackHeight / STAGE_HEIGHT)
@@ -1127,10 +1221,33 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   )
   const backgroundImage = useLoadedImage(backgroundUrl)
   const headshotImage = useLoadedImage(headshotUrl)
+  const customImageUrls = useMemo(
+    () =>
+      scene
+        ? Object.fromEntries(scene.customImages.map((item) => [item.id, proxiedUrl(item.sourceUrl) || undefined]))
+        : {},
+    [scene],
+  )
+  const customImages = useLoadedImages(customImageUrls)
 
   const selectedTownRow = useMemo(() => {
     if (!scene || selection?.kind !== 'town') return null
     return scene.townRows.find((row) => row.id === selection.id) || null
+  }, [scene, selection])
+
+  const selectedCustomRect = useMemo(() => {
+    if (!scene || selection?.kind !== 'custom-rect') return null
+    return scene.customRects.find((item) => item.id === selection.id) || null
+  }, [scene, selection])
+
+  const selectedCustomImage = useMemo(() => {
+    if (!scene || selection?.kind !== 'custom-image') return null
+    return scene.customImages.find((item) => item.id === selection.id) || null
+  }, [scene, selection])
+
+  const selectedCustomText = useMemo(() => {
+    if (!scene || selection?.kind !== 'custom-text') return null
+    return scene.customTexts.find((item) => item.id === selection.id) || null
   }, [scene, selection])
 
   const includedTownRows = useMemo(() => (scene ? scene.townRows.filter((row) => row.included) : []), [scene])
@@ -1152,7 +1269,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const selectedTextTarget = useMemo<TextSelection | null>(() => {
     if (!selection) return null
-    return ['eyebrow', 'headline', 'subhead', 'footer'].includes(selection.kind) ? (selection as TextSelection) : null
+    return ['eyebrow', 'headline', 'subhead', 'footer', 'custom-text'].includes(selection.kind)
+      ? (selection as TextSelection)
+      : null
   }, [selection])
 
   useEffect(() => {
@@ -1162,6 +1281,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         ? headlineRef.current
         : selection?.kind === 'headshot'
           ? headshotRef.current
+          : selection?.kind === 'custom-image'
+            ? customImageRefs.current[selection.id] || null
+            : selection?.kind === 'custom-rect'
+              ? customRectRefs.current[selection.id] || null
+              : selection?.kind === 'custom-text'
+                ? customTextRefs.current[selection.id] || null
           : selection?.kind === 'towns'
             ? townStackRef.current
           : selection?.kind === 'towns-left'
@@ -1199,6 +1324,8 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       if (!current) return current
       if (!skipHistoryRef.current) {
         undoStackRef.current = [...undoStackRef.current.slice(-49), cloneScene(current)]
+        redoStackRef.current = []
+        setSceneRevision((revision) => revision + 1)
       } else {
         skipHistoryRef.current = false
       }
@@ -1208,14 +1335,23 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const clearUndoHistory = () => {
     undoStackRef.current = []
+    redoStackRef.current = []
   }
 
   const undoLastChange = () => {
     const previousScene = undoStackRef.current.pop()
-    if (!previousScene) return
+    if (!previousScene || !scene) return
+    redoStackRef.current = [...redoStackRef.current.slice(-49), cloneScene(scene)]
     setSceneWithoutHistory(previousScene)
     setSelection(null)
-    setMessage('Undid last change')
+  }
+
+  const redoLastChange = () => {
+    const nextScene = redoStackRef.current.pop()
+    if (!nextScene || !scene) return
+    undoStackRef.current = [...undoStackRef.current.slice(-49), cloneScene(scene)]
+    setSceneWithoutHistory(nextScene)
+    setSelection(null)
   }
 
   const syncSubheadToHeadline = (current: ExperimentalTownScene) => alignSubheadToHeadline(current)
@@ -1224,6 +1360,96 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     updateScene((current) => ({
       ...current,
       townRows: current.townRows.map((row) => (row.id === rowID ? { ...row, ...patch } : row)),
+    }))
+  }
+
+  const addCustomRect = (rect?: CustomRectElement) => {
+    let nextID = ''
+    updateScene((current) => {
+      const nextRect = rect || {
+        id: createEditorNodeID('custom-rect'),
+        x: 120,
+        y: 120,
+        width: 320,
+        height: 56,
+        fill: BRAND_RED,
+      }
+      nextID = nextRect.id
+      return {
+        ...current,
+        customRects: [...current.customRects, nextRect],
+      }
+    })
+    if (nextID) setSelection({ kind: 'custom-rect', id: nextID })
+  }
+
+  const addCustomText = (textItem?: CustomTextElement) => {
+    let nextID = ''
+    updateScene((current) => {
+      const nextText = textItem || {
+        id: createEditorNodeID('custom-text'),
+        x: 140,
+        y: 136,
+        width: 280,
+        text: 'Custom text',
+        fontSize: 28,
+        color: '#111111',
+        fontFamily: 'Arial',
+        fontStyle: '700',
+        lineHeight: 1.1,
+      }
+      nextID = nextText.id
+      return {
+        ...current,
+        customTexts: [...current.customTexts, nextText],
+      }
+    })
+    if (nextID) setSelection({ kind: 'custom-text', id: nextID })
+  }
+
+  const addCustomImage = (mediaDoc: MediaDoc) => {
+    const rawUrl = readRawMediaUrl(mediaDoc)
+    if (!rawUrl) throw new Error('Uploaded media did not include a URL')
+
+    let nextID = ''
+    updateScene((current) => {
+      const nextImage = {
+        id: createEditorNodeID('custom-image'),
+        x: 180,
+        y: 180,
+        width: 240,
+        height: 240,
+        mediaID: mediaDoc.id,
+        sourceUrl: rawUrl,
+        alt: mediaDoc.alt || mediaDoc.title || mediaDoc.filename || 'Custom image',
+      }
+      nextID = nextImage.id
+      return {
+        ...current,
+        customImages: [...current.customImages, nextImage],
+      }
+    })
+    if (nextID) setSelection({ kind: 'custom-image', id: nextID })
+  }
+
+  const updateCustomImage = (imageID: string, patch: Partial<CustomImageElement>) => {
+    updateScene((current) => ({
+      ...current,
+      customImages: current.customImages.map((item) => (item.id === imageID ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const updateCustomRect = (rectID: string, patch: Partial<CustomRectElement>) => {
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.map((item) => (item.id === rectID ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const updateCustomText = (textID: string, patch: Partial<CustomTextElement>) => {
+    updateScene((current) => ({
+      ...current,
+      customTexts: current.customTexts.map((item) => (item.id === textID ? { ...item, ...patch } : item)),
     }))
   }
 
@@ -1249,6 +1475,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       })
     }
     if (selection.kind === 'headshot') updateScene((current) => ({ ...current, headshot: { ...current.headshot, x, y } }))
+    if (selection.kind === 'custom-image') updateCustomImage(selection.id, { x, y })
+    if (selection.kind === 'custom-rect') updateCustomRect(selection.id, { x, y })
+    if (selection.kind === 'custom-text') updateCustomText(selection.id, { x, y })
     if (selection.kind === 'towns') {
       updateScene((current) => {
         const rows = current.townRows.filter((row) => row.included)
@@ -1329,6 +1558,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (target.kind === 'eyebrow') return current.eyebrow
     if (target.kind === 'headline') return current.headline
     if (target.kind === 'subhead') return current.subhead
+    if (target.kind === 'custom-text') return current.customTexts.find((item) => item.id === target.id) || null
     return current.footer
   }
 
@@ -1337,6 +1567,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       if (target.kind === 'eyebrow') return { ...current, eyebrow: { ...current.eyebrow, ...patch } }
       if (target.kind === 'headline') return syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } })
       if (target.kind === 'subhead') return { ...current, subhead: { ...current.subhead, ...patch } }
+      if (target.kind === 'custom-text') {
+        return {
+          ...current,
+          customTexts: current.customTexts.map((item) => (item.id === target.id ? { ...item, ...patch } : item)),
+        }
+      }
       return { ...current, footer: { ...current.footer, ...patch } }
     })
   }
@@ -1346,6 +1582,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     setTemplateID(nextTemplateID)
     if (!nextTemplateID) {
       const baseScene = createBaseScene(townData, tenantName)
+      setSceneRevision(0)
       clearUndoHistory()
       setSceneWithoutHistory(baseScene)
       setSelection(null)
@@ -1355,6 +1592,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!template) return
     const baseScene = createBaseScene(townData, tenantName)
     setTemplateTitle(template.title || 'Experimental Town Graphic')
+    setSceneRevision(0)
     clearUndoHistory()
     setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, baseScene))
     setSelection(null)
@@ -1365,6 +1603,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     setDesignID(nextDesignID)
     if (!nextDesignID) {
       const baseScene = createBaseScene(townData, tenantName)
+      setSceneRevision(0)
       clearUndoHistory()
       setSceneWithoutHistory(baseScene)
       setSelection(null)
@@ -1375,6 +1614,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     const baseScene = createBaseScene(townData, tenantName)
     setDesignTitle(design.title || 'Town Graphic')
     setTemplateID(getString(asRecord(design.template).id) || getString(design.template) || '')
+    setSceneRevision(0)
     clearUndoHistory()
     setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, baseScene))
     setSelection(null)
@@ -1410,6 +1650,157 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (!mediaDoc.id) throw new Error('Upload did not return a media id')
     setMediaOptions((current) => dedupeMediaOptions([mediaDoc, ...current]))
     return mediaDoc
+  }
+
+  const handleAddCustomImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    try {
+      setMessage(null)
+      const mediaDoc = await uploadMediaAsset(file, file.name.replace(/\.[^.]+$/, ''))
+      addCustomImage(mediaDoc)
+      setMessage('Image added')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error))
+    }
+  }
+
+  const insertComponent = (componentID: string) => {
+    const component = EDITOR_COMPONENTS.find((item) => item.id === componentID)
+    if (!component) return
+    const bundle = component.build({
+      brandBlue: BRAND_BLUE,
+      brandRed: BRAND_RED,
+      stageHeight: STAGE_HEIGHT,
+      stageWidth: STAGE_WIDTH,
+      websiteText: WEBSITE_TEXT,
+    })
+    let selectedID = ''
+    updateScene((current) => {
+      selectedID = bundle.texts[0]?.id || bundle.rects[0]?.id || ''
+      return {
+        ...current,
+        customRects: [...current.customRects, ...bundle.rects],
+        customTexts: [...current.customTexts, ...bundle.texts],
+      }
+    })
+    if (selectedID) {
+      const isText = bundle.texts.some((item) => item.id === selectedID)
+      setSelection(isText ? { kind: 'custom-text', id: selectedID } : { kind: 'custom-rect', id: selectedID })
+    }
+    setMessage(`${component.label} inserted`)
+  }
+
+  const duplicateSelectedCustomObject = () => {
+    if (!scene || !selection) return false
+
+    if (selection.kind === 'custom-rect') {
+      const current = scene.customRects.find((item) => item.id === selection.id)
+      if (!current) return false
+      const nextRect = duplicateRect(current)
+      updateScene((draft) => ({
+        ...draft,
+        customRects: [...draft.customRects, nextRect],
+      }))
+      setSelection({ kind: 'custom-rect', id: nextRect.id })
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      const current = scene.customTexts.find((item) => item.id === selection.id)
+      if (!current) return false
+      const nextText = duplicateText(current)
+      updateScene((draft) => ({
+        ...draft,
+        customTexts: [...draft.customTexts, nextText],
+      }))
+      setSelection({ kind: 'custom-text', id: nextText.id })
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      const current = scene.customImages.find((item) => item.id === selection.id)
+      if (!current) return false
+      const nextImage = {
+        ...current,
+        id: createEditorNodeID('custom-image'),
+        x: current.x + 28,
+        y: current.y + 28,
+      }
+      updateScene((draft) => ({
+        ...draft,
+        customImages: [...draft.customImages, nextImage],
+      }))
+      setSelection({ kind: 'custom-image', id: nextImage.id })
+      return true
+    }
+
+    return false
+  }
+
+  const deleteSelectedCustomObject = () => {
+    if (!scene || !selection) return false
+
+    if (selection.kind === 'custom-rect') {
+      updateScene((current) => ({
+        ...current,
+        customRects: current.customRects.filter((item) => item.id !== selection.id),
+      }))
+      setSelection(null)
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      updateScene((current) => ({
+        ...current,
+        customTexts: current.customTexts.filter((item) => item.id !== selection.id),
+      }))
+      setSelection(null)
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      updateScene((current) => ({
+        ...current,
+        customImages: current.customImages.filter((item) => item.id !== selection.id),
+      }))
+      setSelection(null)
+      return true
+    }
+
+    return false
+  }
+
+  const nudgeSelectedObject = (deltaX: number, deltaY: number) => {
+    if (!scene || !selection) return false
+
+    if (selection.kind === 'custom-rect') {
+      updateCustomRect(selection.id, {
+        x: (selectedCustomRect?.x || 0) + deltaX,
+        y: (selectedCustomRect?.y || 0) + deltaY,
+      })
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      updateCustomText(selection.id, {
+        x: (selectedCustomText?.x || 0) + deltaX,
+        y: (selectedCustomText?.y || 0) + deltaY,
+      })
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      updateCustomImage(selection.id, {
+        x: (selectedCustomImage?.x || 0) + deltaX,
+        y: (selectedCustomImage?.y || 0) + deltaY,
+      })
+      return true
+    }
+
+    return false
   }
 
   const buildTemplatePayload = () => {
@@ -1515,6 +1906,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     setMessage(null)
     try {
       await saveDesign()
+      markSaved()
       setMessage('Design saved')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -1522,6 +1914,76 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       setSavingDesign(false)
     }
   }
+
+  const { autosaveState, markSaved, resetAutosave } = useEditorAutosave({
+    enabled: Boolean(scene && !loading),
+    revision: sceneRevision,
+    onError: (message) => setMessage(message),
+    onSave: async () => {
+      await saveDesign()
+    },
+  })
+
+  useEffect(() => {
+    if (loading) return
+    if (sceneRevision === 0) resetAutosave()
+  }, [loading, resetAutosave, sceneRevision])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) return
+
+      const modifier = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
+
+      if (modifier && !event.shiftKey && key === 'z') {
+        event.preventDefault()
+        undoLastChange()
+        return
+      }
+
+      if ((modifier && event.shiftKey && key === 'z') || (modifier && key === 'y')) {
+        event.preventDefault()
+        redoLastChange()
+        return
+      }
+
+      if (modifier && key === 'd') {
+        if (!duplicateSelectedCustomObject()) return
+        event.preventDefault()
+        return
+      }
+
+      if (modifier && key === 's') {
+        event.preventDefault()
+        void handleSaveDesign()
+        return
+      }
+
+      if (event.key === 'Escape') {
+        setSelection(null)
+        return
+      }
+
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        if (!deleteSelectedCustomObject()) return
+        event.preventDefault()
+        return
+      }
+
+      if (event.key.startsWith('Arrow')) {
+        const distance = getShortcutNudgeDistance(event)
+        const deltaX = event.key === 'ArrowLeft' ? -distance : event.key === 'ArrowRight' ? distance : 0
+        const deltaY = event.key === 'ArrowUp' ? -distance : event.key === 'ArrowDown' ? distance : 0
+        if (!deltaX && !deltaY) return
+        if (!nudgeSelectedObject(deltaX, deltaY)) return
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [deleteSelectedCustomObject, duplicateSelectedCustomObject, handleSaveDesign, nudgeSelectedObject, redoLastChange, undoLastChange])
 
   const exportStageDataUrl = async (mimeType: 'image/png' | 'image/jpeg' = 'image/png') => {
     const stage = stageRef.current
@@ -1563,6 +2025,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         designTitle || templateTitle || 'Town Graphic',
       )
       await saveDesign(mediaDoc.id)
+      markSaved()
       setMessage('Saved to Media Gallery')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -1952,6 +2415,80 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                     </label>
                   </div>
                 )
+              : selection?.kind === 'custom-image' && selectedCustomImage
+                ? (
+                    <div style={slotCardStyle}>
+                      <strong style={{ fontSize: 13 }}>Selected: Image</strong>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>X</span>
+                        <input type="number" value={Math.round(selectedCustomImage.x)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { x: Number(event.target.value) || selectedCustomImage.x })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Y</span>
+                        <input type="number" value={Math.round(selectedCustomImage.y)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { y: Number(event.target.value) || selectedCustomImage.y })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Width</span>
+                        <input type="number" value={Math.round(selectedCustomImage.width)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { width: Math.max(20, Number(event.target.value) || selectedCustomImage.width) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Height</span>
+                        <input type="number" value={Math.round(selectedCustomImage.height)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { height: Math.max(20, Number(event.target.value) || selectedCustomImage.height) })} style={controlStyle} />
+                      </label>
+                    </div>
+                  )
+                : selection?.kind === 'custom-rect' && selectedCustomRect
+                  ? (
+                      <div style={slotCardStyle}>
+                        <strong style={{ fontSize: 13 }}>Selected: Rectangle</strong>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Fill</span>
+                          <input value={selectedCustomRect.fill} onChange={(event) => updateCustomRect(selectedCustomRect.id, { fill: event.target.value })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>X</span>
+                          <input type="number" value={Math.round(selectedCustomRect.x)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { x: Number(event.target.value) || selectedCustomRect.x })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Y</span>
+                          <input type="number" value={Math.round(selectedCustomRect.y)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { y: Number(event.target.value) || selectedCustomRect.y })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Width</span>
+                          <input type="number" value={Math.round(selectedCustomRect.width)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { width: Number(event.target.value) || selectedCustomRect.width })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Height</span>
+                          <input type="number" value={Math.round(selectedCustomRect.height)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { height: Number(event.target.value) || selectedCustomRect.height })} style={controlStyle} />
+                        </label>
+                      </div>
+                    )
+                  : selection?.kind === 'custom-text' && selectedCustomText
+                    ? (
+                        <div style={slotCardStyle}>
+                          <strong style={{ fontSize: 13 }}>Selected: Text Box</strong>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>Text</span>
+                            <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 90 }} />
+                          </label>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>X</span>
+                            <input type="number" value={Math.round(selectedCustomText.x)} onChange={(event) => updateCustomText(selectedCustomText.id, { x: Number(event.target.value) || selectedCustomText.x })} style={controlStyle} />
+                          </label>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>Y</span>
+                            <input type="number" value={Math.round(selectedCustomText.y)} onChange={(event) => updateCustomText(selectedCustomText.id, { y: Number(event.target.value) || selectedCustomText.y })} style={controlStyle} />
+                          </label>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>Width</span>
+                            <input type="number" value={Math.round(selectedCustomText.width)} onChange={(event) => updateCustomText(selectedCustomText.id, { width: Number(event.target.value) || selectedCustomText.width })} style={controlStyle} />
+                          </label>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>Font size</span>
+                            <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
+                          </label>
+                        </div>
+                      )
               : selection?.kind === 'town' && selectedTownRow
                   ? (
                       <div style={slotCardStyle}>
@@ -1981,6 +2518,84 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
   const backgroundPlacement = computeCoverPlacement(backgroundImage, STAGE_WIDTH, STAGE_HEIGHT)
+
+  const renderCustomImageNode = (item: CustomImageElement) => (
+    <Group
+      key={item.id}
+      ref={(node) => {
+        customImageRefs.current[item.id] = node
+      }}
+      x={item.x}
+      y={item.y}
+      draggable
+      onDragEnd={(event) => {
+        setSelection({ kind: 'custom-image', id: item.id })
+        updateCustomImage(item.id, { x: event.target.x(), y: event.target.y() })
+      }}
+      onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
+      onTransformEnd={(event) => {
+        const node = event.target
+        const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
+        const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+        node.scaleX(1)
+        node.scaleY(1)
+        updateCustomImage(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+      }}
+    >
+      {selection?.kind === 'custom-image' && selection.id === item.id ? (
+        <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+      ) : null}
+      {customImages[item.id] ? (
+        <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} />
+      ) : (
+        <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />
+      )}
+    </Group>
+  )
+
+  const renderCustomTextNode = (item: CustomTextElement) => {
+    const textHeight = measureCustomTextHeight(item)
+
+    return (
+      <Group
+        key={item.id}
+        ref={(node) => {
+          customTextRefs.current[item.id] = node
+        }}
+        x={item.x}
+        y={item.y}
+        draggable
+        onDragEnd={(event) => {
+          setSelection({ kind: 'custom-text', id: item.id })
+          updateCustomText(item.id, { x: event.target.x(), y: event.target.y() })
+        }}
+        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
+        onTransformStart={() => setIsResizingHeadline(true)}
+        onTransformEnd={(event) => {
+          const node = event.target
+          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
+          node.scaleX(1)
+          node.scaleY(1)
+          updateCustomText(item.id, { x: node.x(), y: node.y(), width: nextWidth })
+          setIsResizingHeadline(false)
+        }}
+      >
+        {selection?.kind === 'custom-text' && selection.id === item.id ? (
+          <Rect x={-8} y={-8} width={item.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+        ) : null}
+        <Text
+          width={item.width}
+          text={item.text}
+          fontFamily={item.fontFamily || 'Arial'}
+          fontSize={item.fontSize}
+          fontStyle={item.fontStyle}
+          fill={item.color}
+          lineHeight={item.lineHeight || 1.1}
+          textDecoration={item.textDecoration}
+        />
+      </Group>
+    )
+  }
 
   const renderTownStack = (
     rows: TownSceneRow[],
@@ -2212,9 +2827,17 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
             {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
           </Button>
-          <Button onClick={undoLastChange} disabled={undoStackRef.current.length === 0} buttonStyle="secondary">
-            Undo
-          </Button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={undoLastChange} disabled={undoStackRef.current.length === 0} buttonStyle="secondary">
+              Undo
+            </Button>
+            <Button onClick={redoLastChange} disabled={redoStackRef.current.length === 0} buttonStyle="secondary">
+              Redo
+            </Button>
+          </div>
+          <div style={hintStyle}>
+            Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
+          </div>
         </section>
 
         <section style={{ display: 'grid', gap: 10 }}>
@@ -2243,6 +2866,18 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
               style={controlStyle}
             />
+          </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button onClick={() => addCustomRect()} buttonStyle="secondary">
+              Add Rectangle
+            </Button>
+            <Button onClick={() => addCustomText()} buttonStyle="secondary">
+              Add Text Box
+            </Button>
+          </div>
+          <label style={{ display: 'grid', gap: 6 }}>
+            <span style={fieldLabelStyle}>Add Image</span>
+            <input type="file" accept="image/*" onChange={handleAddCustomImage} style={controlStyle} />
           </label>
           <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
           <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
@@ -2283,6 +2918,28 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 style={controlStyle}
               />
             </label>
+          </div>
+        </section>
+
+        <section style={{ display: 'grid', gap: 10 }}>
+          <div style={sectionLabelStyle}>Components</div>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {EDITOR_COMPONENTS.map((component) => (
+              <button
+                key={component.id}
+                type="button"
+                onClick={() => insertComponent(component.id)}
+                style={{
+                  ...secondaryButtonStyle,
+                  display: 'grid',
+                  justifyItems: 'start',
+                  gap: 4,
+                }}
+              >
+                <strong>{component.label}</strong>
+                <span style={{ fontSize: 12, color: '#64748b' }}>{component.description}</span>
+              </button>
+            ))}
           </div>
         </section>
 
@@ -2359,8 +3016,14 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         </section>
 
         {selectedElementPanel ? (
-          <section style={{ display: 'none', gap: 12 }}>
+          <section style={{ display: 'grid', gap: 12 }}>
             <div style={sectionLabelStyle}>Selected Element</div>
+            {selection?.kind === 'custom-image' || selection?.kind === 'custom-rect' || selection?.kind === 'custom-text' ? (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Button onClick={duplicateSelectedCustomObject} buttonStyle="secondary">Duplicate</Button>
+                <Button onClick={deleteSelectedCustomObject} buttonStyle="secondary">Delete</Button>
+              </div>
+            ) : null}
             {selectedElementPanel}
           </section>
         ) : null}
@@ -2482,6 +3145,24 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               Underline
             </button>
             <label style={{ display: 'grid', gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font</span>
+              <select
+                value={selectedTextLayer?.fontFamily || TEXT_FONT_OPTIONS[0].value}
+                onChange={(event) => {
+                  if (!selectedTextTarget || !selectedTextLayer) return
+                  updateSelectedTextLayer(selectedTextTarget, { fontFamily: event.target.value })
+                }}
+                style={{ ...controlStyle, width: 160, padding: '8px 10px' }}
+                disabled={!isTextToolbarActive}
+              >
+                {TEXT_FONT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'grid', gap: 4 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
               <input
                 type="number"
@@ -2520,6 +3201,24 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               ))}
             </div>
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '4px 6px 8px' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Selection</span>
+          <Button onClick={() => setSelection(null)} buttonStyle="secondary">Clear</Button>
+          <Button
+            onClick={duplicateSelectedCustomObject}
+            disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
+            buttonStyle="secondary"
+          >
+            Duplicate
+          </Button>
+          <Button
+            onClick={deleteSelectedCustomObject}
+            disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
+            buttonStyle="secondary"
+          >
+            Delete
+          </Button>
         </div>
         <div
           ref={stageContainerRef}
@@ -2568,6 +3267,39 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 />
               ) : null}
               <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
+              {scene.customImages.map(renderCustomImageNode)}
+
+              {scene.customRects.map((item) => (
+                <Group
+                  key={item.id}
+                  ref={(node) => {
+                    customRectRefs.current[item.id] = node
+                  }}
+                  x={item.x}
+                  y={item.y}
+                  draggable
+                  onDragEnd={(event) => {
+                    setSelection({ kind: 'custom-rect', id: item.id })
+                    updateCustomRect(item.id, { x: event.target.x(), y: event.target.y() })
+                  }}
+                  onMouseDown={() => setSelection({ kind: 'custom-rect', id: item.id })}
+                  onTransformEnd={(event) => {
+                    const node = event.target
+                    const nextWidth = Math.max(40, Math.round(item.width * node.scaleX()))
+                    const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+                    node.scaleX(1)
+                    node.scaleY(1)
+                    updateCustomRect(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                  }}
+                >
+                  {selection?.kind === 'custom-rect' && selection.id === item.id ? (
+                    <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+                  ) : null}
+                  <Rect width={item.width} height={item.height} fill={item.fill} cornerRadius={8} />
+                </Group>
+              ))}
+
+              {scene.customTexts.map(renderCustomTextNode)}
               <Group
                 x={STAGE_WIDTH - MAIL_SIDE_BLOCK_WIDTH - MAIL_SIDE_BLOCK_MARGIN}
                 y={STAGE_HEIGHT - MAIL_SIDE_BLOCK_HEIGHT - MAIL_SIDE_BLOCK_MARGIN}
@@ -2588,7 +3320,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   text={MAIL_SIDE_BLOCK_LABEL}
                   fontSize={28}
                   fontStyle="700"
-                  fontFamily="Arial"
+                  fontFamily={scene.footer.fontFamily || 'Arial'}
                   fill="#0f172a"
                 />
               </Group>
@@ -2693,7 +3425,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   x={scene.footer.textX - scene.footer.x}
                   y={scene.footer.textY - scene.footer.y}
                   text={scene.footer.text}
-                  fontFamily="Arial"
+                  fontFamily={scene.footer.fontFamily || 'Arial'}
                   fontSize={scene.footer.fontSize}
                   fontStyle={scene.footer.fontStyle}
                   fill={scene.footer.color}
@@ -2746,6 +3478,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 enabledAnchors={
                   selection?.kind === 'headline'
                     ? ['middle-left', 'middle-right']
+                    : selection?.kind === 'custom-text'
+                      ? ['middle-left', 'middle-right']
+                      : selection?.kind === 'custom-rect' || selection?.kind === 'custom-image'
+                        ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'headshot'
@@ -2760,6 +3496,18 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   if (selection?.kind === 'headline') {
                     const nextWidth = clamp(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
                     return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'custom-text') {
+                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'custom-rect') {
+                    return { ...newBox, width: Math.max(40, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
+                  }
+
+                  if (selection?.kind === 'custom-image') {
+                    return { ...newBox, width: Math.max(20, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
                   }
 
                   if (selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right') {

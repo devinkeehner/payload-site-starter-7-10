@@ -93,6 +93,7 @@ type CustomTextElement = {
   x: number
   y: number
   width: number
+  rotation?: number
   text: string
   fontSize: number
   color: string
@@ -108,6 +109,7 @@ type CustomImageElement = {
   y: number
   width: number
   height: number
+  rotation?: number
   mediaID: string
   sourceUrl: string
   alt?: string
@@ -239,6 +241,7 @@ const addTextBlock = (
     x: number
     y: number
     width: number
+    rotation?: number
     fontSize: number
     color: string
     fontFamily?: string
@@ -261,6 +264,7 @@ const addTextBlock = (
     margin: 0,
     fit: 'shrink',
     breakLine: false,
+    rotate: block.rotation || 0,
   })
 }
 
@@ -290,6 +294,7 @@ const renderSceneToSlide = ({
       y: toPptxY(item.y),
       w: toPptxW(item.width),
       h: toPptxH(item.height),
+      rotate: item.rotation || 0,
     })
   }
 
