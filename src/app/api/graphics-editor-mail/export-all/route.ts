@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -39,6 +41,15 @@ type StandardMediaDoc = {
   mobileHeadshot?: string | MediaDoc | null
 }
 
+type CsvTownFundingRow = {
+  town: string
+  townKey: string
+  currentEcsEntitlement: number
+  strapAid: number
+  enhancedEducationFunding: number
+  needsReview: boolean
+}
+
 type TownFundingRow = {
   id: string
   town: string
@@ -50,6 +61,12 @@ type TownFundingResponse = {
   repInfo: { name?: string | null } | null
   standardMedia: StandardMediaDoc | null
   townRows: TownFundingRow[]
+}
+
+type RepTown = {
+  town?: string | null
+  currentEcsEntitlement?: number | null
+  houseGopStrapAid?: number | null
 }
 
 type SceneTextElement = {
@@ -180,21 +197,6 @@ type MailSceneBundle = {
   activeMailSide?: 'front' | 'back'
 }
 
-type TemplateDoc = {
-  id: string
-  title?: string | null
-  scene?: ExperimentalTownScene | MailSceneBundle | null
-  notes?: string | null
-}
-
-type DesignDoc = {
-  id: string
-  title?: string | null
-  template?: string | TemplateDoc | null
-  scene?: ExperimentalTownScene | MailSceneBundle | null
-  notes?: string | null
-}
-
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const asRecord = (value: unknown): Record<string, unknown> => (typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {})
 const getString = (value: unknown) => (typeof value === 'string' ? value : undefined)
@@ -217,24 +219,107 @@ const parseMailEditorNotes = (value: string | null | undefined) => {
   }
 }
 
-const buildTemplateSearchParams = () =>
-  new URLSearchParams({
-    limit: '50',
-    depth: '1',
-    sort: '-updatedAt',
-  })
-
-const buildDesignSearchParams = (tenantID: string) => {
-  const params = new URLSearchParams({
-    limit: '50',
-    depth: '1',
-    sort: '-updatedAt',
-  })
-  params.set('where[primaryTenant][equals]', tenantID)
-  return params
+const normalizeTownKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+const parseNumber = (value: string) => {
+  const numeric = Number((value || '').replace(/[$,%]/g, '').replace(/,/g, '').trim())
+  return Number.isFinite(numeric) ? numeric : 0
 }
 
-const normalizeTownKey = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '')
+const getNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let cell = ''
+  let inQuotes = false
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    const next = text[index + 1]
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"'
+        index += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (!inQuotes && char === ',') {
+      row.push(cell)
+      cell = ''
+      continue
+    }
+
+    if (!inQuotes && (char === '\n' || char === '\r')) {
+      if (char === '\r' && next === '\n') index += 1
+      if (cell.length || row.length) {
+        row.push(cell)
+        rows.push(row)
+        row = []
+        cell = ''
+      }
+      continue
+    }
+
+    cell += char
+  }
+
+  if (cell.length || row.length) {
+    row.push(cell)
+    rows.push(row)
+  }
+
+  return rows
+}
+
+const findHeaderIndex = (headers: string[], aliases: string[]) => {
+  const normalizedHeaders = headers.map((header) => normalizeTownKey(header))
+  for (const alias of aliases) {
+    const index = normalizedHeaders.indexOf(normalizeTownKey(alias))
+    if (index >= 0) return index
+  }
+  return -1
+}
+
+const getCell = (row: string[], index: number) => (index >= 0 ? (row[index] || '').trim() : '')
+
+async function readTownFundingCsv(): Promise<Map<string, CsvTownFundingRow>> {
+  const filePath = path.resolve(process.cwd(), 'tmp/budget-plan-town-runs-comprehensive.csv')
+  const raw = (await fs.readFile(filePath, 'utf8')).replace(/^\uFEFF/, '')
+  const parsed = parseCsv(raw)
+  if (parsed.length < 2) return new Map()
+
+  const headers = parsed[0] || []
+  const townIndex = findHeaderIndex(headers, ['Town'])
+  const townKeyIndex = findHeaderIndex(headers, ['Town Key'])
+  const currentEcsIndex = findHeaderIndex(headers, ['Current ECS Entitlement'])
+  const strapAidIndex = findHeaderIndex(headers, ['House GOP STRAP Aid', 'STRAP Aid', 'STRAP', 'Enhanced Education Funding'])
+  const enhancedEducationFundingIndex = findHeaderIndex(headers, ['Enhanced Education Funding'])
+  const needsReviewIndex = findHeaderIndex(headers, ['Needs Review'])
+
+  const rows = new Map<string, CsvTownFundingRow>()
+
+  for (const row of parsed.slice(1)) {
+    const town = getCell(row, townIndex)
+    if (!town) continue
+
+    const townKey = getCell(row, townKeyIndex) || normalizeTownKey(town)
+    rows.set(townKey, {
+      town,
+      townKey,
+      currentEcsEntitlement: parseNumber(getCell(row, currentEcsIndex)),
+      strapAid: parseNumber(getCell(row, strapAidIndex)),
+      enhancedEducationFunding: parseNumber(getCell(row, enhancedEducationFundingIndex)),
+      needsReview: getCell(row, needsReviewIndex).toLowerCase() === 'yes',
+    })
+  }
+
+  return rows
+}
 
 const measureTextApprox = (text: string, fontSize: number, fontFamily?: string) => {
   const family = (fontFamily || '').toLowerCase()
@@ -1083,25 +1168,8 @@ const readMediaUrl = (value: unknown, origin: string) => {
   }
 }
 
-const fetchJsonWithCookie = async <T>(origin: string, path: string, cookie: string) => {
-  const response = await fetch(new URL(path, origin), {
-    headers: {
-      cookie,
-      accept: 'application/json',
-    },
-    cache: 'no-store',
-  })
-  const json = await response.json()
-  if (!response.ok) {
-    const message = getString(asRecord(json).message) || `${path} failed (${response.status})`
-    throw new Error(message)
-  }
-  return json as T
-}
-
-const fetchBufferWithCookie = async (url: string, cookie: string) => {
+const fetchBuffer = async (url: string) => {
   const response = await fetch(url, {
-    headers: cookie ? { cookie } : undefined,
     cache: 'no-store',
   })
   if (!response.ok) return null
@@ -1109,29 +1177,92 @@ const fetchBufferWithCookie = async (url: string, cookie: string) => {
 }
 
 const buildServerBundleForTenant = async ({
+  payload,
   origin,
-  cookie,
   tenantID,
   requestedDesignID,
   requestedTemplateID,
 }: {
+  payload: Awaited<ReturnType<typeof getPayload>>
   origin: string
-  cookie: string
   tenantID: string
   requestedDesignID?: string
   requestedTemplateID?: string
 }) => {
-  const [townData, templateJson, designJson] = await Promise.all([
-    fetchJsonWithCookie<TownFundingResponse>(origin, `/api/graphics-experimental/town-funding?tenant=${tenantID}`, cookie),
-    fetchJsonWithCookie<{ docs?: TemplateDoc[] }>(origin, `/api/graphic-templates?${buildTemplateSearchParams().toString()}`, cookie),
-    fetchJsonWithCookie<{ docs?: DesignDoc[] }>(origin, `/api/graphic-designs?${buildDesignSearchParams(tenantID).toString()}`, cookie),
+  const [tenantDoc, repResponse, standardMediaResponse, csvRows, templateResponse, designResponse] = await Promise.all([
+    payload.findByID({
+      collection: 'tenants',
+      id: tenantID,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'rep-info',
+      where: { tenant: { equals: tenantID } },
+      limit: 1,
+      depth: 1,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'standard-media',
+      where: { tenant: { equals: tenantID } },
+      limit: 1,
+      depth: 1,
+      overrideAccess: true,
+    }),
+    readTownFundingCsv(),
+    payload.find({
+      collection: 'graphic-templates',
+      limit: 50,
+      depth: 1,
+      sort: '-updatedAt',
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'graphic-designs',
+      where: { primaryTenant: { equals: tenantID } },
+      limit: 50,
+      depth: 1,
+      sort: '-updatedAt',
+      overrideAccess: true,
+    }),
   ])
 
-  const nextTemplates = Array.isArray(templateJson.docs)
-    ? templateJson.docs.filter((doc) => isMailSceneBundle(doc.scene) || (isExperimentalScene(doc.scene) && Boolean(parseMailEditorNotes(doc.notes))))
+  const repInfo = repResponse.docs[0]
+  if (!repInfo) throw new Error(`No rep-info found for tenant ${tenantID}`)
+
+  const standardMedia = (standardMediaResponse.docs[0] || null) as StandardMediaDoc | null
+  const repInfoRecord = asRecord(repInfo as unknown) || {}
+  const towns = Array.isArray(repInfoRecord.towns) ? ((repInfoRecord.towns as RepTown[]) || []) : []
+
+  const townData: TownFundingResponse = {
+    tenant: {
+      id: getString(asRecord(tenantDoc)?.id) || tenantID,
+      name: getString(asRecord(tenantDoc)?.name) || '',
+      slug: getString(asRecord(tenantDoc)?.slug) || '',
+    },
+    repInfo: {
+      name: getString(repInfoRecord.name) || '',
+    },
+    standardMedia,
+    townRows: towns.map((townEntry, index) => {
+      const townName = getString(townEntry?.town)?.trim() || `Town ${index + 1}`
+      const csvMatch = csvRows.get(normalizeTownKey(townName))
+      const strapAid = csvMatch?.strapAid ?? getNumber(townEntry?.houseGopStrapAid) ?? csvMatch?.enhancedEducationFunding ?? 0
+
+      return {
+        id: `${normalizeTownKey(townName) || 'town'}-${index}`,
+        town: townName,
+        strapAid,
+      }
+    }),
+  }
+
+  const nextTemplates = Array.isArray(templateResponse.docs)
+    ? templateResponse.docs.filter((doc) => isMailSceneBundle(doc.scene) || (isExperimentalScene(doc.scene) && Boolean(parseMailEditorNotes(doc.notes))))
     : []
-  const nextDesigns = Array.isArray(designJson.docs)
-    ? designJson.docs.filter((doc) => isMailSceneBundle(doc.scene) || (isExperimentalScene(doc.scene) && Boolean(parseMailEditorNotes(doc.notes))))
+  const nextDesigns = Array.isArray(designResponse.docs)
+    ? designResponse.docs.filter((doc) => isMailSceneBundle(doc.scene) || (isExperimentalScene(doc.scene) && Boolean(parseMailEditorNotes(doc.notes))))
     : []
   const selectedDesign = requestedDesignID
     ? nextDesigns.find((item) => item.id === requestedDesignID)
@@ -1161,7 +1292,7 @@ const buildServerBundleForTenant = async ({
   }
 
   const headshotUrl = readMediaUrl(asRecord(townData.standardMedia || {}).mobileHeadshot, origin)
-  const headshotBytes = headshotUrl ? await fetchBufferWithCookie(headshotUrl, cookie) : null
+  const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
 
   return {
     label: townData.tenant?.name || tenantID,
@@ -1173,15 +1304,15 @@ const buildServerBundleForTenant = async ({
 
 const runMailExportJob = async ({
   jobID,
+  payload,
   origin,
-  cookie,
   tenantOptions,
   requestedDesignID,
   requestedTemplateID,
 }: {
   jobID: string
+  payload: Awaited<ReturnType<typeof getPayload>>
   origin: string
-  cookie: string
   tenantOptions: TenantSelectOption[]
   requestedDesignID?: string
   requestedTemplateID?: string
@@ -1197,8 +1328,8 @@ const runMailExportJob = async ({
     updateMailExportJob(jobID, { currentTenantLabel: option.label, completed })
     try {
       const { slug, bundle, headshotBytes } = await buildServerBundleForTenant({
+        payload,
         origin,
-        cookie,
         tenantID: option.value,
         requestedDesignID,
         requestedTemplateID,
@@ -1256,15 +1387,14 @@ export async function POST(req: NextRequest) {
   }
 
   const origin = new URL(req.url).origin
-  const cookie = req.headers.get('cookie') || ''
   const jobID = randomUUID()
   const downloadName = `graphics-editor-mail-all-reps-${Date.now()}.zip`
   createMailExportJob(jobID, tenantOptions.length, downloadName)
 
   void runMailExportJob({
     jobID,
+    payload,
     origin,
-    cookie,
     tenantOptions,
     requestedDesignID: body.requestedDesignID,
     requestedTemplateID: body.requestedTemplateID,
