@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
+import { AlignCenter, AlignLeft, AlignRight, Bold, Copy, Italic, Trash2, Underline, X } from 'lucide-react'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
@@ -11,11 +12,18 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import {
   EDITOR_COMPONENTS,
+  TEXT_ALIGNMENT_OPTIONS,
+  TEXT_FONT_OPTIONS,
+  buildFontStyle,
+  clampNumber,
   createEditorNodeID,
   duplicateRect,
   duplicateText,
   formatAutosaveLabel,
+  getCssFontWeight,
   getShortcutNudgeDistance,
+  getFontStyleFlags,
+  getResizedTextTransform,
   isEditableTarget,
   useEditorAutosave,
 } from '@/components/admin/graphicsEditorShared'
@@ -25,10 +33,6 @@ const STAGE_HEIGHT = 1600
 const MAX_PREVIEW_WIDTH = 760
 const MAX_PREVIEW_HEIGHT = 900
 const SCENE_KIND = 'experimental-town-graphic/v1'
-const MAIL_SIDE_BLOCK_WIDTH = 360
-const MAIL_SIDE_BLOCK_HEIGHT = 220
-const MAIL_SIDE_BLOCK_MARGIN = 32
-const MAIL_SIDE_BLOCK_LABEL = 'SIDE 1'
 const BRAND_BLUE = '#1d2f8c'
 const BRAND_RED = '#c3202f'
 const BRAND_COLORS = [BRAND_BLUE, '#8ea4ea', BRAND_RED, '#ffffff', '#111827']
@@ -39,11 +43,6 @@ const TOWN_LABEL_HEIGHT_LIMITS = { min: 24, max: 84 }
 const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
-const TEXT_FONT_OPTIONS = [
-  { label: 'Arial', value: 'Arial' },
-  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
-] as const
-
 type MediaDoc = {
   id: string
   alt?: string | null
@@ -126,7 +125,9 @@ type SceneTextElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
   lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -150,6 +151,9 @@ type SubheadElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
+  lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -167,6 +171,9 @@ type FooterElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
+  lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -196,12 +203,16 @@ type CustomTextElement = {
   x: number
   y: number
   width: number
+  height?: number
   text: string
   fontSize: number
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
   lineHeight?: number
+  rotation?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -214,6 +225,7 @@ type CustomImageElement = {
   mediaID: string
   sourceUrl: string
   alt?: string
+  rotation?: number
 }
 
 type TownSceneRow = {
@@ -267,6 +279,11 @@ type Selection =
 type TextSelection = Exclude<Selection, null> & {
   kind: 'eyebrow' | 'headline' | 'subhead' | 'footer' | 'custom-text'
 }
+
+type InlineTextEditorState = {
+  target: TextSelection
+  value: string
+} | null
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const cloneScene = (scene: ExperimentalTownScene): ExperimentalTownScene => JSON.parse(JSON.stringify(scene)) as ExperimentalTownScene
@@ -444,12 +461,13 @@ const measureHeadlineHeight = (headline: SceneTextElement) => {
   return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
 }
 
-const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight'>) => {
+const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight' | 'height'>) => {
   const fontSize = item.fontSize || 28
   const fontFamily = item.fontFamily || 'Arial'
   const lineHeight = item.lineHeight || 1.1
   const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
-  return Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
+  const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
+  return Math.max(item.height || 0, measuredHeight)
 }
 
 const measureTownGroupHeight = (row: TownSceneRow) =>
@@ -1085,6 +1103,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const [townData, setTownData] = useState<TownFundingResponse | null>(null)
   const [scene, setScene] = useState<ExperimentalTownScene | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
+  const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
   const [templateID, setTemplateID] = useState('')
   const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
   const [designID, setDesignID] = useState('')
@@ -1095,6 +1114,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
+  const [documentSectionOpen, setDocumentSectionOpen] = useState(true)
+  const [contentSectionOpen, setContentSectionOpen] = useState(true)
+  const [townsSectionOpen, setTownsSectionOpen] = useState(true)
+  const [inspectorSectionOpen, setInspectorSectionOpen] = useState(true)
   const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
   const [sceneRevision, setSceneRevision] = useState(0)
 
@@ -1391,6 +1414,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         x: 140,
         y: 136,
         width: 280,
+        height: 96,
         text: 'Custom text',
         fontSize: 28,
         color: '#111111',
@@ -1577,6 +1601,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     })
   }
 
+  const resolveTextLayer = (current: ExperimentalTownScene, target: TextSelection) => resolveSelectedTextLayer(current, target)
+
+  const beginInlineTextEdit = (target: TextSelection) => {
+    if (!scene) return
+    const currentLayer = resolveTextLayer(scene, target)
+    if (!currentLayer) return
+    setSelection(target)
+    setInlineTextEditor({ target, value: currentLayer.text || '' })
+  }
+
+  const commitInlineTextEdit = () => {
+    if (!inlineTextEditor) return
+    updateSelectedTextLayer(inlineTextEditor.target, { text: inlineTextEditor.value })
+    setInlineTextEditor(null)
+  }
+
   const loadTemplate = (nextTemplateID: string) => {
     if (!scene || !townData) return
     setTemplateID(nextTemplateID)
@@ -1586,6 +1626,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       clearUndoHistory()
       setSceneWithoutHistory(baseScene)
       setSelection(null)
+      setInlineTextEditor(null)
       return
     }
     const template = templates.find((item) => item.id === nextTemplateID)
@@ -1596,6 +1637,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     clearUndoHistory()
     setSceneWithoutHistory(mergeSceneWithFreshData(template.scene, baseScene))
     setSelection(null)
+    setInlineTextEditor(null)
   }
 
   const loadDesign = (nextDesignID: string) => {
@@ -1607,6 +1649,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       clearUndoHistory()
       setSceneWithoutHistory(baseScene)
       setSelection(null)
+      setInlineTextEditor(null)
       return
     }
     const design = designs.find((item) => item.id === nextDesignID)
@@ -1618,6 +1661,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     clearUndoHistory()
     setSceneWithoutHistory(mergeSceneWithFreshData(design.scene, baseScene))
     setSelection(null)
+    setInlineTextEditor(null)
   }
 
   const uploadMediaAsset = async (file: File, alt: string) => {
@@ -1962,6 +2006,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
       if (event.key === 'Escape') {
         setSelection(null)
+        setInlineTextEditor(null)
         return
       }
 
@@ -2435,6 +2480,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                         <span style={fieldLabelStyle}>Height</span>
                         <input type="number" value={Math.round(selectedCustomImage.height)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { height: Math.max(20, Number(event.target.value) || selectedCustomImage.height) })} style={controlStyle} />
                       </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Rotation</span>
+                        <input type="number" step={0.1} value={selectedCustomImage.rotation || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
+                      </label>
                     </div>
                   )
                 : selection?.kind === 'custom-rect' && selectedCustomRect
@@ -2467,10 +2516,14 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                     ? (
                         <div style={slotCardStyle}>
                           <strong style={{ fontSize: 13 }}>Selected: Text Box</strong>
-                          <label style={{ display: 'grid', gap: 6 }}>
-                            <span style={fieldLabelStyle}>Text</span>
-                            <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 90 }} />
-                          </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Rotation</span>
+                          <input type="number" step={0.1} value={selectedCustomText.rotation || 0} onChange={(event) => updateCustomText(selectedCustomText.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Text</span>
+                          <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 120 }} />
+                        </label>
                           <label style={{ display: 'grid', gap: 6 }}>
                             <span style={fieldLabelStyle}>X</span>
                             <input type="number" value={Math.round(selectedCustomText.x)} onChange={(event) => updateCustomText(selectedCustomText.id, { x: Number(event.target.value) || selectedCustomText.x })} style={controlStyle} />
@@ -2479,13 +2532,17 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                             <span style={fieldLabelStyle}>Y</span>
                             <input type="number" value={Math.round(selectedCustomText.y)} onChange={(event) => updateCustomText(selectedCustomText.id, { y: Number(event.target.value) || selectedCustomText.y })} style={controlStyle} />
                           </label>
-                          <label style={{ display: 'grid', gap: 6 }}>
-                            <span style={fieldLabelStyle}>Width</span>
-                            <input type="number" value={Math.round(selectedCustomText.width)} onChange={(event) => updateCustomText(selectedCustomText.id, { width: Number(event.target.value) || selectedCustomText.width })} style={controlStyle} />
-                          </label>
-                          <label style={{ display: 'grid', gap: 6 }}>
-                            <span style={fieldLabelStyle}>Font size</span>
-                            <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Width</span>
+                          <input type="number" value={Math.round(selectedCustomText.width)} onChange={(event) => updateCustomText(selectedCustomText.id, { width: Number(event.target.value) || selectedCustomText.width })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Height</span>
+                          <input type="number" value={Math.round(selectedCustomText.height || measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Math.max(measureCustomTextHeight(selectedCustomText), Number(event.target.value) || selectedCustomText.height || 0) })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Font size</span>
+                          <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
                           </label>
                         </div>
                       )
@@ -2515,46 +2572,215 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const selectedTextLayer = selectedTextTarget ? resolveSelectedTextLayer(scene, selectedTextTarget) : null
   const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
+  const selectedTextFontFlags = getFontStyleFlags(selectedTextLayer?.fontStyle)
+  const applySelectedTextFormatting = (
+    patch: Partial<SceneTextElement | SubheadElement | FooterElement | CustomTextElement>,
+  ) => {
+    if (!selectedTextTarget || !selectedTextLayer) return
+    updateSelectedTextLayer(selectedTextTarget, patch)
+  }
+  const toggleSelectedTextBold = () => {
+    if (!selectedTextLayer) return
+    applySelectedTextFormatting({
+      fontStyle: buildFontStyle({
+        bold: !selectedTextFontFlags.bold,
+        italic: selectedTextFontFlags.italic,
+      }),
+    })
+  }
+  const toggleSelectedTextItalic = () => {
+    if (!selectedTextLayer) return
+    applySelectedTextFormatting({
+      fontStyle: buildFontStyle({
+        bold: selectedTextFontFlags.bold,
+        italic: !selectedTextFontFlags.italic,
+      }),
+    })
+  }
+  const selectedTextInspectorPanel = selectedTextLayer ? (
+    <div style={slotCardStyle}>
+      <strong style={{ fontSize: 13 }}>Text Styling</strong>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" style={selectedTextFontFlags.bold ? activeToolbarButtonStyle : toolbarButtonStyle} onClick={toggleSelectedTextBold}>
+          Bold
+        </button>
+        <button type="button" style={selectedTextFontFlags.italic ? activeToolbarButtonStyle : toolbarButtonStyle} onClick={toggleSelectedTextItalic}>
+          Italic
+        </button>
+        <button
+          type="button"
+          style={selectedTextLayer.textDecoration === 'underline' ? activeToolbarButtonStyle : toolbarButtonStyle}
+          onClick={() => applySelectedTextFormatting({ textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline' })}
+        >
+          Underline
+        </button>
+      </div>
+      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Font</span>
+          <select
+            value={selectedTextLayer.fontFamily || TEXT_FONT_OPTIONS[0].value}
+            onChange={(event) => applySelectedTextFormatting({ fontFamily: event.target.value })}
+            style={controlStyle}
+          >
+            {TEXT_FONT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Align</span>
+          <select
+            value={selectedTextLayer.textAlign || 'left'}
+            onChange={(event) => applySelectedTextFormatting({ textAlign: event.target.value as 'left' | 'center' | 'right' })}
+            style={controlStyle}
+          >
+            {TEXT_ALIGNMENT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Font size</span>
+          <input
+            type="number"
+            min={10}
+            max={200}
+            step={1}
+            value={Math.round(selectedTextLayer.fontSize)}
+            onChange={(event) => applySelectedTextFormatting({ fontSize: Number(event.target.value) || selectedTextLayer.fontSize })}
+            style={controlStyle}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Line height</span>
+          <input
+            type="number"
+            min={0.8}
+            max={2}
+            step={0.05}
+            value={selectedTextLayer.lineHeight || 1}
+            onChange={(event) => applySelectedTextFormatting({ lineHeight: Number(event.target.value) || selectedTextLayer.lineHeight || 1 })}
+            style={controlStyle}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Letter spacing</span>
+          <input
+            type="number"
+            min={-2}
+            max={30}
+            step={0.5}
+            value={selectedTextLayer.letterSpacing || 0}
+            onChange={(event) => applySelectedTextFormatting({ letterSpacing: Number(event.target.value) || 0 })}
+            style={controlStyle}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Color</span>
+          <input
+            type="color"
+            value={selectedTextLayer.color || '#111111'}
+            onChange={(event) => applySelectedTextFormatting({ color: event.target.value })}
+            style={{ ...controlStyle, minHeight: 44, padding: 6 }}
+          />
+        </label>
+      </div>
+    </div>
+  ) : null
+
+  const stageOffsetX = Math.max(0, (stageContainerWidth - previewWidth) / 2)
+  const inlineEditorBox =
+    inlineTextEditor
+      ? (() => {
+          const currentLayer = resolveTextLayer(scene, inlineTextEditor.target)
+          if (!currentLayer) return null
+          const inlineWidth =
+            inlineTextEditor.target.kind === 'subhead'
+              ? scene.subhead.dividerWidth
+              : inlineTextEditor.target.kind === 'footer'
+                ? scene.footer.width
+                : (currentLayer as SceneTextElement).width
+          const width = Math.max(180, inlineWidth * previewScale)
+          const height =
+            inlineTextEditor.target.kind === 'headline'
+              ? Math.max(180, measureHeadlineHeight(scene.headline) * previewScale)
+              : inlineTextEditor.target.kind === 'subhead'
+                ? Math.max(88, ((scene.subhead.fontSize || 28) + 28) * previewScale)
+                : Math.max(96, Math.max(72, ((currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4) * previewScale))
+          return {
+            left: stageOffsetX + currentLayer.x * previewScale,
+            top: currentLayer.y * previewScale,
+            width,
+            height,
+          }
+        })()
+      : null
 
   const headshotPlacement = computeCoverPlacement(headshotImage, scene.headshot.size, scene.headshot.size, scene.headshot.crop)
   const backgroundPlacement = computeCoverPlacement(backgroundImage, STAGE_WIDTH, STAGE_HEIGHT)
 
-  const renderCustomImageNode = (item: CustomImageElement) => (
-    <Group
-      key={item.id}
-      ref={(node) => {
-        customImageRefs.current[item.id] = node
-      }}
-      x={item.x}
-      y={item.y}
-      draggable
-      onDragEnd={(event) => {
-        setSelection({ kind: 'custom-image', id: item.id })
-        updateCustomImage(item.id, { x: event.target.x(), y: event.target.y() })
-      }}
-      onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
-      onTransformEnd={(event) => {
-        const node = event.target
-        const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
-        const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
-        node.scaleX(1)
-        node.scaleY(1)
-        updateCustomImage(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
-      }}
-    >
-      {selection?.kind === 'custom-image' && selection.id === item.id ? (
-        <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-      ) : null}
-      {customImages[item.id] ? (
-        <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} />
-      ) : (
-        <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />
-      )}
-    </Group>
-  )
+  const renderCustomImageNode = (item: CustomImageElement) => {
+    const rotation = item.rotation || 0
+
+    return (
+      <Group
+        key={item.id}
+        ref={(node) => {
+          customImageRefs.current[item.id] = node
+        }}
+        x={item.x + item.width / 2}
+        y={item.y + item.height / 2}
+        offsetX={item.width / 2}
+        offsetY={item.height / 2}
+        rotation={rotation}
+        draggable
+        onDragEnd={(event) => {
+          const node = event.target
+          setSelection({ kind: 'custom-image', id: item.id })
+          updateCustomImage(item.id, {
+            x: node.x() - item.width / 2,
+            y: node.y() - item.height / 2,
+          })
+        }}
+        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
+        onTransformEnd={(event) => {
+          const node = event.target
+          const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
+          const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
+          const nextRotation = Number(node.rotation().toFixed(1))
+          node.scaleX(1)
+          node.scaleY(1)
+          node.offsetX(nextWidth / 2)
+          node.offsetY(nextHeight / 2)
+          updateCustomImage(item.id, {
+            x: node.x() - nextWidth / 2,
+            y: node.y() - nextHeight / 2,
+            width: nextWidth,
+            height: nextHeight,
+            rotation: nextRotation,
+          })
+        }}
+      >
+        {selection?.kind === 'custom-image' && selection.id === item.id ? (
+          <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+        ) : null}
+        {customImages[item.id] ? (
+          <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} />
+        ) : (
+          <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />
+        )}
+      </Group>
+    )
+  }
 
   const renderCustomTextNode = (item: CustomTextElement) => {
     const textHeight = measureCustomTextHeight(item)
+    const rotation = item.rotation || 0
 
     return (
       <Group
@@ -2562,21 +2788,56 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         ref={(node) => {
           customTextRefs.current[item.id] = node
         }}
-        x={item.x}
-        y={item.y}
+        x={item.x + item.width / 2}
+        y={item.y + textHeight / 2}
+        offsetX={item.width / 2}
+        offsetY={textHeight / 2}
+        rotation={rotation}
         draggable
         onDragEnd={(event) => {
+          const node = event.target
           setSelection({ kind: 'custom-text', id: item.id })
-          updateCustomText(item.id, { x: event.target.x(), y: event.target.y() })
+          updateCustomText(item.id, {
+            x: node.x() - item.width / 2,
+            y: node.y() - textHeight / 2,
+          })
         }}
         onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
         onTransformStart={() => setIsResizingHeadline(true)}
         onTransformEnd={(event) => {
           const node = event.target
-          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
+          const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+          const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+          const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+          const isCorner = !isHorizontalEdge && !isVerticalEdge
+          const nextWidth = isVerticalEdge ? item.width : Math.max(80, Math.round(item.width * Math.max(Math.abs(node.scaleX()), 0.1)))
+          const nextFontSize = isCorner
+            ? getResizedTextTransform({
+                fontSize: item.fontSize,
+                minFontSize: 12,
+                minWidth: 80,
+                scaleX: node.scaleX(),
+                scaleY: node.scaleY(),
+                width: item.width,
+              }).nextFontSize
+            : item.fontSize
+          const nextRotation = Number(node.rotation().toFixed(1))
+          const measuredNextHeight = measureCustomTextHeight({ ...item, width: nextWidth, fontSize: nextFontSize })
+          const nextHeight = isHorizontalEdge
+            ? measuredNextHeight
+            : Math.max(measuredNextHeight, Math.round(textHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
           node.scaleX(1)
           node.scaleY(1)
-          updateCustomText(item.id, { x: node.x(), y: node.y(), width: nextWidth })
+          node.offsetX(nextWidth / 2)
+          node.offsetY(nextHeight / 2)
+          updateCustomText(item.id, {
+            height: nextHeight,
+            x: node.x() - nextWidth / 2,
+            y: node.y() - nextHeight / 2,
+            width: nextWidth,
+            fontSize: nextFontSize,
+            rotation: nextRotation,
+          })
           setIsResizingHeadline(false)
         }}
       >
@@ -2585,13 +2846,17 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         ) : null}
         <Text
           width={item.width}
+          height={textHeight}
           text={item.text}
+          align={item.textAlign || 'left'}
           fontFamily={item.fontFamily || 'Arial'}
           fontSize={item.fontSize}
           fontStyle={item.fontStyle}
           fill={item.color}
+          letterSpacing={item.letterSpacing || 0}
           lineHeight={item.lineHeight || 1.1}
           textDecoration={item.textDecoration}
+          onDblClick={() => beginInlineTextEdit({ kind: 'custom-text', id: item.id })}
         />
       </Group>
     )
@@ -2738,316 +3003,368 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     <div
       style={{
         display: 'grid',
-        gap: 20,
-        gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
-        padding: 24,
+        gap: 12,
+        gridTemplateColumns: 'minmax(280px, 380px) minmax(0, 1fr)',
+        gridTemplateRows: 'auto 1fr',
+        padding: 12,
         alignItems: 'start',
       }}
     >
+      <section
+        style={{
+          gridColumn: '1 / -1',
+          borderRadius: 16,
+          border: '1px solid rgba(17, 24, 39, 0.12)',
+          background: 'rgba(255,255,255,0.94)',
+          padding: '8px 10px',
+          display: 'flex',
+          gap: 8,
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <details style={commandMenuStyle}>
+            <summary style={commandMenuSummaryStyle}>Export</summary>
+            <div style={commandMenuPanelStyle}>
+              <button type="button" onClick={saveToMediaGallery} disabled={savingMedia} style={menuActionButtonStyle}>
+                {savingMedia ? 'Saving…' : 'Save to Media'}
+              </button>
+              <button type="button" onClick={downloadPng} style={menuActionButtonStyle}>
+                Download PNG
+              </button>
+              <button type="button" onClick={downloadPdf} style={menuActionButtonStyle}>
+                Download PDF
+              </button>
+              <button type="button" onClick={downloadPptx} style={menuActionButtonStyle}>
+                Download PPTX
+              </button>
+            </div>
+          </details>
+          {isSuperAdmin ? (
+            <button
+              type="button"
+              onClick={saveTemplate}
+              disabled={savingTemplate}
+              style={savingTemplate ? disabledButtonStyle : secondaryButtonStyle}
+            >
+              {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleSaveDesign}
+            disabled={savingDesign}
+            style={savingDesign ? disabledButtonStyle : secondaryButtonStyle}
+          >
+            {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
+          </button>
+          <button
+            type="button"
+            onClick={undoLastChange}
+            disabled={undoStackRef.current.length === 0}
+            style={undoStackRef.current.length === 0 ? disabledButtonStyle : secondaryButtonStyle}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            onClick={redoLastChange}
+            disabled={redoStackRef.current.length === 0}
+            style={redoStackRef.current.length === 0 ? disabledButtonStyle : secondaryButtonStyle}
+          >
+            Redo
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+            <span>Zoom</span>
+            <select
+              value={String(previewZoom)}
+              onChange={(event) => setPreviewZoom(Number(event.target.value))}
+              style={{ ...controlStyle, width: 88, padding: '6px 8px' }}
+            >
+              <option value="0.75">75%</option>
+              <option value="0.9">90%</option>
+              <option value="1">Fit</option>
+              <option value="1.1">110%</option>
+              <option value="1.25">125%</option>
+            </select>
+          </label>
+          <div style={{ fontSize: 12, color: '#475569' }}>
+            Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
+          </div>
+        </div>
+      </section>
+
       <aside
         style={{
-          borderRadius: 20,
+          borderRadius: 16,
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.9)',
-          padding: 20,
+          padding: 10,
           display: 'grid',
-          gap: 18,
+          gap: 10,
           alignSelf: 'start',
           maxHeight: 'calc(100vh - 48px)',
           overflowY: 'auto',
         }}
       >
-        <section style={{ display: 'grid', gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>Experimental Town Graphic</h2>
-          <div style={hintStyle}>
-            Tenant: <strong>{townData.tenant?.name || tenantName || tenantID}</strong>
-            <br />
-            Rep: <strong>{townData.repInfo?.name || 'Unknown rep'}</strong>
-            <br />
-            Design: <strong>{designID || 'unsaved'}</strong>
-          </div>
-          {isMounted && tenantOptions.length > 0 ? (
+        <details open={documentSectionOpen} onToggle={(event) => setDocumentSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Document</summary>
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+            {isMounted && tenantOptions.length > 0 ? (
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Switch tenant</span>
+                <select
+                  value={selectedTenantID ? String(selectedTenantID) : ''}
+                  onChange={(event) => {
+                    const nextTenantID = event.target.value || undefined
+                    setTenant({ id: nextTenantID, refresh: true })
+                  }}
+                  style={controlStyle}
+                >
+                  {tenantOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Switch tenant</span>
-              <select
-                value={selectedTenantID ? String(selectedTenantID) : ''}
-                onChange={(event) => {
-                  const nextTenantID = event.target.value || undefined
-                  setTenant({ id: nextTenantID, refresh: true })
-                }}
-                style={controlStyle}
-              >
-                {tenantOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+              <span style={fieldLabelStyle}>Open design</span>
+              <select value={designID} onChange={(event) => loadDesign(event.target.value)} style={controlStyle}>
+                <option value="">Default layout</option>
+                {designs.map((design) => (
+                  <option key={design.id} value={design.id}>
+                    {design.title || 'Untitled design'}
                   </option>
                 ))}
               </select>
             </label>
-          ) : null}
-        </section>
-
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Designs</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Open design</span>
-            <select value={designID} onChange={(event) => loadDesign(event.target.value)} style={controlStyle}>
-              <option value="">Default layout</option>
-              {designs.map((design) => (
-                <option key={design.id} value={design.id}>
-                  {design.title || 'Untitled design'}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Design title</span>
-            <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
-          </label>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Background image</span>
-            <select
-              value={scene.backgroundMediaID || ''}
-              onChange={(event) =>
-                updateScene((current) => ({
-                  ...current,
-                  backgroundMediaID: event.target.value || null,
-                }))
-              }
-              style={controlStyle}
-            >
-              <option value="">Default district/banner image</option>
-              {mediaOptions.map((media) => (
-                <option key={media.id} value={media.id}>
-                  {media.title || media.filename || media.alt || media.id}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
-            {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
-          </Button>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button onClick={undoLastChange} disabled={undoStackRef.current.length === 0} buttonStyle="secondary">
-              Undo
-            </Button>
-            <Button onClick={redoLastChange} disabled={redoStackRef.current.length === 0} buttonStyle="secondary">
-              Redo
-            </Button>
-          </div>
-          <div style={hintStyle}>
-            Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
-          </div>
-        </section>
-
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Copy</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Eyebrow</span>
-            <input
-              value={scene.eyebrow.text}
-              onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, text: event.target.value } }))}
-              style={controlStyle}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Headline</span>
-            <textarea
-              rows={5}
-              value={scene.headline.text}
-              onChange={(event) => updateHeadline({ text: event.target.value })}
-              style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
-            />
-          </label>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Subhead</span>
-            <input
-              value={scene.subhead.text}
-              onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
-              style={controlStyle}
-            />
-          </label>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button onClick={() => addCustomRect()} buttonStyle="secondary">
-              Add Rectangle
-            </Button>
-            <Button onClick={() => addCustomText()} buttonStyle="secondary">
-              Add Text Box
-            </Button>
-          </div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Add Image</span>
-            <input type="file" accept="image/*" onChange={handleAddCustomImage} style={controlStyle} />
-          </label>
-          <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
-          <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Footer text size</span>
-              <input
-                type="number"
-                value={scene.footer.fontSize}
+              <span style={fieldLabelStyle}>Design title</span>
+              <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
+            </label>
+            <div style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Background image</span>
+              <select
+                value={scene.backgroundMediaID || ''}
                 onChange={(event) =>
                   updateScene((current) => ({
                     ...current,
-                    footer: {
-                      ...current.footer,
-                      fontSize: Number(event.target.value) || current.footer.fontSize,
-                    },
+                    backgroundMediaID: event.target.value || null,
                   }))
                 }
+                style={controlStyle}
+              >
+                <option value="">Default district/banner image</option>
+                {mediaOptions.map((media) => (
+                  <option key={media.id} value={media.id}>
+                    {media.title || media.filename || media.alt || media.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Footer text size</span>
+                <input
+                  type="number"
+                  value={scene.footer.fontSize}
+                  onChange={(event) =>
+                    updateScene((current) => ({
+                      ...current,
+                      footer: {
+                        ...current.footer,
+                        fontSize: Number(event.target.value) || current.footer.fontSize,
+                      },
+                    }))
+                  }
+                  style={controlStyle}
+                />
+              </label>
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Footer bar height</span>
+                <input
+                  type="number"
+                  value={scene.footer.height}
+                  onChange={(event) =>
+                    updateScene((current) => {
+                      const nextHeight = Number(event.target.value) || current.footer.height
+                      return {
+                        ...current,
+                        footer: {
+                          ...current.footer,
+                          height: nextHeight,
+                        },
+                      }
+                    })
+                  }
+                  style={controlStyle}
+                />
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <details open={contentSectionOpen} onToggle={(event) => setContentSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Content + Insert</summary>
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Eyebrow</span>
+              <input
+                value={scene.eyebrow.text}
+                onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, text: event.target.value } }))}
                 style={controlStyle}
               />
             </label>
             <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Footer bar height</span>
+              <span style={fieldLabelStyle}>Headline</span>
+              <textarea
+                rows={5}
+                value={scene.headline.text}
+                onChange={(event) => updateHeadline({ text: event.target.value })}
+                style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
+              />
+            </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Subhead</span>
               <input
-                type="number"
-                value={scene.footer.height}
-                onChange={(event) =>
-                  updateScene((current) => {
-                    const nextHeight = Number(event.target.value) || current.footer.height
-                    return {
-                      ...current,
-                      footer: {
-                        ...current.footer,
-                        height: nextHeight,
-                      },
-                    }
-                  })
-                }
+                value={scene.subhead.text}
+                onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
                 style={controlStyle}
               />
             </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button onClick={() => addCustomRect()} buttonStyle="secondary">
+                Add Rectangle
+              </Button>
+              <Button onClick={() => addCustomText()} buttonStyle="secondary">
+                Add Text Box
+              </Button>
+            </div>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Add Image</span>
+              <input type="file" accept="image/*" onChange={handleAddCustomImage} style={controlStyle} />
+            </label>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {EDITOR_COMPONENTS.map((component) => (
+                <button
+                  key={component.id}
+                  type="button"
+                  onClick={() => insertComponent(component.id)}
+                  style={{
+                    ...secondaryButtonStyle,
+                    display: 'grid',
+                    justifyItems: 'start',
+                    gap: 4,
+                  }}
+                >
+                  <strong>{component.label}</strong>
+                  <span style={{ fontSize: 12, color: '#64748b' }}>{component.description}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
           </div>
-        </section>
+        </details>
 
-        <section style={{ display: 'grid', gap: 10 }}>
-          <div style={sectionLabelStyle}>Components</div>
-          <div style={{ display: 'grid', gap: 8 }}>
-            {EDITOR_COMPONENTS.map((component) => (
-              <button
-                key={component.id}
-                type="button"
-                onClick={() => insertComponent(component.id)}
-                style={{
-                  ...secondaryButtonStyle,
-                  display: 'grid',
-                  justifyItems: 'start',
-                  gap: 4,
-                }}
+        <details open={townsSectionOpen} onToggle={(event) => setTownsSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Towns</summary>
+          <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Town layout</span>
+              <select
+                value={scene.townColumns}
+                onChange={(event) =>
+                  updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
+                }
+                style={controlStyle}
               >
-                <strong>{component.label}</strong>
-                <span style={{ fontSize: 12, color: '#64748b' }}>{component.description}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section style={{ display: 'grid', gap: 12 }}>
-          <div style={sectionLabelStyle}>Towns</div>
-          <label style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Town layout</span>
-            <select
-              value={scene.townColumns}
-              onChange={(event) =>
-                updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
-              }
-              style={controlStyle}
-            >
-              <option value={1}>Single column</option>
-              <option value={2}>Two columns</option>
-            </select>
-          </label>
-          {scene.townRows.map((row) => (
-            <div key={row.id} style={slotCardStyle}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
-                  <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
-                  {row.town}
+                <option value={1}>Single column</option>
+                <option value={2}>Two columns</option>
+              </select>
+            </label>
+            {scene.townRows.map((row) => (
+              <div key={row.id} style={slotCardStyle}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
+                    <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
+                    {row.town}
+                  </label>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveTownRow(row.id, 1)}
+                      style={secondaryButtonStyle}
+                      disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}
+                    >
+                      ↓
+                    </button>
+                    <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
+                      Select
+                    </button>
+                  </div>
+                </div>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={fieldLabelStyle}>STRAP Aid</span>
+                  <input
+                    type="number"
+                    value={row.strapAid}
+                    onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
+                    style={controlStyle}
+                  />
                 </label>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveTownRow(row.id, 1)}
-                    style={secondaryButtonStyle}
-                    disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}
-                  >
-                    ↓
-                  </button>
-                  <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
-                    Select
-                  </button>
+                <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={fieldLabelStyle}>Town size</span>
+                    <input
+                      type="number"
+                      value={row.townFontSize}
+                      onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
+                      style={controlStyle}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={fieldLabelStyle}>Box width</span>
+                    <input
+                      type="number"
+                      value={row.labelWidth}
+                      onChange={(event) => updateTownRow(row.id, { labelWidth: Number(event.target.value) || row.labelWidth })}
+                      style={controlStyle}
+                    />
+                  </label>
                 </div>
               </div>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>STRAP Aid</span>
-                <input
-                  type="number"
-                  value={row.strapAid}
-                  onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
-                  style={controlStyle}
-                />
-              </label>
-              <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>Town size</span>
-                  <input
-                    type="number"
-                    value={row.townFontSize}
-                    onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
-                    style={controlStyle}
-                  />
-                </label>
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={fieldLabelStyle}>Box width</span>
-                  <input
-                    type="number"
-                    value={row.labelWidth}
-                    onChange={(event) => updateTownRow(row.id, { labelWidth: Number(event.target.value) || row.labelWidth })}
-                    style={controlStyle}
-                  />
-                </label>
-              </div>
-            </div>
-          ))}
-        </section>
+            ))}
+          </div>
+        </details>
 
-        {selectedElementPanel ? (
-          <section style={{ display: 'grid', gap: 12 }}>
-            <div style={sectionLabelStyle}>Selected Element</div>
+        <details open={inspectorSectionOpen} onToggle={(event) => setInspectorSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Inspector</summary>
+          <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
             {selection?.kind === 'custom-image' || selection?.kind === 'custom-rect' || selection?.kind === 'custom-text' ? (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <Button onClick={duplicateSelectedCustomObject} buttonStyle="secondary">Duplicate</Button>
                 <Button onClick={deleteSelectedCustomObject} buttonStyle="secondary">Delete</Button>
               </div>
             ) : null}
-            {selectedElementPanel}
-          </section>
-        ) : null}
-
-        <section style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Button onClick={saveToMediaGallery} disabled={savingMedia} buttonStyle="secondary">
-            {savingMedia ? 'Saving…' : 'Save to Media'}
-          </Button>
-          <Button onClick={downloadPng} buttonStyle="secondary">
-            Download PNG
-          </Button>
-          <Button onClick={downloadPdf} buttonStyle="secondary">
-            Download PDF
-          </Button>
-          <Button onClick={downloadPptx} buttonStyle="secondary">
-            Download PPTX
-          </Button>
-        </section>
+            {selectedTextInspectorPanel}
+            {selectedElementPanel || <div style={hintStyle}>Select an object on the canvas to edit position, size, and typography.</div>}
+          </div>
+        </details>
 
         {message ? <div style={hintStyle}>{message}</div> : null}
 
         <details open={templateSectionOpen} onToggle={(event) => setTemplateSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
           <summary style={detailsSummaryStyle}>Templates</summary>
-          <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+          <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Open template</span>
               <select value={templateID} onChange={(event) => loadTemplate(event.target.value)} style={controlStyle}>
@@ -3063,96 +3380,94 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               <span style={fieldLabelStyle}>Template title</span>
               <input value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} style={controlStyle} />
             </label>
-            {isSuperAdmin ? (
-              <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
-                {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
-              </Button>
-            ) : null}
           </div>
         </details>
       </aside>
 
       <section
         style={{
-          borderRadius: 24,
+          borderRadius: 16,
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.9)',
-          padding: 6,
+          padding: 4,
           overflow: 'hidden',
           minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div style={{ display: 'grid', gap: 0 }}>
-            <strong style={{ fontSize: 15, color: '#0f172a', lineHeight: 1.1 }}>Canvas</strong>
-            <span style={{ fontSize: 10, color: '#64748b', lineHeight: 1.1 }}>
-              Click to select, drag to move.
-            </span>
-          </div>
-          <label style={{ display: 'grid', gap: 2 }}>
-            <span style={fieldLabelStyle}>Preview zoom</span>
-            <select
-              value={String(previewZoom)}
-              onChange={(event) => setPreviewZoom(Number(event.target.value))}
-              style={{ ...controlStyle, width: 104, padding: '6px 8px' }}
-            >
-              <option value="0.75">75%</option>
-              <option value="0.9">90%</option>
-              <option value="1">Fit</option>
-              <option value="1.1">110%</option>
-              <option value="1.25">125%</option>
-            </select>
-          </label>
-        </div>
         <div style={textToolbarStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
           <div
             style={{
               display: 'flex',
-              gap: 10,
+              gap: 6,
               flexWrap: 'wrap',
               alignItems: 'center',
+              width: '100%',
               opacity: isTextToolbarActive ? 1 : 0,
               pointerEvents: isTextToolbarActive ? 'auto' : 'none',
             }}
           >
             <button
               type="button"
-              style={toolbarButtonStyle}
-              onClick={() => {
-                if (!selectedTextTarget || !selectedTextLayer) return
-                updateSelectedTextLayer(selectedTextTarget, {
-                  fontStyle: (selectedTextLayer.fontStyle || '').includes('italic')
-                    ? (selectedTextLayer.fontStyle || 'normal').replace(/\s*italic/g, '').trim() || 'normal'
-                    : `${selectedTextLayer.fontStyle || 'normal'} italic`.trim(),
-                })
-              }}
+              title="Bold"
+              aria-label="Bold"
+              style={selectedTextFontFlags.bold ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onClick={toggleSelectedTextBold}
               disabled={!isTextToolbarActive}
             >
-              Italic
+              <Bold size={14} strokeWidth={2.25} />
             </button>
             <button
               type="button"
-              style={toolbarButtonStyle}
-              onClick={() => {
-                if (!selectedTextTarget || !selectedTextLayer) return
-                updateSelectedTextLayer(selectedTextTarget, {
-                  textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline',
-                })
-              }}
+              title="Italic"
+              aria-label="Italic"
+              style={selectedTextFontFlags.italic ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onClick={toggleSelectedTextItalic}
               disabled={!isTextToolbarActive}
             >
-              Underline
+              <Italic size={14} strokeWidth={2.25} />
             </button>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font</span>
+            <button
+              type="button"
+              title="Underline"
+              aria-label="Underline"
+              style={selectedTextLayer?.textDecoration === 'underline' ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onClick={() =>
+                applySelectedTextFormatting({
+                  textDecoration: selectedTextLayer?.textDecoration === 'underline' ? 'none' : 'underline',
+                })
+              }
+              disabled={!isTextToolbarActive}
+            >
+              <Underline size={14} strokeWidth={2.25} />
+            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {TEXT_ALIGNMENT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  title={option.label}
+                  aria-label={option.label}
+                  style={selectedTextLayer?.textAlign === option.value || (!selectedTextLayer?.textAlign && option.value === 'left') ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+                  onClick={() => applySelectedTextFormatting({ textAlign: option.value })}
+                  disabled={!isTextToolbarActive}
+                >
+                  {option.value === 'left' ? (
+                    <AlignLeft size={14} strokeWidth={2.25} />
+                  ) : option.value === 'center' ? (
+                    <AlignCenter size={14} strokeWidth={2.25} />
+                  ) : (
+                    <AlignRight size={14} strokeWidth={2.25} />
+                  )}
+                </button>
+              ))}
+            </div>
+            <label style={{ display: 'grid' }}>
               <select
+                title="Font family"
+                aria-label="Font family"
                 value={selectedTextLayer?.fontFamily || TEXT_FONT_OPTIONS[0].value}
-                onChange={(event) => {
-                  if (!selectedTextTarget || !selectedTextLayer) return
-                  updateSelectedTextLayer(selectedTextTarget, { fontFamily: event.target.value })
-                }}
-                style={{ ...controlStyle, width: 160, padding: '8px 10px' }}
+                onChange={(event) => applySelectedTextFormatting({ fontFamily: event.target.value })}
+                style={{ ...toolbarSelectStyle, width: 150 }}
                 disabled={!isTextToolbarActive}
               >
                 {TEXT_FONT_OPTIONS.map((option) => (
@@ -3162,32 +3477,55 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
+            <label style={{ display: 'grid' }}>
               <input
                 type="number"
+                title="Font size"
+                aria-label="Font size"
                 min={12}
                 max={140}
                 step={1}
                 value={selectedTextLayer?.fontSize || 32}
-                onChange={(event) => {
-                  if (!selectedTextTarget || !selectedTextLayer) return
-                  updateSelectedTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })
-                }}
-                style={{ ...controlStyle, width: 92, padding: '8px 10px' }}
+                onChange={(event) => applySelectedTextFormatting({ fontSize: Number(event.target.value) })}
+                style={{ ...toolbarInputStyle, width: 68 }}
                 disabled={!isTextToolbarActive}
               />
             </label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'grid' }}>
+              <input
+                type="number"
+                title="Line height"
+                aria-label="Line height"
+                min={0.8}
+                max={2}
+                step={0.05}
+                value={selectedTextLayer?.lineHeight || 1}
+                onChange={(event) => applySelectedTextFormatting({ lineHeight: Number(event.target.value) || 1 })}
+                style={{ ...toolbarInputStyle, width: 64 }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <label style={{ display: 'grid' }}>
+              <input
+                type="number"
+                title="Letter spacing"
+                aria-label="Letter spacing"
+                min={-2}
+                max={30}
+                step={0.5}
+                value={selectedTextLayer?.letterSpacing || 0}
+                onChange={(event) => applySelectedTextFormatting({ letterSpacing: Number(event.target.value) || 0 })}
+                style={{ ...toolbarInputStyle, width: 64 }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               {BRAND_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
                   aria-label={`Choose ${color}`}
-                  onClick={() => {
-                    if (!selectedTextTarget || !selectedTextLayer) return
-                    updateSelectedTextLayer(selectedTextTarget, { color })
-                  }}
+                  onClick={() => applySelectedTextFormatting({ color })}
                   style={{
                     width: 22,
                     height: 22,
@@ -3199,26 +3537,40 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   disabled={!isTextToolbarActive}
                 />
               ))}
+              <input
+                type="color"
+                value={selectedTextLayer?.color || '#111111'}
+                onChange={(event) => applySelectedTextFormatting({ color: event.target.value })}
+                style={{ width: 28, height: 28, border: 'none', background: 'transparent', padding: 0 }}
+                disabled={!isTextToolbarActive}
+              />
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '4px 6px 8px' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Selection</span>
-          <Button onClick={() => setSelection(null)} buttonStyle="secondary">Clear</Button>
-          <Button
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '0 6px 6px' }}>
+          <button type="button" title="Clear selection" aria-label="Clear selection" onClick={() => setSelection(null)} style={iconToolbarButtonStyle}>
+            <X size={14} strokeWidth={2.25} />
+          </button>
+          <button
+            type="button"
+            title="Duplicate"
+            aria-label="Duplicate"
             onClick={duplicateSelectedCustomObject}
             disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
-            buttonStyle="secondary"
+            style={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
-            Duplicate
-          </Button>
-          <Button
+            <Copy size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
+            title="Delete"
+            aria-label="Delete"
             onClick={deleteSelectedCustomObject}
             disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
-            buttonStyle="secondary"
+            style={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
-            Delete
-          </Button>
+            <Trash2 size={14} strokeWidth={2.1} />
+          </button>
         </div>
         <div
           ref={stageContainerRef}
@@ -3300,30 +3652,6 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               ))}
 
               {scene.customTexts.map(renderCustomTextNode)}
-              <Group
-                x={STAGE_WIDTH - MAIL_SIDE_BLOCK_WIDTH - MAIL_SIDE_BLOCK_MARGIN}
-                y={STAGE_HEIGHT - MAIL_SIDE_BLOCK_HEIGHT - MAIL_SIDE_BLOCK_MARGIN}
-              >
-                <Rect
-                  width={MAIL_SIDE_BLOCK_WIDTH}
-                  height={MAIL_SIDE_BLOCK_HEIGHT}
-                  fill="rgba(203, 213, 225, 0.72)"
-                  stroke="#94a3b8"
-                  strokeWidth={2}
-                  cornerRadius={16}
-                />
-                <Text
-                  x={12}
-                  y={(MAIL_SIDE_BLOCK_HEIGHT - 34) / 2}
-                  width={MAIL_SIDE_BLOCK_WIDTH - 24}
-                  align="center"
-                  text={MAIL_SIDE_BLOCK_LABEL}
-                  fontSize={28}
-                  fontStyle="700"
-                  fontFamily={scene.footer.fontFamily || 'Arial'}
-                  fill="#0f172a"
-                />
-              </Group>
 
               <Group
                 x={scene.eyebrow.x}
@@ -3341,12 +3669,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   y={scene.eyebrow.paddingY}
                   width={scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2}
                   text={scene.eyebrow.text}
+                  align={scene.eyebrow.textAlign || 'left'}
                   fontFamily={scene.eyebrow.fontFamily || 'Arial'}
                   fontSize={scene.eyebrow.fontSize}
                   fontStyle={scene.eyebrow.fontStyle}
                   fill={scene.eyebrow.color}
+                  letterSpacing={scene.eyebrow.letterSpacing || 0}
+                  lineHeight={scene.eyebrow.lineHeight || 1}
                   textDecoration={scene.eyebrow.textDecoration}
                   wrap="none"
+                  onDblClick={() => beginInlineTextEdit({ kind: 'eyebrow', id: scene.eyebrow.id })}
                 />
               </Group>
 
@@ -3360,10 +3692,23 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 onTransformStart={() => setIsResizingHeadline(true)}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
+                  const { nextFontSize, nextWidth } = getResizedTextTransform({
+                    fontSize: scene.headline.fontSize,
+                    maxFontSize: 160,
+                    minFontSize: 20,
+                    minWidth: HEADLINE_WIDTH_LIMITS.min,
+                    scaleX: node.scaleX(),
+                    scaleY: node.scaleY(),
+                    width: scene.headline.width,
+                  })
                   node.scaleX(1)
                   node.scaleY(1)
-                  updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
+                  updateHeadline({
+                    fontSize: nextFontSize,
+                    x: node.x(),
+                    y: node.y(),
+                    width: clampNumber(nextWidth, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max),
+                  })
                   setIsResizingHeadline(false)
                 }}
               >
@@ -3373,11 +3718,14 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 <Text
                   width={scene.headline.width}
                   text={scene.headline.text}
+                  align={scene.headline.textAlign || 'left'}
                   fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
                   fontSize={scene.headline.fontSize}
+                  letterSpacing={scene.headline.letterSpacing || 0}
                   lineHeight={scene.headline.lineHeight || 1.04}
                   fill={scene.headline.color}
                   textDecoration={scene.headline.textDecoration}
+                  onDblClick={() => beginInlineTextEdit({ kind: 'headline', id: scene.headline.id })}
                 />
               </Group>
 
@@ -3391,13 +3739,18 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 ) : null}
                 <Rect width={scene.subhead.dividerWidth} height={scene.subhead.dividerHeight} fill={scene.subhead.dividerColor} />
                 <Text
+                  width={Math.max(scene.subhead.dividerWidth + 24, 320)}
                   y={14}
                   text={scene.subhead.text}
+                  align={scene.subhead.textAlign || 'left'}
                   fontFamily={scene.subhead.fontFamily || 'Arial'}
                   fontSize={scene.subhead.fontSize}
                   fontStyle={scene.subhead.fontStyle}
                   fill={scene.subhead.color}
+                  letterSpacing={scene.subhead.letterSpacing || 0}
+                  lineHeight={scene.subhead.lineHeight || 1}
                   textDecoration={scene.subhead.textDecoration}
+                  onDblClick={() => beginInlineTextEdit({ kind: 'subhead', id: scene.subhead.id })}
                 />
               </Group>
 
@@ -3424,12 +3777,17 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 <Text
                   x={scene.footer.textX - scene.footer.x}
                   y={scene.footer.textY - scene.footer.y}
+                  width={Math.max(80, scene.footer.width - (scene.footer.textX - scene.footer.x) * 2)}
                   text={scene.footer.text}
+                  align={scene.footer.textAlign || 'left'}
                   fontFamily={scene.footer.fontFamily || 'Arial'}
                   fontSize={scene.footer.fontSize}
                   fontStyle={scene.footer.fontStyle}
                   fill={scene.footer.color}
+                  letterSpacing={scene.footer.letterSpacing || 0}
+                  lineHeight={scene.footer.lineHeight || 1}
                   textDecoration={scene.footer.textDecoration}
+                  onDblClick={() => beginInlineTextEdit({ kind: 'footer', id: scene.footer.id })}
                 />
               </Group>
 
@@ -3473,15 +3831,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
               <Transformer
                 ref={transformerRef}
-                rotateEnabled={false}
+                rotateEnabled={selection?.kind === 'custom-image' || selection?.kind === 'custom-text'}
                 flipEnabled={false}
+                keepRatio={selection?.kind === 'headshot' || selection?.kind === 'custom-image'}
                 enabledAnchors={
                   selection?.kind === 'headline'
-                    ? ['middle-left', 'middle-right']
+                    ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'custom-text'
-                      ? ['middle-left', 'middle-right']
-                      : selection?.kind === 'custom-rect' || selection?.kind === 'custom-image'
-                        ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                      ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+                    : selection?.kind === 'custom-rect' || selection?.kind === 'custom-image'
+                      ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'headshot'
@@ -3494,12 +3853,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 anchorSize={transformerAnchorSize}
                 boundBoxFunc={(oldBox, newBox) => {
                   if (selection?.kind === 'headline') {
-                    const nextWidth = clamp(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
-                    return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                    const nextWidth = clampNumber(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
+                    return { ...newBox, width: nextWidth, height: Math.max(60, newBox.height), rotation: 0 }
                   }
 
                   if (selection?.kind === 'custom-text') {
-                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height), rotation: 0 }
+                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height) }
                   }
 
                   if (selection?.kind === 'custom-rect') {
@@ -3507,7 +3866,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   }
 
                   if (selection?.kind === 'custom-image') {
-                    return { ...newBox, width: Math.max(20, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
+                    return { ...newBox, width: Math.max(20, newBox.width), height: Math.max(20, newBox.height) }
                   }
 
                   if (selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right') {
@@ -3530,6 +3889,55 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
               </Group>
             </Layer>
           </Stage>
+          {inlineTextEditor && inlineEditorBox ? (
+            <div
+              style={{
+                position: 'absolute',
+                left: inlineEditorBox.left + 10,
+                top: inlineEditorBox.top + 10,
+                width: inlineEditorBox.width,
+                minHeight: inlineEditorBox.height,
+                zIndex: 40,
+              }}
+            >
+              <textarea
+                autoFocus
+                value={inlineTextEditor.value}
+                onChange={(event) => setInlineTextEditor((current) => (current ? { ...current, value: event.target.value } : current))}
+                onBlur={commitInlineTextEdit}
+                onKeyDown={(event) => {
+                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                    event.preventDefault()
+                    commitInlineTextEdit()
+                    return
+                  }
+                  if (event.key === 'Escape') {
+                    event.preventDefault()
+                    setInlineTextEditor(null)
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  minHeight: inlineEditorBox.height,
+                  resize: 'vertical',
+                  padding: '12px 14px',
+                  borderRadius: 14,
+                  border: '2px solid #0ea5e9',
+                  background: 'rgba(255,255,255,0.98)',
+                  color: selectedTextLayer?.color || '#111827',
+                  fontFamily: selectedTextLayer?.fontFamily || 'Arial',
+                  fontSize: `${Math.max(16, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
+                  fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
+                  fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
+                  textDecoration: selectedTextLayer?.textDecoration || 'none',
+                  textAlign: selectedTextLayer?.textAlign || 'left',
+                  lineHeight: selectedTextLayer?.lineHeight || 1.12,
+                  letterSpacing: selectedTextLayer?.letterSpacing || 0,
+                  boxShadow: '0 18px 45px rgba(14,165,233,0.18)',
+                }}
+              />
+            </div>
+          ) : null}
         </div>
       </section>
     </div>
@@ -3538,35 +3946,34 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
 const controlStyle: React.CSSProperties = {
   border: '1px solid rgba(17, 24, 39, 0.12)',
-  borderRadius: 12,
+  borderRadius: 9,
   background: '#ffffff',
   color: '#111827',
-  padding: '10px 12px',
-  fontSize: 14,
-  lineHeight: 1.4,
+  padding: '6px 9px',
+  fontSize: 12,
+  lineHeight: 1.2,
   width: '100%',
 }
 
 const hintStyle: React.CSSProperties = {
-  borderRadius: 14,
+  borderRadius: 12,
   background: '#f7fafc',
   border: '1px solid rgba(17, 24, 39, 0.08)',
-  padding: '12px 14px',
+  padding: '8px 10px',
   color: '#4b5563',
-  fontSize: 13,
-  lineHeight: 1.6,
+  fontSize: 12,
+  lineHeight: 1.35,
 }
 
 const textToolbarStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
+  gap: 4,
   flexWrap: 'wrap',
-  minHeight: 54,
-  padding: '10px 12px',
-  marginBottom: 12,
-  borderRadius: 14,
+  minHeight: 0,
+  padding: '4px 6px',
+  marginBottom: 4,
+  borderRadius: 10,
   border: '1px solid rgba(17, 24, 39, 0.08)',
   background: '#f8fafc',
 }
@@ -3576,37 +3983,73 @@ const toolbarButtonStyle: React.CSSProperties = {
   borderRadius: 999,
   background: '#ffffff',
   color: '#111827',
-  padding: '8px 12px',
-  fontSize: 13,
+  padding: '5px 8px',
+  fontSize: 12,
   fontWeight: 700,
   cursor: 'pointer',
 }
 
-const sectionLabelStyle: React.CSSProperties = {
-  fontWeight: 700,
-  fontSize: 13,
-  textTransform: 'uppercase',
-  letterSpacing: '0.04em',
+const activeToolbarButtonStyle: React.CSSProperties = {
+  ...toolbarButtonStyle,
+  background: '#0f172a',
+  color: '#ffffff',
+  borderColor: '#0f172a',
+}
+
+const iconToolbarButtonStyle: React.CSSProperties = {
+  ...toolbarButtonStyle,
+  width: 28,
+  height: 28,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+}
+
+const activeIconToolbarButtonStyle: React.CSSProperties = {
+  ...activeToolbarButtonStyle,
+  width: 28,
+  height: 28,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+}
+
+const toolbarSelectStyle: React.CSSProperties = {
+  ...controlStyle,
+  minHeight: 30,
+  padding: '5px 8px',
+  fontSize: 12,
+}
+
+const toolbarInputStyle: React.CSSProperties = {
+  ...controlStyle,
+  minHeight: 30,
+  padding: '5px 8px',
+  fontSize: 12,
 }
 
 const detailsStyle: React.CSSProperties = {
-  borderRadius: 16,
+  borderRadius: 12,
   border: '1px solid rgba(17, 24, 39, 0.1)',
   background: 'rgba(248, 250, 252, 0.82)',
-  padding: '12px 14px',
+  padding: '7px 9px',
 }
 
 const detailsSummaryStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontWeight: 700,
-  fontSize: 13,
+  fontSize: 12,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
   color: '#111827',
 }
 
 const fieldLabelStyle: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: 12,
   color: '#374151',
 }
 
@@ -3615,17 +4058,65 @@ const secondaryButtonStyle: React.CSSProperties = {
   borderRadius: 999,
   background: '#ffffff',
   color: '#111827',
-  padding: '8px 12px',
-  fontSize: 13,
+  padding: '5px 9px',
+  fontSize: 12,
   fontWeight: 700,
   cursor: 'pointer',
 }
 
+const disabledButtonStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  opacity: 0.48,
+  cursor: 'not-allowed',
+}
+
+const disabledIconToolbarButtonStyle: React.CSSProperties = {
+  ...iconToolbarButtonStyle,
+  opacity: 0.48,
+  cursor: 'not-allowed',
+}
+
 const slotCardStyle: React.CSSProperties = {
   display: 'grid',
-  gap: 10,
-  padding: 14,
-  borderRadius: 16,
+  gap: 8,
+  padding: 8,
+  borderRadius: 12,
   border: '1px solid rgba(17, 24, 39, 0.1)',
   background: 'rgba(248, 250, 252, 0.82)',
+}
+
+const commandMenuStyle: React.CSSProperties = {
+  position: 'relative',
+}
+
+const commandMenuSummaryStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  listStyle: 'none',
+  userSelect: 'none',
+}
+
+const commandMenuPanelStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 0,
+  zIndex: 20,
+  minWidth: 164,
+  display: 'grid',
+  gap: 4,
+  padding: 6,
+  borderRadius: 12,
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  background: '#ffffff',
+  boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+}
+
+const menuActionButtonStyle: React.CSSProperties = {
+  border: 'none',
+  background: '#ffffff',
+  color: '#111827',
+  padding: '6px 8px',
+  borderRadius: 8,
+  textAlign: 'left',
+  fontSize: 12,
+  cursor: 'pointer',
 }

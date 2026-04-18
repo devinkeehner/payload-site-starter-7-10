@@ -25,15 +25,27 @@ export type EditorCustomRect = {
   y: number
 }
 
+export type EditorCustomImage = {
+  height: number
+  id: string
+  rotation?: number
+  width: number
+  x: number
+  y: number
+}
+
 export type EditorCustomText = {
   color: string
   fontFamily?: string
   fontSize: number
   fontStyle?: string
+  height?: number
   id: string
+  letterSpacing?: number
   lineHeight?: number
   rotation?: number
   text: string
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
   width: number
   x: number
@@ -57,6 +69,19 @@ export type EditorComponentDefinition = {
 }
 
 const COMPONENT_INSERT_OFFSET = 28
+
+export const TEXT_FONT_OPTIONS = [
+  { label: 'Arial', value: 'Arial' },
+  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
+  { label: 'Arial Narrow', value: '"Arial Narrow", Arial, sans-serif' },
+  { label: 'Marker', value: '"Comic Sans MS", "Marker Felt", cursive' },
+] as const
+
+export const TEXT_ALIGNMENT_OPTIONS = [
+  { label: 'Left', value: 'left' },
+  { label: 'Center', value: 'center' },
+  { label: 'Right', value: 'right' },
+] as const
 
 export const isEditableTarget = (target: EventTarget | null) => {
   const element = target as HTMLElement | null
@@ -93,6 +118,54 @@ export const duplicateText = (text: EditorCustomText): EditorCustomText => ({
   x: text.x + COMPONENT_INSERT_OFFSET,
   y: text.y + COMPONENT_INSERT_OFFSET,
 })
+
+export const getFontStyleFlags = (fontStyle?: string) => {
+  const normalized = (fontStyle || '').toLowerCase()
+  return {
+    bold: /\bbold\b/.test(normalized) || /\b700\b/.test(normalized) || /\b800\b/.test(normalized) || /\b900\b/.test(normalized),
+    italic: normalized.includes('italic'),
+  }
+}
+
+export const buildFontStyle = ({ bold, italic }: { bold: boolean; italic: boolean }) => {
+  if (bold && italic) return 'italic bold'
+  if (italic) return 'italic'
+  if (bold) return 'bold'
+  return 'normal'
+}
+
+export const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+export const getResizedTextTransform = ({
+  fontSize,
+  maxFontSize = 240,
+  minFontSize = 12,
+  minWidth = 80,
+  scaleX,
+  scaleY,
+  width,
+}: {
+  fontSize: number
+  maxFontSize?: number
+  minFontSize?: number
+  minWidth?: number
+  scaleX: number
+  scaleY: number
+  width: number
+}) => {
+  const safeScaleX = Math.max(Math.abs(scaleX), 0.1)
+  const safeScaleY = Math.max(Math.abs(scaleY), 0.1)
+  const nextWidth = Math.max(minWidth, Math.round(width * safeScaleX))
+  const fontScale = Math.max(safeScaleX, safeScaleY)
+  const nextFontSize = clampNumber(Math.round(fontSize * fontScale), minFontSize, maxFontSize)
+
+  return { nextFontSize, nextWidth }
+}
+
+export const getCssFontWeight = (fontStyle?: string) => {
+  const normalized = (fontStyle || '').toLowerCase()
+  return normalized.includes('800') || normalized.includes('900') || normalized.includes('700') || normalized.includes('bold') ? 700 : 400
+}
 
 export function useEditorAutosave({ debounceMs = 1200, enabled, onError, onSave, revision }: AutosaveOptions) {
   const [state, setState] = useState<AutosaveState>({

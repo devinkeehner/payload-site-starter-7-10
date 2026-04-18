@@ -3,17 +3,25 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
+import { AlignCenter, AlignLeft, AlignRight, Bold, Copy, Italic, Trash2, Underline, X } from 'lucide-react'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
 import {
   EDITOR_COMPONENTS,
+  TEXT_ALIGNMENT_OPTIONS,
+  TEXT_FONT_OPTIONS,
+  buildFontStyle,
+  clampNumber,
   createEditorNodeID,
   duplicateRect,
   duplicateText,
   formatAutosaveLabel,
+  getCssFontWeight,
   getShortcutNudgeDistance,
+  getFontStyleFlags,
+  getResizedTextTransform,
   isEditableTarget,
   useEditorAutosave,
 } from '@/components/admin/graphicsEditorShared'
@@ -155,13 +163,6 @@ const TOWN_FONT_SIZE_LIMITS = { min: 14, max: 58 }
 const TOWN_AMOUNT_FONT_SIZE_LIMITS = { min: 24, max: 124 }
 const TOWN_GROUP_HEIGHT_LIMITS = { min: 56, max: 240 }
 const MAIL_SCENE_BUNDLE_KIND = 'graphics-editor-mail-bundle/v1'
-const TEXT_FONT_OPTIONS = [
-  { label: 'Arial', value: 'Arial' },
-  { label: 'Arial Narrow', value: '"Arial Narrow", Arial, sans-serif' },
-  { label: 'Comic Sans', value: '"Comic Sans MS", "Marker Felt", cursive' },
-  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
-] as const
-
 type MediaDoc = {
   id: string
   alt?: string | null
@@ -268,7 +269,9 @@ type SceneTextElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
   lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -292,6 +295,9 @@ type SubheadElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
+  lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -309,6 +315,9 @@ type FooterElement = {
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
+  lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -338,13 +347,16 @@ type CustomTextElement = {
   x: number
   y: number
   width: number
+  height?: number
   rotation?: number
   text: string
   fontSize: number
   color: string
   fontFamily?: string
   fontStyle?: string
+  letterSpacing?: number
   lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -593,12 +605,13 @@ const measureHeadlineHeight = (headline: SceneTextElement) => {
   return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
 }
 
-const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight'>) => {
+const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight' | 'height'>) => {
   const fontSize = item.fontSize || 28
   const fontFamily = item.fontFamily || 'Arial'
   const lineHeight = item.lineHeight || 1.1
   const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
-  return Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
+  const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
+  return Math.max(item.height || 0, measuredHeight)
 }
 
 const measureTownGroupHeight = (row: TownSceneRow) =>
@@ -1985,6 +1998,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           x: 140,
           y: 136,
           width: 280,
+          height: 96,
           text: 'Custom text',
           fontSize: 28,
           color: '#111111',
@@ -3027,7 +3041,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Text</span>
-                          <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 90 }} />
+                          <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 120 }} />
                         </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>X</span>
@@ -3041,6 +3055,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                           <span style={fieldLabelStyle}>Width</span>
                           <input type="number" value={Math.round(selectedCustomText.width)} onChange={(event) => updateCustomText(selectedCustomText.id, { width: Number(event.target.value) || selectedCustomText.width })} style={controlStyle} />
                         </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Height</span>
+                        <input type="number" value={Math.round(selectedCustomText.height || measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Math.max(measureCustomTextHeight(selectedCustomText), Number(event.target.value) || selectedCustomText.height || 0) })} style={controlStyle} />
+                      </label>
                       <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>Font size</span>
                         <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
@@ -3073,6 +3091,126 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
   const selectedTextLayer = selectedTextTarget ? resolveSelectedTextLayer(scene, selectedTextTarget) : null
   const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
+  const selectedTextFontFlags = getFontStyleFlags(selectedTextLayer?.fontStyle)
+  const applySelectedTextFormatting = (
+    patch: Partial<SceneTextElement | SubheadElement | FooterElement | CustomTextElement>,
+  ) => {
+    if (!selectedTextTarget || !selectedTextLayer) return
+    updateSelectedTextLayer(selectedTextTarget, patch)
+  }
+  const toggleSelectedTextBold = () => {
+    if (!selectedTextLayer) return
+    applySelectedTextFormatting({
+      fontStyle: buildFontStyle({
+        bold: !selectedTextFontFlags.bold,
+        italic: selectedTextFontFlags.italic,
+      }),
+    })
+  }
+  const toggleSelectedTextItalic = () => {
+    if (!selectedTextLayer) return
+    applySelectedTextFormatting({
+      fontStyle: buildFontStyle({
+        bold: selectedTextFontFlags.bold,
+        italic: !selectedTextFontFlags.italic,
+      }),
+    })
+  }
+  const selectedTextInspectorPanel = selectedTextLayer ? (
+    <div style={slotCardStyle}>
+      <strong style={{ fontSize: 13 }}>Text Styling</strong>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" style={selectedTextFontFlags.bold ? activeToolbarButtonStyle : toolbarButtonStyle} onClick={toggleSelectedTextBold}>
+          Bold
+        </button>
+        <button type="button" style={selectedTextFontFlags.italic ? activeToolbarButtonStyle : toolbarButtonStyle} onClick={toggleSelectedTextItalic}>
+          Italic
+        </button>
+        <button
+          type="button"
+          style={selectedTextLayer.textDecoration === 'underline' ? activeToolbarButtonStyle : toolbarButtonStyle}
+          onClick={() => applySelectedTextFormatting({ textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline' })}
+        >
+          Underline
+        </button>
+      </div>
+      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Font</span>
+          <select
+            value={selectedTextLayer.fontFamily || TEXT_FONT_OPTIONS[0].value}
+            onChange={(event) => applySelectedTextFormatting({ fontFamily: event.target.value })}
+            style={controlStyle}
+          >
+            {TEXT_FONT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Align</span>
+          <select
+            value={selectedTextLayer.textAlign || 'left'}
+            onChange={(event) => applySelectedTextFormatting({ textAlign: event.target.value as 'left' | 'center' | 'right' })}
+            style={controlStyle}
+          >
+            {TEXT_ALIGNMENT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Font size</span>
+          <input
+            type="number"
+            min={10}
+            max={200}
+            step={1}
+            value={Math.round(selectedTextLayer.fontSize)}
+            onChange={(event) => applySelectedTextFormatting({ fontSize: Number(event.target.value) || selectedTextLayer.fontSize })}
+            style={controlStyle}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Line height</span>
+          <input
+            type="number"
+            min={0.8}
+            max={2}
+            step={0.05}
+            value={selectedTextLayer.lineHeight || 1}
+            onChange={(event) => applySelectedTextFormatting({ lineHeight: Number(event.target.value) || selectedTextLayer.lineHeight || 1 })}
+            style={controlStyle}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Letter spacing</span>
+          <input
+            type="number"
+            min={-2}
+            max={30}
+            step={0.5}
+            value={selectedTextLayer.letterSpacing || 0}
+            onChange={(event) => applySelectedTextFormatting({ letterSpacing: Number(event.target.value) || 0 })}
+            style={controlStyle}
+          />
+        </label>
+        <label style={{ display: 'grid', gap: 6 }}>
+          <span style={fieldLabelStyle}>Color</span>
+          <input
+            type="color"
+            value={selectedTextLayer.color || '#111111'}
+            onChange={(event) => applySelectedTextFormatting({ color: event.target.value })}
+            style={{ ...controlStyle, minHeight: 44, padding: 6 }}
+          />
+        </label>
+      </div>
+    </div>
+  ) : null
   const stageOffsetX = Math.max(0, (stageContainerWidth - previewWidth) / 2)
   const inlineEditorBox =
     inlineTextEditor
@@ -3088,13 +3226,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const width =
             inlineTextEditor.target.kind === 'subhead' && activeMailSide === 'front'
               ? Math.max(220, scene.subhead.dividerWidth * previewScale)
-              : Math.max(140, inlineWidth * previewScale)
+              : Math.max(180, inlineWidth * previewScale)
           const height =
             inlineTextEditor.target.kind === 'headline'
-              ? Math.max(120, measureHeadlineHeight(scene.headline) * previewScale)
+              ? Math.max(180, measureHeadlineHeight(scene.headline) * previewScale)
               : inlineTextEditor.target.kind === 'subhead'
-                ? Math.max(52, ((scene.subhead.fontSize || 28) + 24) * previewScale)
-                : Math.max(48, ((currentLayer.fontSize || 28) + 18) * previewScale)
+                ? Math.max(88, ((scene.subhead.fontSize || 28) + 28) * previewScale)
+                : Math.max(96, Math.max(72, ((currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4) * previewScale))
           return {
             left: stageOffsetX + currentLayer.x * previewScale,
             top: currentLayer.y * previewScale,
@@ -3327,14 +3465,33 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         onTransformStart={() => setIsResizingHeadline(true)}
         onTransformEnd={(event) => {
           const node = event.target
-          const nextWidth = Math.max(80, Math.round(item.width * node.scaleX()))
+          const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+          const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+          const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+          const isCorner = !isHorizontalEdge && !isVerticalEdge
+          const nextWidth = isVerticalEdge ? item.width : Math.max(80, Math.round(item.width * Math.max(Math.abs(node.scaleX()), 0.1)))
+          const nextFontSize = isCorner
+            ? getResizedTextTransform({
+                fontSize: item.fontSize,
+                minFontSize: 12,
+                minWidth: 80,
+                scaleX: node.scaleX(),
+                scaleY: node.scaleY(),
+                width: item.width,
+              }).nextFontSize
+            : item.fontSize
           const nextRotation = Number(node.rotation().toFixed(1))
-          const nextHeight = measureCustomTextHeight({ ...item, width: nextWidth })
+          const measuredNextHeight = measureCustomTextHeight({ ...item, width: nextWidth, fontSize: nextFontSize })
+          const nextHeight = isHorizontalEdge
+            ? measuredNextHeight
+            : Math.max(measuredNextHeight, Math.round(textHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
           node.scaleX(1)
           node.scaleY(1)
           node.offsetX(nextWidth / 2)
           node.offsetY(nextHeight / 2)
           updateCustomText(item.id, {
+            fontSize: nextFontSize,
+            height: nextHeight,
             x: node.x() - nextWidth / 2,
             y: node.y() - nextHeight / 2,
             width: nextWidth,
@@ -3348,11 +3505,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ) : null}
         <Text
           width={item.width}
+          height={textHeight}
           text={item.text}
+          align={item.textAlign || 'left'}
           fontFamily={item.fontFamily || 'Arial'}
           fontSize={item.fontSize}
           fontStyle={item.fontStyle}
           fill={item.color}
+          letterSpacing={item.letterSpacing || 0}
           lineHeight={item.lineHeight || 1.1}
           textDecoration={item.textDecoration}
           onDblClick={() => beginInlineTextEdit({ kind: 'custom-text', id: item.id })}
@@ -3365,180 +3525,206 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     <div
       style={{
         display: 'grid',
-        gap: 20,
-        gridTemplateColumns: 'minmax(320px, 420px) minmax(0, 1fr)',
+        gap: 12,
+        gridTemplateColumns: 'minmax(280px, 380px) minmax(0, 1fr)',
         gridTemplateRows: 'auto 1fr',
-        padding: 24,
+        padding: 12,
         alignItems: 'start',
       }}
     >
       <section
         style={{
           gridColumn: '1 / -1',
-          borderRadius: 20,
+          borderRadius: 16,
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.94)',
-          padding: '12px 14px',
+          padding: '8px 10px',
           display: 'flex',
-          gap: 10,
+          gap: 8,
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
         }}
       >
-        <div style={{ display: 'grid', gap: 2 }}>
-          <strong style={{ fontSize: 15, color: '#0f172a' }}>Graphics Editor Mail</strong>
-          <span style={{ fontSize: 12, color: '#64748b' }}>
-            Tenant {townData.tenant?.name || tenantName || tenantID} · Side {activeMailSide}
-          </span>
-        </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <Button onClick={saveToMediaGallery} disabled={savingMedia} buttonStyle="secondary">
-            {savingMedia ? 'Saving…' : 'Save to Media'}
-          </Button>
-          <Button onClick={downloadPng} buttonStyle="secondary">
-            Download PNG
-          </Button>
-          <Button onClick={downloadPptx} disabled={downloadingPptx} buttonStyle="secondary">
-            {downloadingPptx ? 'Building PPTX…' : 'Download PPTX'}
-          </Button>
-          <Button onClick={downloadTemplateXml} buttonStyle="secondary">
-            Export XML
-          </Button>
-          <Button onClick={exportAllRepsZip} disabled={exportingAllReps || tenantOptions.length === 0} buttonStyle="secondary">
-            {exportingAllReps ? 'Building Server ZIP…' : 'Export All ZIP'}
-          </Button>
-          {mailExportJob?.status === 'complete' && mailExportJob.downloadUrl ? (
-            <Button onClick={downloadMailExportJob} buttonStyle="secondary">
-              Download ZIP
-            </Button>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => {
+              setSelection(null)
+              setInlineTextEditor(null)
+              setActiveMailSide('front')
+            }}
+            style={activeMailSide === 'front' ? activeToolbarButtonStyle : secondaryButtonStyle}
+          >
+            Front
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelection(null)
+              setInlineTextEditor(null)
+              setActiveMailSide('back')
+            }}
+            style={activeMailSide === 'back' ? activeToolbarButtonStyle : secondaryButtonStyle}
+          >
+            Back
+          </button>
+          <details style={commandMenuStyle}>
+            <summary style={commandMenuSummaryStyle}>Export</summary>
+            <div style={commandMenuPanelStyle}>
+              <button type="button" onClick={saveToMediaGallery} disabled={savingMedia} style={menuActionButtonStyle}>
+                {savingMedia ? 'Saving…' : 'Save to Media'}
+              </button>
+              <button type="button" onClick={downloadPng} style={menuActionButtonStyle}>
+                Download PNG
+              </button>
+              <button type="button" onClick={downloadPptx} disabled={downloadingPptx} style={menuActionButtonStyle}>
+                {downloadingPptx ? 'Building PPTX…' : 'Download PPTX'}
+              </button>
+              <button type="button" onClick={downloadTemplateXml} style={menuActionButtonStyle}>
+                Export XML
+              </button>
+              <button
+                type="button"
+                onClick={exportAllRepsZip}
+                disabled={exportingAllReps || tenantOptions.length === 0}
+                style={menuActionButtonStyle}
+              >
+                {exportingAllReps ? 'Building Server ZIP…' : 'Export All ZIP'}
+              </button>
+              {mailExportJob?.status === 'complete' && mailExportJob.downloadUrl ? (
+                <button type="button" onClick={downloadMailExportJob} style={menuActionButtonStyle}>
+                  Download ZIP
+                </button>
+              ) : null}
+            </div>
+          </details>
           {isSuperAdmin ? (
-            <Button onClick={saveTemplate} disabled={savingTemplate} buttonStyle="secondary">
+            <button
+              type="button"
+              onClick={saveTemplate}
+              disabled={savingTemplate}
+              style={savingTemplate ? disabledButtonStyle : secondaryButtonStyle}
+            >
               {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
-            </Button>
+            </button>
           ) : null}
-          <Button onClick={handleSaveDesign} disabled={savingDesign} buttonStyle="secondary">
+          <button
+            type="button"
+            onClick={handleSaveDesign}
+            disabled={savingDesign}
+            style={savingDesign ? disabledButtonStyle : secondaryButtonStyle}
+          >
             {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
-          </Button>
-          <Button onClick={resetCurrentSide} buttonStyle="secondary">
+          </button>
+          <button type="button" onClick={resetCurrentSide} style={secondaryButtonStyle}>
             Reset Side
-          </Button>
-          <Button onClick={resetAllSides} buttonStyle="secondary">
+          </button>
+          <button type="button" onClick={resetAllSides} style={secondaryButtonStyle}>
             Reset All
-          </Button>
-          <Button onClick={() => undoLastChange()} disabled={undoStackRef.current[activeMailSide].length === 0} buttonStyle="secondary">
+          </button>
+          <button
+            type="button"
+            onClick={() => undoLastChange()}
+            disabled={undoStackRef.current[activeMailSide].length === 0}
+            style={undoStackRef.current[activeMailSide].length === 0 ? disabledButtonStyle : secondaryButtonStyle}
+          >
             Undo
-          </Button>
-          <Button onClick={() => redoLastChange()} disabled={redoStackRef.current[activeMailSide].length === 0} buttonStyle="secondary">
+          </button>
+          <button
+            type="button"
+            onClick={() => redoLastChange()}
+            disabled={redoStackRef.current[activeMailSide].length === 0}
+            style={redoStackRef.current[activeMailSide].length === 0 ? disabledButtonStyle : secondaryButtonStyle}
+          >
             Redo
-          </Button>
+          </button>
         </div>
-        <div style={{ fontSize: 12, color: '#475569' }}>
-          Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
-        </div>
-        {mailExportJob ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
+            <span>Zoom</span>
+            <select
+              value={String(previewZoom)}
+              onChange={(event) => setPreviewZoom(Number(event.target.value))}
+              style={{ ...controlStyle, width: 88, padding: '6px 8px' }}
+            >
+              <option value="0.75">75%</option>
+              <option value="0.9">90%</option>
+              <option value="1">Fit</option>
+              <option value="1.1">110%</option>
+              <option value="1.25">125%</option>
+            </select>
+          </label>
           <div style={{ fontSize: 12, color: '#475569' }}>
-            {mailExportJob.status === 'running' || mailExportJob.status === 'queued'
-              ? `Server export: ${mailExportJob.completed}/${mailExportJob.total}${mailExportJob.currentTenantLabel ? `, working on ${mailExportJob.currentTenantLabel}` : ''}`
-              : mailExportJob.status === 'complete'
-                ? `Server export ready. ${mailExportJob.completed}/${mailExportJob.total} complete${mailExportJob.skippedCount ? `, ${mailExportJob.skippedCount} skipped` : ''}.`
-                : mailExportJob.error
-                  ? `Server export failed: ${mailExportJob.error}`
-                  : null}
+            Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
           </div>
-        ) : null}
+          {mailExportJob ? (
+            <div style={{ fontSize: 12, color: '#475569' }}>
+              {mailExportJob.status === 'running' || mailExportJob.status === 'queued'
+                ? `ZIP ${mailExportJob.completed}/${mailExportJob.total}${mailExportJob.currentTenantLabel ? ` · ${mailExportJob.currentTenantLabel}` : ''}`
+                : mailExportJob.status === 'complete'
+                  ? `ZIP ready · ${mailExportJob.completed}/${mailExportJob.total}${mailExportJob.skippedCount ? ` · ${mailExportJob.skippedCount} skipped` : ''}`
+                  : mailExportJob.error
+                    ? `ZIP failed · ${mailExportJob.error}`
+                    : null}
+            </div>
+          ) : null}
+        </div>
       </section>
 
       <aside
         style={{
-          borderRadius: 20,
+          borderRadius: 16,
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.9)',
-          padding: 20,
+          padding: 10,
           display: 'grid',
-          gap: 18,
+          gap: 10,
           alignSelf: 'start',
           maxHeight: 'calc(100vh - 48px)',
           overflowY: 'auto',
         }}
       >
-        <section style={{ display: 'grid', gap: 8 }}>
-          <h2 style={{ margin: 0, fontSize: 20 }}>Experimental Town Graphic</h2>
-          <div style={hintStyle}>
-            Tenant: <strong>{townData.tenant?.name || tenantName || tenantID}</strong>
-            <br />
-            Rep: <strong>{townData.repInfo?.name || 'Unknown rep'}</strong>
-            <br />
-            Design: <strong>{designID || 'unsaved'}</strong>
-          </div>
-          <div style={{ display: 'grid', gap: 6 }}>
-            <span style={fieldLabelStyle}>Mail side</span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Button
-                onClick={() => {
-                  setSelection(null)
-                  setInlineTextEditor(null)
-                  setActiveMailSide('front')
-                }}
-                buttonStyle={activeMailSide === 'front' ? 'primary' : 'secondary'}
-              >
-                Front
-              </Button>
-              <Button
-                onClick={() => {
-                  setSelection(null)
-                  setInlineTextEditor(null)
-                  setActiveMailSide('back')
-                }}
-                buttonStyle={activeMailSide === 'back' ? 'primary' : 'secondary'}
-              >
-                Back
-              </Button>
-            </div>
-          </div>
-          {isMounted && tenantOptions.length > 0 ? (
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Switch tenant</span>
-              <div style={{ display: 'grid', gap: 8 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '48px minmax(0, 1fr) 48px', gap: 8 }}>
-                  <button type="button" onClick={() => switchTenantByOffset(-1)} style={secondaryButtonStyle} disabled={tenantIndex <= 0}>
-                    ←
-                  </button>
-                  <select
-                    value={selectedTenantValue}
-                    onChange={(event) => {
-                      const nextTenantID = event.target.value || undefined
-                      setTenant({ id: nextTenantID, refresh: true })
-                    }}
-                    style={controlStyle}
-                  >
-                    {tenantOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => switchTenantByOffset(1)}
-                    style={secondaryButtonStyle}
-                    disabled={tenantIndex < 0 || tenantIndex >= tenantOptions.length - 1}
-                  >
-                    →
-                  </button>
-                </div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
-                  {tenantIndex >= 0 ? `${tenantIndex + 1} of ${tenantOptions.length}` : `${tenantOptions.length} reps`}
-                </div>
-              </div>
-            </label>
-          ) : null}
-        </section>
-
         <details open={designsSectionOpen} onToggle={(event) => setDesignsSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
-          <summary style={detailsSummaryStyle}>Designs</summary>
+          <summary style={detailsSummaryStyle}>Document</summary>
           <div style={accordionBodyStyle}>
+            {isMounted && tenantOptions.length > 0 ? (
+              <label style={{ display: 'grid', gap: 6 }}>
+                <span style={fieldLabelStyle}>Switch tenant</span>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) 40px', gap: 6 }}>
+                    <button type="button" onClick={() => switchTenantByOffset(-1)} style={tenantIndex <= 0 ? disabledButtonStyle : secondaryButtonStyle} disabled={tenantIndex <= 0}>
+                      ←
+                    </button>
+                    <select
+                      value={selectedTenantValue}
+                      onChange={(event) => {
+                        const nextTenantID = event.target.value || undefined
+                        setTenant({ id: nextTenantID, refresh: true })
+                      }}
+                      style={controlStyle}
+                    >
+                      {tenantOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => switchTenantByOffset(1)}
+                      style={tenantIndex < 0 || tenantIndex >= tenantOptions.length - 1 ? disabledButtonStyle : secondaryButtonStyle}
+                      disabled={tenantIndex < 0 || tenantIndex >= tenantOptions.length - 1}
+                    >
+                      →
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    {tenantIndex >= 0 ? `${tenantIndex + 1} of ${tenantOptions.length}` : `${tenantOptions.length} reps`}
+                  </div>
+                </div>
+              </label>
+            ) : null}
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Open design</span>
               <select value={designID} onChange={(event) => loadDesign(event.target.value)} style={controlStyle}>
@@ -3558,7 +3744,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         </details>
 
         <details open={contentSectionOpen} onToggle={(event) => setContentSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
-          <summary style={detailsSummaryStyle}>Content Editor</summary>
+          <summary style={detailsSummaryStyle}>Content + Insert</summary>
           <div style={accordionBodyStyle}>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Eyebrow</span>
@@ -3742,7 +3928,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         </details>
 
         <details open={inspectorSectionOpen} onToggle={(event) => setInspectorSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
-          <summary style={detailsSummaryStyle}>Object Coordinates + Size</summary>
+          <summary style={detailsSummaryStyle}>Inspector</summary>
           <div style={accordionBodyStyle}>
             {selection ? (
               <>
@@ -3755,6 +3941,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     <Button onClick={() => deleteSelectedCustomObject()} buttonStyle="secondary">Delete</Button>
                   </div>
                 ) : null}
+                {selectedTextInspectorPanel}
                 {selectedElementPanel}
               </>
             ) : (
@@ -3794,7 +3981,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
       <section
         style={{
-          borderRadius: 24,
+          borderRadius: 14,
           border: '1px solid rgba(17, 24, 39, 0.12)',
           background: 'rgba(255,255,255,0.9)',
           padding: 6,
@@ -3802,52 +3989,45 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           minWidth: 0,
         }}
       >
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <div style={{ display: 'grid', gap: 0 }}>
-            <strong style={{ fontSize: 15, color: '#0f172a', lineHeight: 1.1 }}>Canvas</strong>
-            <span style={{ fontSize: 10, color: '#64748b', lineHeight: 1.1 }}>
-              Click to select, drag to move, double-click text to edit.
-            </span>
-          </div>
-          <label style={{ display: 'grid', gap: 2 }}>
-            <span style={fieldLabelStyle}>Preview zoom</span>
-            <select
-              value={String(previewZoom)}
-              onChange={(event) => setPreviewZoom(Number(event.target.value))}
-              style={{ ...controlStyle, width: 104, padding: '6px 8px' }}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '0 6px 4px' }}>
+          <button
+            type="button"
+            title="Clear selection"
+            aria-label="Clear selection"
+            onClick={() => {
+              setSelection(null)
+              setInlineTextEditor(null)
+            }}
+            style={iconToolbarButtonStyle}
             >
-              <option value="0.75">75%</option>
-              <option value="0.9">90%</option>
-              <option value="1">Fit</option>
-              <option value="1.1">110%</option>
-              <option value="1.25">125%</option>
-            </select>
-          </label>
-        </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', padding: '4px 6px 8px' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Selection</span>
-          <Button onClick={() => { setSelection(null); setInlineTextEditor(null) }} buttonStyle="secondary">Clear</Button>
-          <Button
+              <X size={14} strokeWidth={2.25} />
+            </button>
+          <button
+            type="button"
+            title="Duplicate"
+            aria-label="Duplicate"
             onClick={() => duplicateSelectedCustomObject()}
             disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
-            buttonStyle="secondary"
+            style={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
-            Duplicate
-          </Button>
-          <Button
+            <Copy size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
+            title="Delete"
+            aria-label="Delete"
             onClick={() => deleteSelectedCustomObject()}
             disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
-            buttonStyle="secondary"
+            style={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
-            Delete
-          </Button>
+            <Trash2 size={14} strokeWidth={2.1} />
+          </button>
         </div>
         <div style={textToolbarStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
           <div
             style={{
               display: 'flex',
-              gap: 10,
+              gap: 6,
               flexWrap: 'wrap',
               alignItems: 'center',
               opacity: isTextToolbarActive ? 1 : 0,
@@ -3856,41 +4036,66 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           >
             <button
               type="button"
-              style={toolbarButtonStyle}
-              onClick={() => {
-                if (!selectedTextTarget || !selectedTextLayer) return
-                updateSelectedTextLayer(selectedTextTarget, {
-                  fontStyle: (selectedTextLayer.fontStyle || '').includes('italic')
-                    ? (selectedTextLayer.fontStyle || 'normal').replace(/\s*italic/g, '').trim() || 'normal'
-                    : `${selectedTextLayer.fontStyle || 'normal'} italic`.trim(),
-                })
-              }}
+              title="Bold"
+              aria-label="Bold"
+              style={selectedTextFontFlags.bold ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onClick={toggleSelectedTextBold}
               disabled={!isTextToolbarActive}
             >
-              Italic
+              <Bold size={14} strokeWidth={2.25} />
             </button>
             <button
               type="button"
-              style={toolbarButtonStyle}
-              onClick={() => {
-                if (!selectedTextTarget || !selectedTextLayer) return
-                updateSelectedTextLayer(selectedTextTarget, {
-                  textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline',
-                })
-              }}
+              title="Italic"
+              aria-label="Italic"
+              style={selectedTextFontFlags.italic ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onClick={toggleSelectedTextItalic}
               disabled={!isTextToolbarActive}
             >
-              Underline
+              <Italic size={14} strokeWidth={2.25} />
             </button>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font</span>
+            <button
+              type="button"
+              title="Underline"
+              aria-label="Underline"
+              style={selectedTextLayer?.textDecoration === 'underline' ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onClick={() =>
+                applySelectedTextFormatting({
+                  textDecoration: selectedTextLayer?.textDecoration === 'underline' ? 'none' : 'underline',
+                })
+              }
+              disabled={!isTextToolbarActive}
+            >
+              <Underline size={14} strokeWidth={2.25} />
+            </button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {TEXT_ALIGNMENT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  title={option.label}
+                  aria-label={option.label}
+                  style={selectedTextLayer?.textAlign === option.value || (!selectedTextLayer?.textAlign && option.value === 'left') ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+                  onClick={() => applySelectedTextFormatting({ textAlign: option.value })}
+                  disabled={!isTextToolbarActive}
+                >
+                  {option.value === 'left' ? (
+                    <AlignLeft size={14} strokeWidth={2.25} />
+                  ) : option.value === 'center' ? (
+                    <AlignCenter size={14} strokeWidth={2.25} />
+                  ) : (
+                    <AlignRight size={14} strokeWidth={2.25} />
+                  )}
+                </button>
+              ))}
+            </div>
+            <label style={{ display: 'grid' }}>
               <select
+                title="Font family"
+                aria-label="Font family"
                 value={selectedTextLayer?.fontFamily || TEXT_FONT_OPTIONS[0].value}
-                onChange={(event) => {
-                  if (!selectedTextTarget || !selectedTextLayer) return
-                  updateSelectedTextLayer(selectedTextTarget, { fontFamily: event.target.value })
-                }}
-                style={{ ...controlStyle, width: 160, padding: '8px 10px' }}
+                onChange={(event) => applySelectedTextFormatting({ fontFamily: event.target.value })}
+                style={{ ...toolbarSelectStyle, width: 150 }}
                 disabled={!isTextToolbarActive}
               >
                 {TEXT_FONT_OPTIONS.map((option) => (
@@ -3900,32 +4105,55 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
+            <label style={{ display: 'grid' }}>
               <input
                 type="number"
+                title="Font size"
+                aria-label="Font size"
                 min={12}
                 max={140}
                 step={1}
                 value={selectedTextLayer?.fontSize || 32}
-                onChange={(event) => {
-                  if (!selectedTextTarget || !selectedTextLayer) return
-                  updateSelectedTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })
-                }}
-                style={{ ...controlStyle, width: 92, padding: '8px 10px' }}
+                onChange={(event) => applySelectedTextFormatting({ fontSize: Number(event.target.value) })}
+                style={{ ...toolbarInputStyle, width: 68 }}
                 disabled={!isTextToolbarActive}
               />
             </label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ display: 'grid' }}>
+              <input
+                type="number"
+                title="Line height"
+                aria-label="Line height"
+                min={0.8}
+                max={2}
+                step={0.05}
+                value={selectedTextLayer?.lineHeight || 1}
+                onChange={(event) => applySelectedTextFormatting({ lineHeight: Number(event.target.value) || 1 })}
+                style={{ ...toolbarInputStyle, width: 64 }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <label style={{ display: 'grid' }}>
+              <input
+                type="number"
+                title="Letter spacing"
+                aria-label="Letter spacing"
+                min={-2}
+                max={30}
+                step={0.5}
+                value={selectedTextLayer?.letterSpacing || 0}
+                onChange={(event) => applySelectedTextFormatting({ letterSpacing: Number(event.target.value) || 0 })}
+                style={{ ...toolbarInputStyle, width: 64 }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               {BRAND_COLORS.map((color) => (
                 <button
                   key={color}
                   type="button"
                   aria-label={`Choose ${color}`}
-                  onClick={() => {
-                    if (!selectedTextTarget || !selectedTextLayer) return
-                    updateSelectedTextLayer(selectedTextTarget, { color })
-                  }}
+                  onClick={() => applySelectedTextFormatting({ color })}
                   style={{
                     width: 22,
                     height: 22,
@@ -3937,6 +4165,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   disabled={!isTextToolbarActive}
                 />
               ))}
+              <input
+                type="color"
+                value={selectedTextLayer?.color || '#111111'}
+                onChange={(event) => applySelectedTextFormatting({ color: event.target.value })}
+                style={{ width: 28, height: 28, border: 'none', background: 'transparent', padding: 0 }}
+                disabled={!isTextToolbarActive}
+              />
             </div>
           </div>
         </div>
@@ -3950,7 +4185,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             position: 'relative',
             borderRadius: 18,
             background: '#e5e7eb',
-            padding: 10,
+            padding: 6,
           }}
         >
           <Stage
@@ -4033,10 +4268,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         y={scene.eyebrow.paddingY}
                         width={scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2}
                         text={scene.eyebrow.text}
+                        align={scene.eyebrow.textAlign || 'left'}
                         fontFamily={scene.eyebrow.fontFamily || 'Arial'}
                         fontSize={scene.eyebrow.fontSize}
                         fontStyle={scene.eyebrow.fontStyle}
                         fill={scene.eyebrow.color}
+                        letterSpacing={scene.eyebrow.letterSpacing || 0}
+                        lineHeight={scene.eyebrow.lineHeight || 1}
                         textDecoration={scene.eyebrow.textDecoration}
                         wrap="none"
                         onDblClick={() => beginInlineTextEdit({ kind: 'eyebrow', id: scene.eyebrow.id })}
@@ -4050,15 +4288,28 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       draggable={selection?.kind === 'headline' && !isResizingHeadline}
                       onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                       onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
-                      onTransformStart={() => setIsResizingHeadline(true)}
-                      onTransformEnd={(event) => {
-                        const node = event.target
-                        const nextWidth = clamp(Math.round(scene.headline.width * node.scaleX()), HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
-                        node.scaleX(1)
-                        node.scaleY(1)
-                        updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
-                        setIsResizingHeadline(false)
-                      }}
+	                      onTransformStart={() => setIsResizingHeadline(true)}
+	                      onTransformEnd={(event) => {
+	                        const node = event.target
+	                        const { nextFontSize, nextWidth } = getResizedTextTransform({
+	                          fontSize: scene.headline.fontSize,
+	                          maxFontSize: 160,
+	                          minFontSize: 20,
+	                          minWidth: HEADLINE_WIDTH_LIMITS.min,
+	                          scaleX: node.scaleX(),
+	                          scaleY: node.scaleY(),
+	                          width: scene.headline.width,
+	                        })
+	                        node.scaleX(1)
+	                        node.scaleY(1)
+	                        updateHeadline({
+	                          fontSize: nextFontSize,
+	                          x: node.x(),
+	                          y: node.y(),
+	                          width: clampNumber(nextWidth, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max),
+	                        })
+	                        setIsResizingHeadline(false)
+	                      }}
                     >
                       {selection?.kind === 'headline' ? (
                         <Rect x={-12} y={-12} width={scene.headline.width + 24} height={measureHeadlineHeight(scene.headline) + 24} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={14} />
@@ -4066,8 +4317,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       <Text
                         width={scene.headline.width}
                         text={scene.headline.text}
+                        align={scene.headline.textAlign || 'left'}
                         fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.headline.fontSize}
+                        letterSpacing={scene.headline.letterSpacing || 0}
                         lineHeight={scene.headline.lineHeight || 1.04}
                         fill={scene.headline.color}
                         textDecoration={scene.headline.textDecoration}
@@ -4085,12 +4338,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       ) : null}
                       <Rect width={scene.subhead.dividerWidth} height={scene.subhead.dividerHeight} fill={scene.subhead.dividerColor} />
                       <Text
+                        width={Math.max(scene.subhead.dividerWidth + 24, 320)}
                         y={14}
                         text={scene.subhead.text}
+                        align={scene.subhead.textAlign || 'left'}
                         fontFamily={scene.subhead.fontFamily || 'Arial'}
                         fontSize={scene.subhead.fontSize}
                         fontStyle={scene.subhead.fontStyle}
                         fill={scene.subhead.color}
+                        letterSpacing={scene.subhead.letterSpacing || 0}
+                        lineHeight={scene.subhead.lineHeight || 1}
                         textDecoration={scene.subhead.textDecoration}
                         onDblClick={() => beginInlineTextEdit({ kind: 'subhead', id: scene.subhead.id })}
                       />
@@ -4119,11 +4376,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       <Text
                         x={scene.footer.textX - scene.footer.x}
                         y={scene.footer.textY - scene.footer.y}
+                        width={Math.max(80, scene.footer.width - (scene.footer.textX - scene.footer.x) * 2)}
                         text={scene.footer.text}
-                        fontFamily="Arial"
+                        align={scene.footer.textAlign || 'left'}
+                        fontFamily={scene.footer.fontFamily || 'Arial'}
                         fontSize={scene.footer.fontSize}
                         fontStyle={scene.footer.fontStyle}
                         fill={scene.footer.color}
+                        letterSpacing={scene.footer.letterSpacing || 0}
+                        lineHeight={scene.footer.lineHeight || 1}
                         textDecoration={scene.footer.textDecoration}
                         onDblClick={() => beginInlineTextEdit({ kind: 'footer', id: scene.footer.id })}
                       />
@@ -4289,12 +4550,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       <Text
                         width={scene.subhead.dividerWidth}
                         text={scene.subhead.text}
+                        align={scene.subhead.textAlign || 'left'}
                         fontFamily={scene.subhead.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.subhead.fontSize}
                         fontStyle={scene.subhead.fontStyle}
                         fill={scene.subhead.color}
+                        letterSpacing={scene.subhead.letterSpacing || 0}
+                        lineHeight={scene.subhead.lineHeight || 1}
                         textDecoration={scene.subhead.textDecoration}
-                        align="left"
                         onDblClick={() => beginInlineTextEdit({ kind: 'subhead', id: scene.subhead.id })}
                       />
                     </Group>
@@ -4331,11 +4594,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         width={scene.headline.width}
                         height={measureHeadlineHeight(scene.headline)}
                         text={scene.headline.text}
+                        align={scene.headline.textAlign || 'left'}
                         fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.headline.fontSize}
                         fontStyle={scene.headline.fontStyle}
                         fill="#374151"
-                        align="left"
+                        letterSpacing={scene.headline.letterSpacing || 0}
                         verticalAlign="middle"
                         lineHeight={scene.headline.lineHeight || 1.05}
                         textDecoration={scene.headline.textDecoration}
@@ -4351,8 +4615,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 flipEnabled={false}
                 keepRatio={selection?.kind === 'headshot' || selection?.kind === 'custom-image'}
                 enabledAnchors={
-                  selection?.kind === 'headline' || selection?.kind === 'custom-text'
-                    ? ['middle-left', 'middle-right']
+                  selection?.kind === 'headline'
+                    ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
+                    : selection?.kind === 'custom-text'
+                      ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     : selection?.kind === 'custom-image'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'custom-rect'
@@ -4369,8 +4635,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 anchorSize={transformerAnchorSize}
                 boundBoxFunc={(oldBox, newBox) => {
                   if (selection?.kind === 'headline') {
-                    const nextWidth = clamp(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
-                    return { ...newBox, width: nextWidth, height: measureHeadlineHeight(scene.headline), rotation: 0 }
+                    const nextWidth = clampNumber(newBox.width, HEADLINE_WIDTH_LIMITS.min, HEADLINE_WIDTH_LIMITS.max)
+                    return { ...newBox, width: nextWidth, height: Math.max(60, newBox.height), rotation: 0 }
                   }
 
                   if (selection?.kind === 'custom-text') {
@@ -4435,24 +4701,20 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 style={{
                   width: '100%',
                   minHeight: inlineEditorBox.height,
-                  resize: 'none',
-                  padding: '10px 12px',
+                  resize: 'vertical',
+                  padding: '12px 14px',
                   borderRadius: 14,
                   border: '2px solid #0ea5e9',
                   background: 'rgba(255,255,255,0.98)',
                   color: selectedTextLayer?.color || '#111827',
                   fontFamily: selectedTextLayer?.fontFamily || 'Arial',
-                  fontSize: `${Math.max(14, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
+                  fontSize: `${Math.max(16, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
                   fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
-                  fontWeight:
-                    selectedTextLayer?.fontStyle?.includes('800') ||
-                    selectedTextLayer?.fontStyle?.includes('900') ||
-                    selectedTextLayer?.fontStyle?.includes('700') ||
-                    selectedTextLayer?.fontStyle?.toLowerCase().includes('bold')
-                      ? 700
-                      : 400,
+                  fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
                   textDecoration: selectedTextLayer?.textDecoration || 'none',
-                  lineHeight: 1.12,
+                  textAlign: selectedTextLayer?.textAlign || 'left',
+                  lineHeight: selectedTextLayer?.lineHeight || 1.12,
+                  letterSpacing: selectedTextLayer?.letterSpacing || 0,
                   boxShadow: '0 18px 45px rgba(14,165,233,0.18)',
                 }}
               />
@@ -4466,35 +4728,34 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
 const controlStyle: React.CSSProperties = {
   border: '1px solid rgba(17, 24, 39, 0.12)',
-  borderRadius: 12,
+  borderRadius: 9,
   background: '#ffffff',
   color: '#111827',
-  padding: '10px 12px',
-  fontSize: 14,
-  lineHeight: 1.4,
+  padding: '6px 9px',
+  fontSize: 12,
+  lineHeight: 1.2,
   width: '100%',
 }
 
 const hintStyle: React.CSSProperties = {
-  borderRadius: 14,
+  borderRadius: 12,
   background: '#f7fafc',
   border: '1px solid rgba(17, 24, 39, 0.08)',
-  padding: '12px 14px',
+  padding: '8px 10px',
   color: '#4b5563',
-  fontSize: 13,
-  lineHeight: 1.6,
+  fontSize: 12,
+  lineHeight: 1.35,
 }
 
 const textToolbarStyle: React.CSSProperties = {
   display: 'flex',
   alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: 12,
+  gap: 4,
   flexWrap: 'wrap',
-  minHeight: 54,
-  padding: '10px 12px',
-  marginBottom: 12,
-  borderRadius: 14,
+  minHeight: 0,
+  padding: '4px 6px',
+  marginBottom: 4,
+  borderRadius: 10,
   border: '1px solid rgba(17, 24, 39, 0.08)',
   background: '#f8fafc',
 }
@@ -4504,23 +4765,66 @@ const toolbarButtonStyle: React.CSSProperties = {
   borderRadius: 999,
   background: '#ffffff',
   color: '#111827',
-  padding: '8px 12px',
-  fontSize: 13,
+  padding: '5px 8px',
+  fontSize: 12,
   fontWeight: 700,
   cursor: 'pointer',
 }
 
+const activeToolbarButtonStyle: React.CSSProperties = {
+  ...toolbarButtonStyle,
+  background: '#0f172a',
+  color: '#ffffff',
+  borderColor: '#0f172a',
+}
+
+const iconToolbarButtonStyle: React.CSSProperties = {
+  ...toolbarButtonStyle,
+  width: 28,
+  height: 28,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+}
+
+const activeIconToolbarButtonStyle: React.CSSProperties = {
+  ...activeToolbarButtonStyle,
+  width: 28,
+  height: 28,
+  padding: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 12,
+}
+
+const toolbarSelectStyle: React.CSSProperties = {
+  ...controlStyle,
+  minHeight: 30,
+  padding: '5px 8px',
+  fontSize: 12,
+}
+
+const toolbarInputStyle: React.CSSProperties = {
+  ...controlStyle,
+  minHeight: 30,
+  padding: '5px 8px',
+  fontSize: 12,
+}
+
 const detailsStyle: React.CSSProperties = {
-  borderRadius: 16,
+  borderRadius: 12,
   border: '1px solid rgba(17, 24, 39, 0.1)',
   background: 'rgba(248, 250, 252, 0.82)',
-  padding: '12px 14px',
+  padding: '7px 9px',
 }
 
 const detailsSummaryStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontWeight: 700,
-  fontSize: 13,
+  fontSize: 12,
   textTransform: 'uppercase',
   letterSpacing: '0.04em',
   color: '#111827',
@@ -4528,15 +4832,15 @@ const detailsSummaryStyle: React.CSSProperties = {
 
 const accordionBodyStyle: React.CSSProperties = {
   display: 'grid',
-  gap: 12,
-  marginTop: 12,
+  gap: 8,
+  marginTop: 8,
 }
 
 const nestedDetailsStyle: React.CSSProperties = {
-  borderRadius: 14,
+  borderRadius: 12,
   border: '1px solid rgba(17, 24, 39, 0.08)',
   background: '#ffffff',
-  padding: '10px 12px',
+  padding: '8px 10px',
 }
 
 const nestedSummaryStyle: React.CSSProperties = {
@@ -4550,7 +4854,7 @@ const nestedSummaryStyle: React.CSSProperties = {
 }
 
 const fieldLabelStyle: React.CSSProperties = {
-  fontSize: 13,
+  fontSize: 12,
   color: '#374151',
 }
 
@@ -4559,9 +4863,57 @@ const secondaryButtonStyle: React.CSSProperties = {
   borderRadius: 999,
   background: '#ffffff',
   color: '#111827',
-  padding: '8px 12px',
-  fontSize: 13,
+  padding: '5px 9px',
+  fontSize: 12,
   fontWeight: 700,
+  cursor: 'pointer',
+}
+
+const disabledButtonStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  opacity: 0.48,
+  cursor: 'not-allowed',
+}
+
+const disabledIconToolbarButtonStyle: React.CSSProperties = {
+  ...iconToolbarButtonStyle,
+  opacity: 0.48,
+  cursor: 'not-allowed',
+}
+
+const commandMenuStyle: React.CSSProperties = {
+  position: 'relative',
+}
+
+const commandMenuSummaryStyle: React.CSSProperties = {
+  ...secondaryButtonStyle,
+  listStyle: 'none',
+  userSelect: 'none',
+}
+
+const commandMenuPanelStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 0,
+  zIndex: 20,
+  minWidth: 164,
+  display: 'grid',
+  gap: 4,
+  padding: 6,
+  borderRadius: 12,
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  background: '#ffffff',
+  boxShadow: '0 14px 30px rgba(15, 23, 42, 0.12)',
+}
+
+const menuActionButtonStyle: React.CSSProperties = {
+  border: 'none',
+  background: '#ffffff',
+  color: '#111827',
+  padding: '6px 8px',
+  borderRadius: 8,
+  textAlign: 'left',
+  fontSize: 12,
   cursor: 'pointer',
 }
 
