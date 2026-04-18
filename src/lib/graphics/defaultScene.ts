@@ -1,4 +1,4 @@
-export type GraphicTextAlign = 'left' | 'center'
+export type GraphicTextAlign = 'left' | 'center' | 'right'
 
 export type GraphicRepRole = 'primary' | 'secondary'
 
@@ -35,12 +35,14 @@ export type GraphicTextLayer = {
   height?: number
   align: GraphicTextAlign
   text?: string
+  html?: string
   color?: string
   fontSize?: number
   fontFamily?: string
   fontStyle?: string
   textDecoration?: string
   letterSpacing?: number
+  lineHeight?: number
 }
 
 export type GraphicImageLayer = {
@@ -72,6 +74,7 @@ export const defaultGraphicScene = (): GraphicScene => ({
       color: '#aa2426',
       fontFamily: 'Georgia, Times New Roman, serif',
       fontSize: 28,
+      lineHeight: 1,
     },
     secondary: {
       x: 268,
@@ -81,6 +84,7 @@ export const defaultGraphicScene = (): GraphicScene => ({
       color: '#aa2426',
       fontFamily: 'Georgia, Times New Roman, serif',
       fontSize: 26,
+      lineHeight: 1,
     },
   },
   headlineLayer: {
@@ -92,6 +96,7 @@ export const defaultGraphicScene = (): GraphicScene => ({
     color: '#a02626',
     fontFamily: 'Georgia, Times New Roman, serif',
     fontSize: 38,
+    lineHeight: 1.08,
   },
   headshots: [
     {
@@ -126,14 +131,16 @@ const asTextLayer = (value: unknown, fallback: GraphicTextLayer): GraphicTextLay
     y: asNumber(record.y, fallback.y),
     width: asNumber(record.width, fallback.width),
     height: typeof record.height === 'number' && Number.isFinite(record.height) ? record.height : fallback.height,
-    align: record.align === 'center' ? 'center' : 'left',
+    align: record.align === 'center' ? 'center' : record.align === 'right' ? 'right' : 'left',
     text: typeof record.text === 'string' ? record.text : fallback.text,
+    html: typeof record.html === 'string' ? record.html : fallback.html,
     color: typeof record.color === 'string' ? record.color : fallback.color,
     fontSize: asNumber(record.fontSize, fallback.fontSize ?? 32),
     fontFamily: typeof record.fontFamily === 'string' ? record.fontFamily : fallback.fontFamily,
     fontStyle: typeof record.fontStyle === 'string' ? record.fontStyle : fallback.fontStyle,
     textDecoration: typeof record.textDecoration === 'string' ? record.textDecoration : fallback.textDecoration,
     letterSpacing: asNumber(record.letterSpacing, fallback.letterSpacing ?? 0),
+    lineHeight: asNumber(record.lineHeight, fallback.lineHeight ?? 1),
   }
 }
 
@@ -231,7 +238,7 @@ export const normalizeGraphicScene = (value: unknown): GraphicScene => {
     .filter((item) => Boolean(item.id))
 
   return {
-    version: 6,
+    version: 7,
     repNameLayers,
     headlineLayer: asTextLayer(record.headlineLayer, fallback.headlineLayer),
     headshots: headshots.length > 0 ? headshots : fallback.headshots,

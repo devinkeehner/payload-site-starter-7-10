@@ -101,11 +101,27 @@ const parseRequestBody = async (req: EndpointReq): Promise<UnknownRecord> => {
     }
   }
 
-  if (!raw && typeof req?.json === 'function') {
+  const rawRecord = asRecord(raw)
+  const looksLikeReadableStream =
+    !!raw &&
+    typeof raw === 'object' &&
+    (typeof rawRecord.getReader === 'function' || typeof rawRecord.tee === 'function')
+  const missingExpectedKeys =
+    !raw ||
+    typeof raw !== 'object' ||
+    (!('tone' in rawRecord) && !('additionalInstructions' in rawRecord))
+
+  if (looksLikeReadableStream || missingExpectedKeys) {
     try {
-      raw = await req.json()
+      if (typeof req?.json === 'function') {
+        const parsed = await req.json()
+        if (parsed && typeof parsed === 'object') raw = parsed
+      } else if (typeof req?.text === 'function') {
+        const text = await req.text()
+        raw = text ? JSON.parse(text) : raw || {}
+      }
     } catch {
-      raw = {}
+      raw = missingExpectedKeys ? rawRecord : raw
     }
   }
 

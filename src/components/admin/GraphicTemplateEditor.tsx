@@ -3,9 +3,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
+import { AlignCenter, AlignLeft, AlignRight, Bold, Italic, Underline } from 'lucide-react'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { useAuth } from '@payloadcms/ui'
 
+import {
+  TEXT_ALIGNMENT_OPTIONS,
+  TEXT_FONT_OPTIONS,
+  buildFontStyle,
+  getCssFontWeight,
+  getFontStyleFlags,
+} from '@/components/admin/graphicsEditorShared'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import type {
   GraphicHeadshotBinding,
@@ -127,7 +135,7 @@ type EditableTextTarget =
 
 type InlineTextEditorState = {
   target: EditableTextTarget
-  value: string
+  html: string
 } | null
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -194,6 +202,42 @@ function useLoadedImage(src: string | undefined) {
   }, [src])
 
   return image
+}
+
+function useLoadedImages(srcByID: Record<string, string | undefined>) {
+  const [images, setImages] = useState<Record<string, HTMLImageElement | null>>({})
+
+  useEffect(() => {
+    const entries = Object.entries(srcByID)
+    if (!entries.length) {
+      setImages({})
+      return
+    }
+
+    let cancelled = false
+    setImages((current) => {
+      const next: Record<string, HTMLImageElement | null> = {}
+      for (const [id] of entries) next[id] = current[id] || null
+      return next
+    })
+
+    entries.forEach(([id, src]) => {
+      if (!src) return
+      const nextImage = new window.Image()
+      nextImage.crossOrigin = 'anonymous'
+      nextImage.onload = () => {
+        if (cancelled) return
+        setImages((current) => ({ ...current, [id]: nextImage }))
+      }
+      nextImage.src = src
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [srcByID])
+
+  return images
 }
 
 function useContainerWidth() {
@@ -284,6 +328,156 @@ function wrapText(text: string, font: string, maxWidth: number) {
   })
 
   return allLines
+}
+
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const stripHtml = (value: string) => {
+  if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, ' ')
+  const temp = document.createElement('div')
+  temp.innerHTML = value
+  return temp.innerText || temp.textContent || ''
+}
+
+const convertPlainTextToHtml = (value: string) =>
+  value
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => `<p>${escapeHtml(line || ' ')}</p>`)
+    .join('')
+
+const RICH_TEXT_LAYOUT_CSS = `
+  * { box-sizing:border-box; }
+  p, div { margin: 0 0 0.45em; }
+  p:last-child, div:last-child { margin-bottom: 0; }
+  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  h1 { font-size: 1.45em; }
+  h2 { font-size: 1.25em; }
+  h3 { font-size: 1.1em; }
+  ul, ol { margin: 0 0 0.45em 1.2em; padding: 0; }
+  li { margin: 0 0 0.15em; }
+`
+
+const RICH_TEXT_EDITOR_SCOPE_CSS = `
+  [data-rich-text-editor="true"] * { box-sizing:border-box; }
+  [data-rich-text-editor="true"] p,
+  [data-rich-text-editor="true"] div { margin: 0 0 0.45em; }
+  [data-rich-text-editor="true"] p:last-child,
+  [data-rich-text-editor="true"] div:last-child { margin-bottom: 0; }
+  [data-rich-text-editor="true"] h1,
+  [data-rich-text-editor="true"] h2,
+  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  [data-rich-text-editor="true"] h1 { font-size: 1.45em; }
+  [data-rich-text-editor="true"] h2 { font-size: 1.25em; }
+  [data-rich-text-editor="true"] h3 { font-size: 1.1em; }
+  [data-rich-text-editor="true"] ul,
+  [data-rich-text-editor="true"] ol { margin: 0 0 0.45em 1.2em; padding: 0; }
+  [data-rich-text-editor="true"] li { margin: 0 0 0.15em; }
+`
+
+const RICH_TEXT_BLOCK_SELECTOR = 'p, div, h1, h2, h3, li'
+
+const normalizeRichTextHtml = (value: string) => {
+  const fallback = convertPlainTextToHtml(stripHtml(value || '').replace(/\u00a0/g, ' ') || 'Text')
+  if (typeof window === 'undefined') return fallback
+
+  const temp = document.createElement('div')
+  temp.innerHTML = value?.trim() || fallback
+
+  temp.querySelectorAll('div').forEach((node) => {
+    const paragraph = document.createElement('p')
+    while (node.firstChild) paragraph.appendChild(node.firstChild)
+    node.replaceWith(paragraph)
+  })
+
+  const hasSupportedBlocks = temp.querySelector('p, h1, h2, h3, ul, ol')
+  if (!hasSupportedBlocks) {
+    const wrapped = document.createElement('p')
+    wrapped.innerHTML = temp.innerHTML.trim() || escapeHtml('Text')
+    temp.innerHTML = ''
+    temp.appendChild(wrapped)
+  }
+
+  const normalized = temp.innerHTML.trim()
+  return normalized || fallback
+}
+
+const getSvgSafeRichTextHtml = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, '&#160;')
+    .replace(/\u00a0/g, '&#160;')
+    .replace(/<br\s*>/gi, '<br />')
+
+const getTextLayerHtml = (layer: GraphicTextLayer, fallbackText: string) =>
+  layer.html?.trim() ? layer.html : convertPlainTextToHtml(layer.text || fallbackText)
+
+const isRichTextBlockElement = (node: Node | null): node is HTMLElement =>
+  node instanceof HTMLElement && /^(P|DIV|H1|H2|H3|LI)$/i.test(node.tagName)
+
+const getClosestRichTextBlock = (node: Node | null, root: HTMLElement): HTMLElement | null => {
+  let current: Node | null = node
+  while (current && current !== root) {
+    if (isRichTextBlockElement(current)) return current
+    current = current.parentNode
+  }
+  return null
+}
+
+const selectionMatchesWholeBlock = (range: Range, block: HTMLElement) => {
+  const blockRange = document.createRange()
+  blockRange.selectNodeContents(block)
+  return (
+    range.compareBoundaryPoints(Range.START_TO_START, blockRange) === 0 &&
+    range.compareBoundaryPoints(Range.END_TO_END, blockRange) === 0
+  )
+}
+
+const measureRichTextLayerHeight = (layer: GraphicTextLayer, fallbackText: string) => {
+  const fontSize = layer.fontSize || 28
+  const fontFamily = layer.fontFamily || 'Georgia, Times New Roman, serif'
+  const lineHeight = layer.lineHeight || 1.08
+  const lines = wrapText((layer.text || fallbackText || 'Text').replace(/\u00a0/g, ' '), `${fontSize}px ${fontFamily}`, layer.width)
+  const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
+  return Math.max(layer.height || 0, measuredHeight)
+}
+
+const buildRichTextSvgDataUrl = (layer: GraphicTextLayer, fallbackText: string) => {
+  const width = Math.max(1, Math.round(layer.width))
+  const height = Math.max(1, Math.round(measureRichTextLayerHeight(layer, fallbackText)))
+  const html = getSvgSafeRichTextHtml(getTextLayerHtml(layer, fallbackText))
+  const fontStyle = layer.fontStyle || ''
+  const cssFontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
+  const cssFontWeight = getCssFontWeight(fontStyle)
+  const wrapper = `
+    <div xmlns="http://www.w3.org/1999/xhtml" style="
+      width:${width}px;
+      height:${height}px;
+      box-sizing:border-box;
+      overflow:hidden;
+      color:${layer.color || '#111111'};
+      font-family:${layer.fontFamily || 'Georgia, Times New Roman, serif'};
+      font-size:${layer.fontSize || 28}px;
+      font-style:${cssFontStyle};
+      font-weight:${cssFontWeight};
+      line-height:${layer.lineHeight || 1.08};
+      letter-spacing:${layer.letterSpacing || 0}px;
+      text-align:${layer.align || 'left'};
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      white-space:normal;
+    ">
+      <style>${RICH_TEXT_LAYOUT_CSS}</style>
+      ${html}
+    </div>
+  `
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${wrapper}</foreignObject></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 function fitHeadlineText(text: string, layer: GraphicTextLayer, fitScale = 1) {
@@ -421,10 +615,14 @@ export const GraphicTemplateEditor: React.FC = () => {
   const headshotRefs = useRef<Record<string, Konva.Group | null>>({})
   const imageRefs = useRef<Record<string, Konva.Group | null>>({})
   const titleRef = useRef<Konva.Group | null>(null)
-  const repNameRefs = useRef<Record<GraphicRepRole, Konva.Text | null>>({
+  const repNameRefs = useRef<Record<GraphicRepRole, Konva.Group | null>>({
     primary: null,
     secondary: null,
   })
+  const textToolbarRef = useRef<HTMLDivElement | null>(null)
+  const richTextEditorRef = useRef<HTMLDivElement | null>(null)
+  const richTextEditorSeedRef = useRef<string | null>(null)
+  const richTextSelectionRef = useRef<Range | null>(null)
   const backgroundUploadRef = useRef<HTMLInputElement | null>(null)
   const { ref: stageContainerRef, width: stageContainerWidth } = useContainerWidth()
   const viewportWidth = useViewportWidth()
@@ -536,6 +734,20 @@ export const GraphicTemplateEditor: React.FC = () => {
   const primaryRepName = getRepLabel(primaryAssets.repInfo?.name)
   const secondaryRepName = getRepLabel(secondaryAssets.repInfo?.name)
   const isSuperAdmin = hasSuperRole(user)
+  const richTextRenderUrls = useMemo(
+    () => ({
+      headline: scene.headlineLayer.html?.trim() ? buildRichTextSvgDataUrl(scene.headlineLayer, headlineText) : undefined,
+      primary: scene.repNameLayers.primary.html?.trim()
+        ? buildRichTextSvgDataUrl(scene.repNameLayers.primary, primaryRepName)
+        : undefined,
+      secondary:
+        secondaryTenantID && scene.repNameLayers.secondary.html?.trim()
+          ? buildRichTextSvgDataUrl(scene.repNameLayers.secondary, secondaryRepName)
+          : undefined,
+    }),
+    [headlineText, primaryRepName, scene.headlineLayer, scene.repNameLayers.primary, scene.repNameLayers.secondary, secondaryRepName, secondaryTenantID],
+  )
+  const richTextRenderImages = useLoadedImages(richTextRenderUrls)
 
   const headshotSourceURLs = useMemo(
     () =>
@@ -826,6 +1038,25 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
   }, [scene, selection])
 
+  useEffect(() => {
+    if (!inlineTextEditor || !richTextEditorRef.current) return
+    const editorKey =
+      inlineTextEditor.target.kind === 'headline'
+        ? 'headline'
+        : `repName:${inlineTextEditor.target.role}`
+    if (richTextEditorSeedRef.current !== editorKey) {
+      richTextEditorRef.current.innerHTML = inlineTextEditor.html || ''
+      richTextEditorSeedRef.current = editorKey
+    }
+    richTextEditorRef.current.focus()
+    const selectionRange = document.createRange()
+    selectionRange.selectNodeContents(richTextEditorRef.current)
+    selectionRange.collapse(false)
+    const browserSelection = window.getSelection()
+    browserSelection?.removeAllRanges()
+    browserSelection?.addRange(selectionRange)
+  }, [inlineTextEditor])
+
   const updateHeadline = (patch: Partial<GraphicTextLayer>) => {
     setScene((current) => ({ ...current, headlineLayer: { ...current.headlineLayer, ...patch } }))
   }
@@ -977,15 +1208,22 @@ export const GraphicTemplateEditor: React.FC = () => {
 
   const beginInlineTextEdit = (target: EditableTextTarget) => {
     setSelection(target)
-    setInlineTextEditor({ target, value: getRenderedTextValue(target) })
+    const layer = resolveTextLayer(target)
+    setInlineTextEditor({
+      target,
+      html: getTextLayerHtml(layer, getRenderedTextValue(target)),
+    })
   }
 
   const commitInlineTextEdit = () => {
     if (!inlineTextEditor) return
-    updateTextLayer(inlineTextEditor.target, { text: inlineTextEditor.value })
+    const html = normalizeRichTextHtml(richTextEditorRef.current?.innerHTML || inlineTextEditor.html || '')
+    const text = stripHtml(html).replace(/\u00a0/g, ' ').trim() || getRenderedTextValue(inlineTextEditor.target)
+    updateTextLayer(inlineTextEditor.target, { html, text })
     if (inlineTextEditor.target.kind === 'headline') {
-      setTitleOverride(inlineTextEditor.value)
+      setTitleOverride(text)
     }
+    richTextEditorSeedRef.current = null
     setInlineTextEditor(null)
   }
 
@@ -1380,19 +1618,142 @@ export const GraphicTemplateEditor: React.FC = () => {
   const selectedTextTarget = isEditableTextSelection(selection) ? selection : null
   const selectedTextLayer = selectedTextTarget ? resolveTextLayer(selectedTextTarget) : null
   const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
-  const stageOffsetX = Math.max(0, (stageContainerWidth - STAGE_WIDTH * previewScale) / 2)
+  const isRichTextEditing = Boolean(inlineTextEditor)
+  const selectedTextFontFlags = getFontStyleFlags(selectedTextLayer?.fontStyle)
+  const isEditingHeadline = Boolean(inlineTextEditor?.target.kind === 'headline')
+  const isEditingPrimaryRepName = Boolean(inlineTextEditor?.target.kind === 'repName' && inlineTextEditor.target.role === 'primary')
+  const isEditingSecondaryRepName = Boolean(inlineTextEditor?.target.kind === 'repName' && inlineTextEditor.target.role === 'secondary')
+  const stageContainerBox = stageContainerRef.current?.getBoundingClientRect()
+  const stageCanvasBox = stageRef.current?.container().getBoundingClientRect()
+  const stageOffsetX =
+    stageContainerBox && stageCanvasBox
+      ? stageCanvasBox.left - stageContainerBox.left
+      : Math.max(0, (stageContainerWidth - STAGE_WIDTH * previewScale) / 2)
+  const stageOffsetY =
+    stageContainerBox && stageCanvasBox
+      ? stageCanvasBox.top - stageContainerBox.top
+      : 0
+
+  const saveRichTextSelection = () => {
+    const browserSelection = window.getSelection()
+    if (!browserSelection || !browserSelection.rangeCount || !richTextEditorRef.current) return
+    const range = browserSelection.getRangeAt(0)
+    if (!richTextEditorRef.current.contains(range.commonAncestorContainer)) return
+    richTextSelectionRef.current = range.cloneRange()
+  }
+
+  const restoreRichTextSelection = () => {
+    if (!richTextSelectionRef.current) return
+    const browserSelection = window.getSelection()
+    if (!browserSelection) return
+    browserSelection.removeAllRanges()
+    browserSelection.addRange(richTextSelectionRef.current)
+  }
+
+  const applySelectedTextFormatting = (patch: Partial<GraphicTextLayer>) => {
+    if (!selectedTextTarget || !selectedTextLayer) return
+    updateTextLayer(selectedTextTarget, patch)
+  }
+
+  const applyRichTextSelectionStyle = (styles: Record<string, string>) => {
+    if (!isRichTextEditing || !richTextEditorRef.current) return
+    restoreRichTextSelection()
+    const browserSelection = window.getSelection()
+    if (!browserSelection || !browserSelection.rangeCount) return
+    const range = browserSelection.getRangeAt(0)
+    if (!richTextEditorRef.current.contains(range.commonAncestorContainer) || range.collapsed) return
+
+    const root = richTextEditorRef.current
+    const selectedBlocks = Array.from(root.querySelectorAll<HTMLElement>(RICH_TEXT_BLOCK_SELECTOR)).filter((block) => {
+      try {
+        return range.intersectsNode(block)
+      } catch {
+        return false
+      }
+    })
+
+    if (selectedBlocks.length > 1) {
+      selectedBlocks.forEach((block) => Object.assign(block.style, styles))
+      richTextEditorRef.current.focus()
+      saveRichTextSelection()
+      return
+    }
+
+    const singleBlock = selectedBlocks[0] || getClosestRichTextBlock(range.commonAncestorContainer, root)
+    if (singleBlock && selectionMatchesWholeBlock(range, singleBlock)) {
+      Object.assign(singleBlock.style, styles)
+      richTextEditorRef.current.focus()
+      saveRichTextSelection()
+      return
+    }
+
+    const span = document.createElement('span')
+    Object.assign(span.style, styles)
+    span.appendChild(range.extractContents())
+    range.insertNode(span)
+    const nextRange = document.createRange()
+    nextRange.selectNodeContents(span)
+    browserSelection.removeAllRanges()
+    browserSelection.addRange(nextRange)
+    richTextSelectionRef.current = nextRange.cloneRange()
+    richTextEditorRef.current.focus()
+  }
+
+  const runRichTextCommand = (command: string, value?: string) => {
+    if (!isRichTextEditing) return
+    restoreRichTextSelection()
+    document.execCommand(command, false, value)
+    saveRichTextSelection()
+    richTextEditorRef.current?.focus()
+  }
+
+  const transformSelectedTextCase = (mode: 'upper' | 'lower' | 'title') => {
+    if (isRichTextEditing && richTextEditorRef.current) {
+      restoreRichTextSelection()
+      const browserSelection = window.getSelection()
+      if (!browserSelection || !browserSelection.rangeCount) return
+      const range = browserSelection.getRangeAt(0)
+      if (!richTextEditorRef.current.contains(range.commonAncestorContainer) || range.collapsed) return
+      const text = range.toString()
+      const nextText =
+        mode === 'upper'
+          ? text.toUpperCase()
+          : mode === 'lower'
+            ? text.toLowerCase()
+            : text.replace(/\b\w+/g, (segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+      range.deleteContents()
+      range.insertNode(document.createTextNode(nextText))
+      saveRichTextSelection()
+      return
+    }
+
+    if (!selectedTextLayer) return
+    const nextText =
+      mode === 'upper'
+        ? (selectedTextLayer.text || '').toUpperCase()
+        : mode === 'lower'
+          ? (selectedTextLayer.text || '').toLowerCase()
+          : (selectedTextLayer.text || '').replace(/\b\w+/g, (segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+    applySelectedTextFormatting({ text: nextText, html: undefined })
+    if (selectedTextTarget?.kind === 'headline') setTitleOverride(nextText)
+  }
+
   const inlineEditorBox =
-    inlineTextEditor && selectedTextTarget
+    inlineTextEditor
       ? (() => {
           const layer = resolveTextLayer(inlineTextEditor.target)
-          const width = Math.max(140, layer.width * previewScale)
-          const height =
-            inlineTextEditor.target.kind === 'headline'
-              ? Math.max(120, (layer.height || 190) * previewScale)
-              : Math.max(44, ((layer.fontSize || 28) + 18) * previewScale)
+          const width = Math.max(140, Math.round(layer.width * previewScale))
+          const height = Math.max(
+            48,
+            Math.round(
+              (inlineTextEditor.target.kind === 'headline'
+                ? layer.height || 190
+                : measureRichTextLayerHeight(layer, getRenderedTextValue(inlineTextEditor.target))) * previewScale,
+            ),
+          )
           return {
             left: stageOffsetX + layer.x * previewScale,
-            top: layer.y * previewScale,
+            top: stageOffsetY + layer.y * previewScale,
             width,
             height,
           }
@@ -1478,7 +1839,7 @@ export const GraphicTemplateEditor: React.FC = () => {
               value={titleOverride}
               onChange={(event) => {
                 setTitleOverride(event.target.value)
-                updateHeadline({ text: event.target.value })
+                updateHeadline({ text: event.target.value, html: undefined })
               }}
               placeholder="Supports manual line breaks"
               style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
@@ -1493,6 +1854,7 @@ export const GraphicTemplateEditor: React.FC = () => {
             >
               <option value="center">Center</option>
               <option value="left">Left</option>
+              <option value="right">Right</option>
             </select>
           </label>
         </section>
@@ -1865,12 +2227,11 @@ export const GraphicTemplateEditor: React.FC = () => {
             </button>
           </div>
         </div>
-        <div style={textToolbarStyle}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#0f172a' }}>Text</span>
+        <div ref={textToolbarRef} style={textToolbarStyle}>
           <div
             style={{
               display: 'flex',
-              gap: 10,
+              gap: 8,
               flexWrap: 'wrap',
               alignItems: 'center',
               opacity: selectedTextTarget && selectedTextLayer ? 1 : 0,
@@ -1879,59 +2240,209 @@ export const GraphicTemplateEditor: React.FC = () => {
           >
             <button
               type="button"
-              style={toolbarButtonStyle}
-              onClick={() => {
-                if (!selectedTextTarget || !selectedTextLayer) return
-                updateTextLayer(selectedTextTarget, {
-                  fontStyle: (selectedTextLayer.fontStyle || '').includes('italic')
-                    ? (selectedTextLayer.fontStyle || 'normal').replace(/\s*italic/g, '').trim() || 'normal'
-                    : `${selectedTextLayer.fontStyle || 'normal'} italic`.trim(),
+              title="Bold"
+              aria-label="Bold"
+              style={selectedTextFontFlags.bold ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onMouseDown={(event) => {
+                if (isRichTextEditing) {
+                  event.preventDefault()
+                  runRichTextCommand('bold')
+                  return
+                }
+                applySelectedTextFormatting({
+                  fontStyle: buildFontStyle({
+                    bold: !selectedTextFontFlags.bold,
+                    italic: selectedTextFontFlags.italic,
+                  }),
                 })
               }}
               disabled={!isTextToolbarActive}
             >
-              Italic
+              <Bold size={14} strokeWidth={2.25} />
             </button>
             <button
               type="button"
-              style={toolbarButtonStyle}
-              onClick={() => {
-                if (!selectedTextTarget || !selectedTextLayer) return
-                updateTextLayer(selectedTextTarget, {
-                  textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline',
+              title="Italic"
+              aria-label="Italic"
+              style={selectedTextFontFlags.italic ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onMouseDown={(event) => {
+                if (isRichTextEditing) {
+                  event.preventDefault()
+                  runRichTextCommand('italic')
+                  return
+                }
+                applySelectedTextFormatting({
+                  fontStyle: buildFontStyle({
+                    bold: selectedTextFontFlags.bold,
+                    italic: !selectedTextFontFlags.italic,
+                  }),
                 })
               }}
               disabled={!isTextToolbarActive}
             >
-              Underline
+              <Italic size={14} strokeWidth={2.25} />
             </button>
-            <select
-              value={selectedTextLayer?.align || 'left'}
-              onChange={(event) =>
-                (() => {
-                  if (!selectedTextTarget || !selectedTextLayer) return
-                  updateTextLayer(selectedTextTarget, { align: event.target.value as GraphicTextAlign })
-                })()
-              }
-              style={{ ...controlStyle, width: 110, padding: '8px 10px' }}
+            <button
+              type="button"
+              title="Underline"
+              aria-label="Underline"
+              style={selectedTextLayer?.textDecoration === 'underline' ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              onMouseDown={(event) => {
+                if (isRichTextEditing) {
+                  event.preventDefault()
+                  runRichTextCommand('underline')
+                  return
+                }
+                applySelectedTextFormatting({
+                  textDecoration: selectedTextLayer?.textDecoration === 'underline' ? 'none' : 'underline',
+                })
+              }}
               disabled={!isTextToolbarActive}
             >
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-            </select>
-            <label style={{ display: 'grid', gap: 4 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#334155' }}>Font size</span>
+              <Underline size={14} strokeWidth={2.25} />
+            </button>
+            {isRichTextEditing ? (
+              <>
+                {[
+                  { label: 'H1', command: 'formatBlock', value: 'h1' },
+                  { label: 'H2', command: 'formatBlock', value: 'h2' },
+                  { label: 'H3', command: 'formatBlock', value: 'h3' },
+                  { label: 'P', command: 'formatBlock', value: 'p' },
+                  { label: '•', command: 'insertUnorderedList' },
+                  { label: '1.', command: 'insertOrderedList' },
+                ].map((action) => (
+                  <button
+                    key={`${action.command}-${action.label}`}
+                    type="button"
+                    style={iconToolbarButtonStyle}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      runRichTextCommand(action.command, action.value)
+                    }}
+                    disabled={!isTextToolbarActive}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </>
+            ) : null}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              {TEXT_ALIGNMENT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  title={option.label}
+                  aria-label={option.label}
+                  style={selectedTextLayer?.align === option.value || (!selectedTextLayer?.align && option.value === 'left') ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+                  onMouseDown={(event) => {
+                    if (isRichTextEditing) {
+                      event.preventDefault()
+                      runRichTextCommand(option.value === 'left' ? 'justifyLeft' : option.value === 'center' ? 'justifyCenter' : 'justifyRight')
+                      return
+                    }
+                    applySelectedTextFormatting({ align: option.value as GraphicTextAlign })
+                  }}
+                  disabled={!isTextToolbarActive}
+                >
+                  {option.value === 'left' ? (
+                    <AlignLeft size={14} strokeWidth={2.25} />
+                  ) : option.value === 'center' ? (
+                    <AlignCenter size={14} strokeWidth={2.25} />
+                  ) : (
+                    <AlignRight size={14} strokeWidth={2.25} />
+                  )}
+                </button>
+              ))}
+            </div>
+            <label style={{ display: 'grid' }}>
+              <select
+                title="Font family"
+                aria-label="Font family"
+                value={selectedTextLayer?.fontFamily || TEXT_FONT_OPTIONS[0].value}
+                onMouseDown={(event) => {
+                  if (isRichTextEditing) event.preventDefault()
+                }}
+                onChange={(event) => {
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ fontFamily: event.target.value })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ fontFamily: event.target.value })
+                }}
+                style={{ ...toolbarSelectStyle, width: 170 }}
+                disabled={!isTextToolbarActive}
+              >
+                {TEXT_FONT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: 'grid' }}>
               <input
                 type="number"
+                title="Font size"
+                aria-label="Font size"
                 min={12}
-                max={120}
+                max={160}
                 step={1}
                 value={selectedTextLayer?.fontSize || 32}
                 onChange={(event) => {
-                  if (!selectedTextTarget || !selectedTextLayer) return
-                  updateTextLayer(selectedTextTarget, { fontSize: Number(event.target.value) })
+                  const nextValue = Number(event.target.value)
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ fontSize: `${nextValue}px` })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ fontSize: nextValue })
                 }}
-                style={{ ...controlStyle, width: 92, padding: '8px 10px' }}
+                style={{ ...toolbarInputStyle, width: 72 }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <label style={{ display: 'grid' }}>
+              <input
+                type="number"
+                title="Line height"
+                aria-label="Line height"
+                min={0.8}
+                max={2}
+                step={0.05}
+                value={selectedTextLayer?.lineHeight || 1}
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value) || 1
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ lineHeight: String(nextValue), display: 'inline-block' })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ lineHeight: nextValue })
+                }}
+                style={{ ...toolbarInputStyle, width: 70 }}
+                disabled={!isTextToolbarActive}
+              />
+            </label>
+            <label style={{ display: 'grid' }}>
+              <input
+                type="number"
+                title="Letter spacing"
+                aria-label="Letter spacing"
+                min={-2}
+                max={30}
+                step={0.5}
+                value={selectedTextLayer?.letterSpacing || 0}
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value) || 0
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ letterSpacing: `${nextValue}px` })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ letterSpacing: nextValue })
+                }}
+                style={{ ...toolbarInputStyle, width: 70 }}
                 disabled={!isTextToolbarActive}
               />
             </label>
@@ -1941,9 +2452,13 @@ export const GraphicTemplateEditor: React.FC = () => {
                   key={color}
                   type="button"
                   aria-label={`Choose ${color}`}
-                  onClick={() => {
-                    if (!selectedTextTarget || !selectedTextLayer) return
-                    updateTextLayer(selectedTextTarget, { color })
+                  onMouseDown={(event) => {
+                    if (isRichTextEditing) {
+                      event.preventDefault()
+                      applyRichTextSelectionStyle({ color })
+                      return
+                    }
+                    applySelectedTextFormatting({ color })
                   }}
                   style={{
                     width: 22,
@@ -1956,6 +2471,31 @@ export const GraphicTemplateEditor: React.FC = () => {
                   disabled={!isTextToolbarActive}
                 />
               ))}
+            </div>
+            <input
+              type="color"
+              value={selectedTextLayer?.color || '#111111'}
+              onChange={(event) => {
+                if (isRichTextEditing) {
+                  applyRichTextSelectionStyle({ color: event.target.value })
+                  richTextEditorRef.current?.focus()
+                  return
+                }
+                applySelectedTextFormatting({ color: event.target.value })
+              }}
+              style={{ width: 28, height: 28, border: 'none', background: 'transparent', padding: 0 }}
+              disabled={!isTextToolbarActive}
+            />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button type="button" style={toolbarButtonStyle} onMouseDown={(event) => { if (isRichTextEditing) event.preventDefault(); transformSelectedTextCase('upper') }} disabled={!isTextToolbarActive}>
+                UPPER
+              </button>
+              <button type="button" style={toolbarButtonStyle} onMouseDown={(event) => { if (isRichTextEditing) event.preventDefault(); transformSelectedTextCase('lower') }} disabled={!isTextToolbarActive}>
+                lower
+              </button>
+              <button type="button" style={toolbarButtonStyle} onMouseDown={(event) => { if (isRichTextEditing) event.preventDefault(); transformSelectedTextCase('title') }} disabled={!isTextToolbarActive}>
+                Title
+              </button>
             </div>
           </div>
         </div>
@@ -2091,21 +2631,13 @@ export const GraphicTemplateEditor: React.FC = () => {
                 )
               })}
 
-              <Text
+              <Group
                 ref={(node) => {
                   repNameRefs.current.primary = node
                 }}
                 x={scene.repNameLayers.primary.x}
                 y={scene.repNameLayers.primary.y}
-                width={scene.repNameLayers.primary.width}
-                text={scene.repNameLayers.primary.text || primaryRepName}
-                fontFamily={scene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif'}
-                fontSize={Math.max(22, Math.round((scene.repNameLayers.primary.fontSize || 28) * contentFitScale))}
-                fill={scene.repNameLayers.primary.color || '#aa2426'}
-                fontStyle={scene.repNameLayers.primary.fontStyle}
-                textDecoration={scene.repNameLayers.primary.textDecoration}
-                align={scene.repNameLayers.primary.align}
-                draggable
+                draggable={!isEditingPrimaryRepName}
                 onClick={() => setSelection({ kind: 'repName', role: 'primary' })}
                 onTap={() => setSelection({ kind: 'repName', role: 'primary' })}
                 onContextMenu={(event) => {
@@ -2125,24 +2657,37 @@ export const GraphicTemplateEditor: React.FC = () => {
                   node.scaleY(1)
                   updateRepName('primary', { x: node.x(), y: node.y(), width: nextWidth })
                 }}
-              />
+              >
+                {!isEditingPrimaryRepName && richTextRenderImages.primary ? (
+                  <KonvaImage
+                    image={richTextRenderImages.primary}
+                    width={scene.repNameLayers.primary.width}
+                    height={measureRichTextLayerHeight(scene.repNameLayers.primary, primaryRepName)}
+                  />
+                ) : !isEditingPrimaryRepName ? (
+                  <Text
+                    width={scene.repNameLayers.primary.width}
+                    text={scene.repNameLayers.primary.text || primaryRepName}
+                    fontFamily={scene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif'}
+                    fontSize={Math.max(22, Math.round((scene.repNameLayers.primary.fontSize || 28) * contentFitScale))}
+                    fill={scene.repNameLayers.primary.color || '#aa2426'}
+                    fontStyle={scene.repNameLayers.primary.fontStyle}
+                    textDecoration={scene.repNameLayers.primary.textDecoration}
+                    align={scene.repNameLayers.primary.align}
+                    lineHeight={scene.repNameLayers.primary.lineHeight || 1}
+                    letterSpacing={scene.repNameLayers.primary.letterSpacing || 0}
+                  />
+                ) : null}
+              </Group>
 
               {secondaryTenantID && scene.headshots.some((item) => item.binding.type === 'tenant-headshot' && item.binding.role === 'secondary') ? (
-                <Text
+                <Group
                   ref={(node) => {
                     repNameRefs.current.secondary = node
                   }}
                   x={scene.repNameLayers.secondary.x}
                   y={scene.repNameLayers.secondary.y}
-                  width={scene.repNameLayers.secondary.width}
-                  text={scene.repNameLayers.secondary.text || secondaryRepName}
-                  fontFamily={scene.repNameLayers.secondary.fontFamily || 'Georgia, Times New Roman, serif'}
-                  fontSize={Math.max(20, Math.round((scene.repNameLayers.secondary.fontSize || 26) * contentFitScale))}
-                  fill={scene.repNameLayers.secondary.color || '#aa2426'}
-                  fontStyle={scene.repNameLayers.secondary.fontStyle}
-                  textDecoration={scene.repNameLayers.secondary.textDecoration}
-                  align={scene.repNameLayers.secondary.align}
-                  draggable
+                  draggable={!isEditingSecondaryRepName}
                   onClick={() => setSelection({ kind: 'repName', role: 'secondary' })}
                   onTap={() => setSelection({ kind: 'repName', role: 'secondary' })}
                   onContextMenu={(event) => {
@@ -2162,14 +2707,35 @@ export const GraphicTemplateEditor: React.FC = () => {
                     node.scaleY(1)
                     updateRepName('secondary', { x: node.x(), y: node.y(), width: nextWidth })
                   }}
-                />
+                >
+                  {!isEditingSecondaryRepName && richTextRenderImages.secondary ? (
+                    <KonvaImage
+                      image={richTextRenderImages.secondary}
+                      width={scene.repNameLayers.secondary.width}
+                      height={measureRichTextLayerHeight(scene.repNameLayers.secondary, secondaryRepName)}
+                    />
+                  ) : !isEditingSecondaryRepName ? (
+                    <Text
+                      width={scene.repNameLayers.secondary.width}
+                      text={scene.repNameLayers.secondary.text || secondaryRepName}
+                      fontFamily={scene.repNameLayers.secondary.fontFamily || 'Georgia, Times New Roman, serif'}
+                      fontSize={Math.max(20, Math.round((scene.repNameLayers.secondary.fontSize || 26) * contentFitScale))}
+                      fill={scene.repNameLayers.secondary.color || '#aa2426'}
+                      fontStyle={scene.repNameLayers.secondary.fontStyle}
+                      textDecoration={scene.repNameLayers.secondary.textDecoration}
+                      align={scene.repNameLayers.secondary.align}
+                      lineHeight={scene.repNameLayers.secondary.lineHeight || 1}
+                      letterSpacing={scene.repNameLayers.secondary.letterSpacing || 0}
+                    />
+                  ) : null}
+                </Group>
               ) : null}
 
               <Group
                 ref={titleRef}
                 x={scene.headlineLayer.x}
                 y={scene.headlineLayer.y}
-                draggable
+                draggable={!isEditingHeadline}
                 onClick={() => setSelection({ kind: 'headline' })}
                 onTap={() => setSelection({ kind: 'headline' })}
                 onContextMenu={(event) => {
@@ -2195,18 +2761,27 @@ export const GraphicTemplateEditor: React.FC = () => {
                   stroke={selection?.kind === 'headline' ? '#7dd3fc' : 'transparent'}
                   dash={selection?.kind === 'headline' ? [10, 8] : []}
                 />
-                <Text
-                  width={scene.headlineLayer.width}
-                  text={fittedHeadline.lines.join('\n')}
-                  fontFamily={scene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
-                  fontSize={fittedHeadline.fontSize}
-                  lineHeight={fittedHeadline.lineHeight / fittedHeadline.fontSize}
-                  fill={scene.headlineLayer.color || '#a02626'}
-                  align={scene.headlineLayer.align}
-                  fontStyle={scene.headlineLayer.fontStyle}
-                  textDecoration={scene.headlineLayer.textDecoration}
-                  onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
-                />
+                {!isEditingHeadline && richTextRenderImages.headline ? (
+                  <KonvaImage
+                    image={richTextRenderImages.headline}
+                    width={scene.headlineLayer.width}
+                    height={Math.max(scene.headlineLayer.height || 200, measureRichTextLayerHeight(scene.headlineLayer, headlineText))}
+                    onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
+                  />
+                ) : !isEditingHeadline ? (
+                  <Text
+                    width={scene.headlineLayer.width}
+                    text={fittedHeadline.lines.join('\n')}
+                    fontFamily={scene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
+                    fontSize={fittedHeadline.fontSize}
+                    lineHeight={fittedHeadline.lineHeight / fittedHeadline.fontSize}
+                    fill={scene.headlineLayer.color || '#a02626'}
+                    align={scene.headlineLayer.align}
+                    fontStyle={scene.headlineLayer.fontStyle}
+                    textDecoration={scene.headlineLayer.textDecoration}
+                    onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
+                  />
+                ) : null}
               </Group>
 
               <Transformer
@@ -2267,19 +2842,29 @@ export const GraphicTemplateEditor: React.FC = () => {
           {inlineTextEditor && inlineEditorBox ? (
             <div
               style={{
+                boxSizing: 'border-box',
                 position: 'absolute',
                 left: inlineEditorBox.left,
                 top: inlineEditorBox.top,
                 width: inlineEditorBox.width,
-                minHeight: inlineEditorBox.height,
+                height: inlineEditorBox.height,
                 zIndex: 40,
+                overflow: 'hidden',
               }}
             >
-              <textarea
-                autoFocus
-                value={inlineTextEditor.value}
-                onChange={(event) => setInlineTextEditor((current) => (current ? { ...current, value: event.target.value } : current))}
-                onBlur={commitInlineTextEdit}
+              <style>{RICH_TEXT_EDITOR_SCOPE_CSS}</style>
+              <div
+                ref={richTextEditorRef}
+                data-rich-text-editor="true"
+                contentEditable
+                suppressContentEditableWarning
+                onBlur={(event) => {
+                  const nextFocused = event.relatedTarget as Node | null
+                  if (nextFocused && textToolbarRef.current?.contains(nextFocused)) return
+                  commitInlineTextEdit()
+                }}
+                onMouseUp={saveRichTextSelection}
+                onKeyUp={saveRichTextSelection}
                 onKeyDown={(event) => {
                   if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
                     event.preventDefault()
@@ -2288,26 +2873,37 @@ export const GraphicTemplateEditor: React.FC = () => {
                   }
                   if (event.key === 'Escape') {
                     event.preventDefault()
+                    richTextEditorSeedRef.current = null
                     setInlineTextEditor(null)
                   }
                 }}
                 style={{
+                  boxSizing: 'border-box',
+                  display: 'block',
                   width: '100%',
-                  minHeight: inlineEditorBox.height,
-                  resize: 'none',
-                  padding: '10px 12px',
-                  borderRadius: 14,
-                  border: '2px solid #0ea5e9',
-                  background: 'rgba(255,255,255,0.95)',
+                  height: '100%',
+                  minHeight: '100%',
+                  maxHeight: '100%',
+                  padding: 0,
+                  margin: 0,
+                  borderWidth: 0,
+                  borderStyle: 'solid',
+                  borderColor: 'transparent',
+                  background: 'transparent',
+                  boxShadow: 'none',
                   color: selectedTextLayer?.color || '#111827',
                   fontFamily: selectedTextLayer?.fontFamily || 'Georgia, Times New Roman, serif',
-                  fontSize: `${Math.max(14, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
+                  fontSize: `${Math.max(1, (selectedTextLayer?.fontSize || 28) * previewScale)}px`,
                   fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
-                  fontWeight: selectedTextLayer?.fontStyle?.includes('800') || selectedTextLayer?.fontStyle?.includes('900') ? 800 : 400,
+                  fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
                   textDecoration: selectedTextLayer?.textDecoration || 'none',
                   textAlign: selectedTextLayer?.align || 'left',
-                  lineHeight: 1.1,
-                  boxShadow: '0 18px 45px rgba(14,165,233,0.2)',
+                  lineHeight: `${selectedTextLayer?.lineHeight || 1.08}`,
+                  letterSpacing: `${selectedTextLayer?.letterSpacing || 0}px`,
+                  overflowY: 'auto',
+                  overflowX: 'hidden',
+                  whiteSpace: 'normal',
+                  outline: 'none',
                 }}
               />
             </div>
@@ -2541,14 +3137,34 @@ const collapsibleBodyStyle: React.CSSProperties = {
 
 const textToolbarStyle: React.CSSProperties = {
   display: 'flex',
-  gap: 10,
+  gap: 8,
   flexWrap: 'wrap',
   alignItems: 'center',
   marginBottom: 14,
-  padding: '10px 12px',
+  padding: '8px 10px',
   borderRadius: 16,
   border: '1px solid rgba(15, 23, 42, 0.1)',
   background: 'rgba(248,250,252,0.92)',
+}
+
+const iconToolbarButtonStyle: React.CSSProperties = {
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  borderRadius: 999,
+  background: '#ffffff',
+  color: '#111827',
+  width: 32,
+  height: 32,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
+
+const activeIconToolbarButtonStyle: React.CSSProperties = {
+  ...iconToolbarButtonStyle,
+  background: '#102145',
+  borderColor: '#102145',
+  color: '#ffffff',
 }
 
 const toolbarButtonStyle: React.CSSProperties = {
@@ -2556,10 +3172,30 @@ const toolbarButtonStyle: React.CSSProperties = {
   borderRadius: 999,
   background: '#ffffff',
   color: '#111827',
-  padding: '8px 12px',
+  padding: '6px 10px',
   fontSize: 13,
   fontWeight: 700,
   cursor: 'pointer',
+}
+
+const toolbarSelectStyle: React.CSSProperties = {
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  borderRadius: 10,
+  background: '#ffffff',
+  color: '#111827',
+  padding: '6px 10px',
+  fontSize: 13,
+  lineHeight: 1.3,
+}
+
+const toolbarInputStyle: React.CSSProperties = {
+  border: '1px solid rgba(17, 24, 39, 0.12)',
+  borderRadius: 10,
+  background: '#ffffff',
+  color: '#111827',
+  padding: '6px 8px',
+  fontSize: 13,
+  lineHeight: 1.3,
 }
 
 const primaryButtonStyle: React.CSSProperties = {
