@@ -2357,8 +2357,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       richTextEditorRef.current.innerHTML = inlineTextEditor.html || ''
       richTextEditorSeedRef.current = editorKey
     }
-    richTextEditorRef.current.style.height = 'auto'
-    richTextEditorRef.current.style.height = `${richTextEditorRef.current.scrollHeight}px`
     richTextEditorRef.current.focus()
     const selectionRange = document.createRange()
     selectionRange.selectNodeContents(richTextEditorRef.current)
@@ -2770,16 +2768,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const commitInlineTextEdit = () => {
     if (!inlineTextEditor) return
     if (inlineTextEditor.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text') {
+      const currentScene = getActiveScene()
+      const currentItem = currentScene?.customTexts.find((item) => item.id === inlineTextEditor.target.id) || null
       const html = normalizeRichTextHtml(richTextEditorRef.current?.innerHTML || inlineTextEditor.html || '')
       const text = stripHtml(html).replace(/\u00a0/g, ' ').trim() || 'Text'
-      const nextHeight =
-        richTextEditorRef.current?.scrollHeight != null
-          ? Math.max(72, Math.ceil(richTextEditorRef.current.scrollHeight / Math.max(previewScale, 0.01)))
-          : undefined
       updateCustomText(inlineTextEditor.target.id, {
         html,
         text,
-        height: nextHeight,
+        height: currentItem?.height || measureCustomTextHeight(currentItem || { text, width: 280, fontSize: 28, fontFamily: 'Arial', lineHeight: 1.1, height: 0 }),
       })
       richTextEditorSeedRef.current = null
       setInlineTextEditor(null)
@@ -4299,7 +4295,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     saveRichTextSelection()
     richTextEditorRef.current?.focus()
   }
-  const stageOffsetX = Math.max(0, (stageContainerWidth - previewWidth) / 2)
+  const stageContainerBox = stageContainerRef.current?.getBoundingClientRect()
+  const stageCanvasBox = stageRef.current?.container().getBoundingClientRect()
+  const stageOffsetX =
+    stageContainerBox && stageCanvasBox
+      ? stageCanvasBox.left - stageContainerBox.left
+      : Math.max(0, (stageContainerWidth - previewWidth) / 2)
+  const stageOffsetY =
+    stageContainerBox && stageCanvasBox
+      ? stageCanvasBox.top - stageContainerBox.top
+      : 0
   const inlineEditorBox =
     inlineTextEditor
       ? (() => {
@@ -4312,20 +4317,22 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 ? scene.footer.width
                 : (currentLayer as SceneTextElement).width
           const width =
-            inlineTextEditor.target.kind === 'subhead' && activeMailSide === 'front'
-              ? Math.max(220, scene.subhead.dividerWidth * previewScale)
-              : Math.max(180, inlineWidth * previewScale)
+            inlineTextEditor.target.kind === 'custom-text'
+              ? Math.max(1, Math.round(inlineWidth * previewScale))
+              : inlineTextEditor.target.kind === 'subhead' && activeMailSide === 'front'
+                ? Math.max(220, scene.subhead.dividerWidth * previewScale)
+                : Math.max(180, inlineWidth * previewScale)
           const height =
             inlineTextEditor.target.kind === 'headline'
               ? Math.max(180, measureHeadlineHeight(scene.headline) * previewScale)
               : inlineTextEditor.target.kind === 'subhead'
                 ? Math.max(88, ((scene.subhead.fontSize || 28) + 28) * previewScale)
                 : inlineTextEditor.target.kind === 'custom-text'
-                  ? Math.max(72, Math.round(((currentLayer as CustomTextElement).height || measureCustomTextHeight(currentLayer as CustomTextElement)) * previewScale))
+                  ? Math.max(1, Math.round(((currentLayer as CustomTextElement).height || measureCustomTextHeight(currentLayer as CustomTextElement)) * previewScale))
                 : Math.max(96, Math.max(72, ((currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4) * previewScale))
           return {
             left: stageOffsetX + currentLayer.x * previewScale,
-            top: currentLayer.y * previewScale,
+            top: stageOffsetY + currentLayer.y * previewScale,
             width,
             height,
             rotation: inlineTextEditor.target.kind === 'custom-text' ? ((currentLayer as CustomTextElement).rotation || 0) : 0,
@@ -6240,10 +6247,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 left: inlineEditorBox.left,
                 top: inlineEditorBox.top,
                 width: inlineEditorBox.width,
-                minHeight: inlineEditorBox.height,
+                height: inlineEditorBox.height,
                 zIndex: 40,
                 transform: inlineEditorBox.rotation ? `rotate(${inlineEditorBox.rotation}deg)` : undefined,
                 transformOrigin: 'left top',
+                overflow: 'hidden',
               }}
             >
               {inlineTextEditor.mode === 'rich' ? (
@@ -6258,11 +6266,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       const nextFocused = event.relatedTarget as Node | null
                       if (nextFocused && textToolbarRef.current?.contains(nextFocused)) return
                       commitInlineTextEdit()
-                    }}
-                    onInput={(event) => {
-                      const editor = event.currentTarget
-                      editor.style.height = `${inlineEditorBox.height}px`
-                      editor.style.height = `${Math.max(inlineEditorBox.height, editor.scrollHeight)}px`
                     }}
                     onMouseUp={saveRichTextSelection}
                     onKeyUp={saveRichTextSelection}
@@ -6282,8 +6285,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       boxSizing: 'border-box',
                       display: 'block',
                       width: '100%',
-                      minHeight: inlineEditorBox.height,
-                      height: inlineEditorBox.height,
+                      height: '100%',
+                      minHeight: '100%',
+                      maxHeight: '100%',
                       padding: 0,
                       margin: 0,
                       borderWidth: 0,
@@ -6293,14 +6297,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       boxShadow: 'none',
                       color: selectedTextLayer?.color || '#111827',
                       fontFamily: selectedTextLayer?.fontFamily || 'Arial',
-                      fontSize: `${Math.max(16, (selectedTextLayer?.fontSize || 28) * previewScale)}px`,
+                      fontSize: `${Math.max(1, (selectedTextLayer?.fontSize || 28) * previewScale)}px`,
                       fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
                       fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
                       textDecoration: selectedTextLayer?.textDecoration || 'none',
                       textAlign: selectedTextLayer?.textAlign || 'left',
                       lineHeight: `${selectedTextLayer?.lineHeight || 1.12}`,
                       letterSpacing: `${selectedTextLayer?.letterSpacing || 0}px`,
-                      overflow: 'hidden',
+                      overflowY: 'auto',
+                      overflowX: 'hidden',
                       overflowWrap: 'anywhere',
                       wordBreak: 'break-word',
                       whiteSpace: 'normal',
