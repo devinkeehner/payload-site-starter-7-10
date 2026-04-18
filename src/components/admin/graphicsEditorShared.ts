@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export type AutosaveStatus = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 
@@ -17,18 +17,39 @@ type AutosaveOptions = {
 }
 
 export type EditorCustomRect = {
+  dashStyle?: 'solid' | 'dashed' | 'dotted'
   fill: string
+  fillEnabled?: boolean
   height: number
   id: string
+  opacity?: number
+  rotation?: number
+  shapeType?: 'rect' | 'circle' | 'line'
+  shadowBlur?: number
+  shadowColor?: string
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowOpacity?: number
+  strokeColor?: string
+  strokeWidth?: number
   width: number
   x: number
   y: number
 }
 
 export type EditorCustomImage = {
+  blurRadius?: number
+  brightness?: number
+  grayscale?: boolean
   height: number
   id: string
+  opacity?: number
   rotation?: number
+  shadowBlur?: number
+  shadowColor?: string
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowOpacity?: number
   width: number
   x: number
   y: number
@@ -43,7 +64,15 @@ export type EditorCustomText = {
   id: string
   letterSpacing?: number
   lineHeight?: number
+  opacity?: number
   rotation?: number
+  shadowBlur?: number
+  shadowColor?: string
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowOpacity?: number
+  strokeColor?: string
+  strokeWidth?: number
   text: string
   textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
@@ -140,6 +169,12 @@ export const isEditableTarget = (target: EventTarget | null) => {
 export const createEditorNodeID = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 export const getShortcutNudgeDistance = (event: KeyboardEvent) => (event.shiftKey ? 10 : 1)
+
+export const getDashPattern = (dashStyle?: 'solid' | 'dashed' | 'dotted') => {
+  if (dashStyle === 'dashed') return [16, 10]
+  if (dashStyle === 'dotted') return [3, 8]
+  return undefined
+}
 
 export const formatAutosaveLabel = (state: AutosaveState) => {
   if (state.status === 'saving') return 'Saving…'
@@ -490,34 +525,40 @@ export function useEditorAutosave({ debounceMs = 1200, enabled, onError, onSave,
     return () => window.clearTimeout(timer)
   }, [debounceMs, enabled, onError, revision])
 
+  const markSaved = useCallback(() => {
+    savedRevisionRef.current = latestRevisionRef.current
+    setState({
+      error: null,
+      lastSavedAt: Date.now(),
+      status: 'saved',
+    })
+  }, [])
+
+  const resetAutosave = useCallback(() => {
+    savedRevisionRef.current = latestRevisionRef.current
+    setState({
+      error: null,
+      lastSavedAt: null,
+      status: 'idle',
+    })
+  }, [])
+
+  const setDirty = useCallback(() => {
+    setState((current) => ({
+      ...current,
+      error: null,
+      status: current.status === 'saving' ? current.status : 'dirty',
+    }))
+  }, [])
+
   return useMemo(
     () => ({
       autosaveState: state,
-      markSaved: () => {
-        savedRevisionRef.current = latestRevisionRef.current
-        setState({
-          error: null,
-          lastSavedAt: Date.now(),
-          status: 'saved',
-        })
-      },
-      resetAutosave: () => {
-        savedRevisionRef.current = revision
-        setState({
-          error: null,
-          lastSavedAt: null,
-          status: 'idle',
-        })
-      },
-      setDirty: () => {
-        setState((current) => ({
-          ...current,
-          error: null,
-          status: current.status === 'saving' ? current.status : 'dirty',
-        }))
-      },
+      markSaved,
+      resetAutosave,
+      setDirty,
     }),
-    [revision, state],
+    [markSaved, resetAutosave, setDirty, state],
   )
 }
 

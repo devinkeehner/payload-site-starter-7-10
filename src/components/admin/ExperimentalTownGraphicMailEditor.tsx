@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import type Konva from 'konva'
+import Konva from 'konva'
 import { PDFDocument } from 'pdf-lib'
 import { flushSync } from 'react-dom'
 import {
@@ -26,7 +26,7 @@ import {
   Unlock,
   X,
 } from 'lucide-react'
-import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
+import { Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
@@ -44,6 +44,7 @@ import {
   duplicateRect,
   duplicateText,
   formatAutosaveLabel,
+  getDashPattern,
   getCssFontWeight,
   getEditorLayerItem,
   getShortcutNudgeDistance,
@@ -375,39 +376,72 @@ type HeadshotElement = {
 }
 
 type CustomRectElement = {
+  dashStyle?: 'solid' | 'dashed' | 'dotted'
   id: string
+  fillEnabled?: boolean
+  groupID?: string
   x: number
   y: number
   width: number
   height: number
   fill: string
+  opacity?: number
+  rotation?: number
+  shapeType?: 'rect' | 'circle' | 'line'
+  shadowBlur?: number
+  shadowColor?: string
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowOpacity?: number
+  strokeColor?: string
+  strokeWidth?: number
 }
 
 type CustomTextElement = {
   id: string
+  groupID?: string
   x: number
   y: number
   width: number
   height?: number
   rotation?: number
   text: string
+  html?: string
   fontSize: number
   color: string
+  opacity?: number
   fontFamily?: string
   fontStyle?: string
   letterSpacing?: number
   lineHeight?: number
+  shadowBlur?: number
+  shadowColor?: string
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowOpacity?: number
+  strokeColor?: string
+  strokeWidth?: number
   textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
 type CustomImageElement = {
   id: string
+  groupID?: string
   x: number
   y: number
   width: number
   height: number
   rotation?: number
+  opacity?: number
+  blurRadius?: number
+  brightness?: number
+  grayscale?: boolean
+  shadowBlur?: number
+  shadowColor?: string
+  shadowOffsetX?: number
+  shadowOffsetY?: number
+  shadowOpacity?: number
   mediaID: string
   sourceUrl: string
   alt?: string
@@ -445,6 +479,7 @@ type ExperimentalTownScene = {
   customImages: CustomImageElement[]
   customRects: CustomRectElement[]
   customTexts: CustomTextElement[]
+  customGroups: CustomGroup[]
   layers: EditorLayerItem[]
   townColumns: 1 | 2
   townRows: TownSceneRow[]
@@ -465,14 +500,114 @@ type Selection =
   | { kind: 'town'; id: string }
   | null
 
+type CustomSelection = Exclude<Selection, null> & {
+  kind: 'custom-image' | 'custom-rect' | 'custom-text'
+}
+
 type TextSelection = Exclude<Selection, null> & {
   kind: 'eyebrow' | 'headline' | 'subhead' | 'footer' | 'custom-text'
 }
 
 type InlineTextEditorState = {
   target: TextSelection
-  value: string
+  mode: 'plain' | 'rich'
+  html?: string
+  text?: string
 } | null
+
+type ContextMenuState = {
+  x: number
+  y: number
+}
+
+type CustomGroup = {
+  id: string
+  memberKeys: string[]
+  opacity?: number
+}
+
+const getSelectionKey = (selection: CustomSelection) => `${selection.kind}:${selection.id}`
+const isSameSelection = (left: CustomSelection, right: CustomSelection) => left.kind === right.kind && left.id === right.id
+const escapeHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+const stripHtml = (value: string) => {
+  if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, ' ')
+  const temp = document.createElement('div')
+  temp.innerHTML = value
+  return temp.textContent || temp.innerText || ''
+}
+
+const convertPlainTextToHtml = (value: string) =>
+  value
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => `<p>${escapeHtml(line || ' ')}</p>`)
+    .join('')
+
+const RICH_TEXT_LAYOUT_CSS = `
+  * { box-sizing:border-box; }
+  p, div { margin: 0 0 0.45em; }
+  p:last-child, div:last-child { margin-bottom: 0; }
+  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  h1 { font-size: 1.45em; }
+  h2 { font-size: 1.25em; }
+  h3 { font-size: 1.1em; }
+  ul, ol { margin: 0 0 0.45em 1.2em; padding: 0; }
+  li { margin: 0 0 0.15em; }
+`
+
+const RICH_TEXT_EDITOR_SCOPE_CSS = `
+  [data-rich-text-editor="true"] * { box-sizing:border-box; }
+  [data-rich-text-editor="true"] p,
+  [data-rich-text-editor="true"] div { margin: 0 0 0.45em; }
+  [data-rich-text-editor="true"] p:last-child,
+  [data-rich-text-editor="true"] div:last-child { margin-bottom: 0; }
+  [data-rich-text-editor="true"] h1,
+  [data-rich-text-editor="true"] h2,
+  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  [data-rich-text-editor="true"] h1 { font-size: 1.45em; }
+  [data-rich-text-editor="true"] h2 { font-size: 1.25em; }
+  [data-rich-text-editor="true"] h3 { font-size: 1.1em; }
+  [data-rich-text-editor="true"] ul,
+  [data-rich-text-editor="true"] ol { margin: 0 0 0.45em 1.2em; padding: 0; }
+  [data-rich-text-editor="true"] li { margin: 0 0 0.15em; }
+`
+
+const normalizeRichTextHtml = (value: string) => {
+  const fallback = convertPlainTextToHtml(stripHtml(value || '').replace(/\u00a0/g, ' ') || 'Text')
+  if (typeof window === 'undefined') return fallback
+
+  const temp = document.createElement('div')
+  temp.innerHTML = value?.trim() || fallback
+
+  temp.querySelectorAll('div').forEach((node) => {
+    const paragraph = document.createElement('p')
+    while (node.firstChild) paragraph.appendChild(node.firstChild)
+    node.replaceWith(paragraph)
+  })
+
+  const hasSupportedBlocks = temp.querySelector('p, h1, h2, h3, ul, ol')
+  if (!hasSupportedBlocks) {
+    const wrapped = document.createElement('p')
+    wrapped.innerHTML = temp.innerHTML.trim() || escapeHtml('Text')
+    temp.innerHTML = ''
+    temp.appendChild(wrapped)
+  }
+
+  const normalized = temp.innerHTML.trim()
+  return normalized || fallback
+}
+
+const getCustomTextHtml = (item: Pick<CustomTextElement, 'html' | 'text'>) =>
+  item.html?.trim() ? item.html : convertPlainTextToHtml(item.text || '')
+
+const toTitleCase = (value: string) => value.replace(/\b\w+/g, (segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
 
 const getLayerTarget = (
   selection: Exclude<Selection, null>,
@@ -664,6 +799,61 @@ const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' 
   const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
   const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
   return Math.max(item.height || 0, measuredHeight)
+}
+
+const buildRichTextSvgDataUrl = (
+  item: Pick<
+    CustomTextElement,
+    | 'html'
+    | 'text'
+    | 'width'
+    | 'height'
+    | 'fontFamily'
+    | 'fontSize'
+    | 'fontStyle'
+    | 'lineHeight'
+    | 'letterSpacing'
+    | 'textAlign'
+    | 'color'
+    | 'strokeColor'
+    | 'strokeWidth'
+  >,
+) => {
+  const width = Math.max(1, Math.round(item.width))
+  const height = Math.max(1, Math.round(item.height || measureCustomTextHeight(item)))
+  const html = getCustomTextHtml(item)
+  const fontStyle = item.fontStyle || ''
+  const cssFontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
+  const cssFontWeight = getCssFontWeight(fontStyle)
+  const textStroke =
+    item.strokeWidth && item.strokeColor
+      ? `-webkit-text-stroke:${item.strokeWidth}px ${item.strokeColor};paint-order:stroke fill;`
+      : ''
+  const wrapper = `
+    <div xmlns="http://www.w3.org/1999/xhtml" style="
+      width:${width}px;
+      height:${height}px;
+      box-sizing:border-box;
+      overflow:hidden;
+      color:${item.color || '#111111'};
+      font-family:${item.fontFamily || 'Arial'};
+      font-size:${item.fontSize || 28}px;
+      font-style:${cssFontStyle};
+      font-weight:${cssFontWeight};
+      line-height:${item.lineHeight || 1.1};
+      letter-spacing:${item.letterSpacing || 0}px;
+      text-align:${item.textAlign || 'left'};
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      white-space:normal;
+      ${textStroke}
+    ">
+      <style>${RICH_TEXT_LAYOUT_CSS}</style>
+      ${html}
+    </div>
+  `
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${wrapper}</foreignObject></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
 const measureTownGroupHeight = (row: TownSceneRow) =>
@@ -1107,6 +1297,7 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
     customImages: [],
     customRects: [],
     customTexts: [],
+    customGroups: [],
     layers: [],
     townColumns: 1 as const,
     townRows,
@@ -1470,6 +1661,7 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         lineHeight: 1,
       },
     ],
+    customGroups: [],
     layers: [],
     townColumns: backTownColumns as 1 | 2,
     townRows: backTownRows,
@@ -1565,6 +1757,7 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
     customImages: [...mergedCustomImagesByID.values()],
     customRects: [...mergedCustomRectsByID.values()],
     customTexts: [...mergedCustomTextsByID.values()],
+    customGroups: Array.isArray(savedScene.customGroups) ? savedScene.customGroups : [],
     layers: hydrateEditorLayers({
       baseLayers: buildEditorLayers({
         ...baseScene,
@@ -1595,8 +1788,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const headlineRef = useRef<Konva.Group | null>(null)
   const headshotRef = useRef<Konva.Group | null>(null)
   const customImageRefs = useRef<Record<string, Konva.Group | null>>({})
+  const customImageNodeRefs = useRef<Record<string, Konva.Image | null>>({})
   const customRectRefs = useRef<Record<string, Konva.Group | null>>({})
   const customTextRefs = useRef<Record<string, Konva.Group | null>>({})
+  const richTextEditorRef = useRef<HTMLDivElement | null>(null)
+  const richTextEditorSeedRef = useRef<string | null>(null)
+  const textToolbarRef = useRef<HTMLDivElement | null>(null)
+  const richTextSelectionRef = useRef<Range | null>(null)
+  const dragSelectionSnapshotRef = useRef<Record<string, { x: number; y: number }> | null>(null)
   const townStackRef = useRef<Konva.Group | null>(null)
   const leftTownStackRef = useRef<Konva.Group | null>(null)
   const rightTownStackRef = useRef<Konva.Group | null>(null)
@@ -1630,6 +1829,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [frontScene, setFrontScene] = useState<ExperimentalTownScene | null>(null)
   const [backScene, setBackScene] = useState<ExperimentalTownScene | null>(null)
   const [selection, setSelection] = useState<Selection>(null)
+  const [selectedCustomTargets, setSelectedCustomTargets] = useState<CustomSelection[]>([])
   const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
   const [templateID, setTemplateID] = useState('')
   const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
@@ -1650,6 +1850,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [inspectorSectionOpen, setInspectorSectionOpen] = useState(false)
   const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
   const [sceneRevision, setSceneRevision] = useState(0)
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
 
   const tenantOptions = useMemo<TenantSelectOption[]>(
     () =>
@@ -1899,6 +2100,22 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     [scene],
   )
   const customImages = useLoadedImages(customImageUrls)
+  const customTextRenderUrls = useMemo(
+    () =>
+      scene
+        ? Object.fromEntries(
+            scene.customTexts.map((item) => [
+              item.id,
+              buildRichTextSvgDataUrl({
+                ...item,
+                height: item.height || measureCustomTextHeight(item),
+              }),
+            ]),
+          )
+        : {},
+    [scene],
+  )
+  const customTextRenderImages = useLoadedImages(customTextRenderUrls)
 
   useEffect(() => {
     headshotImageRef.current = headshotImage
@@ -1923,6 +2140,59 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!scene || selection?.kind !== 'custom-text') return null
     return scene.customTexts.find((item) => item.id === selection.id) || null
   }, [scene, selection])
+  const selectedCustomKeys = useMemo(
+    () => new Set(selectedCustomTargets.map((item) => getSelectionKey(item))),
+    [selectedCustomTargets],
+  )
+  const canGroupSelectedCustomTargets = selectedCustomTargets.length > 1
+  const getCustomGroupMembers = (target: CustomSelection, sourceScene: ExperimentalTownScene | null = scene) => {
+    if (!sourceScene) return [target]
+    const collection =
+      target.kind === 'custom-image'
+        ? sourceScene.customImages
+        : target.kind === 'custom-rect'
+          ? sourceScene.customRects
+          : sourceScene.customTexts
+    const entry = collection.find((item) => item.id === target.id)
+    const groupID = entry?.groupID
+    if (!groupID) return [target]
+
+    const members: CustomSelection[] = [
+      ...sourceScene.customImages.filter((item) => item.groupID === groupID).map((item) => ({ kind: 'custom-image' as const, id: item.id })),
+      ...sourceScene.customRects.filter((item) => item.groupID === groupID).map((item) => ({ kind: 'custom-rect' as const, id: item.id })),
+      ...sourceScene.customTexts.filter((item) => item.groupID === groupID).map((item) => ({ kind: 'custom-text' as const, id: item.id })),
+    ]
+    return members.length ? members : [target]
+  }
+  const setPrimarySelection = (nextSelection: Selection) => {
+    setSelection(nextSelection)
+    if (!nextSelection || (nextSelection.kind !== 'custom-image' && nextSelection.kind !== 'custom-rect' && nextSelection.kind !== 'custom-text')) {
+      setSelectedCustomTargets([])
+      return
+    }
+    setSelectedCustomTargets(getCustomGroupMembers(nextSelection))
+  }
+  const toggleCustomSelection = (target: CustomSelection) => {
+    const targetGroup = getCustomGroupMembers(target)
+    setSelectedCustomTargets((current) => {
+      const hasAll = targetGroup.every((item) => current.some((entry) => isSameSelection(entry, item)))
+      const next = hasAll
+        ? current.filter((entry) => !targetGroup.some((item) => isSameSelection(entry, item)))
+        : [...current.filter((entry) => !targetGroup.some((item) => isSameSelection(entry, item))), ...targetGroup]
+      const nextPrimary = next.find((entry) => isSameSelection(entry, target)) || next[next.length - 1] || null
+      setSelection(nextPrimary)
+      return next
+    })
+  }
+  const handleCustomSelection = (target: CustomSelection, additive = false) => {
+    if (isLayerLocked(target.kind, target.id) || isLayerHidden(target.kind, target.id)) return
+    if (additive) {
+      toggleCustomSelection(target)
+      return
+    }
+    setSelection(target)
+    setSelectedCustomTargets(getCustomGroupMembers(target))
+  }
 
   const layerStateMap = useMemo(
     () => new Map<string, EditorLayerItem>((scene?.layers || []).map((item) => [`${item.kind}:${item.id}`, item] as const)),
@@ -2002,13 +2272,27 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   useEffect(() => {
     if (!selection) return
     if (!isLayerHidden(selection.kind, selection.id)) return
-    setSelection(null)
+    setPrimarySelection(null)
     setInlineTextEditor(null)
   }, [isLayerHidden, selection])
 
   useEffect(() => {
     const transformer = transformerRef.current
-    const node =
+    if (!transformer) return
+
+    const multiNodes =
+      selectedCustomTargets.length > 1
+        ? selectedCustomTargets
+            .map((target) =>
+              target.kind === 'custom-image'
+                ? customImageRefs.current[target.id] || null
+                : target.kind === 'custom-rect'
+                  ? customRectRefs.current[target.id] || null
+                  : customTextRefs.current[target.id] || null,
+            )
+            .filter(Boolean) as Konva.Node[]
+        : []
+    const singleNode =
       selection?.kind === 'headline'
         ? headlineRef.current
         : selection?.kind === 'headshot'
@@ -2028,17 +2312,22 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           : selection?.kind === 'town'
             ? townRefs.current[selection.id] || null
           : null
-    if (!transformer) return
 
-    if (node && !selectedLayer?.locked) {
-      transformer.nodes([node])
+    if (multiNodes.length > 1) {
+      transformer.nodes(multiNodes)
+      transformer.getLayer()?.batchDraw()
+      return
+    }
+
+    if (singleNode && !selectedLayer?.locked) {
+      transformer.nodes([singleNode])
       transformer.getLayer()?.batchDraw()
       return
     }
 
     transformer.nodes([])
     transformer.getLayer()?.batchDraw()
-  }, [scene, selectedLayer?.locked, selection])
+  }, [scene, selectedCustomTargets, selectedLayer?.locked, selection])
 
   useEffect(() => {
     if (selection?.kind !== 'headline') {
@@ -2047,9 +2336,62 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }, [selection])
 
   useEffect(() => {
-    if (selection && ['eyebrow', 'headline', 'subhead', 'footer', 'custom-text'].includes(selection.kind)) return
+    if (!selection || (selection.kind !== 'custom-image' && selection.kind !== 'custom-rect' && selection.kind !== 'custom-text')) {
+      if (selectedCustomTargets.length) setSelectedCustomTargets([])
+      return
+    }
+    if (!selectedCustomTargets.some((item) => isSameSelection(item, selection))) {
+      setSelectedCustomTargets(getCustomGroupMembers(selection))
+    }
+  }, [selectedCustomTargets, selection])
+
+  useEffect(() => {
+    if (selection && ['eyebrow', 'headline', 'subhead', 'footer', 'custom-text'].includes(selection.kind) && selectedCustomTargets.length <= 1) return
     setInlineTextEditor(null)
-  }, [selection])
+  }, [selectedCustomTargets.length, selection])
+
+  useEffect(() => {
+    if (!inlineTextEditor || inlineTextEditor.mode !== 'rich' || !richTextEditorRef.current) return
+    const editorKey = `${inlineTextEditor.target.kind}:${inlineTextEditor.target.id}`
+    if (richTextEditorSeedRef.current !== editorKey) {
+      richTextEditorRef.current.innerHTML = inlineTextEditor.html || ''
+      richTextEditorSeedRef.current = editorKey
+    }
+    richTextEditorRef.current.style.height = 'auto'
+    richTextEditorRef.current.style.height = `${richTextEditorRef.current.scrollHeight}px`
+    richTextEditorRef.current.focus()
+    const selectionRange = document.createRange()
+    selectionRange.selectNodeContents(richTextEditorRef.current)
+    selectionRange.collapse(false)
+    const browserSelection = window.getSelection()
+    browserSelection?.removeAllRanges()
+    browserSelection?.addRange(selectionRange)
+  }, [inlineTextEditor])
+
+  useEffect(() => {
+    if (!scene) return
+    scene.customImages.forEach((item) => {
+      const node = customImageNodeRefs.current[item.id]
+      if (!node) return
+      const hasFilters = Boolean(item.grayscale || item.blurRadius || item.brightness)
+      if (hasFilters) {
+        node.cache()
+      } else {
+        node.clearCache()
+      }
+    })
+    stageRef.current?.getLayers().forEach((layer) => layer.batchDraw())
+  }, [customImages, scene])
+
+  useEffect(() => {
+    const handleWindowPointerDown = () => setContextMenu(null)
+    window.addEventListener('pointerdown', handleWindowPointerDown)
+    window.addEventListener('scroll', handleWindowPointerDown, true)
+    return () => {
+      window.removeEventListener('pointerdown', handleWindowPointerDown)
+      window.removeEventListener('scroll', handleWindowPointerDown, true)
+    }
+  }, [])
 
   const setSceneWithoutHistory = (nextScene: ExperimentalTownScene | null, side: MailSide = activeMailSide) => {
     skipHistoryRef.current = true
@@ -2168,16 +2510,21 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }))
   }
 
-  const addCustomRect = () => {
+  const addCustomRect = (shapeType: 'rect' | 'circle' | 'line' = 'rect') => {
     let nextID = ''
     updateScene((current) => {
       const nextRect = {
         id: createEditorNodeID('custom-rect'),
         x: 120,
         y: 120,
-        width: 320,
-        height: 56,
+        width: shapeType === 'line' ? 240 : 320,
+        height: shapeType === 'circle' ? 180 : shapeType === 'line' ? 120 : 56,
         fill: BRAND_RED,
+        fillEnabled: shapeType !== 'line',
+        opacity: 1,
+        shapeType,
+        strokeColor: shapeType === 'line' ? BRAND_RED : '#111827',
+        strokeWidth: shapeType === 'line' ? 8 : 0,
       }
       nextID = nextRect.id
       return {
@@ -2186,7 +2533,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         layers: appendEditorLayers(current.layers, [{ id: nextRect.id, kind: 'custom-rect', group: 'custom' }]),
       }
     })
-    if (nextID) setSelection({ kind: 'custom-rect', id: nextID })
+    if (nextID) handleCustomSelection({ kind: 'custom-rect', id: nextID })
   }
 
   const addCustomText = () => {
@@ -2199,11 +2546,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         width: 280,
         height: 96,
         text: 'Custom text',
+        html: '<p><strong>Custom text</strong></p>',
         fontSize: 28,
         color: '#111111',
+        opacity: 1,
         fontFamily: 'Arial',
         fontStyle: '700',
         lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
       }
       nextID = nextText.id
       return {
@@ -2212,7 +2563,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         layers: appendEditorLayers(current.layers, [{ id: nextText.id, kind: 'custom-text', group: 'custom' }]),
       }
     })
-    if (nextID) setSelection({ kind: 'custom-text', id: nextID })
+    if (nextID) handleCustomSelection({ kind: 'custom-text', id: nextID })
   }
 
   const addCustomImage = (mediaDoc: MediaDoc) => {
@@ -2227,6 +2578,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         y: 180,
         width: 240,
         height: 240,
+        opacity: 1,
         mediaID: mediaDoc.id,
         sourceUrl: rawUrl,
         alt: mediaDoc.alt || mediaDoc.title || mediaDoc.filename || 'Custom image',
@@ -2238,7 +2590,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         layers: appendEditorLayers(current.layers, [{ id: nextImage.id, kind: 'custom-image', group: 'custom' }]),
       }
     })
-    if (nextID) setSelection({ kind: 'custom-image', id: nextID })
+    if (nextID) handleCustomSelection({ kind: 'custom-image', id: nextID })
   }
 
   const updateCustomImage = (imageID: string, patch: Partial<CustomImageElement>) => {
@@ -2372,7 +2724,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     return current.footer
   }
 
-  const updateSelectedTextLayer = (target: TextSelection, patch: Partial<SceneTextElement | SubheadElement | FooterElement>) => {
+  const updateSelectedTextLayer = (target: TextSelection, patch: Partial<SceneTextElement | SubheadElement | FooterElement | CustomTextElement>) => {
     updateScene((current) => {
       if (target.kind === 'eyebrow') return { ...current, eyebrow: { ...current.eyebrow, ...patch } }
       if (target.kind === 'headline') return syncSubheadToHeadline({ ...current, headline: { ...current.headline, ...patch } })
@@ -2407,13 +2759,33 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (isLayerLocked(target.kind, target.id)) return
     const currentLayer = resolveTextLayer(currentScene, target)
     if (!currentLayer) return
-    setSelection(target)
-    setInlineTextEditor({ target, value: currentLayer.text || '' })
+    setPrimarySelection(target)
+    if (target.kind === 'custom-text') {
+      setInlineTextEditor({ target, mode: 'rich', html: getCustomTextHtml(currentLayer as CustomTextElement) })
+      return
+    }
+    setInlineTextEditor({ target, mode: 'plain', text: currentLayer.text || '' })
   }
 
   const commitInlineTextEdit = () => {
     if (!inlineTextEditor) return
-    updateSelectedTextLayer(inlineTextEditor.target, { text: inlineTextEditor.value })
+    if (inlineTextEditor.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text') {
+      const html = normalizeRichTextHtml(richTextEditorRef.current?.innerHTML || inlineTextEditor.html || '')
+      const text = stripHtml(html).replace(/\u00a0/g, ' ').trim() || 'Text'
+      const nextHeight =
+        richTextEditorRef.current?.scrollHeight != null
+          ? Math.max(72, Math.ceil(richTextEditorRef.current.scrollHeight / Math.max(previewScale, 0.01)))
+          : undefined
+      updateCustomText(inlineTextEditor.target.id, {
+        html,
+        text,
+        height: nextHeight,
+      })
+      richTextEditorSeedRef.current = null
+      setInlineTextEditor(null)
+      return
+    }
+    updateSelectedTextLayer(inlineTextEditor.target, { text: inlineTextEditor.text || '' })
     setInlineTextEditor(null)
   }
 
@@ -2584,91 +2956,153 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }, side)
     if (selectedID) {
       const isText = bundle.texts.some((item) => item.id === selectedID)
-      setSelection(isText ? { kind: 'custom-text', id: selectedID } : { kind: 'custom-rect', id: selectedID })
+      handleCustomSelection(isText ? { kind: 'custom-text', id: selectedID } : { kind: 'custom-rect', id: selectedID })
     }
     setMessage(`${component.label} inserted on ${side}`)
   }
 
+  const getActiveCustomSelections = () =>
+    selectedCustomTargets.length
+      ? selectedCustomTargets
+      : selection && (selection.kind === 'custom-image' || selection.kind === 'custom-rect' || selection.kind === 'custom-text')
+        ? [selection]
+        : []
+  const canUngroupSelectedCustomTargets = getActiveCustomSelections().some((target) => {
+    if (!scene) return false
+    if (target.kind === 'custom-image') return Boolean(scene.customImages.find((item) => item.id === target.id)?.groupID)
+    if (target.kind === 'custom-rect') return Boolean(scene.customRects.find((item) => item.id === target.id)?.groupID)
+    return Boolean(scene.customTexts.find((item) => item.id === target.id)?.groupID)
+  })
+
+  const groupSelectedCustomObjects = (side: MailSide = activeMailSide) => {
+    const targets = getActiveCustomSelections()
+    if (targets.length < 2) return false
+    const groupID = createEditorNodeID('custom-group')
+    const memberKeys = targets.map((target) => getSelectionKey(target))
+    updateScene(
+      (current) => ({
+        ...current,
+        customImages: current.customImages.map((item) =>
+          targets.some((target) => target.kind === 'custom-image' && target.id === item.id) ? { ...item, groupID } : item,
+        ),
+        customRects: current.customRects.map((item) =>
+          targets.some((target) => target.kind === 'custom-rect' && target.id === item.id) ? { ...item, groupID } : item,
+        ),
+        customTexts: current.customTexts.map((item) =>
+          targets.some((target) => target.kind === 'custom-text' && target.id === item.id) ? { ...item, groupID } : item,
+        ),
+        customGroups: [...current.customGroups.filter((group) => !memberKeys.some((key) => group.memberKeys.includes(key))), { id: groupID, memberKeys }],
+      }),
+      side,
+    )
+    return true
+  }
+
+  const ungroupSelectedCustomObjects = (side: MailSide = activeMailSide) => {
+    const currentScene = getActiveScene(side)
+    if (!currentScene) return false
+    const selectedGroupIDs = new Set(
+      getActiveCustomSelections()
+        .map((target) => {
+          if (target.kind === 'custom-image') return currentScene.customImages.find((item) => item.id === target.id)?.groupID
+          if (target.kind === 'custom-rect') return currentScene.customRects.find((item) => item.id === target.id)?.groupID
+          return currentScene.customTexts.find((item) => item.id === target.id)?.groupID
+        })
+        .filter((value): value is string => Boolean(value)),
+    )
+    if (!selectedGroupIDs.size) return false
+    updateScene(
+      (current) => ({
+        ...current,
+        customImages: current.customImages.map((item) => (item.groupID && selectedGroupIDs.has(item.groupID) ? { ...item, groupID: undefined } : item)),
+        customRects: current.customRects.map((item) => (item.groupID && selectedGroupIDs.has(item.groupID) ? { ...item, groupID: undefined } : item)),
+        customTexts: current.customTexts.map((item) => (item.groupID && selectedGroupIDs.has(item.groupID) ? { ...item, groupID: undefined } : item)),
+        customGroups: current.customGroups.filter((group) => !selectedGroupIDs.has(group.id)),
+      }),
+      side,
+    )
+    return true
+  }
+
   const duplicateSelectedCustomObject = (side: MailSide = activeMailSide) => {
     const currentScene = getActiveScene(side)
-    if (!currentScene || !selection) return false
+    const targets = getActiveCustomSelections()
+    if (!currentScene || !targets.length) return false
 
-    if (selection.kind === 'custom-rect') {
-      const current = currentScene.customRects.find((item) => item.id === selection.id)
-      if (!current) return false
-      const nextRect = duplicateRect(current)
-      updateScene((draft) => ({
+    const duplicated: CustomSelection[] = []
+    const nextGroupID = targets.length > 1 ? createEditorNodeID('custom-group') : undefined
+
+    updateScene((draft) => {
+      const nextRects = [...draft.customRects]
+      const nextTexts = [...draft.customTexts]
+      const nextImages = [...draft.customImages]
+      const nextLayers: Omit<EditorLayerItem, 'order'>[] = []
+
+      targets.forEach((target) => {
+        if (target.kind === 'custom-rect') {
+          const current = currentScene.customRects.find((item) => item.id === target.id)
+          if (!current) return
+          const nextRect = { ...duplicateRect(current), groupID: nextGroupID }
+          nextRects.push(nextRect)
+          nextLayers.push({ id: nextRect.id, kind: 'custom-rect', group: 'custom' })
+          duplicated.push({ kind: 'custom-rect', id: nextRect.id })
+          return
+        }
+
+        if (target.kind === 'custom-text') {
+          const current = currentScene.customTexts.find((item) => item.id === target.id)
+          if (!current) return
+          const nextText = { ...duplicateText(current), groupID: nextGroupID }
+          nextTexts.push(nextText)
+          nextLayers.push({ id: nextText.id, kind: 'custom-text', group: 'custom' })
+          duplicated.push({ kind: 'custom-text', id: nextText.id })
+          return
+        }
+
+        const current = currentScene.customImages.find((item) => item.id === target.id)
+        if (!current) return
+        const nextImage = { ...duplicateImage(current), groupID: nextGroupID }
+        nextImages.push(nextImage)
+        nextLayers.push({ id: nextImage.id, kind: 'custom-image', group: 'custom' })
+        duplicated.push({ kind: 'custom-image', id: nextImage.id })
+      })
+
+      return {
         ...draft,
-        customRects: [...draft.customRects, nextRect],
-        layers: appendEditorLayers(draft.layers, [{ id: nextRect.id, kind: 'custom-rect', group: 'custom' }]),
-      }), side)
-      setSelection({ kind: 'custom-rect', id: nextRect.id })
+        customRects: nextRects,
+        customTexts: nextTexts,
+        customImages: nextImages,
+        customGroups:
+          nextGroupID && duplicated.length > 1
+            ? [...draft.customGroups, { id: nextGroupID, memberKeys: duplicated.map((item) => getSelectionKey(item)) }]
+            : draft.customGroups,
+        layers: appendEditorLayers(draft.layers, nextLayers),
+      }
+    }, side)
+
+    if (duplicated.length) {
+      const primary = duplicated[0]
+      if (primary) setSelection(primary)
+      setSelectedCustomTargets(duplicated)
       return true
     }
-
-    if (selection.kind === 'custom-text') {
-      const current = currentScene.customTexts.find((item) => item.id === selection.id)
-      if (!current) return false
-      const nextText = duplicateText(current)
-      updateScene((draft) => ({
-        ...draft,
-        customTexts: [...draft.customTexts, nextText],
-        layers: appendEditorLayers(draft.layers, [{ id: nextText.id, kind: 'custom-text', group: 'custom' }]),
-      }), side)
-      setSelection({ kind: 'custom-text', id: nextText.id })
-      return true
-    }
-
-    if (selection.kind === 'custom-image') {
-      const current = currentScene.customImages.find((item) => item.id === selection.id)
-      if (!current) return false
-      const nextImage = duplicateImage(current)
-      updateScene((draft) => ({
-        ...draft,
-        customImages: [...draft.customImages, nextImage],
-        layers: appendEditorLayers(draft.layers, [{ id: nextImage.id, kind: 'custom-image', group: 'custom' }]),
-      }), side)
-      setSelection({ kind: 'custom-image', id: nextImage.id })
-      return true
-    }
-
     return false
   }
 
   const deleteSelectedCustomObject = (side: MailSide = activeMailSide) => {
-    if (!selection) return false
-
-    if (selection.kind === 'custom-rect') {
-      updateScene((current) => ({
-        ...current,
-        customRects: current.customRects.filter((item) => item.id !== selection.id),
-        layers: removeEditorLayers(current.layers, [{ id: selection.id, kind: 'custom-rect' }]),
-      }), side)
-      setSelection(null)
-      return true
-    }
-
-    if (selection.kind === 'custom-text') {
-      updateScene((current) => ({
-        ...current,
-        customTexts: current.customTexts.filter((item) => item.id !== selection.id),
-        layers: removeEditorLayers(current.layers, [{ id: selection.id, kind: 'custom-text' }]),
-      }), side)
-      setSelection(null)
-      return true
-    }
-
-    if (selection.kind === 'custom-image') {
-      updateScene((current) => ({
-        ...current,
-        customImages: current.customImages.filter((item) => item.id !== selection.id),
-        layers: removeEditorLayers(current.layers, [{ id: selection.id, kind: 'custom-image' }]),
-      }), side)
-      setSelection(null)
-      return true
-    }
-
-    return false
+    const targets = getActiveCustomSelections()
+    if (!targets.length) return false
+    const targetKeys = new Set(targets.map((target) => getSelectionKey(target)))
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.filter((item) => !targetKeys.has(`custom-rect:${item.id}`)),
+      customTexts: current.customTexts.filter((item) => !targetKeys.has(`custom-text:${item.id}`)),
+      customImages: current.customImages.filter((item) => !targetKeys.has(`custom-image:${item.id}`)),
+      customGroups: current.customGroups.filter((group) => !group.memberKeys.some((key) => targetKeys.has(key))),
+      layers: removeEditorLayers(current.layers, targets.map((target) => ({ id: target.id, kind: target.kind }))),
+    }), side)
+    setPrimarySelection(null)
+    return true
   }
 
   const copySelectedCustomObject = (side: MailSide = activeMailSide) => {
@@ -2711,7 +3145,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         layers: appendEditorLayers(current.layers, [{ id: nextRect.id, kind: 'custom-rect', group: 'custom' }]),
       }), side)
       setEditorClipboard({ kind: 'custom-rect', payload: nextRect })
-      setSelection({ kind: 'custom-rect', id: nextRect.id })
+      handleCustomSelection({ kind: 'custom-rect', id: nextRect.id })
       return true
     }
 
@@ -2723,7 +3157,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         layers: appendEditorLayers(current.layers, [{ id: nextText.id, kind: 'custom-text', group: 'custom' }]),
       }), side)
       setEditorClipboard({ kind: 'custom-text', payload: nextText })
-      setSelection({ kind: 'custom-text', id: nextText.id })
+      handleCustomSelection({ kind: 'custom-text', id: nextText.id })
       return true
     }
 
@@ -2735,7 +3169,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         layers: appendEditorLayers(current.layers, [{ id: nextImage.id, kind: 'custom-image', group: 'custom' }]),
       }), side)
       setEditorClipboard({ kind: 'custom-image', payload: nextImage })
-      setSelection({ kind: 'custom-image', id: nextImage.id })
+      handleCustomSelection({ kind: 'custom-image', id: nextImage.id })
       return true
     }
 
@@ -2743,31 +3177,124 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const nudgeSelectedObject = (deltaX: number, deltaY: number, side: MailSide = activeMailSide) => {
-    if (!selection) return false
-    if (isLayerLocked(selection.kind, selection.id)) return false
+    const targets = getActiveCustomSelections()
+    if (!targets.length) return false
+    if (targets.some((target) => isLayerLocked(target.kind, target.id))) return false
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.map((item) =>
+        targets.some((target) => target.kind === 'custom-rect' && target.id === item.id)
+          ? { ...item, x: item.x + deltaX, y: item.y + deltaY }
+          : item,
+      ),
+      customTexts: current.customTexts.map((item) =>
+        targets.some((target) => target.kind === 'custom-text' && target.id === item.id)
+          ? { ...item, x: item.x + deltaX, y: item.y + deltaY }
+          : item,
+      ),
+      customImages: current.customImages.map((item) =>
+        targets.some((target) => target.kind === 'custom-image' && target.id === item.id)
+          ? { ...item, x: item.x + deltaX, y: item.y + deltaY }
+          : item,
+      ),
+    }), side)
+    return true
+  }
 
-    if (selection.kind === 'custom-rect') {
-      const current = getActiveScene(side)?.customRects.find((item) => item.id === selection.id)
-      if (!current) return false
-      updateCustomRect(selection.id, { x: current.x + deltaX, y: current.y + deltaY })
-      return true
+  const openContextMenu = (
+    event: { clientX: number; clientY: number; preventDefault: () => void; stopPropagation?: () => void },
+    nextSelection?: Selection,
+  ) => {
+    event.preventDefault()
+    event.stopPropagation?.()
+    if (nextSelection) {
+      if (nextSelection.kind === 'custom-image' || nextSelection.kind === 'custom-rect' || nextSelection.kind === 'custom-text') {
+        if (!selectedCustomTargets.some((item) => isSameSelection(item, nextSelection))) {
+          handleCustomSelection(nextSelection)
+        }
+      } else {
+        setPrimarySelection(nextSelection)
+      }
+    }
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+    })
+  }
+
+  const beginCustomDrag = (target: CustomSelection) => {
+    const targets = selectedCustomTargets.some((item) => isSameSelection(item, target)) ? selectedCustomTargets : [target]
+    const currentScene = getActiveScene()
+    if (!currentScene || targets.length <= 1) {
+      dragSelectionSnapshotRef.current = null
+      return
+    }
+    const snapshot: Record<string, { x: number; y: number }> = {}
+    targets.forEach((item) => {
+      if (item.kind === 'custom-image') {
+        const current = currentScene.customImages.find((entry) => entry.id === item.id)
+        if (current) snapshot[getSelectionKey(item)] = { x: current.x, y: current.y }
+        return
+      }
+      if (item.kind === 'custom-rect') {
+        const current = currentScene.customRects.find((entry) => entry.id === item.id)
+        if (current) snapshot[getSelectionKey(item)] = { x: current.x, y: current.y }
+        return
+      }
+      const current = currentScene.customTexts.find((entry) => entry.id === item.id)
+      if (current) snapshot[getSelectionKey(item)] = { x: current.x, y: current.y }
+    })
+    dragSelectionSnapshotRef.current = snapshot
+  }
+
+  const finishCustomDrag = (target: CustomSelection, x: number, y: number, side: MailSide = activeMailSide) => {
+    const snapshot = dragSelectionSnapshotRef.current
+    dragSelectionSnapshotRef.current = null
+    const currentScene = getActiveScene(side)
+    if (!currentScene) return
+
+    const currentSource =
+      target.kind === 'custom-image'
+        ? currentScene.customImages.find((item) => item.id === target.id)
+        : target.kind === 'custom-rect'
+          ? currentScene.customRects.find((item) => item.id === target.id)
+          : currentScene.customTexts.find((item) => item.id === target.id)
+    if (!currentSource) return
+
+    if (!snapshot || selectedCustomTargets.length <= 1 || !selectedCustomTargets.some((item) => isSameSelection(item, target))) {
+      if (target.kind === 'custom-image') updateCustomImage(target.id, { x, y })
+      else if (target.kind === 'custom-rect') updateCustomRect(target.id, { x, y })
+      else updateCustomText(target.id, { x, y })
+      return
     }
 
-    if (selection.kind === 'custom-text') {
-      const current = getActiveScene(side)?.customTexts.find((item) => item.id === selection.id)
-      if (!current) return false
-      updateCustomText(selection.id, { x: current.x + deltaX, y: current.y + deltaY })
-      return true
-    }
+    const sourcePosition = snapshot[getSelectionKey(target)]
+    if (!sourcePosition) return
+    const deltaX = x - sourcePosition.x
+    const deltaY = y - sourcePosition.y
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.map((item) => {
+        const original = snapshot[`custom-rect:${item.id}`]
+        return original ? { ...item, x: original.x + deltaX, y: original.y + deltaY } : item
+      }),
+      customTexts: current.customTexts.map((item) => {
+        const original = snapshot[`custom-text:${item.id}`]
+        return original ? { ...item, x: original.x + deltaX, y: original.y + deltaY } : item
+      }),
+      customImages: current.customImages.map((item) => {
+        const original = snapshot[`custom-image:${item.id}`]
+        return original ? { ...item, x: original.x + deltaX, y: original.y + deltaY } : item
+      }),
+    }), side)
+  }
 
-    if (selection.kind === 'custom-image') {
-      const current = getActiveScene(side)?.customImages.find((item) => item.id === selection.id)
-      if (!current) return false
-      updateCustomImage(selection.id, { x: current.x + deltaX, y: current.y + deltaY })
-      return true
-    }
-
-    return false
+  const toggleSelectedImageGrayscale = () => {
+    if (selection?.kind !== 'custom-image') return false
+    const current = getActiveScene()?.customImages.find((item) => item.id === selection.id)
+    if (!current) return false
+    updateCustomImage(selection.id, { grayscale: !current.grayscale })
+    return true
   }
 
   const buildTemplatePayload = () => {
@@ -3382,19 +3909,59 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       <span style={fieldLabelStyle}>Height</span>
                       <input type="number" value={Math.round(selectedCustomImage.height)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { height: Math.max(20, Number(event.target.value) || selectedCustomImage.height) })} style={controlStyle} />
                     </label>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Rotation</span>
-                      <input type="number" step={0.1} value={selectedCustomImage.rotation || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
-                    </label>
-                  </div>
-                )
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Rotation</span>
+                        <input type="number" step={0.1} value={selectedCustomImage.rotation || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Opacity</span>
+                        <input type="number" min={0} max={1} step={0.05} value={selectedCustomImage.opacity ?? 1} onChange={(event) => updateCustomImage(selectedCustomImage.id, { opacity: clamp(Number(event.target.value) || 0, 0, 1) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Blur</span>
+                        <input type="number" min={0} max={40} step={1} value={selectedCustomImage.blurRadius || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { blurRadius: Math.max(0, Number(event.target.value) || 0) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Brightness</span>
+                        <input type="number" min={-1} max={1} step={0.05} value={selectedCustomImage.brightness || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { brightness: clamp(Number(event.target.value) || 0, -1, 1) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input type="checkbox" checked={Boolean(selectedCustomImage.grayscale)} onChange={(event) => updateCustomImage(selectedCustomImage.id, { grayscale: event.target.checked })} />
+                        <span style={fieldLabelStyle}>Grayscale</span>
+                      </label>
+                      {isSuperAdmin ? (
+                        <>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>Shadow color</span>
+                            <input type="color" value={selectedCustomImage.shadowColor || '#000000'} onChange={(event) => updateCustomImage(selectedCustomImage.id, { shadowColor: event.target.value })} style={{ ...controlStyle, minHeight: 44, padding: 6 }} />
+                          </label>
+                          <label style={{ display: 'grid', gap: 6 }}>
+                            <span style={fieldLabelStyle}>Shadow blur</span>
+                            <input type="number" min={0} max={40} step={1} value={selectedCustomImage.shadowBlur || 0} onChange={(event) => updateCustomImage(selectedCustomImage.id, { shadowBlur: Math.max(0, Number(event.target.value) || 0) })} style={controlStyle} />
+                          </label>
+                        </>
+                      ) : null}
+                    </div>
+                  )
                 : selection?.kind === 'custom-rect' && selectedCustomRect
                 ? (
                     <div style={slotCardStyle}>
                       <strong style={{ fontSize: 13 }}>Selected: Rectangle</strong>
                       <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Shape</span>
+                        <select value={selectedCustomRect.shapeType || 'rect'} onChange={(event) => updateCustomRect(selectedCustomRect.id, { shapeType: event.target.value as 'rect' | 'circle' | 'line' })} style={controlStyle}>
+                          <option value="rect">Rectangle</option>
+                          <option value="circle">Circle</option>
+                          <option value="line">Line</option>
+                        </select>
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>Fill</span>
                         <input value={selectedCustomRect.fill} onChange={(event) => updateCustomRect(selectedCustomRect.id, { fill: event.target.value })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input type="checkbox" checked={selectedCustomRect.fillEnabled !== false} onChange={(event) => updateCustomRect(selectedCustomRect.id, { fillEnabled: event.target.checked })} />
+                        <span style={fieldLabelStyle}>Fill enabled</span>
                       </label>
                       <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>X</span>
@@ -3412,19 +3979,51 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         <span style={fieldLabelStyle}>Height</span>
                         <input type="number" value={Math.round(selectedCustomRect.height)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { height: Number(event.target.value) || selectedCustomRect.height })} style={controlStyle} />
                       </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Opacity</span>
+                        <input type="number" min={0} max={1} step={0.05} value={selectedCustomRect.opacity ?? 1} onChange={(event) => updateCustomRect(selectedCustomRect.id, { opacity: clamp(Number(event.target.value) || 0, 0, 1) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Rotation</span>
+                        <input type="number" step={0.1} value={selectedCustomRect.rotation || 0} onChange={(event) => updateCustomRect(selectedCustomRect.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Stroke color</span>
+                        <input type="color" value={selectedCustomRect.strokeColor || '#111827'} onChange={(event) => updateCustomRect(selectedCustomRect.id, { strokeColor: event.target.value })} style={{ ...controlStyle, minHeight: 44, padding: 6 }} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Stroke width</span>
+                        <input type="number" min={0} max={40} step={1} value={selectedCustomRect.strokeWidth || 0} onChange={(event) => updateCustomRect(selectedCustomRect.id, { strokeWidth: Math.max(0, Number(event.target.value) || 0) })} style={controlStyle} />
+                      </label>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>Dash</span>
+                        <select value={selectedCustomRect.dashStyle || 'solid'} onChange={(event) => updateCustomRect(selectedCustomRect.id, { dashStyle: event.target.value as 'solid' | 'dashed' | 'dotted' })} style={controlStyle}>
+                          <option value="solid">Solid</option>
+                          <option value="dashed">Dashed</option>
+                          <option value="dotted">Dotted</option>
+                        </select>
+                      </label>
                     </div>
                   )
                 : selection?.kind === 'custom-text' && selectedCustomText
                   ? (
                     <div style={slotCardStyle}>
                       <strong style={{ fontSize: 13 }}>Selected: Text Box</strong>
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <Button
+                            onClick={() => beginInlineTextEdit({ kind: 'custom-text', id: selectedCustomText.id })}
+                            buttonStyle="secondary"
+                          >
+                            Edit rich text
+                          </Button>
+                        </div>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Rotation</span>
                           <input type="number" step={0.1} value={selectedCustomText.rotation || 0} onChange={(event) => updateCustomText(selectedCustomText.id, { rotation: Number(event.target.value) || 0 })} style={controlStyle} />
                         </label>
                         <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Text</span>
-                          <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value })} style={{ ...controlStyle, resize: 'vertical', minHeight: 120 }} />
+                          <span style={fieldLabelStyle}>Plain text fallback</span>
+                          <textarea value={selectedCustomText.text} onChange={(event) => updateCustomText(selectedCustomText.id, { text: event.target.value, html: undefined })} style={{ ...controlStyle, resize: 'vertical', minHeight: 120 }} />
                         </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>X</span>
@@ -3442,11 +4041,35 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         <span style={fieldLabelStyle}>Height</span>
                         <input type="number" value={Math.round(selectedCustomText.height || measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Math.max(measureCustomTextHeight(selectedCustomText), Number(event.target.value) || selectedCustomText.height || 0) })} style={controlStyle} />
                       </label>
-                      <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={fieldLabelStyle}>Font size</span>
-                        <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
-                      </label>
-                    </div>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Font size</span>
+                          <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Opacity</span>
+                          <input type="number" min={0} max={1} step={0.05} value={selectedCustomText.opacity ?? 1} onChange={(event) => updateCustomText(selectedCustomText.id, { opacity: clamp(Number(event.target.value) || 0, 0, 1) })} style={controlStyle} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Outline color</span>
+                          <input type="color" value={selectedCustomText.strokeColor || '#ffffff'} onChange={(event) => updateCustomText(selectedCustomText.id, { strokeColor: event.target.value })} style={{ ...controlStyle, minHeight: 44, padding: 6 }} />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Outline width</span>
+                          <input type="number" min={0} max={12} step={0.5} value={selectedCustomText.strokeWidth || 0} onChange={(event) => updateCustomText(selectedCustomText.id, { strokeWidth: Math.max(0, Number(event.target.value) || 0) })} style={controlStyle} />
+                        </label>
+                        {isSuperAdmin ? (
+                          <>
+                            <label style={{ display: 'grid', gap: 6 }}>
+                              <span style={fieldLabelStyle}>Shadow color</span>
+                              <input type="color" value={selectedCustomText.shadowColor || '#000000'} onChange={(event) => updateCustomText(selectedCustomText.id, { shadowColor: event.target.value })} style={{ ...controlStyle, minHeight: 44, padding: 6 }} />
+                            </label>
+                            <label style={{ display: 'grid', gap: 6 }}>
+                              <span style={fieldLabelStyle}>Shadow blur</span>
+                              <input type="number" min={0} max={40} step={1} value={selectedCustomText.shadowBlur || 0} onChange={(event) => updateCustomText(selectedCustomText.id, { shadowBlur: Math.max(0, Number(event.target.value) || 0) })} style={controlStyle} />
+                            </label>
+                          </>
+                        ) : null}
+                      </div>
                     )
                   : selection?.kind === 'town' && selectedTownRow
                   ? (
@@ -3473,8 +4096,41 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   : null
 
   const selectedTextLayer = selectedTextTarget ? resolveSelectedTextLayer(scene, selectedTextTarget) : null
-  const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer && !selectedLayer?.locked)
+  const isRichTextEditing = Boolean(inlineTextEditor?.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text')
+  const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer && !selectedLayer?.locked && selectedCustomTargets.length <= 1)
   const selectedTextFontFlags = getFontStyleFlags(selectedTextLayer?.fontStyle)
+  const saveRichTextSelection = () => {
+    const selection = window.getSelection()
+    if (!selection || !selection.rangeCount || !richTextEditorRef.current) return
+    const range = selection.getRangeAt(0)
+    if (!richTextEditorRef.current.contains(range.commonAncestorContainer)) return
+    richTextSelectionRef.current = range.cloneRange()
+  }
+  const restoreRichTextSelection = () => {
+    if (!richTextSelectionRef.current) return
+    const selection = window.getSelection()
+    if (!selection) return
+    selection.removeAllRanges()
+    selection.addRange(richTextSelectionRef.current)
+  }
+  const applyRichTextSelectionStyle = (styles: Record<string, string>) => {
+    if (!isRichTextEditing || !richTextEditorRef.current) return
+    restoreRichTextSelection()
+    const selection = window.getSelection()
+    if (!selection || !selection.rangeCount) return
+    const range = selection.getRangeAt(0)
+    if (!richTextEditorRef.current.contains(range.commonAncestorContainer) || range.collapsed) return
+    const span = document.createElement('span')
+    Object.assign(span.style, styles)
+    span.appendChild(range.extractContents())
+    range.insertNode(span)
+    const nextRange = document.createRange()
+    nextRange.selectNodeContents(span)
+    selection.removeAllRanges()
+    selection.addRange(nextRange)
+    richTextSelectionRef.current = nextRange.cloneRange()
+    richTextEditorRef.current.focus()
+  }
   const applySelectedTextFormatting = (
     patch: Partial<SceneTextElement | SubheadElement | FooterElement | CustomTextElement>,
   ) => {
@@ -3482,6 +4138,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     updateSelectedTextLayer(selectedTextTarget, patch)
   }
   const toggleSelectedTextBold = () => {
+    if (isRichTextEditing) {
+      runRichTextCommand('bold')
+      return
+    }
     if (!selectedTextLayer) return
     applySelectedTextFormatting({
       fontStyle: buildFontStyle({
@@ -3491,6 +4151,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     })
   }
   const toggleSelectedTextItalic = () => {
+    if (isRichTextEditing) {
+      runRichTextCommand('italic')
+      return
+    }
     if (!selectedTextLayer) return
     applySelectedTextFormatting({
       fontStyle: buildFontStyle({
@@ -3498,6 +4162,31 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         italic: !selectedTextFontFlags.italic,
       }),
     })
+  }
+  const transformSelectedTextCase = (mode: 'upper' | 'lower' | 'title') => {
+    if (isRichTextEditing && richTextEditorRef.current) {
+      restoreRichTextSelection()
+      const selection = window.getSelection()
+      if (!selection || !selection.rangeCount) return
+      const range = selection.getRangeAt(0)
+      if (!richTextEditorRef.current.contains(range.commonAncestorContainer) || range.collapsed) return
+      const text = range.toString()
+      const nextText =
+        mode === 'upper' ? text.toUpperCase() : mode === 'lower' ? text.toLowerCase() : toTitleCase(text)
+      range.deleteContents()
+      range.insertNode(document.createTextNode(nextText))
+      saveRichTextSelection()
+      return
+    }
+    if (!selectedTextLayer) return
+    if (selectedTextTarget?.kind === 'custom-text' && selectedCustomText?.html) return
+    const nextText =
+      mode === 'upper'
+        ? selectedTextLayer.text.toUpperCase()
+        : mode === 'lower'
+          ? selectedTextLayer.text.toLowerCase()
+          : toTitleCase(selectedTextLayer.text)
+    applySelectedTextFormatting({ text: nextText })
   }
   const selectedTextInspectorPanel = selectedTextLayer ? (
     <div style={slotCardStyle}>
@@ -3515,6 +4204,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           onClick={() => applySelectedTextFormatting({ textDecoration: selectedTextLayer.textDecoration === 'underline' ? 'none' : 'underline' })}
         >
           Underline
+        </button>
+        <button type="button" style={toolbarButtonStyle} onClick={() => transformSelectedTextCase('upper')}>
+          UPPER
+        </button>
+        <button type="button" style={toolbarButtonStyle} onClick={() => transformSelectedTextCase('lower')}>
+          lower
+        </button>
+        <button type="button" style={toolbarButtonStyle} onClick={() => transformSelectedTextCase('title')}>
+          Title
         </button>
       </div>
       <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
@@ -3594,6 +4292,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       </div>
     </div>
   ) : null
+  const runRichTextCommand = (command: string, value?: string) => {
+    if (!inlineTextEditor || inlineTextEditor.mode !== 'rich') return
+    restoreRichTextSelection()
+    document.execCommand(command, false, value)
+    saveRichTextSelection()
+    richTextEditorRef.current?.focus()
+  }
   const stageOffsetX = Math.max(0, (stageContainerWidth - previewWidth) / 2)
   const inlineEditorBox =
     inlineTextEditor
@@ -3615,12 +4320,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               ? Math.max(180, measureHeadlineHeight(scene.headline) * previewScale)
               : inlineTextEditor.target.kind === 'subhead'
                 ? Math.max(88, ((scene.subhead.fontSize || 28) + 28) * previewScale)
+                : inlineTextEditor.target.kind === 'custom-text'
+                  ? Math.max(72, Math.round(((currentLayer as CustomTextElement).height || measureCustomTextHeight(currentLayer as CustomTextElement)) * previewScale))
                 : Math.max(96, Math.max(72, ((currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4) * previewScale))
           return {
             left: stageOffsetX + currentLayer.x * previewScale,
             top: currentLayer.y * previewScale,
             width,
             height,
+            rotation: inlineTextEditor.target.kind === 'custom-text' ? ((currentLayer as CustomTextElement).rotation || 0) : 0,
           }
         })()
       : null
@@ -3770,6 +4478,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     const rotation = item.rotation || 0
     const hidden = isLayerHidden('custom-image', item.id)
     const locked = isLayerLocked('custom-image', item.id)
+    const filters = [
+      ...(item.grayscale ? [Konva.Filters.Grayscale] : []),
+      ...(item.blurRadius ? [Konva.Filters.Blur] : []),
+      ...(typeof item.brightness === 'number' && item.brightness !== 0 ? [Konva.Filters.Brighten] : []),
+    ]
     if (hidden) return null
 
     return (
@@ -3783,20 +4496,25 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         offsetX={item.width / 2}
         offsetY={item.height / 2}
         rotation={rotation}
+        opacity={item.opacity ?? 1}
+        shadowBlur={item.shadowBlur || 0}
+        shadowColor={item.shadowColor}
+        shadowOffsetX={item.shadowOffsetX || 0}
+        shadowOffsetY={item.shadowOffsetY || 0}
+        shadowOpacity={item.shadowOpacity || 0}
         draggable={!locked}
+        onDragStart={() => beginCustomDrag({ kind: 'custom-image', id: item.id })}
         onDragEnd={(event) => {
           if (locked) return
           const node = event.target
-          setSelection({ kind: 'custom-image', id: item.id })
-          updateCustomImage(item.id, {
-            x: node.x() - item.width / 2,
-            y: node.y() - item.height / 2,
-          })
+          handleCustomSelection({ kind: 'custom-image', id: item.id })
+          finishCustomDrag({ kind: 'custom-image', id: item.id }, node.x() - item.width / 2, node.y() - item.height / 2)
         }}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
           if (locked) return
-          setSelection({ kind: 'custom-image', id: item.id })
+          handleCustomSelection({ kind: 'custom-image', id: item.id }, event.evt.shiftKey || event.evt.metaKey || event.evt.ctrlKey)
         }}
+        onContextMenu={(event) => openContextMenu(event.evt, { kind: 'custom-image', id: item.id })}
         onTransformEnd={(event) => {
           if (locked) return
           const node = event.target
@@ -3816,11 +4534,21 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           })
         }}
       >
-        {selection?.kind === 'custom-image' && selection.id === item.id ? (
+        {selectedCustomKeys.has(`custom-image:${item.id}`) ? (
           <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
         ) : null}
         {customImages[item.id] ? (
-          <KonvaImage image={customImages[item.id] || undefined} width={item.width} height={item.height} />
+          <KonvaImage
+            ref={(node) => {
+              customImageNodeRefs.current[item.id] = node
+            }}
+            image={customImages[item.id] || undefined}
+            width={item.width}
+            height={item.height}
+            filters={filters}
+            blurRadius={item.blurRadius || 0}
+            brightness={item.brightness || 0}
+          />
         ) : (
           <Rect width={item.width} height={item.height} fill="#e2e8f0" stroke="#94a3b8" dash={[8, 4]} />
         )}
@@ -3829,10 +4557,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const renderCustomTextNode = (item: CustomTextElement) => {
-    const textHeight = measureCustomTextHeight(item)
+    const textHeight = Math.max(1, Math.round(item.height || measureCustomTextHeight(item)))
     const rotation = item.rotation || 0
     const hidden = isLayerHidden('custom-text', item.id)
     const locked = isLayerLocked('custom-text', item.id)
+    const isEditingThisText = inlineTextEditor?.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text' && inlineTextEditor.target.id === item.id
     if (hidden) return null
 
     return (
@@ -3846,20 +4575,25 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         offsetX={item.width / 2}
         offsetY={textHeight / 2}
         rotation={rotation}
+        opacity={item.opacity ?? 1}
+        shadowBlur={item.shadowBlur || 0}
+        shadowColor={item.shadowColor}
+        shadowOffsetX={item.shadowOffsetX || 0}
+        shadowOffsetY={item.shadowOffsetY || 0}
+        shadowOpacity={item.shadowOpacity || 0}
         draggable={!locked}
+        onDragStart={() => beginCustomDrag({ kind: 'custom-text', id: item.id })}
         onDragEnd={(event) => {
           if (locked) return
           const node = event.target
-          setSelection({ kind: 'custom-text', id: item.id })
-          updateCustomText(item.id, {
-            x: node.x() - item.width / 2,
-            y: node.y() - textHeight / 2,
-          })
+          handleCustomSelection({ kind: 'custom-text', id: item.id })
+          finishCustomDrag({ kind: 'custom-text', id: item.id }, node.x() - item.width / 2, node.y() - textHeight / 2)
         }}
-        onMouseDown={() => {
+        onMouseDown={(event) => {
           if (locked) return
-          setSelection({ kind: 'custom-text', id: item.id })
+          handleCustomSelection({ kind: 'custom-text', id: item.id }, event.evt.shiftKey || event.evt.metaKey || event.evt.ctrlKey)
         }}
+        onContextMenu={(event) => openContextMenu(event.evt, { kind: 'custom-text', id: item.id })}
         onTransformStart={() => setIsResizingHeadline(true)}
         onTransformEnd={(event) => {
           if (locked) return
@@ -3899,26 +4633,40 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           setIsResizingHeadline(false)
         }}
       >
-        {selection?.kind === 'custom-text' && selection.id === item.id ? (
+        {selectedCustomKeys.has(`custom-text:${item.id}`) ? (
           <Rect x={-8} y={-8} width={item.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
         ) : null}
-        <Text
-          width={item.width}
-          height={textHeight}
-          text={item.text}
-          align={item.textAlign || 'left'}
-          fontFamily={item.fontFamily || 'Arial'}
-          fontSize={item.fontSize}
-          fontStyle={item.fontStyle}
-          fill={item.color}
-          letterSpacing={item.letterSpacing || 0}
-          lineHeight={item.lineHeight || 1.1}
-          textDecoration={item.textDecoration}
-          onDblClick={() => {
-            if (locked) return
-            beginInlineTextEdit({ kind: 'custom-text', id: item.id })
-          }}
-        />
+        {!isEditingThisText && customTextRenderImages[item.id] ? (
+          <KonvaImage
+            image={customTextRenderImages[item.id] || undefined}
+            width={item.width}
+            height={textHeight}
+            onDblClick={() => {
+              if (locked) return
+              beginInlineTextEdit({ kind: 'custom-text', id: item.id })
+            }}
+          />
+        ) : !isEditingThisText ? (
+          <Text
+            width={item.width}
+            height={textHeight}
+            text={item.text}
+            align={item.textAlign || 'left'}
+            fontFamily={item.fontFamily || 'Arial'}
+            fontSize={item.fontSize}
+            fontStyle={item.fontStyle}
+            fill={item.color}
+            stroke={item.strokeWidth ? item.strokeColor || '#ffffff' : undefined}
+            strokeWidth={item.strokeWidth || 0}
+            letterSpacing={item.letterSpacing || 0}
+            lineHeight={item.lineHeight || 1.1}
+            textDecoration={item.textDecoration}
+            onDblClick={() => {
+              if (locked) return
+              beginInlineTextEdit({ kind: 'custom-text', id: item.id })
+            }}
+          />
+        ) : null}
       </Group>
     )
   }
@@ -3936,6 +4684,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const customRect = scene?.customRects.find((entry) => entry.id === item.id)
           if (!customRect || isLayerHidden('custom-rect', customRect.id)) return null
           const locked = isLayerLocked('custom-rect', customRect.id)
+          const dash = getDashPattern(customRect.dashStyle)
+          const shapeType = customRect.shapeType || 'rect'
           return (
             <Group
               key={customRect.id}
@@ -3944,30 +4694,69 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               }}
               x={customRect.x}
               y={customRect.y}
+              rotation={customRect.rotation || 0}
+              opacity={customRect.opacity ?? 1}
+              shadowBlur={customRect.shadowBlur || 0}
+              shadowColor={customRect.shadowColor}
+              shadowOffsetX={customRect.shadowOffsetX || 0}
+              shadowOffsetY={customRect.shadowOffsetY || 0}
+              shadowOpacity={customRect.shadowOpacity || 0}
               draggable={!locked}
+              onDragStart={() => beginCustomDrag({ kind: 'custom-rect', id: customRect.id })}
               onDragEnd={(event) => {
                 if (locked) return
-                setSelection({ kind: 'custom-rect', id: customRect.id })
-                updateCustomRect(customRect.id, { x: event.target.x(), y: event.target.y() })
+                handleCustomSelection({ kind: 'custom-rect', id: customRect.id })
+                finishCustomDrag({ kind: 'custom-rect', id: customRect.id }, event.target.x(), event.target.y())
               }}
-              onMouseDown={() => {
+              onMouseDown={(event) => {
                 if (locked) return
-                setSelection({ kind: 'custom-rect', id: customRect.id })
+                handleCustomSelection({ kind: 'custom-rect', id: customRect.id }, event.evt.shiftKey || event.evt.metaKey || event.evt.ctrlKey)
               }}
+              onContextMenu={(event) => openContextMenu(event.evt, { kind: 'custom-rect', id: customRect.id })}
               onTransformEnd={(event) => {
                 if (locked) return
                 const node = event.target
                 const nextWidth = Math.max(40, Math.round(customRect.width * node.scaleX()))
-                const nextHeight = Math.max(20, Math.round(customRect.height * node.scaleY()))
+                const nextHeight = shapeType === 'line' ? Math.round(customRect.height * node.scaleY()) : Math.max(20, Math.round(customRect.height * node.scaleY()))
+                const nextRotation = Number(node.rotation().toFixed(1))
                 node.scaleX(1)
                 node.scaleY(1)
-                updateCustomRect(customRect.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
+                updateCustomRect(customRect.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, rotation: nextRotation })
               }}
             >
-              {selection?.kind === 'custom-rect' && selection.id === customRect.id ? (
+              {selectedCustomKeys.has(`custom-rect:${customRect.id}`) ? (
                 <Rect x={-8} y={-8} width={customRect.width + 16} height={customRect.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
               ) : null}
-              <Rect width={customRect.width} height={customRect.height} fill={customRect.fill} cornerRadius={8} />
+              {shapeType === 'circle' ? (
+                <Circle
+                  x={customRect.width / 2}
+                  y={customRect.height / 2}
+                  radius={Math.max(4, Math.min(customRect.width, customRect.height) / 2)}
+                  fill={customRect.fillEnabled === false ? undefined : customRect.fill}
+                  stroke={customRect.strokeColor}
+                  strokeWidth={customRect.strokeWidth || 0}
+                  dash={dash}
+                />
+              ) : shapeType === 'line' ? (
+                <Line
+                  points={[0, 0, customRect.width, customRect.height]}
+                  stroke={customRect.strokeColor || customRect.fill}
+                  strokeWidth={customRect.strokeWidth || 8}
+                  dash={dash}
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              ) : (
+                <Rect
+                  width={customRect.width}
+                  height={customRect.height}
+                  fill={customRect.fillEnabled === false ? undefined : customRect.fill}
+                  stroke={customRect.strokeColor}
+                  strokeWidth={customRect.strokeWidth || 0}
+                  dash={dash}
+                  cornerRadius={8}
+                />
+              )}
             </Group>
           )
         }
@@ -4004,7 +4793,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setSelection(null)
+              setPrimarySelection(null)
               setInlineTextEditor(null)
               setActiveMailSide('front')
             }}
@@ -4015,7 +4804,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <button
             type="button"
             onClick={() => {
-              setSelection(null)
+              setPrimarySelection(null)
               setInlineTextEditor(null)
               setActiveMailSide('back')
             }}
@@ -4231,12 +5020,30 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <Button
                 onClick={() => {
-                  addCustomRect()
+                  addCustomRect('rect')
                   setMessage('Added rectangle')
                 }}
                 buttonStyle="secondary"
               >
                 Add Rectangle
+              </Button>
+              <Button
+                onClick={() => {
+                  addCustomRect('circle')
+                  setMessage('Added circle')
+                }}
+                buttonStyle="secondary"
+              >
+                Add Circle
+              </Button>
+              <Button
+                onClick={() => {
+                  addCustomRect('line')
+                  setMessage('Added line')
+                }}
+                buttonStyle="secondary"
+              >
+                Add Line
               </Button>
               <Button
                 onClick={() => {
@@ -4393,7 +5200,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           </summary>
           <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
             {layerPanelItems.map(({ item, label, reorderable }) => {
-              const isSelected = selection?.kind === item.kind && selection.id === item.id
+              const isSelected =
+                item.kind === 'custom-image' || item.kind === 'custom-rect' || item.kind === 'custom-text'
+                  ? selectedCustomKeys.has(`${item.kind}:${item.id}`)
+                  : selection?.kind === item.kind && selection.id === item.id
               return (
                 <div
                   key={`${item.kind}:${item.id}`}
@@ -4410,7 +5220,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 >
                   <button
                     type="button"
-                    onClick={() => setSelection({ kind: item.kind, id: item.id } as Exclude<Selection, null>)}
+                    onClick={() => {
+                      const nextSelection = { kind: item.kind, id: item.id } as Exclude<Selection, null>
+                      if (nextSelection.kind === 'custom-image' || nextSelection.kind === 'custom-rect' || nextSelection.kind === 'custom-text') {
+                        handleCustomSelection(nextSelection)
+                      } else {
+                        setPrimarySelection(nextSelection)
+                      }
+                    }}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -4476,6 +5293,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <Button onClick={() => duplicateSelectedCustomObject()} buttonStyle="secondary">Duplicate</Button>
                     <Button onClick={() => deleteSelectedCustomObject()} buttonStyle="secondary">Delete</Button>
+                    {canGroupSelectedCustomTargets ? (
+                      <Button onClick={() => groupSelectedCustomObjects()} buttonStyle="secondary">Group</Button>
+                    ) : null}
+                    {canUngroupSelectedCustomTargets ? (
+                      <Button onClick={() => ungroupSelectedCustomObjects()} buttonStyle="secondary">Ungroup</Button>
+                    ) : null}
+                    {selection.kind === 'custom-image' ? (
+                      <Button onClick={() => toggleSelectedImageGrayscale()} buttonStyle="secondary">
+                        {selectedCustomImage?.grayscale ? 'Disable grayscale' : 'Make grayscale'}
+                      </Button>
+                    ) : null}
                   </div>
                 ) : null}
                 {selectedTextInspectorPanel}
@@ -4532,7 +5360,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             title="Clear selection"
             aria-label="Clear selection"
             onClick={() => {
-              setSelection(null)
+              setPrimarySelection(null)
               setInlineTextEditor(null)
             }}
             style={iconToolbarButtonStyle}
@@ -4568,6 +5396,26 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             style={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
             <Trash2 size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
+            title="Group selection"
+            aria-label="Group selection"
+            onClick={() => groupSelectedCustomObjects()}
+            disabled={!canGroupSelectedCustomTargets}
+            style={!canGroupSelectedCustomTargets ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+          >
+            <Layers size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
+            title="Ungroup selection"
+            aria-label="Ungroup selection"
+            onClick={() => ungroupSelectedCustomObjects()}
+            disabled={!canUngroupSelectedCustomTargets}
+            style={!canUngroupSelectedCustomTargets ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+          >
+            <Layers size={14} strokeWidth={2.1} />
           </button>
           <button
             type="button"
@@ -4634,7 +5482,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             </>
           ) : null}
         </div>
-        <div style={textToolbarStyle}>
+        <div ref={textToolbarRef} style={textToolbarStyle}>
           <div
             style={{
               display: 'flex',
@@ -4650,7 +5498,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               title="Bold"
               aria-label="Bold"
               style={selectedTextFontFlags.bold ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
-              onClick={toggleSelectedTextBold}
+              onMouseDown={(event) => {
+                if (isRichTextEditing) event.preventDefault()
+                toggleSelectedTextBold()
+              }}
               disabled={!isTextToolbarActive}
             >
               <Bold size={14} strokeWidth={2.25} />
@@ -4660,7 +5511,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               title="Italic"
               aria-label="Italic"
               style={selectedTextFontFlags.italic ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
-              onClick={toggleSelectedTextItalic}
+              onMouseDown={(event) => {
+                if (isRichTextEditing) event.preventDefault()
+                toggleSelectedTextItalic()
+              }}
               disabled={!isTextToolbarActive}
             >
               <Italic size={14} strokeWidth={2.25} />
@@ -4670,15 +5524,45 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               title="Underline"
               aria-label="Underline"
               style={selectedTextLayer?.textDecoration === 'underline' ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
-              onClick={() =>
+              onMouseDown={(event) => {
+                if (isRichTextEditing) {
+                  event.preventDefault()
+                  runRichTextCommand('underline')
+                  return
+                }
                 applySelectedTextFormatting({
                   textDecoration: selectedTextLayer?.textDecoration === 'underline' ? 'none' : 'underline',
                 })
-              }
+              }}
               disabled={!isTextToolbarActive}
             >
               <Underline size={14} strokeWidth={2.25} />
             </button>
+            {isRichTextEditing ? (
+              <>
+                {[
+                  { label: 'H1', command: 'formatBlock', value: 'h1' },
+                  { label: 'H2', command: 'formatBlock', value: 'h2' },
+                  { label: 'H3', command: 'formatBlock', value: 'h3' },
+                  { label: 'P', command: 'formatBlock', value: 'p' },
+                  { label: '•', command: 'insertUnorderedList' },
+                  { label: '1.', command: 'insertOrderedList' },
+                ].map((action) => (
+                  <button
+                    key={`${action.command}-${action.label}`}
+                    type="button"
+                    style={iconToolbarButtonStyle}
+                    onMouseDown={(event) => {
+                      event.preventDefault()
+                      runRichTextCommand(action.command, action.value)
+                    }}
+                    disabled={!isTextToolbarActive}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+              </>
+            ) : null}
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               {TEXT_ALIGNMENT_OPTIONS.map((option) => (
                 <button
@@ -4687,7 +5571,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   title={option.label}
                   aria-label={option.label}
                   style={selectedTextLayer?.textAlign === option.value || (!selectedTextLayer?.textAlign && option.value === 'left') ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
-                  onClick={() => applySelectedTextFormatting({ textAlign: option.value })}
+                  onMouseDown={(event) => {
+                    if (isRichTextEditing) {
+                      event.preventDefault()
+                      runRichTextCommand(option.value === 'left' ? 'justifyLeft' : option.value === 'center' ? 'justifyCenter' : 'justifyRight')
+                      return
+                    }
+                    applySelectedTextFormatting({ textAlign: option.value })
+                  }}
                   disabled={!isTextToolbarActive}
                 >
                   {option.value === 'left' ? (
@@ -4705,7 +5596,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 title="Font family"
                 aria-label="Font family"
                 value={selectedTextLayer?.fontFamily || TEXT_FONT_OPTIONS[0].value}
-                onChange={(event) => applySelectedTextFormatting({ fontFamily: event.target.value })}
+                onMouseDown={(event) => {
+                  if (isRichTextEditing) event.preventDefault()
+                }}
+                onChange={(event) => {
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ fontFamily: event.target.value })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ fontFamily: event.target.value })
+                }}
                 style={{ ...toolbarSelectStyle, width: 150 }}
                 disabled={!isTextToolbarActive}
               >
@@ -4725,7 +5626,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 max={140}
                 step={1}
                 value={selectedTextLayer?.fontSize || 32}
-                onChange={(event) => applySelectedTextFormatting({ fontSize: Number(event.target.value) })}
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value)
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ fontSize: `${nextValue}px` })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ fontSize: nextValue })
+                }}
                 style={{ ...toolbarInputStyle, width: 68 }}
                 disabled={!isTextToolbarActive}
               />
@@ -4739,7 +5648,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 max={2}
                 step={0.05}
                 value={selectedTextLayer?.lineHeight || 1}
-                onChange={(event) => applySelectedTextFormatting({ lineHeight: Number(event.target.value) || 1 })}
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value) || 1
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ lineHeight: String(nextValue), display: 'inline-block' })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ lineHeight: nextValue })
+                }}
                 style={{ ...toolbarInputStyle, width: 64 }}
                 disabled={!isTextToolbarActive}
               />
@@ -4753,7 +5670,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 max={30}
                 step={0.5}
                 value={selectedTextLayer?.letterSpacing || 0}
-                onChange={(event) => applySelectedTextFormatting({ letterSpacing: Number(event.target.value) || 0 })}
+                onChange={(event) => {
+                  const nextValue = Number(event.target.value) || 0
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ letterSpacing: `${nextValue}px` })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ letterSpacing: nextValue })
+                }}
                 style={{ ...toolbarInputStyle, width: 64 }}
                 disabled={!isTextToolbarActive}
               />
@@ -4764,7 +5689,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   key={color}
                   type="button"
                   aria-label={`Choose ${color}`}
-                  onClick={() => applySelectedTextFormatting({ color })}
+                  onMouseDown={(event) => {
+                    if (isRichTextEditing) {
+                      event.preventDefault()
+                      applyRichTextSelectionStyle({ color })
+                      return
+                    }
+                    applySelectedTextFormatting({ color })
+                  }}
                   style={{
                     width: 22,
                     height: 22,
@@ -4779,7 +5711,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               <input
                 type="color"
                 value={selectedTextLayer?.color || '#111111'}
-                onChange={(event) => applySelectedTextFormatting({ color: event.target.value })}
+                onChange={(event) => {
+                  if (isRichTextEditing) {
+                    applyRichTextSelectionStyle({ color: event.target.value })
+                    richTextEditorRef.current?.focus()
+                    return
+                  }
+                  applySelectedTextFormatting({ color: event.target.value })
+                }}
                 style={{ width: 28, height: 28, border: 'none', background: 'transparent', padding: 0 }}
                 disabled={!isTextToolbarActive}
               />
@@ -4814,7 +5753,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               flex: '0 0 auto',
             }}
             onMouseDown={(event) => {
-              if (event.target === event.target.getStage()) setSelection(null)
+              if (event.target === event.target.getStage()) setPrimarySelection(null)
+            }}
+            onContextMenu={(event) => {
+              if (event.target === event.target.getStage()) {
+                setPrimarySelection(null)
+              }
+              openContextMenu(event.evt)
             }}
           >
             <Layer>
@@ -5216,11 +6161,21 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
               <Transformer
                 ref={transformerRef}
-                rotateEnabled={selection?.kind === 'custom-image' || selection?.kind === 'custom-text'}
+                rotateEnabled={
+                  selectedCustomTargets.length > 1
+                    ? false
+                    : selection?.kind === 'custom-image' || selection?.kind === 'custom-text' || selection?.kind === 'custom-rect'
+                }
                 flipEnabled={false}
-                keepRatio={selection?.kind === 'headshot' || selection?.kind === 'custom-image'}
+                keepRatio={
+                  selectedCustomTargets.length > 1
+                    ? false
+                    : selection?.kind === 'headshot' || selection?.kind === 'custom-image' || (selection?.kind === 'custom-rect' && (selectedCustomRect?.shapeType || 'rect') === 'circle')
+                }
                 enabledAnchors={
-                  selection?.kind === 'headline'
+                  selectedCustomTargets.length > 1
+                    ? []
+                    : selection?.kind === 'headline'
                     ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                     : selection?.kind === 'custom-text'
                       ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
@@ -5249,7 +6204,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   }
 
                   if (selection?.kind === 'custom-rect') {
-                    return { ...newBox, width: Math.max(40, newBox.width), height: Math.max(20, newBox.height), rotation: 0 }
+                    const minHeight = (selectedCustomRect?.shapeType || 'rect') === 'line' ? -800 : 20
+                    return { ...newBox, width: Math.max(40, newBox.width), height: Math.max(minHeight, newBox.height) }
                   }
 
                   if (selection?.kind === 'custom-image') {
@@ -5279,50 +6235,189 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           {inlineTextEditor && inlineEditorBox ? (
             <div
               style={{
+                boxSizing: 'border-box',
                 position: 'absolute',
-                left: inlineEditorBox.left + 10,
-                top: inlineEditorBox.top + 10,
+                left: inlineEditorBox.left,
+                top: inlineEditorBox.top,
                 width: inlineEditorBox.width,
                 minHeight: inlineEditorBox.height,
                 zIndex: 40,
+                transform: inlineEditorBox.rotation ? `rotate(${inlineEditorBox.rotation}deg)` : undefined,
+                transformOrigin: 'left top',
               }}
             >
-              <textarea
-                autoFocus
-                value={inlineTextEditor.value}
-                onChange={(event) => setInlineTextEditor((current) => (current ? { ...current, value: event.target.value } : current))}
-                onBlur={commitInlineTextEdit}
-                onKeyDown={(event) => {
-                  if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                    event.preventDefault()
-                    commitInlineTextEdit()
-                    return
-                  }
-                  if (event.key === 'Escape') {
-                    event.preventDefault()
-                    setInlineTextEditor(null)
-                  }
-                }}
-                style={{
-                  width: '100%',
-                  minHeight: inlineEditorBox.height,
-                  resize: 'vertical',
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  border: '2px solid #0ea5e9',
-                  background: 'rgba(255,255,255,0.98)',
-                  color: selectedTextLayer?.color || '#111827',
-                  fontFamily: selectedTextLayer?.fontFamily || 'Arial',
-                  fontSize: `${Math.max(16, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
-                  fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
-                  fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
-                  textDecoration: selectedTextLayer?.textDecoration || 'none',
-                  textAlign: selectedTextLayer?.textAlign || 'left',
-                  lineHeight: selectedTextLayer?.lineHeight || 1.12,
-                  letterSpacing: selectedTextLayer?.letterSpacing || 0,
-                  boxShadow: '0 18px 45px rgba(14,165,233,0.18)',
-                }}
-              />
+              {inlineTextEditor.mode === 'rich' ? (
+                <>
+                  <style>{RICH_TEXT_EDITOR_SCOPE_CSS}</style>
+                  <div
+                    ref={richTextEditorRef}
+                    data-rich-text-editor="true"
+                    contentEditable
+                    suppressContentEditableWarning
+                    onBlur={(event) => {
+                      const nextFocused = event.relatedTarget as Node | null
+                      if (nextFocused && textToolbarRef.current?.contains(nextFocused)) return
+                      commitInlineTextEdit()
+                    }}
+                    onInput={(event) => {
+                      const editor = event.currentTarget
+                      editor.style.height = `${inlineEditorBox.height}px`
+                      editor.style.height = `${Math.max(inlineEditorBox.height, editor.scrollHeight)}px`
+                    }}
+                    onMouseUp={saveRichTextSelection}
+                    onKeyUp={saveRichTextSelection}
+                    onKeyDown={(event) => {
+                      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                        event.preventDefault()
+                        commitInlineTextEdit()
+                        return
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        richTextEditorSeedRef.current = null
+                        setInlineTextEditor(null)
+                      }
+                    }}
+                    style={{
+                      boxSizing: 'border-box',
+                      display: 'block',
+                      width: '100%',
+                      minHeight: inlineEditorBox.height,
+                      height: inlineEditorBox.height,
+                      padding: 0,
+                      margin: 0,
+                      borderWidth: 0,
+                      borderStyle: 'solid',
+                      borderColor: 'transparent',
+                      background: 'transparent',
+                      boxShadow: 'none',
+                      color: selectedTextLayer?.color || '#111827',
+                      fontFamily: selectedTextLayer?.fontFamily || 'Arial',
+                      fontSize: `${Math.max(16, (selectedTextLayer?.fontSize || 28) * previewScale)}px`,
+                      fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
+                      fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
+                      textDecoration: selectedTextLayer?.textDecoration || 'none',
+                      textAlign: selectedTextLayer?.textAlign || 'left',
+                      lineHeight: `${selectedTextLayer?.lineHeight || 1.12}`,
+                      letterSpacing: `${selectedTextLayer?.letterSpacing || 0}px`,
+                      overflow: 'hidden',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'normal',
+                      outline: 'none',
+                    }}
+                  />
+                </>
+              ) : (
+                <textarea
+                  autoFocus
+                  value={inlineTextEditor.text || ''}
+                  onChange={(event) => setInlineTextEditor((current) => (current ? { ...current, text: event.target.value } : current))}
+                  onBlur={commitInlineTextEdit}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                      event.preventDefault()
+                      commitInlineTextEdit()
+                      return
+                    }
+                    if (event.key === 'Escape') {
+                      event.preventDefault()
+                      richTextEditorSeedRef.current = null
+                      setInlineTextEditor(null)
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    minHeight: inlineEditorBox.height,
+                    resize: 'vertical',
+                    padding: '12px 14px',
+                    borderRadius: 14,
+                    border: '2px solid #0ea5e9',
+                    background: 'rgba(255,255,255,0.98)',
+                    color: selectedTextLayer?.color || '#111827',
+                    fontFamily: selectedTextLayer?.fontFamily || 'Arial',
+                    fontSize: `${Math.max(16, ((selectedTextLayer?.fontSize || 28) * previewScale))}px`,
+                    fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
+                    fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
+                    textDecoration: selectedTextLayer?.textDecoration || 'none',
+                    textAlign: selectedTextLayer?.textAlign || 'left',
+                    lineHeight: selectedTextLayer?.lineHeight || 1.12,
+                    letterSpacing: selectedTextLayer?.letterSpacing || 0,
+                    boxShadow: '0 18px 45px rgba(14,165,233,0.18)',
+                  }}
+                />
+              )}
+            </div>
+          ) : null}
+          {contextMenu ? (
+            <div
+              onPointerDown={(event) => event.stopPropagation()}
+              style={{
+                position: 'fixed',
+                left: contextMenu.x,
+                top: contextMenu.y,
+                zIndex: 90,
+                minWidth: 190,
+                borderRadius: 12,
+                border: '1px solid rgba(15, 23, 42, 0.12)',
+                background: 'rgba(255,255,255,0.98)',
+                boxShadow: '0 18px 40px rgba(15, 23, 42, 0.18)',
+                padding: 6,
+                display: 'grid',
+                gap: 4,
+              }}
+            >
+              {selection && (selection.kind === 'custom-image' || selection.kind === 'custom-rect' || selection.kind === 'custom-text') ? (
+                <>
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { copySelectedCustomObject(); setContextMenu(null) }}>Copy</button>
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { duplicateSelectedCustomObject(); setContextMenu(null) }}>Duplicate</button>
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { deleteSelectedCustomObject(); setContextMenu(null) }}>Delete</button>
+                  {canGroupSelectedCustomTargets ? (
+                    <button type="button" style={menuActionButtonStyle} onClick={() => { groupSelectedCustomObjects(); setContextMenu(null) }}>Group selected</button>
+                  ) : null}
+                  {canUngroupSelectedCustomTargets ? (
+                    <button type="button" style={menuActionButtonStyle} onClick={() => { ungroupSelectedCustomObjects(); setContextMenu(null) }}>Ungroup</button>
+                  ) : null}
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { reorderSelectedLayer('forward'); setContextMenu(null) }}>Bring forward</button>
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { reorderSelectedLayer('backward'); setContextMenu(null) }}>Send backward</button>
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { reorderSelectedLayer('front'); setContextMenu(null) }}>Bring to front</button>
+                  <button type="button" style={menuActionButtonStyle} onClick={() => { reorderSelectedLayer('back'); setContextMenu(null) }}>Send to back</button>
+                  {selection.kind === 'custom-image' ? (
+                    <button type="button" style={menuActionButtonStyle} onClick={() => { toggleSelectedImageGrayscale(); setContextMenu(null) }}>
+                      {selectedCustomImage?.grayscale ? 'Disable grayscale' : 'Make grayscale'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    style={menuActionButtonStyle}
+                    onClick={() => {
+                      const target = getLayerTarget(selection)
+                      if (target) updateLayerState(target, { hidden: !selectedLayer?.hidden })
+                      setContextMenu(null)
+                    }}
+                  >
+                    {selectedLayer?.hidden ? 'Show' : 'Hide'}
+                  </button>
+                  <button
+                    type="button"
+                    style={menuActionButtonStyle}
+                    onClick={() => {
+                      const target = getLayerTarget(selection)
+                      if (target) updateLayerState(target, { locked: !selectedLayer?.locked })
+                      setContextMenu(null)
+                    }}
+                  >
+                    {selectedLayer?.locked ? 'Unlock' : 'Lock'}
+                  </button>
+                </>
+              ) : null}
+              {hasEditorClipboard() ? (
+                <button type="button" style={menuActionButtonStyle} onClick={() => { pasteClipboardObject(); setContextMenu(null) }}>Paste</button>
+              ) : null}
+              <button type="button" style={menuActionButtonStyle} onClick={() => { addCustomRect('rect'); setContextMenu(null) }}>New rectangle</button>
+              <button type="button" style={menuActionButtonStyle} onClick={() => { addCustomRect('circle'); setContextMenu(null) }}>New circle</button>
+              <button type="button" style={menuActionButtonStyle} onClick={() => { addCustomRect('line'); setContextMenu(null) }}>New line</button>
+              <button type="button" style={menuActionButtonStyle} onClick={() => { addCustomText(); setContextMenu(null) }}>New text box</button>
             </div>
           ) : null}
         </div>
@@ -5366,7 +6461,9 @@ const textToolbarStyle: React.CSSProperties = {
 }
 
 const toolbarButtonStyle: React.CSSProperties = {
-  border: '1px solid rgba(17, 24, 39, 0.12)',
+  borderWidth: 1,
+  borderStyle: 'solid',
+  borderColor: 'rgba(17, 24, 39, 0.12)',
   borderRadius: 999,
   background: '#ffffff',
   color: '#111827',
@@ -5380,6 +6477,8 @@ const activeToolbarButtonStyle: React.CSSProperties = {
   ...toolbarButtonStyle,
   background: '#0f172a',
   color: '#ffffff',
+  borderWidth: 1,
+  borderStyle: 'solid',
   borderColor: '#0f172a',
 }
 
