@@ -3,7 +3,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type Konva from 'konva'
-import { AlignCenter, AlignLeft, AlignRight, Bold, Copy, Italic, Trash2, Underline, X } from 'lucide-react'
+import {
+  AlignCenter,
+  AlignLeft,
+  AlignRight,
+  Bold,
+  ChevronDown,
+  ChevronUp,
+  ChevronsDown,
+  ChevronsUp,
+  Clipboard,
+  Copy,
+  Eye,
+  EyeOff,
+  Italic,
+  Layers,
+  Lock,
+  Trash2,
+  Underline,
+  Unlock,
+  X,
+} from 'lucide-react'
 import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } from 'react-konva'
 import { Button, useAuth } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
@@ -12,19 +32,32 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import {
   EDITOR_COMPONENTS,
+  EditorLayerItem,
+  appendEditorLayers,
   TEXT_ALIGNMENT_OPTIONS,
   TEXT_FONT_OPTIONS,
   buildFontStyle,
+  buildEditorLayers,
   clampNumber,
   createEditorNodeID,
+  duplicateImage,
   duplicateRect,
   duplicateText,
   formatAutosaveLabel,
   getCssFontWeight,
+  getEditorLayerItem,
   getShortcutNudgeDistance,
   getFontStyleFlags,
   getResizedTextTransform,
+  hasEditorClipboard,
+  hydrateEditorLayers,
   isEditableTarget,
+  isCustomLayerKind,
+  patchEditorLayer,
+  readEditorClipboard,
+  removeEditorLayers,
+  reorderCustomEditorLayer,
+  setEditorClipboard,
   useEditorAutosave,
 } from '@/components/admin/graphicsEditorShared'
 
@@ -257,6 +290,7 @@ type ExperimentalTownScene = {
   customImages: CustomImageElement[]
   customRects: CustomRectElement[]
   customTexts: CustomTextElement[]
+  layers: EditorLayerItem[]
   townColumns: 1 | 2
   townRows: TownSceneRow[]
 }
@@ -284,6 +318,16 @@ type InlineTextEditorState = {
   target: TextSelection
   value: string
 } | null
+
+const getLayerTarget = (
+  selection: Exclude<Selection, null>,
+): { id: string; kind: EditorLayerItem['kind'] } | null => {
+  if (selection.kind === 'towns' || selection.kind === 'towns-left' || selection.kind === 'towns-right') return null
+  return {
+    id: selection.id,
+    kind: selection.kind as EditorLayerItem['kind'],
+  }
+}
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const cloneScene = (scene: ExperimentalTownScene): ExperimentalTownScene => JSON.parse(JSON.stringify(scene)) as ExperimentalTownScene
@@ -1005,11 +1049,16 @@ const createBaseScene = (data: TownFundingResponse, tenantName: string | undefin
     customImages: [],
     customRects: [],
     customTexts: [],
+    layers: [],
     townColumns: 1 as const,
     townRows,
   } satisfies ExperimentalTownScene
 
-  return alignSubheadToHeadline(scene)
+  const alignedScene = alignSubheadToHeadline(scene)
+  return {
+    ...alignedScene,
+    layers: buildEditorLayers(alignedScene),
+  }
 }
 
 const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | undefined, baseScene: ExperimentalTownScene) => {
@@ -1038,6 +1087,15 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
     customImages: Array.isArray(savedScene.customImages) ? savedScene.customImages : baseScene.customImages,
     customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
     customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
+    layers: hydrateEditorLayers({
+      baseLayers: buildEditorLayers({
+        ...baseScene,
+        customImages: Array.isArray(savedScene.customImages) ? savedScene.customImages : baseScene.customImages,
+        customRects: Array.isArray(savedScene.customRects) ? savedScene.customRects : baseScene.customRects,
+        customTexts: Array.isArray(savedScene.customTexts) ? savedScene.customTexts : baseScene.customTexts,
+      }),
+      savedLayers: savedScene.layers,
+    }),
     townColumns: savedScene.townColumns === 2 ? 2 : 1,
     townRows: baseScene.townRows.map((row) => {
       const savedRow = savedRowsByKey.get(row.townKey)
@@ -1273,7 +1331,64 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     return scene.customTexts.find((item) => item.id === selection.id) || null
   }, [scene, selection])
 
-  const includedTownRows = useMemo(() => (scene ? scene.townRows.filter((row) => row.included) : []), [scene])
+  const layerStateMap = useMemo(
+    () => new Map<string, EditorLayerItem>((scene?.layers || []).map((item) => [`${item.kind}:${item.id}`, item] as const)),
+    [scene?.layers],
+  )
+  const getLayerState = (kind: string, id: string) => layerStateMap.get(`${kind}:${id}`) || null
+  const isLayerHidden = (kind: string, id: string) => Boolean(getLayerState(kind, id)?.hidden)
+  const isLayerLocked = (kind: string, id: string) => Boolean(getLayerState(kind, id)?.locked)
+  const selectedLayer = useMemo(
+    () => (selection ? getEditorLayerItem(scene?.layers, getLayerTarget(selection)) : null),
+    [scene?.layers, selection],
+  )
+  const layerPanelItems = useMemo(
+    () =>
+      [...(scene?.layers || [])]
+        .sort((left, right) => right.order - left.order)
+        .map((item) => {
+          if (!scene) return { item, label: item.kind, reorderable: false }
+          if (item.kind === 'town') {
+            const row = scene.townRows.find((entry) => entry.id === item.id)
+            return {
+              item,
+              label: row ? row.town : 'Town row',
+              reorderable: false,
+            }
+          }
+          if (item.kind === 'custom-image') {
+            const index = scene.customImages.findIndex((entry) => entry.id === item.id)
+            return { item, label: `Image ${index + 1}`, reorderable: true }
+          }
+          if (item.kind === 'custom-rect') {
+            const index = scene.customRects.findIndex((entry) => entry.id === item.id)
+            return { item, label: `Shape ${index + 1}`, reorderable: true }
+          }
+          if (item.kind === 'custom-text') {
+            const index = scene.customTexts.findIndex((entry) => entry.id === item.id)
+            const currentText = scene.customTexts.find((entry) => entry.id === item.id)
+            return {
+              item,
+              label: currentText?.text?.trim() ? currentText.text.trim().slice(0, 28) : `Text ${index + 1}`,
+              reorderable: true,
+            }
+          }
+          const labels: Record<string, string> = {
+            eyebrow: 'Eyebrow',
+            headline: 'Headline',
+            subhead: 'Subhead',
+            footer: 'Footer',
+            headshot: 'Headshot',
+          }
+          return { item, label: labels[item.kind] || item.kind, reorderable: false }
+        }),
+    [scene],
+  )
+
+  const includedTownRows = useMemo(
+    () => (scene ? scene.townRows.filter((row) => row.included && !isLayerHidden('town', row.id)) : []),
+    [scene, layerStateMap],
+  )
   const townStackBounds = useMemo(() => measureTownStackBounds(includedTownRows), [includedTownRows])
   const townRowsPerColumn = useMemo(
     () => (scene?.townColumns === 2 ? Math.ceil(includedTownRows.length / 2) : includedTownRows.length),
@@ -1296,6 +1411,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       ? (selection as TextSelection)
       : null
   }, [selection])
+
+  useEffect(() => {
+    if (!selection) return
+    if (!isLayerHidden(selection.kind, selection.id)) return
+    setSelection(null)
+    setInlineTextEditor(null)
+  }, [isLayerHidden, selection])
 
   useEffect(() => {
     const transformer = transformerRef.current
@@ -1321,7 +1443,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           : null
     if (!transformer) return
 
-    if (node) {
+    if (node && !selectedLayer?.locked) {
       transformer.nodes([node])
       transformer.getLayer()?.batchDraw()
       return
@@ -1329,7 +1451,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
     transformer.nodes([])
     transformer.getLayer()?.batchDraw()
-  }, [scene, selection])
+  }, [scene, selectedLayer?.locked, selection])
 
   useEffect(() => {
     if (selection?.kind !== 'headline') {
@@ -1339,7 +1461,17 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const setSceneWithoutHistory = (nextScene: ExperimentalTownScene | null) => {
     skipHistoryRef.current = true
-    setScene(nextScene)
+    setScene(
+      nextScene
+        ? {
+            ...nextScene,
+            layers: hydrateEditorLayers({
+              baseLayers: buildEditorLayers(nextScene),
+              savedLayers: nextScene.layers,
+            }),
+          }
+        : nextScene,
+    )
   }
 
   const updateScene = (updater: (current: ExperimentalTownScene) => ExperimentalTownScene) => {
@@ -1352,13 +1484,53 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       } else {
         skipHistoryRef.current = false
       }
-      return updater(current)
+      const nextScene = updater(current)
+      return {
+        ...nextScene,
+        layers: hydrateEditorLayers({
+          baseLayers: buildEditorLayers(nextScene),
+          savedLayers: nextScene.layers,
+        }),
+      }
     })
   }
 
   const clearUndoHistory = () => {
     undoStackRef.current = []
     redoStackRef.current = []
+  }
+
+  const updateLayerState = (
+    target: { id: string; kind: EditorLayerItem['kind'] },
+    patch: Partial<Pick<EditorLayerItem, 'hidden' | 'locked'>>,
+  ) => {
+    updateScene((current) => ({
+      ...current,
+      layers: patchEditorLayer(current.layers, target, patch),
+    }))
+  }
+
+  const reorderSelectedLayer = (direction: 'backward' | 'forward' | 'front' | 'back') => {
+    if (!selection || !isCustomLayerKind(selection.kind)) return false
+    const target = getLayerTarget(selection)
+    if (!target) return false
+    updateScene((current) => ({
+      ...current,
+      layers: reorderCustomEditorLayer(current.layers, target, direction),
+    }))
+    return true
+  }
+
+  const reorderLayerTarget = (
+    target: { id: string; kind: EditorLayerItem['kind'] },
+    direction: 'backward' | 'forward' | 'front' | 'back',
+  ) => {
+    if (!isCustomLayerKind(target.kind)) return false
+    updateScene((current) => ({
+      ...current,
+      layers: reorderCustomEditorLayer(current.layers, target, direction),
+    }))
+    return true
   }
 
   const undoLastChange = () => {
@@ -1401,6 +1573,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       return {
         ...current,
         customRects: [...current.customRects, nextRect],
+        layers: appendEditorLayers(current.layers, [{ id: nextRect.id, kind: 'custom-rect', group: 'custom' }]),
       }
     })
     if (nextID) setSelection({ kind: 'custom-rect', id: nextID })
@@ -1426,6 +1599,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       return {
         ...current,
         customTexts: [...current.customTexts, nextText],
+        layers: appendEditorLayers(current.layers, [{ id: nextText.id, kind: 'custom-text', group: 'custom' }]),
       }
     })
     if (nextID) setSelection({ kind: 'custom-text', id: nextID })
@@ -1451,6 +1625,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       return {
         ...current,
         customImages: [...current.customImages, nextImage],
+        layers: appendEditorLayers(current.layers, [{ id: nextImage.id, kind: 'custom-image', group: 'custom' }]),
       }
     })
     if (nextID) setSelection({ kind: 'custom-image', id: nextID })
@@ -1479,6 +1654,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const updateSelectionPosition = (x: number, y: number) => {
     if (!scene || !selection) return
+    if (isLayerLocked(selection.kind, selection.id)) return
     if (selection.kind === 'eyebrow') updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, x, y } }))
     if (selection.kind === 'headline') updateScene((current) => syncSubheadToHeadline({ ...current, headline: { ...current.headline, x, y } }))
     if (selection.kind === 'subhead') updateScene((current) => ({ ...current, subhead: { ...current.subhead, x, y } }))
@@ -1605,6 +1781,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const beginInlineTextEdit = (target: TextSelection) => {
     if (!scene) return
+    if (isLayerLocked(target.kind, target.id)) return
     const currentLayer = resolveTextLayer(scene, target)
     if (!currentLayer) return
     setSelection(target)
@@ -1728,6 +1905,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         ...current,
         customRects: [...current.customRects, ...bundle.rects],
         customTexts: [...current.customTexts, ...bundle.texts],
+        layers: appendEditorLayers(current.layers, [
+          ...bundle.rects.map((item) => ({ id: item.id, kind: 'custom-rect' as const, group: 'custom' as const })),
+          ...bundle.texts.map((item) => ({ id: item.id, kind: 'custom-text' as const, group: 'custom' as const })),
+        ]),
       }
     })
     if (selectedID) {
@@ -1747,6 +1928,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       updateScene((draft) => ({
         ...draft,
         customRects: [...draft.customRects, nextRect],
+        layers: appendEditorLayers(draft.layers, [{ id: nextRect.id, kind: 'custom-rect', group: 'custom' }]),
       }))
       setSelection({ kind: 'custom-rect', id: nextRect.id })
       return true
@@ -1759,6 +1941,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       updateScene((draft) => ({
         ...draft,
         customTexts: [...draft.customTexts, nextText],
+        layers: appendEditorLayers(draft.layers, [{ id: nextText.id, kind: 'custom-text', group: 'custom' }]),
       }))
       setSelection({ kind: 'custom-text', id: nextText.id })
       return true
@@ -1767,15 +1950,11 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     if (selection.kind === 'custom-image') {
       const current = scene.customImages.find((item) => item.id === selection.id)
       if (!current) return false
-      const nextImage = {
-        ...current,
-        id: createEditorNodeID('custom-image'),
-        x: current.x + 28,
-        y: current.y + 28,
-      }
+      const nextImage = duplicateImage(current)
       updateScene((draft) => ({
         ...draft,
         customImages: [...draft.customImages, nextImage],
+        layers: appendEditorLayers(draft.layers, [{ id: nextImage.id, kind: 'custom-image', group: 'custom' }]),
       }))
       setSelection({ kind: 'custom-image', id: nextImage.id })
       return true
@@ -1791,6 +1970,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       updateScene((current) => ({
         ...current,
         customRects: current.customRects.filter((item) => item.id !== selection.id),
+        layers: removeEditorLayers(current.layers, [{ id: selection.id, kind: 'custom-rect' }]),
       }))
       setSelection(null)
       return true
@@ -1800,6 +1980,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       updateScene((current) => ({
         ...current,
         customTexts: current.customTexts.filter((item) => item.id !== selection.id),
+        layers: removeEditorLayers(current.layers, [{ id: selection.id, kind: 'custom-text' }]),
       }))
       setSelection(null)
       return true
@@ -1809,6 +1990,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       updateScene((current) => ({
         ...current,
         customImages: current.customImages.filter((item) => item.id !== selection.id),
+        layers: removeEditorLayers(current.layers, [{ id: selection.id, kind: 'custom-image' }]),
       }))
       setSelection(null)
       return true
@@ -1817,8 +1999,79 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
     return false
   }
 
+  const copySelectedCustomObject = () => {
+    if (!scene || !selection || isLayerLocked(selection.kind, selection.id)) return false
+
+    if (selection.kind === 'custom-rect') {
+      const current = scene.customRects.find((item) => item.id === selection.id)
+      if (!current) return false
+      setEditorClipboard({ kind: 'custom-rect', payload: current })
+      return true
+    }
+
+    if (selection.kind === 'custom-text') {
+      const current = scene.customTexts.find((item) => item.id === selection.id)
+      if (!current) return false
+      setEditorClipboard({ kind: 'custom-text', payload: current })
+      return true
+    }
+
+    if (selection.kind === 'custom-image') {
+      const current = scene.customImages.find((item) => item.id === selection.id)
+      if (!current) return false
+      setEditorClipboard({ kind: 'custom-image', payload: current })
+      return true
+    }
+
+    return false
+  }
+
+  const pasteClipboardObject = () => {
+    const clipboard = readEditorClipboard()
+    if (!clipboard) return false
+
+    if (clipboard.kind === 'custom-rect') {
+      const nextRect = duplicateRect(clipboard.payload)
+      updateScene((current) => ({
+        ...current,
+        customRects: [...current.customRects, nextRect],
+        layers: appendEditorLayers(current.layers, [{ id: nextRect.id, kind: 'custom-rect', group: 'custom' }]),
+      }))
+      setEditorClipboard({ kind: 'custom-rect', payload: nextRect })
+      setSelection({ kind: 'custom-rect', id: nextRect.id })
+      return true
+    }
+
+    if (clipboard.kind === 'custom-text') {
+      const nextText = duplicateText(clipboard.payload)
+      updateScene((current) => ({
+        ...current,
+        customTexts: [...current.customTexts, nextText],
+        layers: appendEditorLayers(current.layers, [{ id: nextText.id, kind: 'custom-text', group: 'custom' }]),
+      }))
+      setEditorClipboard({ kind: 'custom-text', payload: nextText })
+      setSelection({ kind: 'custom-text', id: nextText.id })
+      return true
+    }
+
+    if (clipboard.kind === 'custom-image') {
+      const nextImage = duplicateImage(clipboard.payload as CustomImageElement)
+      updateScene((current) => ({
+        ...current,
+        customImages: [...current.customImages, nextImage],
+        layers: appendEditorLayers(current.layers, [{ id: nextImage.id, kind: 'custom-image', group: 'custom' }]),
+      }))
+      setEditorClipboard({ kind: 'custom-image', payload: nextImage })
+      setSelection({ kind: 'custom-image', id: nextImage.id })
+      return true
+    }
+
+    return false
+  }
+
   const nudgeSelectedObject = (deltaX: number, deltaY: number) => {
     if (!scene || !selection) return false
+    if (isLayerLocked(selection.kind, selection.id)) return false
 
     if (selection.kind === 'custom-rect') {
       updateCustomRect(selection.id, {
@@ -1998,6 +2251,18 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         return
       }
 
+      if (modifier && key === 'c') {
+        if (!copySelectedCustomObject()) return
+        event.preventDefault()
+        return
+      }
+
+      if (modifier && key === 'v') {
+        if (!pasteClipboardObject()) return
+        event.preventDefault()
+        return
+      }
+
       if (modifier && key === 's') {
         event.preventDefault()
         void handleSaveDesign()
@@ -2028,7 +2293,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [deleteSelectedCustomObject, duplicateSelectedCustomObject, handleSaveDesign, nudgeSelectedObject, redoLastChange, undoLastChange])
+  }, [
+    copySelectedCustomObject,
+    deleteSelectedCustomObject,
+    duplicateSelectedCustomObject,
+    handleSaveDesign,
+    nudgeSelectedObject,
+    pasteClipboardObject,
+    redoLastChange,
+    undoLastChange,
+  ])
 
   const exportStageDataUrl = async (mimeType: 'image/png' | 'image/jpeg' = 'image/png') => {
     const stage = stageRef.current
@@ -2571,12 +2845,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   : null
 
   const selectedTextLayer = selectedTextTarget ? resolveSelectedTextLayer(scene, selectedTextTarget) : null
-  const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer)
+  const isTextToolbarActive = Boolean(selectedTextTarget && selectedTextLayer && !selectedLayer?.locked)
   const selectedTextFontFlags = getFontStyleFlags(selectedTextLayer?.fontStyle)
   const applySelectedTextFormatting = (
     patch: Partial<SceneTextElement | SubheadElement | FooterElement | CustomTextElement>,
   ) => {
-    if (!selectedTextTarget || !selectedTextLayer) return
+    if (!selectedTextTarget || !selectedTextLayer || selectedLayer?.locked) return
     updateSelectedTextLayer(selectedTextTarget, patch)
   }
   const toggleSelectedTextBold = () => {
@@ -2726,6 +3000,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
 
   const renderCustomImageNode = (item: CustomImageElement) => {
     const rotation = item.rotation || 0
+    const hidden = isLayerHidden('custom-image', item.id)
+    const locked = isLayerLocked('custom-image', item.id)
+    if (hidden) return null
 
     return (
       <Group
@@ -2738,8 +3015,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         offsetX={item.width / 2}
         offsetY={item.height / 2}
         rotation={rotation}
-        draggable
+        draggable={!locked}
         onDragEnd={(event) => {
+          if (locked) return
           const node = event.target
           setSelection({ kind: 'custom-image', id: item.id })
           updateCustomImage(item.id, {
@@ -2747,8 +3025,12 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             y: node.y() - item.height / 2,
           })
         }}
-        onMouseDown={() => setSelection({ kind: 'custom-image', id: item.id })}
+        onMouseDown={() => {
+          if (locked) return
+          setSelection({ kind: 'custom-image', id: item.id })
+        }}
         onTransformEnd={(event) => {
+          if (locked) return
           const node = event.target
           const nextWidth = Math.max(20, Math.round(item.width * node.scaleX()))
           const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
@@ -2781,6 +3063,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
   const renderCustomTextNode = (item: CustomTextElement) => {
     const textHeight = measureCustomTextHeight(item)
     const rotation = item.rotation || 0
+    const hidden = isLayerHidden('custom-text', item.id)
+    const locked = isLayerLocked('custom-text', item.id)
+    if (hidden) return null
 
     return (
       <Group
@@ -2793,8 +3078,9 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
         offsetX={item.width / 2}
         offsetY={textHeight / 2}
         rotation={rotation}
-        draggable
+        draggable={!locked}
         onDragEnd={(event) => {
+          if (locked) return
           const node = event.target
           setSelection({ kind: 'custom-text', id: item.id })
           updateCustomText(item.id, {
@@ -2802,9 +3088,13 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
             y: node.y() - textHeight / 2,
           })
         }}
-        onMouseDown={() => setSelection({ kind: 'custom-text', id: item.id })}
+        onMouseDown={() => {
+          if (locked) return
+          setSelection({ kind: 'custom-text', id: item.id })
+        }}
         onTransformStart={() => setIsResizingHeadline(true)}
         onTransformEnd={(event) => {
+          if (locked) return
           const node = event.target
           const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
           const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
@@ -2856,7 +3146,10 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           letterSpacing={item.letterSpacing || 0}
           lineHeight={item.lineHeight || 1.1}
           textDecoration={item.textDecoration}
-          onDblClick={() => beginInlineTextEdit({ kind: 'custom-text', id: item.id })}
+          onDblClick={() => {
+            if (locked) return
+            beginInlineTextEdit({ kind: 'custom-text', id: item.id })
+          }}
         />
       </Group>
     )
@@ -2872,8 +3165,11 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       ref={stackRef}
       x={bounds.x}
       y={bounds.y}
-      draggable={rows.length > 0}
+      draggable={rows.length > 0 && !rows.some((row) => isLayerLocked('town', row.id))}
       onDragEnd={(event) => {
+        if (stackSelection.kind === 'towns' && includedTownRows.some((row) => isLayerLocked('town', row.id))) return
+        if (stackSelection.kind === 'towns-left' && leftTownRows.some((row) => isLayerLocked('town', row.id))) return
+        if (stackSelection.kind === 'towns-right' && rightTownRows.some((row) => isLayerLocked('town', row.id))) return
         setSelection(stackSelection)
         updateSelectionPosition(event.target.x(), event.target.y())
       }}
@@ -2998,6 +3294,63 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
       ))}
     </Group>
   )
+
+  const renderOrderedCustomLayers = () =>
+    (scene?.layers || [])
+      .filter((item) => item.group === 'custom')
+      .sort((left, right) => left.order - right.order)
+      .map((item) => {
+        if (item.kind === 'custom-image') {
+          const customImage = scene?.customImages.find((entry) => entry.id === item.id)
+          return customImage ? renderCustomImageNode(customImage) : null
+        }
+        if (item.kind === 'custom-rect') {
+          const customRect = scene?.customRects.find((entry) => entry.id === item.id)
+          if (!customRect || isLayerHidden('custom-rect', customRect.id)) return null
+          const locked = isLayerLocked('custom-rect', customRect.id)
+          return (
+            <Group
+              key={customRect.id}
+              ref={(node) => {
+                customRectRefs.current[customRect.id] = node
+              }}
+              x={customRect.x}
+              y={customRect.y}
+              draggable={!locked}
+              onDragEnd={(event) => {
+                if (locked) return
+                setSelection({ kind: 'custom-rect', id: customRect.id })
+                updateCustomRect(customRect.id, { x: event.target.x(), y: event.target.y() })
+              }}
+              onMouseDown={() => {
+                if (locked) return
+                setSelection({ kind: 'custom-rect', id: customRect.id })
+              }}
+              onTransformEnd={(event) => {
+                if (locked) return
+                const node = event.target
+                const nextWidth = Math.max(20, Math.round(customRect.width * node.scaleX()))
+                const nextHeight = Math.max(20, Math.round(customRect.height * node.scaleY()))
+                node.scaleX(1)
+                node.scaleY(1)
+                updateCustomRect(customRect.id, {
+                  x: node.x(),
+                  y: node.y(),
+                  width: nextWidth,
+                  height: nextHeight,
+                })
+              }}
+            >
+              {selection?.kind === 'custom-rect' && selection.id === customRect.id ? (
+                <Rect x={-8} y={-8} width={customRect.width + 16} height={customRect.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+              ) : null}
+              <Rect width={customRect.width} height={customRect.height} fill={customRect.fill} cornerRadius={12} />
+            </Group>
+          )
+        }
+        const customText = scene?.customTexts.find((entry) => entry.id === item.id)
+        return customText ? renderCustomTextNode(customText) : null
+      })
 
   return (
     <div
@@ -3346,6 +3699,86 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           </div>
         </details>
 
+        <details open style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Layers size={14} />
+              Layers
+            </span>
+          </summary>
+          <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+            {layerPanelItems.map(({ item, label, reorderable }) => {
+              const isSelected = selection?.kind === item.kind && selection.id === item.id
+              return (
+                <div
+                  key={`${item.kind}:${item.id}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(0, 1fr) auto',
+                    gap: 8,
+                    alignItems: 'center',
+                    padding: '6px 8px',
+                    borderRadius: 12,
+                    border: isSelected ? '1px solid rgba(14,165,233,0.45)' : '1px solid rgba(15,23,42,0.08)',
+                    background: isSelected ? 'rgba(14,165,233,0.08)' : '#ffffff',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelection({ kind: item.kind, id: item.id } as Exclude<Selection, null>)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      textAlign: 'left',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {label}
+                  </button>
+                  <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {reorderable ? (
+                      <>
+                        <button type="button" title="Send to back" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'back')} style={iconToolbarButtonStyle}>
+                          <ChevronsDown size={12} />
+                        </button>
+                        <button type="button" title="Send backward" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'backward')} style={iconToolbarButtonStyle}>
+                          <ChevronDown size={12} />
+                        </button>
+                        <button type="button" title="Bring forward" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'forward')} style={iconToolbarButtonStyle}>
+                          <ChevronUp size={12} />
+                        </button>
+                        <button type="button" title="Bring to front" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'front')} style={iconToolbarButtonStyle}>
+                          <ChevronsUp size={12} />
+                        </button>
+                      </>
+                    ) : null}
+                    <button
+                      type="button"
+                      title={item.hidden ? 'Show layer' : 'Hide layer'}
+                      onClick={() => updateLayerState({ id: item.id, kind: item.kind }, { hidden: !item.hidden })}
+                      style={item.hidden ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+                    >
+                      {item.hidden ? <EyeOff size={12} /> : <Eye size={12} />}
+                    </button>
+                    <button
+                      type="button"
+                      title={item.locked ? 'Unlock layer' : 'Lock layer'}
+                      onClick={() => updateLayerState({ id: item.id, kind: item.kind }, { locked: !item.locked })}
+                      style={item.locked ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+                    >
+                      {item.locked ? <Lock size={12} /> : <Unlock size={12} />}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </details>
+
         <details open={inspectorSectionOpen} onToggle={(event) => setInspectorSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
           <summary style={detailsSummaryStyle}>Inspector</summary>
           <div style={{ display: 'grid', gap: 10, marginTop: 8 }}>
@@ -3553,6 +3986,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           </button>
           <button
             type="button"
+            title="Copy"
+            aria-label="Copy"
+            onClick={copySelectedCustomObject}
+            disabled={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind)}
+            style={!selection || !['custom-image', 'custom-rect', 'custom-text'].includes(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+          >
+            <Clipboard size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
             title="Duplicate"
             aria-label="Duplicate"
             onClick={duplicateSelectedCustomObject}
@@ -3571,6 +4014,70 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
           >
             <Trash2 size={14} strokeWidth={2.1} />
           </button>
+          <button
+            type="button"
+            title="Paste"
+            aria-label="Paste"
+            onClick={pasteClipboardObject}
+            disabled={!hasEditorClipboard()}
+            style={!hasEditorClipboard() ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+          >
+            <Copy size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
+            title="Send backward"
+            aria-label="Send backward"
+            onClick={() => reorderSelectedLayer('backward')}
+            disabled={!selection || !isCustomLayerKind(selection.kind)}
+            style={!selection || !isCustomLayerKind(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+          >
+            <ChevronDown size={14} strokeWidth={2.1} />
+          </button>
+          <button
+            type="button"
+            title="Bring forward"
+            aria-label="Bring forward"
+            onClick={() => reorderSelectedLayer('forward')}
+            disabled={!selection || !isCustomLayerKind(selection.kind)}
+            style={!selection || !isCustomLayerKind(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+          >
+            <ChevronUp size={14} strokeWidth={2.1} />
+          </button>
+          {selection ? (
+            <>
+              {getLayerTarget(selection) ? (
+              <button
+                type="button"
+                title={selectedLayer?.hidden ? 'Show layer' : 'Hide layer'}
+                aria-label={selectedLayer?.hidden ? 'Show layer' : 'Hide layer'}
+                onClick={() => {
+                  const target = getLayerTarget(selection)
+                  if (!target) return
+                  updateLayerState(target, { hidden: !selectedLayer?.hidden })
+                }}
+                style={selectedLayer?.hidden ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              >
+                {selectedLayer?.hidden ? <EyeOff size={14} strokeWidth={2.1} /> : <Eye size={14} strokeWidth={2.1} />}
+              </button>
+              ) : null}
+              {getLayerTarget(selection) ? (
+              <button
+                type="button"
+                title={selectedLayer?.locked ? 'Unlock layer' : 'Lock layer'}
+                aria-label={selectedLayer?.locked ? 'Unlock layer' : 'Lock layer'}
+                onClick={() => {
+                  const target = getLayerTarget(selection)
+                  if (!target) return
+                  updateLayerState(target, { locked: !selectedLayer?.locked })
+                }}
+                style={selectedLayer?.locked ? activeIconToolbarButtonStyle : iconToolbarButtonStyle}
+              >
+                {selectedLayer?.locked ? <Lock size={14} strokeWidth={2.1} /> : <Unlock size={14} strokeWidth={2.1} />}
+              </button>
+              ) : null}
+            </>
+          ) : null}
         </div>
         <div
           ref={stageContainerRef}
@@ -3619,46 +4126,18 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 />
               ) : null}
               <Rect width={STAGE_WIDTH} height={STAGE_HEIGHT} fill="rgba(255,255,255,0.66)" />
-              {scene.customImages.map(renderCustomImageNode)}
+              {renderOrderedCustomLayers()}
 
-              {scene.customRects.map((item) => (
-                <Group
-                  key={item.id}
-                  ref={(node) => {
-                    customRectRefs.current[item.id] = node
-                  }}
-                  x={item.x}
-                  y={item.y}
-                  draggable
-                  onDragEnd={(event) => {
-                    setSelection({ kind: 'custom-rect', id: item.id })
-                    updateCustomRect(item.id, { x: event.target.x(), y: event.target.y() })
-                  }}
-                  onMouseDown={() => setSelection({ kind: 'custom-rect', id: item.id })}
-                  onTransformEnd={(event) => {
-                    const node = event.target
-                    const nextWidth = Math.max(40, Math.round(item.width * node.scaleX()))
-                    const nextHeight = Math.max(20, Math.round(item.height * node.scaleY()))
-                    node.scaleX(1)
-                    node.scaleY(1)
-                    updateCustomRect(item.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight })
-                  }}
-                >
-                  {selection?.kind === 'custom-rect' && selection.id === item.id ? (
-                    <Rect x={-8} y={-8} width={item.width + 16} height={item.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
-                  ) : null}
-                  <Rect width={item.width} height={item.height} fill={item.fill} cornerRadius={8} />
-                </Group>
-              ))}
-
-              {scene.customTexts.map(renderCustomTextNode)}
-
+              {!isLayerHidden('eyebrow', scene.eyebrow.id) ? (
               <Group
                 x={scene.eyebrow.x}
                 y={scene.eyebrow.y}
-                draggable
+                draggable={!isLayerLocked('eyebrow', scene.eyebrow.id)}
                 onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'eyebrow', id: scene.eyebrow.id })}
+                onMouseDown={() => {
+                  if (isLayerLocked('eyebrow', scene.eyebrow.id)) return
+                  setSelection({ kind: 'eyebrow', id: scene.eyebrow.id })
+                }}
               >
                 {selection?.kind === 'eyebrow' ? (
                   <Rect x={-8} y={-8} width={scene.eyebrow.barWidth + 16} height={scene.eyebrow.barHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
@@ -3681,16 +4160,22 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   onDblClick={() => beginInlineTextEdit({ kind: 'eyebrow', id: scene.eyebrow.id })}
                 />
               </Group>
+              ) : null}
 
+              {!isLayerHidden('headline', scene.headline.id) ? (
               <Group
                 x={scene.headline.x}
                 y={scene.headline.y}
                 ref={headlineRef}
-                draggable={selection?.kind === 'headline' && !isResizingHeadline}
+                draggable={selection?.kind === 'headline' && !isResizingHeadline && !isLayerLocked('headline', scene.headline.id)}
                 onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'headline', id: scene.headline.id })}
+                onMouseDown={() => {
+                  if (isLayerLocked('headline', scene.headline.id)) return
+                  setSelection({ kind: 'headline', id: scene.headline.id })
+                }}
                 onTransformStart={() => setIsResizingHeadline(true)}
                 onTransformEnd={(event) => {
+                  if (isLayerLocked('headline', scene.headline.id)) return
                   const node = event.target
                   const { nextFontSize, nextWidth } = getResizedTextTransform({
                     fontSize: scene.headline.fontSize,
@@ -3728,11 +4213,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   onDblClick={() => beginInlineTextEdit({ kind: 'headline', id: scene.headline.id })}
                 />
               </Group>
+              ) : null}
 
+              {!isLayerHidden('subhead', scene.subhead.id) ? (
               <Group
                 x={scene.subhead.x}
                 y={scene.subhead.y}
-                onMouseDown={() => setSelection({ kind: 'subhead', id: scene.subhead.id })}
+                onMouseDown={() => {
+                  if (isLayerLocked('subhead', scene.subhead.id)) return
+                  setSelection({ kind: 'subhead', id: scene.subhead.id })
+                }}
               >
                 {selection?.kind === 'subhead' ? (
                   <Rect x={-10} y={-12} width={Math.max(scene.subhead.dividerWidth + 20, 320)} height={74} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={12} />
@@ -3753,6 +4243,7 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   onDblClick={() => beginInlineTextEdit({ kind: 'subhead', id: scene.subhead.id })}
                 />
               </Group>
+              ) : null}
 
               {scene.townColumns === 2 ? (
                 <>
@@ -3763,12 +4254,16 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                 renderTownStack(includedTownRows, townStackBounds, { kind: 'towns', id: 'town-stack' }, townStackRef)
               )}
 
+              {!isLayerHidden('footer', scene.footer.id) ? (
               <Group
                 x={scene.footer.x}
                 y={scene.footer.y}
-                draggable
+                draggable={!isLayerLocked('footer', scene.footer.id)}
                 onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
-                onMouseDown={() => setSelection({ kind: 'footer', id: scene.footer.id })}
+                onMouseDown={() => {
+                  if (isLayerLocked('footer', scene.footer.id)) return
+                  setSelection({ kind: 'footer', id: scene.footer.id })
+                }}
               >
                 {selection?.kind === 'footer' ? (
                   <Rect x={-8} y={-8} width={scene.footer.width + 16} height={scene.footer.height + 16} stroke="#0ea5e9" dash={[10, 6]} />
@@ -3790,16 +4285,25 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                   onDblClick={() => beginInlineTextEdit({ kind: 'footer', id: scene.footer.id })}
                 />
               </Group>
+              ) : null}
 
+              {!isLayerHidden('headshot', scene.headshot.id) ? (
               <Group
                   x={scene.headshot.x}
                   y={scene.headshot.y}
                   ref={headshotRef}
-                  draggable
-                  onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                  onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                  draggable={!isLayerLocked('headshot', scene.headshot.id)}
+                  onClick={() => {
+                    if (isLayerLocked('headshot', scene.headshot.id)) return
+                    setSelection({ kind: 'headshot', id: scene.headshot.id })
+                  }}
+                  onTap={() => {
+                    if (isLayerLocked('headshot', scene.headshot.id)) return
+                    setSelection({ kind: 'headshot', id: scene.headshot.id })
+                  }}
                   onDragEnd={(event) => updateHeadshot({ x: event.target.x(), y: event.target.y() })}
                   onTransformEnd={(event) => {
+                    if (isLayerLocked('headshot', scene.headshot.id)) return
                     const node = event.target
                     const scale = Math.max(node.scaleX(), node.scaleY())
                     const nextSize = Math.max(180, Math.round(scene.headshot.size * scale))
@@ -3822,12 +4326,19 @@ export const ExperimentalTownGraphicEditor: React.FC = () => {
                         y={headshotPlacement.y}
                         width={headshotPlacement.width}
                         height={headshotPlacement.height}
-                        onClick={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
-                        onTap={() => setSelection({ kind: 'headshot', id: scene.headshot.id })}
+                        onClick={() => {
+                          if (isLayerLocked('headshot', scene.headshot.id)) return
+                          setSelection({ kind: 'headshot', id: scene.headshot.id })
+                        }}
+                        onTap={() => {
+                          if (isLayerLocked('headshot', scene.headshot.id)) return
+                          setSelection({ kind: 'headshot', id: scene.headshot.id })
+                        }}
                       />
                     ) : null}
                   </Group>
                 </Group>
+              ) : null}
 
               <Transformer
                 ref={transformerRef}

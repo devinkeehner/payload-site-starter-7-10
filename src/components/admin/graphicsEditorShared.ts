@@ -52,6 +52,49 @@ export type EditorCustomText = {
   y: number
 }
 
+export type EditorLayerKind =
+  | 'eyebrow'
+  | 'headline'
+  | 'subhead'
+  | 'footer'
+  | 'headshot'
+  | 'town'
+  | 'custom-image'
+  | 'custom-rect'
+  | 'custom-text'
+
+export type EditorLayerGroup = 'built-in' | 'custom'
+
+export type EditorLayerItem = {
+  group: EditorLayerGroup
+  hidden?: boolean
+  id: string
+  kind: EditorLayerKind
+  locked?: boolean
+  order: number
+}
+
+export type EditorLayerTarget = Pick<EditorLayerItem, 'id' | 'kind'>
+
+type EditorLayerSceneSnapshot = {
+  customImages: Pick<EditorCustomImage, 'id'>[]
+  customRects: Pick<EditorCustomRect, 'id'>[]
+  customTexts: Pick<EditorCustomText, 'id'>[]
+  eyebrow: { id: string }
+  footer: { id: string }
+  headline: { id: string }
+  headshot: { id: string }
+  subhead: { id: string }
+  townRows: { id: string }[]
+}
+
+type EditorClipboardItem =
+  | { kind: 'custom-image'; payload: EditorCustomImage }
+  | { kind: 'custom-rect'; payload: EditorCustomRect }
+  | { kind: 'custom-text'; payload: EditorCustomText }
+
+type EditorLayerReorderDirection = 'backward' | 'forward' | 'front' | 'back'
+
 export type EditorComponentDefinition = {
   build: (context: {
     brandBlue: string
@@ -69,6 +112,7 @@ export type EditorComponentDefinition = {
 }
 
 const COMPONENT_INSERT_OFFSET = 28
+let sessionClipboard: EditorClipboardItem | null = null
 
 export const TEXT_FONT_OPTIONS = [
   { label: 'Arial', value: 'Arial' },
@@ -112,12 +156,232 @@ export const duplicateRect = (rect: EditorCustomRect): EditorCustomRect => ({
   y: rect.y + COMPONENT_INSERT_OFFSET,
 })
 
+export const duplicateImage = <T extends EditorCustomImage>(image: T): T => ({
+  ...image,
+  id: createEditorNodeID('custom-image'),
+  x: image.x + COMPONENT_INSERT_OFFSET,
+  y: image.y + COMPONENT_INSERT_OFFSET,
+}) as T
+
 export const duplicateText = (text: EditorCustomText): EditorCustomText => ({
   ...text,
   id: createEditorNodeID('custom-text'),
   x: text.x + COMPONENT_INSERT_OFFSET,
   y: text.y + COMPONENT_INSERT_OFFSET,
 })
+
+const CUSTOM_LAYER_KINDS = new Set<EditorLayerKind>(['custom-image', 'custom-rect', 'custom-text'])
+const layerKey = (target: EditorLayerTarget) => `${target.kind}:${target.id}`
+const cloneClipboardPayload = <T,>(payload: T): T => JSON.parse(JSON.stringify(payload)) as T
+
+export const isCustomLayerKind = (kind: string) => CUSTOM_LAYER_KINDS.has(kind as EditorLayerKind)
+
+export const buildEditorLayers = (scene: EditorLayerSceneSnapshot): EditorLayerItem[] => {
+  const builtins: EditorLayerItem[] = [
+    { id: scene.eyebrow.id, kind: 'eyebrow', group: 'built-in', order: 0 },
+    { id: scene.headline.id, kind: 'headline', group: 'built-in', order: 1 },
+    { id: scene.subhead.id, kind: 'subhead', group: 'built-in', order: 2 },
+    { id: scene.footer.id, kind: 'footer', group: 'built-in', order: 3 },
+    { id: scene.headshot.id, kind: 'headshot', group: 'built-in', order: 4 },
+    ...scene.townRows.map((row, index) => ({
+      id: row.id,
+      kind: 'town' as const,
+      group: 'built-in' as const,
+      order: 5 + index,
+    })),
+  ]
+
+  const customStartOrder = builtins.length
+  const customItems: EditorLayerItem[] = [
+    ...scene.customImages.map((item, index) => ({
+      id: item.id,
+      kind: 'custom-image' as const,
+      group: 'custom' as const,
+      order: customStartOrder + index,
+    })),
+    ...scene.customRects.map((item, index) => ({
+      id: item.id,
+      kind: 'custom-rect' as const,
+      group: 'custom' as const,
+      order: customStartOrder + scene.customImages.length + index,
+    })),
+    ...scene.customTexts.map((item, index) => ({
+      id: item.id,
+      kind: 'custom-text' as const,
+      group: 'custom' as const,
+      order: customStartOrder + scene.customImages.length + scene.customRects.length + index,
+    })),
+  ]
+
+  return [...builtins, ...customItems]
+}
+
+export const hydrateEditorLayers = ({
+  baseLayers,
+  savedLayers,
+}: {
+  baseLayers: EditorLayerItem[]
+  savedLayers?: EditorLayerItem[] | null
+}) => {
+  if (!Array.isArray(savedLayers) || savedLayers.length === 0) return baseLayers
+
+  const baseByKey = new Map(baseLayers.map((item) => [layerKey(item), item] as const))
+  const savedByKey = new Map(savedLayers.map((item) => [layerKey(item), item] as const))
+
+  const builtins = baseLayers
+    .filter((item) => item.group === 'built-in')
+    .map((item, index) => {
+      const saved = savedByKey.get(layerKey(item))
+      return {
+        ...item,
+        hidden: saved?.hidden ?? item.hidden ?? false,
+        locked: saved?.locked ?? item.locked ?? false,
+        order: index,
+      }
+    })
+
+  const baseCustom = baseLayers.filter((item) => item.group === 'custom')
+  const resolvedCustom: EditorLayerItem[] = []
+  const used = new Set<string>()
+
+  savedLayers
+    .filter((item) => item.group === 'custom')
+    .sort((left, right) => left.order - right.order)
+    .forEach((saved) => {
+      const key = layerKey(saved)
+      const base = baseByKey.get(key)
+      if (!base || base.group !== 'custom' || used.has(key)) return
+      used.add(key)
+      resolvedCustom.push({
+        ...base,
+        hidden: saved.hidden ?? base.hidden ?? false,
+        locked: saved.locked ?? base.locked ?? false,
+        order: 0,
+      })
+    })
+
+  baseCustom.forEach((item) => {
+    const key = layerKey(item)
+    if (used.has(key)) return
+    resolvedCustom.push(item)
+  })
+
+  const orderOffset = builtins.length
+  return [
+    ...builtins,
+    ...resolvedCustom.map((item, index) => ({
+      ...item,
+      hidden: item.hidden ?? false,
+      locked: item.locked ?? false,
+      order: orderOffset + index,
+    })),
+  ]
+}
+
+export const getEditorLayerItem = (layers: EditorLayerItem[] | undefined | null, target: EditorLayerTarget | null) => {
+  if (!target || !Array.isArray(layers)) return null
+  return layers.find((item) => item.id === target.id && item.kind === target.kind) || null
+}
+
+export const patchEditorLayer = (
+  layers: EditorLayerItem[] | undefined | null,
+  target: EditorLayerTarget,
+  patch: Partial<Pick<EditorLayerItem, 'hidden' | 'locked'>>,
+) =>
+  (layers || []).map((item) =>
+    item.id === target.id && item.kind === target.kind
+      ? {
+          ...item,
+          ...patch,
+        }
+      : item,
+  )
+
+export const appendEditorLayers = (
+  layers: EditorLayerItem[] | undefined | null,
+  items: Omit<EditorLayerItem, 'order'>[],
+) => {
+  const currentLayers = [...(layers || [])]
+  const nextOrder = currentLayers.length
+  return [
+    ...currentLayers,
+    ...items.map((item, index) => ({
+      ...item,
+      hidden: item.hidden ?? false,
+      locked: item.locked ?? false,
+      order: nextOrder + index,
+    })),
+  ]
+}
+
+export const removeEditorLayers = (layers: EditorLayerItem[] | undefined | null, targets: EditorLayerTarget[]) => {
+  const targetKeys = new Set(targets.map((target) => layerKey(target)))
+  const remaining = (layers || []).filter((item) => !targetKeys.has(layerKey(item)))
+  return remaining.map((item, index) => ({ ...item, order: index }))
+}
+
+export const reorderCustomEditorLayer = (
+  layers: EditorLayerItem[] | undefined | null,
+  target: EditorLayerTarget,
+  direction: EditorLayerReorderDirection,
+) => {
+  const currentLayers = [...(layers || [])]
+  const builtins = currentLayers.filter((item) => item.group === 'built-in').sort((left, right) => left.order - right.order)
+  const customs = currentLayers.filter((item) => item.group === 'custom').sort((left, right) => left.order - right.order)
+  const index = customs.findIndex((item) => item.id === target.id && item.kind === target.kind)
+  if (index < 0) return currentLayers
+
+  const reordered = [...customs]
+  const [item] = reordered.splice(index, 1)
+  if (!item) return currentLayers
+  const nextIndex =
+    direction === 'front'
+      ? reordered.length
+      : direction === 'back'
+        ? 0
+        : direction === 'forward'
+          ? Math.min(index + 1, reordered.length)
+          : Math.max(index - 1, 0)
+  reordered.splice(nextIndex, 0, item)
+
+  const orderOffset = builtins.length
+  return [
+    ...builtins.map((layer, index) => ({ ...layer, order: index })),
+    ...reordered.map((layer, index) => ({ ...layer, order: orderOffset + index })),
+  ]
+}
+
+export const setEditorClipboard = (item: EditorClipboardItem | null) => {
+  if (!item) {
+    sessionClipboard = null
+    return
+  }
+
+  if (item.kind === 'custom-image') {
+    sessionClipboard = { kind: 'custom-image', payload: cloneClipboardPayload(item.payload) }
+    return
+  }
+
+  if (item.kind === 'custom-rect') {
+    sessionClipboard = { kind: 'custom-rect', payload: cloneClipboardPayload(item.payload) }
+    return
+  }
+
+  sessionClipboard = { kind: 'custom-text', payload: cloneClipboardPayload(item.payload) }
+}
+
+export const hasEditorClipboard = () => Boolean(sessionClipboard)
+
+export const readEditorClipboard = () => {
+  if (!sessionClipboard) return null
+  if (sessionClipboard.kind === 'custom-image') {
+    return { kind: 'custom-image' as const, payload: cloneClipboardPayload(sessionClipboard.payload) }
+  }
+  if (sessionClipboard.kind === 'custom-rect') {
+    return { kind: 'custom-rect' as const, payload: cloneClipboardPayload(sessionClipboard.payload) }
+  }
+  return { kind: 'custom-text' as const, payload: cloneClipboardPayload(sessionClipboard.payload) }
+}
 
 export const getFontStyleFlags = (fontStyle?: string) => {
   const normalized = (fontStyle || '').toLowerCase()
