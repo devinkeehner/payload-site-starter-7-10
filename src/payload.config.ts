@@ -38,6 +38,7 @@ import { Footer } from './components/site/footer/config';
 // Misc imports
 import { plugins } from '@/lib/plugins';
 import { defaultLexical } from '@/collections/fields/defaultLexical';
+import { authenticated } from '@/lib/access/authenticated';
 import { isSuperUser } from '@/lib/access/isSuperUser';
 import {
   getIContactConfigFromEnv,
@@ -48,6 +49,12 @@ import {
   syncSubmissionToIContact,
 } from '@/lib/icontact';
 import { shareDocumentToTenants } from '@/lib/mcp-tenant-shares';
+import {
+  DEFAULT_SEO_ASSISTANT_SETTINGS,
+  SEO_ASSISTANT_MODEL_OPTIONS,
+  SEO_ASSISTANT_REASONING_OPTIONS,
+  SEO_ASSISTANT_TONE_OPTIONS,
+} from '@/lib/seo/assistantConfig';
 
 // Inline Global Meta & SEO (Payload Global - site-wide)
 const GlobalMetaSEOGlobal: GlobalConfig = {
@@ -83,6 +90,71 @@ const GlobalMetaSEOGlobal: GlobalConfig = {
       type: 'textarea',
       admin: {
         description: 'Paste the GTM <noscript> iframe block.',
+      },
+    },
+  ],
+};
+
+const SEOGeneratorSettingsGlobal: GlobalConfig = {
+  slug: 'seo-generator-settings',
+  label: 'SEO Generator Settings',
+  admin: {
+    group: 'Admin',
+    hidden: ({ user }) => !isSuperUser(user),
+  },
+  access: {
+    read: authenticated,
+    update: ({ req }) => isSuperUser(req.user),
+  },
+  fields: [
+    {
+      name: 'defaultModel',
+      label: 'Default Model',
+      type: 'select',
+      required: true,
+      defaultValue: DEFAULT_SEO_ASSISTANT_SETTINGS.defaultModel,
+      options: SEO_ASSISTANT_MODEL_OPTIONS.map((option) => ({
+        label: option.label,
+        value: option.value,
+      })),
+      admin: {
+        description: 'Default model used by the post publishing assistant for SEO generation.',
+      },
+    },
+    {
+      name: 'defaultReasoning',
+      label: 'Default Reasoning',
+      type: 'select',
+      required: true,
+      defaultValue: DEFAULT_SEO_ASSISTANT_SETTINGS.defaultReasoning,
+      options: SEO_ASSISTANT_REASONING_OPTIONS.map((option) => ({
+        label: option.label,
+        value: option.value,
+      })),
+      admin: {
+        description: 'Reasoning effort for the default SEO generation run.',
+      },
+    },
+    {
+      name: 'defaultTone',
+      label: 'Default Tone',
+      type: 'select',
+      required: true,
+      defaultValue: DEFAULT_SEO_ASSISTANT_SETTINGS.defaultTone,
+      options: SEO_ASSISTANT_TONE_OPTIONS.map((option) => ({
+        label: option.label,
+        value: option.value,
+      })),
+      admin: {
+        description: 'Default political tone used when editors have not chosen a per-post override.',
+      },
+    },
+    {
+      name: 'defaultInstructions',
+      label: 'Default Instructions',
+      type: 'textarea',
+      admin: {
+        description: 'Optional always-on guidance appended to every SEO generation request.',
       },
     },
   ],
@@ -3928,7 +4000,7 @@ const getEditingDefaultsTool = {
       '6) Collection inspection: use describeEntityShape for collections and globals before changing unfamiliar schemas.',
       '7) Forms rich text is editable through listRichTextNodes/updateRichTextNodes on forms.confirmationMessage, forms.emails[*].message, and message field blocks.',
       '8) Tenant cloning: use shareDocumentToTenants for posts and forms instead of the admin UI share buttons.',
-      '9) Globals: use getGlobal and updateGlobal for header, footer, and global-meta-seo.',
+      '9) Globals: use getGlobal and updateGlobal for header, footer, global-meta-seo, and seo-generator-settings.',
     ].join('\n');
 
     return {
@@ -3941,12 +4013,18 @@ const getGlobalDocumentTool = {
   name: 'getGlobal',
   description: 'Read a global document by slug.',
   parameters: {
-    slug: z.enum(['header', 'footer', 'global-meta-seo']).describe('Global slug to read.'),
+    slug: z.enum(['header', 'footer', 'global-meta-seo', 'seo-generator-settings']).describe('Global slug to read.'),
     depth: z.number().int().min(0).max(10).optional().default(0).describe('Depth for nested relationships.'),
     draft: z.boolean().optional().default(true).describe('When true, read the draft version when available.'),
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
-    const slug = args.slug === 'header' || args.slug === 'footer' || args.slug === 'global-meta-seo' ? args.slug : null;
+    const slug =
+      args.slug === 'header' ||
+      args.slug === 'footer' ||
+      args.slug === 'global-meta-seo' ||
+      args.slug === 'seo-generator-settings'
+        ? args.slug
+        : null;
     const depth = typeof args.depth === 'number' && Number.isFinite(args.depth) ? Math.max(0, Math.trunc(args.depth)) : 0;
     const draft = typeof args.draft === 'boolean' ? args.draft : true;
 
@@ -3995,14 +4073,20 @@ const updateGlobalDocumentTool = {
   name: 'updateGlobal',
   description: 'Update a global document with draft-first behavior.',
   parameters: {
-    slug: z.enum(['header', 'footer', 'global-meta-seo']).describe('Global slug to update.'),
+    slug: z.enum(['header', 'footer', 'global-meta-seo', 'seo-generator-settings']).describe('Global slug to update.'),
     data: z.record(z.unknown()).describe('Partial global data to merge into the document.'),
     depth: z.number().int().min(0).max(10).optional().default(0).describe('Depth for nested relationships in the returned document.'),
     draft: z.boolean().optional().default(true).describe('When true, keep the update in draft mode.'),
     dryRun: z.boolean().optional().default(false).describe('When true, return the current document and patch without writing.'),
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
-    const slug = args.slug === 'header' || args.slug === 'footer' || args.slug === 'global-meta-seo' ? args.slug : null;
+    const slug =
+      args.slug === 'header' ||
+      args.slug === 'footer' ||
+      args.slug === 'global-meta-seo' ||
+      args.slug === 'seo-generator-settings'
+        ? args.slug
+        : null;
     const patch =
       args.data && typeof args.data === 'object' && !Array.isArray(args.data)
         ? (args.data as Record<string, unknown>)
@@ -4904,7 +4988,7 @@ export default buildConfig({
     headers: ['Content-Type', 'Authorization', 'x-turnstile-token'],
   },
 
-  globals: [Header, Footer, GlobalMetaSEOGlobal],
+  globals: [Header, Footer, GlobalMetaSEOGlobal, SEOGeneratorSettingsGlobal],
 
   plugins: [
     mcpPlugin({

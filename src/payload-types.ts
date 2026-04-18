@@ -142,11 +142,13 @@ export interface Config {
     header: Header;
     footer: Footer;
     'global-meta-seo': GlobalMetaSeo;
+    'seo-generator-settings': SeoGeneratorSetting;
   };
   globalsSelect: {
     header: HeaderSelect<false> | HeaderSelect<true>;
     footer: FooterSelect<false> | FooterSelect<true>;
     'global-meta-seo': GlobalMetaSeoSelect<false> | GlobalMetaSeoSelect<true>;
+    'seo-generator-settings': SeoGeneratorSettingsSelect<false> | SeoGeneratorSettingsSelect<true>;
   };
   locale: null;
   user:
@@ -230,28 +232,46 @@ export interface Post {
     [k: string]: unknown;
   };
   /**
-   * Starting layout for the social graphic editor. If the tenant has a default, this field is preselected automatically.
+   * Optional manual template link for the publishing assistant. If blank, the tenant default template is used when available.
    */
   graphicTemplate?: (string | null) | GraphicTemplate;
   /**
-   * The saved editable graphic instance for this post.
+   * Linked saved graphic reopened by the publishing assistant for social and SEO image work.
    */
   graphicDesign?: (string | null) | GraphicDesign;
   meta: {
+    /**
+     * Primary SEO headline. The publishing assistant can draft this, but editors should refine it for clarity and clicks.
+     */
     title: string;
     /**
      * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
     image: string | Media;
+    /**
+     * One-sentence search description. Review after generation and approve only once it reads cleanly.
+     */
     description: string;
     descriptionApproved: boolean;
   };
+  /**
+   * Use one best-fit primary category. The publishing assistant drafts this selection, but editors can adjust it.
+   */
   categories: (string | Category)[];
+  /**
+   * Four short headline-style lines used for packaging and sharing. New assistant output resets approval.
+   */
   keyTakeaways: {
     point: string;
     id?: string | null;
   }[];
+  /**
+   * Check this only after reviewing the generated or edited takeaways for tone, accuracy, and readability.
+   */
   keyTakeawaysApproved: boolean;
+  /**
+   * Choose the best-fit article type for the post. The publishing assistant drafts this as part of the SEO package.
+   */
   articleType: string | ArticleType;
   publishedAt?: string | null;
   draftShareToken?: string | null;
@@ -5326,6 +5346,31 @@ export interface GlobalMetaSeo {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-generator-settings".
+ */
+export interface SeoGeneratorSetting {
+  id: string;
+  /**
+   * Default model used by the post publishing assistant for SEO generation.
+   */
+  defaultModel: 'gpt-5.4' | 'gpt-5.4-mini';
+  /**
+   * Reasoning effort for the default SEO generation run.
+   */
+  defaultReasoning: 'minimal' | 'low' | 'medium' | 'high';
+  /**
+   * Default political tone used when editors have not chosen a per-post override.
+   */
+  defaultTone: 'neutral' | 'lean-right' | 'strong-right';
+  /**
+   * Optional always-on guidance appended to every SEO generation request.
+   */
+  defaultInstructions?: string | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "header_select".
  */
 export interface HeaderSelect<T extends boolean = true> {
@@ -5378,6 +5423,19 @@ export interface GlobalMetaSeoSelect<T extends boolean = true> {
   gtmHeader?: T;
   siteJsonLd?: T;
   gtmBodyNoscript?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "seo-generator-settings_select".
+ */
+export interface SeoGeneratorSettingsSelect<T extends boolean = true> {
+  defaultModel?: T;
+  defaultReasoning?: T;
+  defaultTone?: T;
+  defaultInstructions?: T;
   updatedAt?: T;
   createdAt?: T;
   globalType?: T;

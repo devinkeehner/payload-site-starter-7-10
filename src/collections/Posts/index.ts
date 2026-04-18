@@ -9,7 +9,6 @@ import {
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
 import { convertLexicalToHTML } from '@payloadcms/richtext-lexical/html'
-import OpenAI from 'openai'
 
 import { authenticated } from '../../lib/access/authenticated'
 import { authenticatedOrPublished } from '../../lib/access/authenticatedOrPublished'
@@ -34,6 +33,13 @@ import {
 } from '@payloadcms/plugin-seo/fields'
 import { slugField } from '@/collections/fields/slug'
 import { isSuperUser } from '@/lib/access/isSuperUser'
+import {
+  DEFAULT_SEO_ASSISTANT_SETTINGS,
+  type SeoAssistantSettings,
+  type SeoAssistantTone,
+  normalizeSeoAssistantSettings,
+} from '@/lib/seo/assistantConfig'
+import { generatePostSeo } from '@/lib/seo/generatePostSeo'
 
 type UnknownRecord = Record<string, unknown>
 type TenantLike = string | { id?: string | null } | null | undefined
@@ -75,6 +81,52 @@ const getErrorData = (err: unknown): { message?: string; code?: string; type?: s
     type: getString(record.type),
     name: getString(record.name),
     stack: getString(record.stack),
+  }
+}
+
+const parseRequestBody = async (req: EndpointReq): Promise<UnknownRecord> => {
+  let raw: unknown = req?.body
+
+  if (raw && typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      raw = {}
+    }
+  } else if (raw && typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
+    try {
+      raw = JSON.parse(raw.toString('utf-8'))
+    } catch {
+      raw = {}
+    }
+  }
+
+  if (!raw && typeof req?.json === 'function') {
+    try {
+      raw = await req.json()
+    } catch {
+      raw = {}
+    }
+  }
+
+  return asRecord(raw)
+}
+
+const isSeoAssistantTone = (value: unknown): value is SeoAssistantTone =>
+  value === 'neutral' || value === 'lean-right' || value === 'strong-right'
+
+const readSeoAssistantSettings = async (req: EndpointReq): Promise<SeoAssistantSettings> => {
+  try {
+    const doc = await req.payload.findGlobal({
+      slug: 'seo-generator-settings',
+      depth: 0,
+      draft: true,
+      overrideAccess: true,
+      req,
+    })
+    return normalizeSeoAssistantSettings(doc)
+  } catch {
+    return DEFAULT_SEO_ASSISTANT_SETTINGS
   }
 }
 
@@ -132,6 +184,33 @@ export const Posts: CollectionConfig<'posts'> = {
   },
   endpoints: [
     {
+      path: '/assistant-config',
+      method: 'get',
+      handler: (async (req: EndpointReq, res: EndpointRes | undefined) => {
+        const send = (status: number, body: unknown) => {
+          if (res?.status && typeof res.status === 'function') {
+            return res.status(status).json(body)
+          }
+          return new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        try {
+          if (!req.user) {
+            return send(401, { error: 'Unauthorized' })
+          }
+
+          const settings = await readSeoAssistantSettings(req)
+          return send(200, { settings })
+        } catch (err: unknown) {
+          const errorData = getErrorData(err)
+          return send(500, { error: errorData.message || 'Unable to load assistant config' })
+        }
+      }) as unknown as PayloadHandler,
+    },
+    {
       path: '/:id/generate-seo',
       method: 'post',
       handler: (async (req: EndpointReq, res: EndpointRes | undefined, _next: unknown) => {
@@ -175,6 +254,9 @@ export const Posts: CollectionConfig<'posts'> = {
             return send(404, { error: 'Post not found' })
           }
 
+          const requestBody = await parseRequestBody(req)
+          const tone = isSeoAssistantTone(requestBody.tone) ? requestBody.tone : undefined
+          const additionalInstructions = getString(requestBody.additionalInstructions)?.trim() || undefined
           const title: string = post?.title || ''
           const content = post?.content
           const contentHTML =
@@ -183,9 +265,10 @@ export const Posts: CollectionConfig<'posts'> = {
               : convertLexicalToHTML({ data: Array.isArray(content) ? content : content || {} })
 
           // Gather options the model must choose from
-          const [categories, articleTypes] = await Promise.all([
+          const [categories, articleTypes, assistantSettings] = await Promise.all([
             req.payload.find({ collection: 'categories', limit: 1000 }),
             req.payload.find({ collection: 'article-types', limit: 1000 }),
+            readSeoAssistantSettings(req),
           ])
 
           const categoryOptions = (categories?.docs || []).map((c) => {
@@ -211,35 +294,17 @@ export const Posts: CollectionConfig<'posts'> = {
             return send(400, { error: 'No article types available' })
           }
 
-          // Prepare summaries to feed into the hosted prompt
-          const categoriesList = categoryOptions
-            .map((c) => `${c.slug || ''} | ${c.title || ''}`.trim())
-            .join('\n')
-          const articleTypesList = articleTypeOptions
-            .map((a) => `${a.slug || ''} | ${a.title || ''}`.trim())
-            .join('\n')
-
-          const client = new OpenAI({ apiKey })
-
-          // Variables for hosted prompt
-
-          let response
+          let generated
           try {
-            response = await client.responses.create({
-              prompt: {
-                id: 'pmpt_688d35bf76348194bc06464d4d5f202e063e27e2905e1241',
-                version: '31',
-                // Pass variables to the hosted prompt here
-                variables: {
-                  // Variables expected by the hosted prompt (v23)
-                  title: title,
-                  content: contentHTML,
-                  categories: categoriesList,
-                  article_types: articleTypesList,
-                },
-              },
-              // Simple instruction as a plain string satisfies ResponseInput
-              input: 'Respond only with valid json.',
+            generated = await generatePostSeo({
+              additionalInstructions,
+              apiKey,
+              articleTypeOptions,
+              categoryOptions,
+              contentHtml: contentHTML,
+              settings: assistantSettings,
+              title,
+              tone,
             })
           } catch (e: unknown) {
             const errorData = getErrorData(e)
@@ -250,29 +315,8 @@ export const Posts: CollectionConfig<'posts'> = {
             })
           }
 
-          // Extract text output
-          const textOut = getString(asRecord(response).output_text) || ''
-          let parsed: UnknownRecord
-          try {
-            parsed = asRecord(JSON.parse(textOut))
-          } catch (_e) {
-            return send(502, { error: 'Invalid model JSON', raw: textOut })
-          }
-
-          const description: string = getString(parsed.description) || ''
-          const keyTakeaways: string[] = Array.isArray(parsed?.keyTakeaways)
-            ? parsed.keyTakeaways.map((item) => String(item)).filter((item) => item.length > 0)
-            : []
-          const categoryInputs: string[] = Array.isArray(parsed?.categorySlugs)
-            ? parsed.categorySlugs.map((item) => String(item))
-            : Array.isArray(parsed?.categories)
-            ? parsed.categories.map((item) => String(item))
-            : []
-          const articleTypeInput: string | undefined =
-            getString(parsed.articleTypeSlug) ?? getString(parsed.articleType)
-
           // Map slugs to IDs
-          const categoryIDs = categoryInputs
+          const categoryIDs = generated.categories
             .map((s: string) => String(s).trim().toLowerCase())
             .map((s: string) =>
               categoryOptions.find(
@@ -289,13 +333,33 @@ export const Posts: CollectionConfig<'posts'> = {
               )?.id || undefined
             )
           }
-          const articleTypeID = atLookup(articleTypeInput)
+          const articleTypeID = atLookup(generated.articleType)
+
+          if (categoryIDs.length !== 1) {
+            return send(502, {
+              error: 'Model returned an unmapped category slug.',
+              raw: generated.categories,
+            })
+          }
+
+          if (!articleTypeID) {
+            return send(502, {
+              error: 'Model returned an unmapped article type slug.',
+              raw: generated.articleType,
+            })
+          }
 
           return send(200, {
-            description,
-            keyTakeawaysNormalized: keyTakeaways.map((k) => ({ point: String(k) })),
+            metaTitle: generated.metaTitle,
+            description: generated.description,
+            keyTakeawaysNormalized: generated.keyTakeaways.map((k) => ({ point: String(k) })),
             categoryIDs,
             articleTypeID,
+            settings: {
+              model: generated.model,
+              reasoning: generated.reasoning,
+              tone: generated.tone,
+            },
           })
         } catch (err: unknown) {
           // Log to server for diagnosis
@@ -957,49 +1021,39 @@ export const Posts: CollectionConfig<'posts'> = {
           label: 'Meta & SEO',
           fields: [
             {
-              name: 'launchGraphicsEditor',
+              name: 'publishingAssistant',
               type: 'ui',
-              label: 'Graphics',
+              label: 'Publishing Assistant',
               admin: {
                 components: {
                   Field: {
-                    path: './components/admin/GraphicTemplateLauncher#GraphicTemplateLauncher',
+                    path: './components/admin/PostPublishingAssistant#PostPublishingAssistant',
                   },
                 },
               },
             },
             {
               name: 'graphicTemplate',
-              label: 'Default Graphic Template',
+              label: 'Graphic Template Link',
               type: 'relationship',
               relationTo: 'graphic-templates',
               required: false,
               admin: {
                 width: '50%',
-                description: 'Starting layout for the social graphic editor. If the tenant has a default, this field is preselected automatically.',
+                description:
+                  'Optional manual template link for the publishing assistant. If blank, the tenant default template is used when available.',
               },
             },
             {
               name: 'graphicDesign',
-              label: 'Saved Graphic',
+              label: 'Saved Graphic Link',
               type: 'relationship',
               relationTo: 'graphic-designs',
               required: false,
               admin: {
                 width: '50%',
-                description: 'The saved editable graphic instance for this post.',
-              },
-            },
-            {
-              name: 'generateSEO',
-              type: 'ui',
-              label: 'AI Assistant',
-              admin: {
-                components: {
-                  Field: {
-                    path: './components/admin/GenerateSEOButton#GenerateSEOButton',
-                  },
-                },
+                description:
+                  'Linked saved graphic reopened by the publishing assistant for social and SEO image work.',
               },
             },
             {
@@ -1007,9 +1061,25 @@ export const Posts: CollectionConfig<'posts'> = {
               label: 'SEO',
               type: 'group',
               fields: [
-                MetaTitleField({ hasGenerateFn: true, overrides: { required: true } }),
+                MetaTitleField({
+                  overrides: {
+                    required: true,
+                    admin: {
+                      description:
+                        'Primary SEO headline. The publishing assistant can draft this, but editors should refine it for clarity and clicks.',
+                    },
+                  },
+                }),
                 MetaImageField({ relationTo: 'media', overrides: { required: true } }),
-                MetaDescriptionField({ overrides: { required: true } }),
+                MetaDescriptionField({
+                  overrides: {
+                    required: true,
+                    admin: {
+                      description:
+                        'One-sentence search description. Review after generation and approve only once it reads cleanly.',
+                    },
+                  },
+                }),
                 {
                   name: 'descriptionApproved',
                   label: 'Description Approved',
@@ -1024,7 +1094,6 @@ export const Posts: CollectionConfig<'posts'> = {
                   },
                 },
                 PreviewField({
-                  hasGenerateFn: true,
                   titlePath: 'meta.title',
                   descriptionPath: 'meta.description',
                 }),
@@ -1036,12 +1105,20 @@ export const Posts: CollectionConfig<'posts'> = {
               relationTo: 'categories',
               hasMany: true,
               required: true,
+              admin: {
+                description:
+                  'Use one best-fit primary category. The publishing assistant drafts this selection, but editors can adjust it.',
+              },
             },
             {
               name: 'keyTakeaways',
               label: 'Key Takeaways / TL;DR',
               type: 'array',
               required: true,
+              admin: {
+                description:
+                  'Four short headline-style lines used for packaging and sharing. New assistant output resets approval.',
+              },
               fields: [
                 {
                   name: 'point',
@@ -1055,6 +1132,10 @@ export const Posts: CollectionConfig<'posts'> = {
               label: 'Key Takeaways Approved',
               type: 'checkbox',
               required: true,
+              admin: {
+                description:
+                  'Check this only after reviewing the generated or edited takeaways for tone, accuracy, and readability.',
+              },
               validate: (value, { data }) => {
                 const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
                 if (status === 'published' && !value) {
@@ -1068,6 +1149,10 @@ export const Posts: CollectionConfig<'posts'> = {
               type: 'relationship',
               relationTo: 'article-types',
               required: true,
+              admin: {
+                description:
+                  'Choose the best-fit article type for the post. The publishing assistant drafts this as part of the SEO package.',
+              },
             },
           ],
         },

@@ -473,6 +473,7 @@ export function useEditorAutosave({ debounceMs = 1200, enabled, onError, onSave,
     status: 'idle',
   })
   const saveRef = useRef(onSave)
+  const errorRef = useRef(onError)
   const latestRevisionRef = useRef(revision)
   const savedRevisionRef = useRef(0)
   const isSavingRef = useRef(false)
@@ -480,6 +481,10 @@ export function useEditorAutosave({ debounceMs = 1200, enabled, onError, onSave,
   useEffect(() => {
     saveRef.current = onSave
   }, [onSave])
+
+  useEffect(() => {
+    errorRef.current = onError
+  }, [onError])
 
   useEffect(() => {
     latestRevisionRef.current = revision
@@ -516,14 +521,14 @@ export function useEditorAutosave({ debounceMs = 1200, enabled, onError, onSave,
           error: message,
           status: 'error',
         }))
-        onError?.(message)
+        errorRef.current?.(message)
       } finally {
         isSavingRef.current = false
       }
     }, debounceMs)
 
     return () => window.clearTimeout(timer)
-  }, [debounceMs, enabled, onError, revision])
+  }, [debounceMs, enabled, revision])
 
   const markSaved = useCallback(() => {
     savedRevisionRef.current = latestRevisionRef.current

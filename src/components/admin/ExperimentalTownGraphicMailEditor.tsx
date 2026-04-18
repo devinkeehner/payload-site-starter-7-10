@@ -540,7 +540,7 @@ const stripHtml = (value: string) => {
   if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, ' ')
   const temp = document.createElement('div')
   temp.innerHTML = value
-  return temp.textContent || temp.innerText || ''
+  return temp.innerText || temp.textContent || ''
 }
 
 const convertPlainTextToHtml = (value: string) =>
@@ -607,7 +607,36 @@ const normalizeRichTextHtml = (value: string) => {
 const getCustomTextHtml = (item: Pick<CustomTextElement, 'html' | 'text'>) =>
   item.html?.trim() ? item.html : convertPlainTextToHtml(item.text || '')
 
+const getSvgSafeRichTextHtml = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, '&#160;')
+    .replace(/\u00a0/g, '&#160;')
+    .replace(/<br\s*>/gi, '<br />')
+
 const toTitleCase = (value: string) => value.replace(/\b\w+/g, (segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
+
+const RICH_TEXT_BLOCK_SELECTOR = 'p, div, h1, h2, h3, li'
+
+const isRichTextBlockElement = (node: Node | null): node is HTMLElement =>
+  node instanceof HTMLElement && /^(P|DIV|H1|H2|H3|LI)$/i.test(node.tagName)
+
+const getClosestRichTextBlock = (node: Node | null, root: HTMLElement): HTMLElement | null => {
+  let current: Node | null = node
+  while (current && current !== root) {
+    if (isRichTextBlockElement(current)) return current
+    current = current.parentNode
+  }
+  return null
+}
+
+const selectionMatchesWholeBlock = (range: Range, block: HTMLElement) => {
+  const blockRange = document.createRange()
+  blockRange.selectNodeContents(block)
+  return (
+    range.compareBoundaryPoints(Range.START_TO_START, blockRange) === 0 &&
+    range.compareBoundaryPoints(Range.END_TO_END, blockRange) === 0
+  )
+}
 
 const getLayerTarget = (
   selection: Exclude<Selection, null>,
@@ -821,7 +850,7 @@ const buildRichTextSvgDataUrl = (
 ) => {
   const width = Math.max(1, Math.round(item.width))
   const height = Math.max(1, Math.round(item.height || measureCustomTextHeight(item)))
-  const html = getCustomTextHtml(item)
+  const html = getSvgSafeRichTextHtml(getCustomTextHtml(item))
   const fontStyle = item.fontStyle || ''
   const cssFontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
   const cssFontWeight = getCssFontWeight(fontStyle)
@@ -4116,6 +4145,31 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!selection || !selection.rangeCount) return
     const range = selection.getRangeAt(0)
     if (!richTextEditorRef.current.contains(range.commonAncestorContainer) || range.collapsed) return
+
+    const root = richTextEditorRef.current
+    const selectedBlocks = Array.from(root.querySelectorAll<HTMLElement>(RICH_TEXT_BLOCK_SELECTOR)).filter((block) => {
+      try {
+        return range.intersectsNode(block)
+      } catch {
+        return false
+      }
+    })
+
+    if (selectedBlocks.length > 1) {
+      selectedBlocks.forEach((block) => Object.assign(block.style, styles))
+      richTextEditorRef.current.focus()
+      saveRichTextSelection()
+      return
+    }
+
+    const singleBlock = selectedBlocks[0] || getClosestRichTextBlock(range.commonAncestorContainer, root)
+    if (singleBlock && selectionMatchesWholeBlock(range, singleBlock)) {
+      Object.assign(singleBlock.style, styles)
+      richTextEditorRef.current.focus()
+      saveRichTextSelection()
+      return
+    }
+
     const span = document.createElement('span')
     Object.assign(span.style, styles)
     span.appendChild(range.extractContents())
@@ -6250,7 +6304,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 height: inlineEditorBox.height,
                 zIndex: 40,
                 transform: inlineEditorBox.rotation ? `rotate(${inlineEditorBox.rotation}deg)` : undefined,
-                transformOrigin: 'left top',
+                transformOrigin:
+                  inlineTextEditor.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text'
+                    ? 'center center'
+                    : 'left top',
                 overflow: 'hidden',
               }}
             >
