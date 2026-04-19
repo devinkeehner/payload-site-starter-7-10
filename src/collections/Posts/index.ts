@@ -73,6 +73,25 @@ const resolveTenantId = (value: TenantLike): string | undefined => {
   return undefined
 }
 
+const toMetadataValue = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.slice(0, 512)
+}
+
+const buildOpenAIMetadata = (entries: Array<[string, unknown]>): Record<string, string> => {
+  const metadata: Record<string, string> = {}
+
+  for (const [key, rawValue] of entries) {
+    const value = toMetadataValue(rawValue)
+    if (!value) continue
+    metadata[key] = value
+  }
+
+  return metadata
+}
+
 const getErrorData = (err: unknown): { message?: string; code?: string; type?: string; name?: string; stack?: string } => {
   const record = asRecord(err)
   return {
@@ -274,6 +293,29 @@ export const Posts: CollectionConfig<'posts'> = {
           const tone = isSeoAssistantTone(requestBody.tone) ? requestBody.tone : undefined
           const additionalInstructions = getString(requestBody.additionalInstructions)?.trim() || undefined
           const title: string = post?.title || ''
+          const tenantId = resolveTenantId(post?.tenant as TenantLike)
+          let tenantSlug =
+            typeof post?.tenant === 'object' && post?.tenant
+              ? getString(asRecord(post.tenant).slug)
+              : undefined
+          if (!tenantSlug && tenantId) {
+            try {
+              const tenantDoc = await req.payload.findByID({
+                collection: 'tenants',
+                id: tenantId,
+                depth: 0,
+                overrideAccess: true,
+                req,
+              })
+              tenantSlug = getString(asRecord(tenantDoc).slug)
+            } catch {
+              tenantSlug = undefined
+            }
+          }
+
+          const userRecord = asRecord(req.user)
+          const userId = getString(userRecord.id)
+          const userEmail = getString(userRecord.email)
           const content = post?.content
           const contentHTML =
             typeof content === 'string'
@@ -318,6 +360,16 @@ export const Posts: CollectionConfig<'posts'> = {
               articleTypeOptions,
               categoryOptions,
               contentHtml: contentHTML,
+              metadata: buildOpenAIMetadata([
+                ['feature', 'post_seo_generation'],
+                ['post_id', post?.id],
+                ['post_slug', post?.slug],
+                ['tenant_id', tenantId],
+                ['tenant_slug', tenantSlug],
+                ['user_id', userId],
+                ['user_email', userEmail],
+              ]),
+              safetyIdentifier: userId || userEmail,
               settings: assistantSettings,
               title,
               tone,

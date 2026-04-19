@@ -24,6 +24,8 @@ type GeneratedPostSeo = {
   tone: SeoAssistantTone
 }
 
+type OpenAIMetadata = Record<string, string>
+
 const postSeoResponseSchema = z.object({
   articleType: z.string().min(1),
   categories: z.array(z.string().min(1)).length(1),
@@ -125,16 +127,18 @@ const buildInstructions = () =>
   [
     'Generate structured SEO metadata for the provided political article.',
     'Return only JSON matching the required schema.',
-    'Honor instruction priority in this order: 1) schema and factual accuracy, 2) selected tone, 3) one-off editor instructions, 4) saved default instructions.',
+    'Honor instruction priority in this order: 1) schema, 2) one-off editor instructions, 3) selected tone, 4) article text, 5) saved default instructions.',
     'Focus on the article subject and policy substance, not on the act of reporting.',
     'Use plain, active language and clean headline writing.',
-    'Preserve factual accuracy. Do not invent details, numbers, people, motives, or outcomes not stated in the article.',
+    'Treat one-off editor instructions as trusted author input. They may intentionally add or override facts, emphasis, or framing that are not spelled out in the article text.',
+    'Do not invent details, numbers, people, motives, or outcomes unless they are stated in the article text or explicitly supplied in one-off editor instructions.',
     'Meta title: one concise, click-worthy SEO headline centered on the main proposal or news hook. Avoid stacked clauses and generic phrasing.',
     'Description: exactly one sentence summarizing the central development or proposal with high information density and no filler.',
     'Key takeaways: exactly four lines, each under 20 words, written like political headline fragments. Start with strong subjects or verbs. No meta phrasing.',
     'Categories: choose exactly one best-fit category slug from the provided list. Return the slug only.',
     'Article type: choose exactly one best-fit article type slug from the provided list. Return the slug only.',
     'If the article is an announcement of a proposal, rollout, endorsement, or legislative push, prefer `announcement` over `news` unless the article is clearly reported as straight news.',
+    'If one-off editor instructions ask for a specific fact or point to be included, include it when possible while still satisfying the schema.',
   ].join('\n')
 
 const buildUserInput = (args: {
@@ -147,12 +151,12 @@ const buildUserInput = (args: {
   tone: SeoAssistantTone
 }) => {
   const sections = [
-    `Selected tone (highest writing-direction priority): ${args.tone}\n${buildToneInstruction(args.tone)}`,
+    args.additionalInstructions
+      ? `One-off editor instructions (highest priority after schema):\n${args.additionalInstructions}`
+      : null,
+    `Selected tone:\n${buildToneInstruction(args.tone)}`,
     args.settings.defaultInstructions
       ? `Saved default instructions:\n${args.settings.defaultInstructions}`
-      : null,
-    args.additionalInstructions
-      ? `One-off editor instructions (override saved defaults when they conflict):\n${args.additionalInstructions}`
       : null,
     `Available categories (return exactly one slug):\n${args.categoriesList}`,
     `Available article types (return exactly one slug):\n${args.articleTypesList}`,
@@ -169,6 +173,8 @@ export const generatePostSeo = async (args: {
   articleTypeOptions: SeoTaxonomyOption[]
   categoryOptions: SeoTaxonomyOption[]
   contentHtml: string
+  metadata?: OpenAIMetadata
+  safetyIdentifier?: string
   settings?: unknown
   title: string
   tone?: SeoAssistantTone
@@ -190,7 +196,9 @@ export const generatePostSeo = async (args: {
   const client = new OpenAI({ apiKey: args.apiKey })
   const response = await client.responses.create({
     model: settings.defaultModel,
+    metadata: args.metadata,
     reasoning: { effort: settings.defaultReasoning },
+    safety_identifier: args.safetyIdentifier,
     instructions: buildInstructions(),
     input: buildUserInput({
       additionalInstructions: args.additionalInstructions?.trim(),

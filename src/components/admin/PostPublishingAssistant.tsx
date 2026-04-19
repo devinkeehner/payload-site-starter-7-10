@@ -396,8 +396,8 @@ export const PostPublishingAssistant: React.FC = () => {
             </p>
             {assistantSettings.defaultInstructions ? (
               <p className="post-publishing-assistant__subtle">
-                Saved default instructions will also be applied. Use Additional requests only for
-                one-off guidance for this post.
+                Anything in Additional requests takes priority for this run. Saved default
+                instructions still apply underneath it.
               </p>
             ) : null}
           </div>
@@ -426,7 +426,7 @@ export const PostPublishingAssistant: React.FC = () => {
               <textarea
                 className="post-publishing-assistant__input post-publishing-assistant__textarea"
                 value={additionalInstructions}
-                placeholder="Optional one-off instructions for this post, such as emphasis, framing, or language to avoid."
+                placeholder="Optional author instructions for this run. Anything entered here takes priority."
                 rows={4}
                 onChange={(event) => {
                   setAdditionalInstructions(event.target.value)
