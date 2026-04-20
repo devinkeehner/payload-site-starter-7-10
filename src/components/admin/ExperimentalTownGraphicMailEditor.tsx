@@ -1383,26 +1383,6 @@ const scaleBaseScene = (scene: ExperimentalTownScene) => {
 const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefined) => {
   const headlineText = deriveDefaultHeadline(data.repInfo?.name)
   const websiteUrl = slugToWebsite(data.tenant?.slug)
-  const townRows = data.townRows.map((row, index) => {
-    const top = 670 + index * 174
-    return {
-      id: row.id,
-      townKey: normalizeTownKey(row.town),
-      town: row.town,
-      strapAid: row.strapAid,
-      included: true,
-      labelX: 72,
-      labelY: top,
-      labelWidth: measureTownLabelWidth(row.town, 36),
-      labelHeight: 54,
-      amountX: 72,
-      amountY: top + 72,
-      townFontSize: 36,
-      amountFontSize: 74,
-      labelColor: BRAND_RED,
-      textColor: BRAND_BLUE,
-    }
-  })
 
   const scene = {
     kind: SCENE_KIND,
@@ -1440,10 +1420,10 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
       id: 'subhead',
       x: 74,
       y: 512,
-      dividerWidth: 210,
-      dividerHeight: 3,
+      dividerWidth: 0,
+      dividerHeight: 0,
       dividerColor: '#8ea4ea',
-      text: 'STRAP Aid funding per town',
+      text: '',
       fontSize: 30,
       color: BRAND_BLUE,
       fontFamily: 'Arial',
@@ -1480,7 +1460,7 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
     customGroups: [],
     layers: [],
     townColumns: 1 as const,
-    townRows,
+    townRows: [],
   } satisfies ExperimentalTownScene
 
   const scaledScene = scaleBaseScene(scene)
@@ -5507,6 +5487,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         <details open={townsSectionOpen} onToggle={(event) => setTownsSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
           <summary style={detailsSummaryStyle}>Towns</summary>
           <div style={accordionBodyStyle}>
+            {!scene.townRows.length ? (
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                Town funding rows live on the back side of the mailer.
+              </div>
+            ) : null}
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Town layout</span>
               <select
