@@ -58,7 +58,6 @@ import {
   hasEditorClipboard,
   hydrateEditorLayers,
   isEditableTarget,
-  isCustomLayerKind,
   patchEditorLayer,
   readEditorClipboard,
   removeEditorLayers,
@@ -2570,7 +2569,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           if (!scene) return { item, label: item.kind, reorderable: false }
           if (item.kind === 'town') {
             const row = scene.townRows.find((entry) => entry.id === item.id)
-            return { item, label: row ? row.town : 'Town row', reorderable: false }
+            return { item, label: row ? row.town : 'Town row', reorderable: true }
           }
           if (item.kind === 'custom-image') {
             const index = scene.customImages.findIndex((entry) => entry.id === item.id)
@@ -2596,10 +2595,22 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             footer: 'Footer',
             headshot: 'Headshot',
           }
-          return { item, label: labels[item.kind] || item.kind, reorderable: false }
+          return { item, label: labels[item.kind] || item.kind, reorderable: true }
         }),
     [scene],
   )
+  const getLayerOrder = useCallback(
+    (kind: EditorLayerItem['kind'], id: string) => getLayerState(kind, id)?.order ?? 0,
+    [layerStateMap],
+  )
+  const townStackOrder = useMemo(() => {
+    const townOrders = (scene?.layers || [])
+      .filter((item) => item.kind === 'town')
+      .map((item) => item.order)
+      .sort((left, right) => left - right)
+    return townOrders[0] ?? 0
+  }, [scene?.layers])
+  const rightTownStackOrder = useMemo(() => townStackOrder + 1, [townStackOrder])
 
   const includedTownRows = useMemo(
     () => (scene ? scene.townRows.filter((row) => row.included && !isLayerHidden('town', row.id)) : []),
@@ -2816,7 +2827,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const reorderSelectedLayer = (direction: 'backward' | 'forward' | 'front' | 'back', side: MailSide = activeMailSide) => {
-    if (!selection || !isCustomLayerKind(selection.kind)) return false
+    if (!selection || !getEditorLayerItem(getActiveScene(side)?.layers, getLayerTarget(selection))) return false
     const target = getLayerTarget(selection)
     if (!target) return false
     updateScene(
@@ -2834,7 +2845,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     direction: 'backward' | 'forward' | 'front' | 'back',
     side: MailSide = activeMailSide,
   ) => {
-    if (!isCustomLayerKind(target.kind)) return false
+    if (!getEditorLayerItem(getActiveScene(side)?.layers, target)) return false
     updateScene(
       (current) => ({
         ...current,
@@ -2850,7 +2861,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     nextIndex: number,
     side: MailSide = activeMailSide,
   ) => {
-    if (!isCustomLayerKind(target.kind)) return false
+    if (!getEditorLayerItem(getActiveScene(side)?.layers, target)) return false
     updateScene(
       (current) => ({
         ...current,
@@ -4894,6 +4905,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       ref={stackRef}
       x={bounds.x}
       y={bounds.y}
+      zIndex={stackSelection.kind === 'towns-right' ? rightTownStackOrder : townStackOrder}
       draggable={rows.length > 0 && !rows.some((row) => isLayerLocked('town', row.id))}
       onDragEnd={(event) => {
         setSelection(stackSelection)
@@ -5034,6 +5046,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ref={(node) => {
           customImageRefs.current[item.id] = node
         }}
+        zIndex={getLayerOrder('custom-image', item.id)}
         x={item.x + item.width / 2}
         y={item.y + item.height / 2}
         offsetX={item.width / 2}
@@ -5113,6 +5126,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ref={(node) => {
           customTextRefs.current[item.id] = node
         }}
+        zIndex={getLayerOrder('custom-text', item.id)}
         x={item.x + item.width / 2}
         y={item.y + textHeight / 2}
         offsetX={item.width / 2}
@@ -5234,6 +5248,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               ref={(node) => {
                 customRectRefs.current[customRect.id] = node
               }}
+              zIndex={getLayerOrder('custom-rect', customRect.id)}
               x={customRect.x}
               y={customRect.y}
               rotation={customRect.rotation || 0}
@@ -6003,8 +6018,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             title="Send backward"
             aria-label="Send backward"
             onClick={() => reorderSelectedLayer('backward')}
-            disabled={!selection || !isCustomLayerKind(selection.kind)}
-            style={!selection || !isCustomLayerKind(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+            disabled={!selection || !getLayerTarget(selection)}
+            style={!selection || !getLayerTarget(selection) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
             <ChevronDown size={14} strokeWidth={2.1} />
           </button>
@@ -6013,8 +6028,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             title="Bring forward"
             aria-label="Bring forward"
             onClick={() => reorderSelectedLayer('forward')}
-            disabled={!selection || !isCustomLayerKind(selection.kind)}
-            style={!selection || !isCustomLayerKind(selection.kind) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
+            disabled={!selection || !getLayerTarget(selection)}
+            style={!selection || !getLayerTarget(selection) ? disabledIconToolbarButtonStyle : iconToolbarButtonStyle}
           >
             <ChevronUp size={14} strokeWidth={2.1} />
           </button>
@@ -6351,6 +6366,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     <Group
                       x={scene.eyebrow.x}
                       y={scene.eyebrow.y}
+                      zIndex={getLayerOrder('eyebrow', scene.eyebrow.id)}
                       draggable={!isLayerLocked('eyebrow', scene.eyebrow.id)}
                       onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                       onMouseDown={() => {
@@ -6386,6 +6402,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       x={scene.headline.x}
                       y={scene.headline.y}
                       ref={headlineRef}
+                      zIndex={getLayerOrder('headline', scene.headline.id)}
                       draggable={selection?.kind === 'headline' && !isResizingHeadline && !isLayerLocked('headline', scene.headline.id)}
                       onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                       onMouseDown={() => {
@@ -6438,6 +6455,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     <Group
                       x={scene.subhead.x}
                       y={scene.subhead.y}
+                      zIndex={getLayerOrder('subhead', scene.subhead.id)}
                       onMouseDown={() => {
                         if (isLayerLocked('subhead', scene.subhead.id)) return
                         setSelection({ kind: 'subhead', id: scene.subhead.id })
@@ -6477,6 +6495,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     <Group
                       x={scene.footer.x}
                       y={scene.footer.y}
+                      zIndex={getLayerOrder('footer', scene.footer.id)}
                       draggable={!isLayerLocked('footer', scene.footer.id)}
                       onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                       onMouseDown={() => {
@@ -6511,6 +6530,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         x={scene.headshot.x}
                         y={scene.headshot.y}
                         ref={headshotRef}
+                        zIndex={getLayerOrder('headshot', scene.headshot.id)}
                         draggable={!isLayerLocked('headshot', scene.headshot.id)}
                         onClick={() => {
                           if (isLayerLocked('headshot', scene.headshot.id)) return
@@ -6565,6 +6585,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       width={MAIL_PLACEHOLDER_WIDTH + 34}
                       height={MAIL_PLACEHOLDER_HEIGHT + 30}
                       fill="#ffffff"
+                      zIndex={999}
                     />
                   </>
                 ) : (
@@ -6576,6 +6597,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         x={scene.headshot.x}
                         y={scene.headshot.y}
                         ref={headshotRef}
+                        zIndex={getLayerOrder('headshot', scene.headshot.id)}
                         draggable={!isLayerLocked('headshot', scene.headshot.id)}
                         onClick={() => {
                           if (isLayerLocked('headshot', scene.headshot.id)) return
@@ -6640,6 +6662,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     <Group
                       x={scene.subhead.x}
                       y={scene.subhead.y}
+                      zIndex={getLayerOrder('subhead', scene.subhead.id)}
                       draggable={!isLayerLocked('subhead', scene.subhead.id)}
                       onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                       onMouseDown={() => {
@@ -6679,6 +6702,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       x={scene.headline.x}
                       y={scene.headline.y}
                       ref={headlineRef}
+                      zIndex={getLayerOrder('headline', scene.headline.id)}
                       draggable={selection?.kind === 'headline' && !isResizingHeadline && !isLayerLocked('headline', scene.headline.id)}
                       onDragEnd={(event) => updateSelectionPosition(event.target.x(), event.target.y())}
                       onMouseDown={() => {

@@ -265,33 +265,17 @@ export const hydrateEditorLayers = ({
   if (!Array.isArray(savedLayers) || savedLayers.length === 0) return baseLayers
 
   const baseByKey = new Map(baseLayers.map((item) => [layerKey(item), item] as const))
-  const savedByKey = new Map(savedLayers.map((item) => [layerKey(item), item] as const))
-
-  const builtins = baseLayers
-    .filter((item) => item.group === 'built-in')
-    .map((item, index) => {
-      const saved = savedByKey.get(layerKey(item))
-      return {
-        ...item,
-        hidden: saved?.hidden ?? item.hidden ?? false,
-        locked: saved?.locked ?? item.locked ?? false,
-        order: index,
-      }
-    })
-
-  const baseCustom = baseLayers.filter((item) => item.group === 'custom')
-  const resolvedCustom: EditorLayerItem[] = []
+  const resolvedLayers: EditorLayerItem[] = []
   const used = new Set<string>()
 
   savedLayers
-    .filter((item) => item.group === 'custom')
     .sort((left, right) => left.order - right.order)
     .forEach((saved) => {
       const key = layerKey(saved)
       const base = baseByKey.get(key)
-      if (!base || base.group !== 'custom' || used.has(key)) return
+      if (!base || used.has(key)) return
       used.add(key)
-      resolvedCustom.push({
+      resolvedLayers.push({
         ...base,
         hidden: saved.hidden ?? base.hidden ?? false,
         locked: saved.locked ?? base.locked ?? false,
@@ -299,22 +283,20 @@ export const hydrateEditorLayers = ({
       })
     })
 
-  baseCustom.forEach((item) => {
+  baseLayers
+    .sort((left, right) => left.order - right.order)
+    .forEach((item) => {
     const key = layerKey(item)
     if (used.has(key)) return
-    resolvedCustom.push(item)
-  })
+      resolvedLayers.push(item)
+    })
 
-  const orderOffset = builtins.length
-  return [
-    ...builtins,
-    ...resolvedCustom.map((item, index) => ({
+  return resolvedLayers.map((item, index) => ({
       ...item,
       hidden: item.hidden ?? false,
       locked: item.locked ?? false,
-      order: orderOffset + index,
-    })),
-  ]
+      order: index,
+    }))
 }
 
 export const getEditorLayerItem = (layers: EditorLayerItem[] | undefined | null, target: EditorLayerTarget | null) => {
@@ -364,30 +346,34 @@ export const reorderCustomEditorLayer = (
   target: EditorLayerTarget,
   direction: EditorLayerReorderDirection,
 ) => {
-  const currentLayers = [...(layers || [])]
-  const builtins = currentLayers.filter((item) => item.group === 'built-in').sort((left, right) => left.order - right.order)
-  const customs = currentLayers.filter((item) => item.group === 'custom').sort((left, right) => left.order - right.order)
-  const index = customs.findIndex((item) => item.id === target.id && item.kind === target.kind)
-  if (index < 0) return currentLayers
+  const currentLayers = [...(layers || [])].sort((left, right) => left.order - right.order)
+  const movingKeys =
+    target.kind === 'town'
+      ? new Set(currentLayers.filter((item) => item.kind === 'town').map((item) => layerKey(item)))
+      : new Set([layerKey(target)])
+  const movingItems = currentLayers.filter((item) => movingKeys.has(layerKey(item)))
+  const stationaryItems = currentLayers.filter((item) => !movingKeys.has(layerKey(item)))
+  if (movingItems.length === 0) return currentLayers
 
-  const reordered = [...customs]
-  const [item] = reordered.splice(index, 1)
-  if (!item) return currentLayers
+  const currentIndex = currentLayers.findIndex((item) => movingKeys.has(layerKey(item)))
+  if (currentIndex < 0) return currentLayers
+
   const nextIndex =
     direction === 'front'
-      ? reordered.length
+      ? stationaryItems.length
       : direction === 'back'
         ? 0
         : direction === 'forward'
-          ? Math.min(index + 1, reordered.length)
-          : Math.max(index - 1, 0)
-  reordered.splice(nextIndex, 0, item)
+          ? Math.min(currentIndex + 1, stationaryItems.length)
+          : Math.max(currentIndex - 1, 0)
 
-  const orderOffset = builtins.length
-  return [
-    ...builtins.map((layer, index) => ({ ...layer, order: index })),
-    ...reordered.map((layer, index) => ({ ...layer, order: orderOffset + index })),
-  ]
+  const reordered = [...stationaryItems]
+  reordered.splice(nextIndex, 0, ...movingItems)
+
+  return reordered.map((item, index) => ({
+    ...item,
+    order: index,
+  }))
 }
 
 export const reorderCustomEditorLayerToIndex = (
@@ -395,22 +381,22 @@ export const reorderCustomEditorLayerToIndex = (
   target: EditorLayerTarget,
   nextIndex: number,
 ) => {
-  const currentLayers = [...(layers || [])]
-  const builtins = currentLayers.filter((item) => item.group === 'built-in').sort((left, right) => left.order - right.order)
-  const customs = currentLayers.filter((item) => item.group === 'custom').sort((left, right) => left.order - right.order)
-  const index = customs.findIndex((item) => item.id === target.id && item.kind === target.kind)
-  if (index < 0) return currentLayers
+  const currentLayers = [...(layers || [])].sort((left, right) => left.order - right.order)
+  const movingKeys =
+    target.kind === 'town'
+      ? new Set(currentLayers.filter((item) => item.kind === 'town').map((item) => layerKey(item)))
+      : new Set([layerKey(target)])
+  const movingItems = currentLayers.filter((item) => movingKeys.has(layerKey(item)))
+  const stationaryItems = currentLayers.filter((item) => !movingKeys.has(layerKey(item)))
+  if (movingItems.length === 0) return currentLayers
 
-  const reordered = [...customs]
-  const [item] = reordered.splice(index, 1)
-  if (!item) return currentLayers
-  reordered.splice(Math.max(0, Math.min(nextIndex, reordered.length)), 0, item)
+  const reordered = [...stationaryItems]
+  reordered.splice(Math.max(0, Math.min(nextIndex, reordered.length)), 0, ...movingItems)
 
-  const orderOffset = builtins.length
-  return [
-    ...builtins.map((layer, idx) => ({ ...layer, order: idx })),
-    ...reordered.map((layer, idx) => ({ ...layer, order: orderOffset + idx })),
-  ]
+  return reordered.map((item, index) => ({
+    ...item,
+    order: index,
+  }))
 }
 
 export const setEditorClipboard = (item: EditorClipboardItem | null) => {

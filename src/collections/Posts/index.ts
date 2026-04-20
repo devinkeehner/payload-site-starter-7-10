@@ -1091,7 +1091,7 @@ export const Posts: CollectionConfig<'posts'> = {
             {
               name: 'publishingAssistant',
               type: 'ui',
-              label: 'Publishing Assistant',
+              label: 'SEO & Meta Assistant',
               admin: {
                 components: {
                   Field: {
@@ -1107,9 +1107,7 @@ export const Posts: CollectionConfig<'posts'> = {
               relationTo: 'graphic-templates',
               required: false,
               admin: {
-                width: '50%',
-                description:
-                  'Optional manual template link for the publishing assistant. If blank, the tenant default template is used when available.',
+                hidden: true,
               },
             },
             {
@@ -1119,9 +1117,7 @@ export const Posts: CollectionConfig<'posts'> = {
               relationTo: 'graphic-designs',
               required: false,
               admin: {
-                width: '50%',
-                description:
-                  'Linked saved graphic reopened by the publishing assistant for social and SEO image work.',
+                hidden: true,
               },
             },
             {

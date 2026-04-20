@@ -356,7 +356,7 @@ export const PostPublishingAssistant: React.FC = () => {
         : activeModelSummary
       setNotice({
         kind: 'success',
-        text: `SEO draft generated. Review the editable fields below before publishing. Generated with ${engineSummary}.`,
+        text: `SEO draft generated. Generated with ${engineSummary}.`,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Error generating SEO.'
@@ -370,11 +370,7 @@ export const PostPublishingAssistant: React.FC = () => {
     <div className="post-publishing-assistant">
       <div className="post-publishing-assistant__header">
         <div className="post-publishing-assistant__heading">
-          <h3>Publishing Assistant</h3>
-          <p>
-            Generate the post SEO draft and jump straight into the related social graphic from
-            one workspace.
-          </p>
+          <h3>SEO &amp; Meta Assistant</h3>
         </div>
         <div className="post-publishing-assistant__meta">
           <span className="post-publishing-assistant__pill">{activeModelSummary}</span>
@@ -390,10 +386,6 @@ export const PostPublishingAssistant: React.FC = () => {
         <section className="post-publishing-assistant__section">
           <div className="post-publishing-assistant__section-copy">
             <h4>SEO Generation</h4>
-            <p>
-              Draft the meta title, description, takeaways, category, and article type. New AI
-              output resets approval checkboxes so editors review it before publishing.
-            </p>
             {assistantSettings.defaultInstructions ? (
               <p className="post-publishing-assistant__subtle">
                 Anything in Additional requests takes priority for this run. Saved default
@@ -443,19 +435,12 @@ export const PostPublishingAssistant: React.FC = () => {
             >
               {generateLoading ? 'Generating SEO…' : 'Generate SEO Draft'}
             </Button>
-            <span className="post-publishing-assistant__hint">
-              Review the editable SEO fields directly below after generation.
-            </span>
           </div>
         </section>
 
         <section className="post-publishing-assistant__section">
           <div className="post-publishing-assistant__section-copy">
             <h4>Social Graphics</h4>
-            <p>
-              Open the linked post graphic workflow without leaving the publishing tab. This is
-              the same packaging workspace as the SEO draft.
-            </p>
           </div>
 
           <div className="post-publishing-assistant__meta">
@@ -491,23 +476,13 @@ export const PostPublishingAssistant: React.FC = () => {
             >
               Edit Saved Graphic
             </Button>
-            <Button onClick={openExperimentalTownGraphic} buttonStyle="secondary">
-              Experimental Town Graphic
-            </Button>
           </div>
         </section>
       </div>
 
       <div className="post-publishing-assistant__footer">
-        <p>
-          Use the linked graphic fields and the editable SEO fields below as the manual review
-          layer after the assistant saves its draft.
-        </p>
         {!documentID ? (
-          <p>
-            Save the post once to enable SEO generation and the main post graphic editor. The
-            experimental town graphic remains available without a saved post.
-          </p>
+          <p>Save the post once to enable SEO generation and the main post graphic editor.</p>
         ) : null}
         {configLoading ? <p>Loading assistant defaults…</p> : null}
         {assistantSettings.defaultInstructions ? (
