@@ -443,15 +443,6 @@ export const PostPublishingAssistant: React.FC = () => {
             <h4>Social Graphics</h4>
           </div>
 
-          <div className="post-publishing-assistant__meta">
-            <span className="post-publishing-assistant__pill">
-              {effectiveTemplateID ? 'Template linked' : 'No template linked'}
-            </span>
-            <span className="post-publishing-assistant__pill">
-              {designID ? 'Saved graphic linked' : 'No saved graphic yet'}
-            </span>
-          </div>
-
           <div className="post-publishing-assistant__actions">
             <Button
               onClick={openPostGraphicEditor}
