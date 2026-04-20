@@ -2752,6 +2752,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ...current,
         townColumns: seedScene.townColumns,
         townRows: seedScene.townRows,
+        layers: hydrateEditorLayers({
+          baseLayers: buildEditorLayers({
+            ...current,
+            townRows: seedScene.townRows,
+          }),
+          savedLayers: (current.layers || []).filter((item) => item.kind !== 'town'),
+        }),
       }),
       side,
     )
@@ -5501,24 +5508,23 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         <details open={townsSectionOpen} onToggle={(event) => setTownsSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
           <summary style={detailsSummaryStyle}>Towns</summary>
           <div style={accordionBodyStyle}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {activeMailSide === 'front' ? (
+                <button type="button" onClick={() => setActiveMailSide('back')} style={secondaryButtonStyle}>
+                  Go to back side
+                </button>
+              ) : (
+                <button type="button" onClick={() => restoreTownRowsForSide('back')} style={secondaryButtonStyle}>
+                  Reset towns on back
+                </button>
+              )}
+            </div>
             {!scene.townRows.length ? (
               <div style={{ display: 'grid', gap: 10 }}>
                 <div style={{ fontSize: 12, color: '#64748b' }}>
                   {activeMailSide === 'front'
                     ? 'Town funding rows now live on the back side of the mailer.'
                     : 'This side does not currently have a town funding stack.'}
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {activeMailSide === 'front' ? (
-                    <button type="button" onClick={() => setActiveMailSide('back')} style={secondaryButtonStyle}>
-                      Go to back side
-                    </button>
-                  ) : null}
-                  {activeMailSide === 'back' ? (
-                    <button type="button" onClick={() => restoreTownRowsForSide('back')} style={secondaryButtonStyle}>
-                      Insert towns on back
-                    </button>
-                  ) : null}
                 </div>
               </div>
             ) : (
