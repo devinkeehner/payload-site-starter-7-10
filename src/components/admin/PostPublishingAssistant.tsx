@@ -438,12 +438,12 @@ export const PostPublishingAssistant: React.FC = () => {
           </div>
         </section>
 
-        <section className="post-publishing-assistant__section">
+        <section className="post-publishing-assistant__section post-publishing-assistant__section--compact">
           <div className="post-publishing-assistant__section-copy">
             <h4>Social Graphics</h4>
           </div>
 
-          <div className="post-publishing-assistant__actions">
+          <div className="post-publishing-assistant__actions post-publishing-assistant__actions--compact">
             <Button
               onClick={openPostGraphicEditor}
               disabled={!documentID}

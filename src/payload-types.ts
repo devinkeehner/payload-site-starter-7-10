@@ -231,13 +231,7 @@ export interface Post {
     };
     [k: string]: unknown;
   };
-  /**
-   * Optional manual template link for the publishing assistant. If blank, the tenant default template is used when available.
-   */
   graphicTemplate?: (string | null) | GraphicTemplate;
-  /**
-   * Linked saved graphic reopened by the publishing assistant for social and SEO image work.
-   */
   graphicDesign?: (string | null) | GraphicDesign;
   meta: {
     /**
