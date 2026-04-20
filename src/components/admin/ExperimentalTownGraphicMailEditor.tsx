@@ -6580,6 +6580,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       />
                     </Group>
                     ) : null}
+
+                    {scene.townColumns === 2 ? (
+                      <>
+                        {renderTownStack(leftTownRows, leftTownBounds, { kind: 'towns-left', id: 'town-stack-left' }, leftTownStackRef)}
+                        {renderTownStack(rightTownRows, rightTownBounds, { kind: 'towns-right', id: 'town-stack-right' }, rightTownStackRef)}
+                      </>
+                    ) : (
+                      renderTownStack(includedTownRows, townStackBounds, { kind: 'towns', id: 'town-stack' }, townStackRef)
+                    )}
                   </>
                 )}
 
