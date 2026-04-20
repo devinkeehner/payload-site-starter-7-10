@@ -2744,6 +2744,20 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     }))
   }
 
+  const restoreTownRowsForSide = (side: MailSide = activeMailSide) => {
+    if (!townData) return
+    const seedScene = side === 'back' ? createBackScene(townData, tenantName) : createBaseScene(townData, tenantName)
+    updateScene(
+      (current) => ({
+        ...current,
+        townColumns: seedScene.townColumns,
+        townRows: seedScene.townRows,
+      }),
+      side,
+    )
+    setSelection(null)
+  }
+
   const addCustomRect = (shapeType: 'rect' | 'circle' | 'line' = 'rect') => {
     let nextID = ''
     updateScene((current) => {
@@ -5488,74 +5502,93 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <summary style={detailsSummaryStyle}>Towns</summary>
           <div style={accordionBodyStyle}>
             {!scene.townRows.length ? (
-              <div style={{ fontSize: 12, color: '#64748b' }}>
-                Town funding rows live on the back side of the mailer.
-              </div>
-            ) : null}
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Town layout</span>
-              <select
-                value={scene.townColumns}
-                onChange={(event) =>
-                  updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
-                }
-                style={controlStyle}
-              >
-                <option value={1}>Single column</option>
-                <option value={2}>Two columns</option>
-              </select>
-            </label>
-            {scene.townRows.map((row) => (
-              <details key={row.id} style={nestedDetailsStyle}>
-                <summary style={nestedSummaryStyle}>
-                  <span>{row.town}</span>
-                  <span style={{ fontSize: 12, color: '#64748b' }}>{formatCurrency(row.strapAid)}</span>
-                </summary>
-                <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
-                      <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
-                      Include town
-                    </label>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
-                        ↑
-                      </button>
-                      <button type="button" onClick={() => moveTownRow(row.id, 1)} style={secondaryButtonStyle} disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}>
-                        ↓
-                      </button>
-                      <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
-                        Select
-                      </button>
-                    </div>
-                  </div>
-                  <label style={{ display: 'grid', gap: 6 }}>
-                    <span style={fieldLabelStyle}>STRAP Aid</span>
-                    <input
-                      type="number"
-                      value={row.strapAid}
-                      onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
-                      style={controlStyle}
-                    />
-                  </label>
-                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Town size</span>
-                      <input
-                        type="number"
-                        value={row.townFontSize}
-                        onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
-                        style={controlStyle}
-                      />
-                    </label>
-                    <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={fieldLabelStyle}>Bar width</span>
-                      <input type="number" value={getRenderedTownLabelWidth(row)} readOnly style={{ ...controlStyle, background: '#f8fafc' }} />
-                    </label>
-                  </div>
+              <div style={{ display: 'grid', gap: 10 }}>
+                <div style={{ fontSize: 12, color: '#64748b' }}>
+                  {activeMailSide === 'front'
+                    ? 'Town funding rows now live on the back side of the mailer.'
+                    : 'This side does not currently have a town funding stack.'}
                 </div>
-              </details>
-            ))}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {activeMailSide === 'front' ? (
+                    <button type="button" onClick={() => setActiveMailSide('back')} style={secondaryButtonStyle}>
+                      Go to back side
+                    </button>
+                  ) : null}
+                  {activeMailSide === 'back' ? (
+                    <button type="button" onClick={() => restoreTownRowsForSide('back')} style={secondaryButtonStyle}>
+                      Insert towns on back
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : (
+              <>
+                <label style={{ display: 'grid', gap: 6 }}>
+                  <span style={fieldLabelStyle}>Town layout</span>
+                  <select
+                    value={scene.townColumns}
+                    onChange={(event) =>
+                      updateScene((current) => relayoutTownRows(current, Number(event.target.value) === 2 ? 2 : 1))
+                    }
+                    style={controlStyle}
+                  >
+                    <option value={1}>Single column</option>
+                    <option value={2}>Two columns</option>
+                  </select>
+                </label>
+                {scene.townRows.map((row) => (
+                  <details key={row.id} style={nestedDetailsStyle}>
+                    <summary style={nestedSummaryStyle}>
+                      <span>{row.town}</span>
+                      <span style={{ fontSize: 12, color: '#64748b' }}>{formatCurrency(row.strapAid)}</span>
+                    </summary>
+                    <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#111827' }}>
+                          <input type="checkbox" checked={row.included} onChange={(event) => updateTownRow(row.id, { included: event.target.checked })} />
+                          Include town
+                        </label>
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <button type="button" onClick={() => moveTownRow(row.id, -1)} style={secondaryButtonStyle} disabled={scene.townRows[0]?.id === row.id}>
+                            ↑
+                          </button>
+                          <button type="button" onClick={() => moveTownRow(row.id, 1)} style={secondaryButtonStyle} disabled={scene.townRows[scene.townRows.length - 1]?.id === row.id}>
+                            ↓
+                          </button>
+                          <button type="button" onClick={() => setSelection({ kind: 'town', id: row.id })} style={secondaryButtonStyle}>
+                            Select
+                          </button>
+                        </div>
+                      </div>
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={fieldLabelStyle}>STRAP Aid</span>
+                        <input
+                          type="number"
+                          value={row.strapAid}
+                          onChange={(event) => updateTownRow(row.id, { strapAid: Number(event.target.value) || 0 })}
+                          style={controlStyle}
+                        />
+                      </label>
+                      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Town size</span>
+                          <input
+                            type="number"
+                            value={row.townFontSize}
+                            onChange={(event) => updateTownRow(row.id, { townFontSize: Number(event.target.value) || row.townFontSize })}
+                            style={controlStyle}
+                          />
+                        </label>
+                        <label style={{ display: 'grid', gap: 6 }}>
+                          <span style={fieldLabelStyle}>Bar width</span>
+                          <input type="number" value={getRenderedTownLabelWidth(row)} readOnly style={{ ...controlStyle, background: '#f8fafc' }} />
+                        </label>
+                      </div>
+                    </div>
+                  </details>
+                ))}
+              </>
+            )}
           </div>
         </details>
 
