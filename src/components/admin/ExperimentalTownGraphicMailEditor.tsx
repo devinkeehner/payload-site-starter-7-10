@@ -619,6 +619,48 @@ const getSvgSafeRichTextHtml = (value: string) =>
     .replace(/\u00a0/g, '&#160;')
     .replace(/<br\s*>/gi, '<br />')
 
+const syncCustomTextHtmlStyles = (item: Pick<CustomTextElement, 'html' | 'text'>, patch: Partial<CustomTextElement>) => {
+  const hasStylePatch =
+    patch.color != null ||
+    patch.fontFamily != null ||
+    patch.fontSize != null ||
+    patch.fontStyle != null ||
+    patch.letterSpacing != null ||
+    patch.lineHeight != null ||
+    patch.textAlign != null ||
+    patch.textDecoration != null
+
+  if (!hasStylePatch) return patch
+
+  const sourceHtml = patch.html ?? getCustomTextHtml(item)
+  if (!sourceHtml.trim() || typeof window === 'undefined') return patch
+
+  const temp = document.createElement('div')
+  temp.innerHTML = normalizeRichTextHtml(sourceHtml)
+  const blocks = Array.from(temp.querySelectorAll<HTMLElement>(RICH_TEXT_BLOCK_SELECTOR))
+  const targets = blocks.length ? blocks : [temp]
+  const fontStyle = patch.fontStyle || ''
+
+  targets.forEach((block) => {
+    if (patch.color != null) block.style.color = patch.color
+    if (patch.fontFamily != null) block.style.fontFamily = patch.fontFamily
+    if (patch.fontSize != null) block.style.fontSize = `${patch.fontSize}px`
+    if (patch.letterSpacing != null) block.style.letterSpacing = `${patch.letterSpacing}px`
+    if (patch.lineHeight != null) block.style.lineHeight = String(patch.lineHeight)
+    if (patch.textAlign != null) block.style.textAlign = patch.textAlign
+    if (patch.textDecoration != null) block.style.textDecoration = patch.textDecoration
+    if (patch.fontStyle != null) {
+      block.style.fontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
+      block.style.fontWeight = String(getCssFontWeight(fontStyle))
+    }
+  })
+
+  return {
+    ...patch,
+    html: temp.innerHTML,
+  }
+}
+
 const toTitleCase = (value: string) => value.replace(/\b\w+/g, (segment) => segment.charAt(0).toUpperCase() + segment.slice(1).toLowerCase())
 
 const RICH_TEXT_BLOCK_SELECTOR = 'p, div, h1, h2, h3, li'
@@ -761,18 +803,23 @@ const loadImageNaturalSize = (src: string) =>
 
 function useLoadedImages(srcByID: Record<string, string | undefined>) {
   const [images, setImages] = useState<Record<string, HTMLImageElement | null>>({})
+  const previousSourcesRef = useRef<Record<string, string | undefined>>({})
 
   useEffect(() => {
     const entries = Object.entries(srcByID)
     if (!entries.length) {
       setImages({})
+      previousSourcesRef.current = {}
       return
     }
 
     let cancelled = false
+    const previousSources = previousSourcesRef.current
     setImages((current) => {
       const next: Record<string, HTMLImageElement | null> = {}
-      for (const [id] of entries) next[id] = current[id] || null
+      for (const [id, src] of entries) {
+        next[id] = previousSources[id] === src ? current[id] || null : null
+      }
       return next
     })
 
@@ -790,6 +837,10 @@ function useLoadedImages(srcByID: Record<string, string | undefined>) {
     return () => {
       cancelled = true
     }
+  }, [srcByID])
+
+  useEffect(() => {
+    previousSourcesRef.current = srcByID
   }, [srcByID])
 
   return images
@@ -900,8 +951,8 @@ const normalizeCustomTextBox = (
   patch: Partial<CustomTextElement>,
   options: { fitHeight?: boolean } = {},
 ) => {
-  const nextWidth = Math.max(80, Math.round(patch.width ?? item.width))
-  const nextFontSize = Math.max(12, Math.round(patch.fontSize ?? item.fontSize))
+  const nextWidth = Math.max(24, Math.round(patch.width ?? item.width))
+  const nextFontSize = Math.max(8, Math.round(patch.fontSize ?? item.fontSize))
   const nextText = patch.text ?? item.text
   const nextFontFamily = patch.fontFamily ?? item.fontFamily
   const nextLineHeight = patch.lineHeight ?? item.lineHeight
@@ -919,7 +970,7 @@ const normalizeCustomTextBox = (
     ...patch,
     width: nextWidth,
     fontSize: nextFontSize,
-    height: Math.max(minimumHeight, requestedHeight),
+    height: options.fitHeight ? minimumHeight : Math.max(24, requestedHeight),
   }
 }
 
@@ -2819,18 +2870,44 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const updateCustomText = (textID: string, patch: Partial<CustomTextElement>) => {
     updateScene((current) => ({
       ...current,
-      customTexts: current.customTexts.map((item) => (item.id === textID ? { ...item, ...normalizeCustomTextBox(item, patch) } : item)),
+      customTexts: current.customTexts.map((item) =>
+        item.id === textID ? { ...item, ...normalizeCustomTextBox(item, syncCustomTextHtmlStyles(item, patch)) } : item,
+      ),
     }))
   }
 
-  const fitCustomTextToContent = (textID: string) => {
+  const fitCustomTextToContent = useCallback((textID: string) => {
     updateScene((current) => ({
       ...current,
       customTexts: current.customTexts.map((item) =>
         item.id === textID ? { ...item, ...normalizeCustomTextBox(item, {}, { fitHeight: true }) } : item,
       ),
     }))
-  }
+  }, [updateScene])
+
+  useEffect(() => {
+    const transformer = transformerRef.current
+    if (!transformer || selection?.kind !== 'custom-text') return
+
+    const anchors = transformer.find('._anchor')
+    const sideAnchors = anchors.filter((anchor) => {
+      const name = getTransformerAnchorName(anchor)
+      return (
+        name.includes('middle-left') ||
+        name.includes('middle-right') ||
+        name.includes('top-center') ||
+        name.includes('bottom-center')
+      )
+    })
+
+    sideAnchors.forEach((anchor) => {
+      anchor.on('dblclick.fittext dbltap.fittext', () => fitCustomTextToContent(selection.id))
+    })
+
+    return () => {
+      sideAnchors.forEach((anchor) => anchor.off('dblclick.fittext dbltap.fittext'))
+    }
+  }, [fitCustomTextToContent, selection])
 
   const updateSelectionPosition = (x: number, y: number) => {
     if (!scene || !selection) return
@@ -2951,7 +3028,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         return {
           ...current,
           customTexts: current.customTexts.map((item) =>
-            item.id === target.id ? { ...item, ...normalizeCustomTextBox(item, patch as Partial<CustomTextElement>) } : item,
+            item.id === target.id
+              ? { ...item, ...normalizeCustomTextBox(item, syncCustomTextHtmlStyles(item, patch as Partial<CustomTextElement>)) }
+              : item,
           ),
         }
       }
@@ -4394,9 +4473,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     const selection = window.getSelection()
     if (!selection || !selection.rangeCount) return
     const range = selection.getRangeAt(0)
-    if (!richTextEditorRef.current.contains(range.commonAncestorContainer) || range.collapsed) return
+    if (!richTextEditorRef.current.contains(range.commonAncestorContainer)) return
 
     const root = richTextEditorRef.current
+    if (range.collapsed) {
+      const currentBlock = getClosestRichTextBlock(range.commonAncestorContainer, root)
+      if (!currentBlock) return
+      Object.assign(currentBlock.style, styles)
+      richTextEditorRef.current.focus()
+      saveRichTextSelection()
+      return
+    }
     const selectedBlocks = Array.from(root.querySelectorAll<HTMLElement>(RICH_TEXT_BLOCK_SELECTOR)).filter((block) => {
       try {
         return range.intersectsNode(block)
@@ -4913,11 +5000,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
           const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
           const isCorner = !isHorizontalEdge && !isVerticalEdge
-          const nextWidth = isVerticalEdge ? item.width : Math.max(80, Math.round(item.width * Math.max(Math.abs(node.scaleX()), 0.1)))
+          const nextWidth = isVerticalEdge ? item.width : Math.max(24, Math.round(item.width * Math.max(Math.abs(node.scaleX()), 0.1)))
           const sizeScale = Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))
-          const nextFontSize = isCorner ? Math.max(12, Math.round(item.fontSize * sizeScale)) : item.fontSize
+          const nextFontSize = isCorner ? Math.max(8, Math.round(item.fontSize * sizeScale)) : item.fontSize
           const nextRotation = Number(node.rotation().toFixed(1))
-          const scaledHeight = Math.max(48, Math.round((item.height || textHeight) * Math.max(Math.abs(node.scaleY()), 0.1)))
+          const scaledHeight = Math.max(24, Math.round((item.height || textHeight) * Math.max(Math.abs(node.scaleY()), 0.1)))
           const normalized = normalizeCustomTextBox(
             item,
             {
@@ -4925,7 +5012,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               height: isHorizontalEdge ? item.height || textHeight : scaledHeight,
               width: nextWidth,
             },
-            { fitHeight: isHorizontalEdge },
+            { fitHeight: false },
           )
           node.scaleX(1)
           node.scaleY(1)
@@ -4947,6 +5034,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ) : null}
         {!isEditingThisText && customTextRenderImages[item.id] ? (
           <KonvaImage
+            key={customTextRenderUrls[item.id] || item.id}
             image={customTextRenderImages[item.id] || undefined}
             width={item.width}
             height={textHeight}
@@ -6076,30 +6164,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               }
               openContextMenu(event.evt)
             }}
-            onDblClick={(event) => {
-              if (selection?.kind !== 'custom-text') return
-              const anchorName = getTransformerAnchorName(event.target)
-              if (!anchorName) return
-              const isSideAnchor =
-                anchorName.includes('middle-left') ||
-                anchorName.includes('middle-right') ||
-                anchorName.includes('top-center') ||
-                anchorName.includes('bottom-center')
-              if (!isSideAnchor) return
-              fitCustomTextToContent(selection.id)
-            }}
-            onDblTap={(event) => {
-              if (selection?.kind !== 'custom-text') return
-              const anchorName = getTransformerAnchorName(event.target)
-              if (!anchorName) return
-              const isSideAnchor =
-                anchorName.includes('middle-left') ||
-                anchorName.includes('middle-right') ||
-                anchorName.includes('top-center') ||
-                anchorName.includes('bottom-center')
-              if (!isSideAnchor) return
-              fitCustomTextToContent(selection.id)
-            }}
           >
             <Layer>
               <Group
@@ -6536,7 +6600,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   }
 
                   if (selection?.kind === 'custom-text') {
-                    return { ...newBox, width: Math.max(80, newBox.width), height: Math.max(48, newBox.height) }
+                    return { ...newBox, width: Math.max(24, newBox.width), height: Math.max(24, newBox.height) }
                   }
 
                   if (selection?.kind === 'custom-rect') {

@@ -1,0 +1,21 @@
+[2026-04-20T12:15:38.908067387+00:00] startup: base_url=https://chatgpt.com/backend-api path_style=wham
+[2026-04-20T12:15:38.979323680+00:00] auth: mode=ChatGPT account_id=21cb0f26-a2de-4726-9d88-9be7ebd8e0c4
+[2026-04-20T12:15:38.979370780+00:00] auth: set ChatGPT-Account-Id header: 21cb0f26-a2de-4726-9d88-9be7ebd8e0c4
+[2026-04-20T12:15:39.017386677+00:00] startup: wham_force_internal=false ua=codex_cli_rs/0.121.0 (Ubuntu 22.4.0; x86_64) WindowsTerminal (codex_cloud_tasks_tui)
+[2026-04-20T12:15:39.151224064+00:00] env: git origins: ["https://github.com/devinkeehner/payload-site-starter-7-10.git"]
+[2026-04-20T12:15:39.151568964+00:00] env: parsed HTTP GitHub origin => devinkeehner/payload-site-starter-7-10
+[2026-04-20T12:15:39.151630764+00:00] env: GET https://chatgpt.com/backend-api/wham/environments/by-repo/github/devinkeehner/payload-site-starter-7-10
+[2026-04-20T12:15:39.152688564+00:00] env: parsed HTTP GitHub origin => devinkeehner/payload-site-starter-7-10
+[2026-04-20T12:15:39.418654539+00:00] http.list_tasks: env=<all> limit=20 cursor_in=<none> cursor_out=+RID:~G4U-AJOIzhlBurQCAOAiAA==#RT:1#TRC:20#RTD:FFMNeBmc06hP2994zep3KwV2dGZzLndSSGsycHRvV293T29FanpDeVJQdU5mawAFdnRmcy53UkhrMnB0b1dvd09vRWp6Q3lSUHVOZmsABUJkZHB2b3VWdGZzVXBEdnNzZm91RHBlZlVidGxGeXVmc29ibQAD+szOzMnRzsfRy82qzcjEzcvEycjQzcjOx8vL087OxM7O//qKnYuTn5mfyMbGnMXIysrMxc7GxsvMmJ3KzMbKy8uZmcXMmJ2cxsv/#ISV:2#IEO:65567#QCF:8#CID:2 items=20
+[2026-04-20T12:15:39.419345639+00:00] refresh.apply: env=<all> count=8
+[2026-04-20T12:15:40.258516359+00:00] env: status=200 OK content-type=application/json
+[2026-04-20T12:15:40.403597445+00:00] env: status=200 OK content-type=application/json
+[2026-04-20T12:15:40.403668245+00:00] env: by-repo returned 1 env(s) for devinkeehner/payload-site-starter-7-10
+[2026-04-20T12:15:40.403679845+00:00] env: single environment available; selecting it
+[2026-04-20T12:15:40.403767345+00:00] env.select: autodetected id=687544088304819183429a3e762e0ee4 label=devinkeehner/payload-site-starter-7-10
+[2026-04-20T12:15:40.502872635+00:00] env: parsed HTTP GitHub origin => devinkeehner/payload-site-starter-7-10
+[2026-04-20T12:15:40.609638125+00:00] env: status=200 OK content-type=application/json
+[2026-04-20T12:15:40.688498118+00:00] http.list_tasks: env=687544088304819183429a3e762e0ee4 limit=20 cursor_in=<none> cursor_out=+RID:~G4U-AJOIzhlBurQCAOAiAA==#RT:1#TRC:20#RTD:FFMNeBmc06hP2994zep3KwV2dGZzLndSSGsycHRvV293T29FanpDeVJQdU5mawAFdnRmcy53UkhrMnB0b1dvd09vRWp6Q3lSUHVOZmsABUJkZHB2b3VWdGZzVXBEdnNzZm91RHBlZlVidGxGeXVmc29ibQAD+szOzMnRzsfRy82qzcjEzcvEycjQzcjOx8vL087OxM7O//qKnYuTn5mfyMbGnMXIysrMxc7GxsvMmJ3KzMbKy8uZmcXMmJ2cxsv/#ISV:2#IEO:65567#QCF:8#CID:2 items=20
+[2026-04-20T12:15:40.688980718+00:00] refresh.apply: env=687544088304819183429a3e762e0ee4 count=8
+[2026-04-20T12:15:41.363954453+00:00] env: status=200 OK content-type=application/json
+[2026-04-20T12:15:41.721393319+00:00] env: status=200 OK content-type=application/json
