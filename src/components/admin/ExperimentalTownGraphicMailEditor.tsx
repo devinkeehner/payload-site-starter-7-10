@@ -1155,6 +1155,22 @@ const buildRepShortName = (name: string | undefined | null) => {
 const deriveDefaultHeadline = (repName: string | undefined | null) =>
   `${buildRepShortName(repName)} Announces\nSchools/Taxpayers\nRelief & Affordability\nPlan (STRAP Aid)`
 
+const deriveDistrictLabel = (rows: TownDataRow[]) => {
+  const labels = [...new Set(rows.map((row) => row.districtLabels?.trim()).filter(Boolean))]
+  return labels[0] || 'Assembly District'
+}
+
+const deriveTownListText = (rows: TownDataRow[]) => rows.map((row) => row.town.trim()).filter(Boolean).join(', ')
+
+const deriveFrontRepName = (repName: string | undefined | null) =>
+  (repName || 'State Representative')
+    .replace(/^rep\.?\s+/i, '')
+    .trim()
+    .toUpperCase()
+
+const deriveFrontOfficeTitle = (officeTitle: string | undefined | null) =>
+  (officeTitle || 'State Representative').trim().toUpperCase()
+
 function computeCoverPlacement(
   image: HTMLImageElement | null,
   frameWidth: number,
@@ -1381,7 +1397,10 @@ const scaleBaseScene = (scene: ExperimentalTownScene) => {
 }
 
 const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefined) => {
-  const headlineText = deriveDefaultHeadline(data.repInfo?.name)
+  const repName = data.repInfo?.name?.trim() || _tenantName?.trim() || 'State Representative'
+  const officeTitle = deriveFrontOfficeTitle(data.repInfo?.officeTitle)
+  const districtLabel = deriveDistrictLabel(data.townRows)
+  const townListText = deriveTownListText(data.townRows)
   const websiteUrl = slugToWebsite(data.tenant?.slug)
 
   const scene = {
@@ -1390,64 +1409,64 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
     qrUrl: websiteUrl,
     eyebrow: {
       id: 'eyebrow',
-      x: 72,
-      y: 70,
-      width: 260,
-      text: 'REAL RELIEF FOR CONNECTICUT',
-      fontSize: 22,
-      color: '#ffffff',
+      x: 0,
+      y: 0,
+      width: 0,
+      text: '',
+      fontSize: 14,
+      color: 'transparent',
       fontFamily: 'Arial',
-      fontStyle: '700',
+      fontStyle: '400',
       lineHeight: 1,
-      barWidth: 420,
-      barHeight: 44,
-      paddingX: 16,
-      paddingY: 10,
-      backgroundColor: BRAND_BLUE,
+      barWidth: 0,
+      barHeight: 0,
+      paddingX: 0,
+      paddingY: 0,
+      backgroundColor: 'transparent',
     },
     headline: {
       id: 'headline',
-      x: 72,
-      y: 140,
-      width: 760,
-      text: headlineText,
-      fontSize: 66,
-      color: BRAND_BLUE,
+      x: 0,
+      y: 0,
+      width: 0,
+      text: '',
+      fontSize: 16,
+      color: 'transparent',
       fontFamily: 'Georgia, Times New Roman, serif',
       lineHeight: 1.05,
     },
     subhead: {
       id: 'subhead',
-      x: 74,
-      y: 512,
+      x: 0,
+      y: 0,
       dividerWidth: 0,
       dividerHeight: 0,
-      dividerColor: '#8ea4ea',
+      dividerColor: 'transparent',
       text: '',
-      fontSize: 30,
-      color: BRAND_BLUE,
+      fontSize: 16,
+      color: 'transparent',
       fontFamily: 'Arial',
-      fontStyle: 'italic 700',
+      fontStyle: '400',
     },
     footer: {
       id: 'footer',
       x: 0,
-      y: 1490,
-      width: STAGE_WIDTH,
-      height: 80,
-      backgroundColor: BRAND_RED,
-      text: '{{website}}',
-      textX: 78,
-      textY: 1510,
-      fontSize: 34,
-      color: '#ffffff',
-      fontStyle: 'italic 700',
+      y: 0,
+      width: 0,
+      height: 0,
+      backgroundColor: 'transparent',
+      text: '',
+      textX: 0,
+      textY: 0,
+      fontSize: 16,
+      color: 'transparent',
+      fontStyle: '400',
     },
     headshot: {
       id: 'headshot',
-      x: 820,
-      y: 1188,
-      size: 400,
+      x: 56.05263157894713,
+      y: 63.7636995642679,
+      size: 744,
       crop: {
         zoom: 1,
         offsetX: 0,
@@ -1455,36 +1474,153 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
       },
     },
     customImages: [],
-    customRects: [],
-    customTexts: [],
+    customRects: [
+      {
+        id: 'front-footer-bar',
+        x: -3.992525692930555,
+        y: 900.4693589845019,
+        width: 1151,
+        height: 100,
+        fill: '#000000',
+        fillEnabled: true,
+        opacity: 1,
+        shapeType: 'rect',
+        strokeColor: '#111827',
+        strokeWidth: 0,
+        rotation: 0,
+      },
+      {
+        id: 'front-divider-line',
+        x: 921.0072364013663,
+        y: 287.2217826397355,
+        width: 593,
+        height: 296,
+        fill: BRAND_RED,
+        fillEnabled: false,
+        opacity: 1,
+        shapeType: 'line',
+        strokeColor: BRAND_RED,
+        strokeWidth: 8,
+        rotation: -26.2,
+      },
+    ],
+    customTexts: [
+      {
+        id: 'front-news-from',
+        x: 1123.1578947368425,
+        y: 85.47368421052624,
+        width: 280,
+        height: 96,
+        text: 'News from',
+        fontSize: 28,
+        color: '#111111',
+        opacity: 1,
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontStyle: 'italic',
+        lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        textAlign: 'center',
+      },
+      {
+        id: 'front-office-title',
+        x: 949.4736842105228,
+        y: 123.99999999999858,
+        width: 616,
+        height: 96,
+        text: officeTitle,
+        fontSize: 41,
+        color: '#111111',
+        opacity: 1,
+        fontFamily: '"Arial Narrow", Arial, sans-serif',
+        fontStyle: 'normal',
+        lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        textAlign: 'center',
+      },
+      {
+        id: 'front-rep-name',
+        x: 869.9210526315726,
+        y: 148.13157894736673,
+        width: 749,
+        height: 169,
+        text: deriveFrontRepName(repName),
+        fontSize: 140,
+        color: '#111111',
+        opacity: 1,
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'bold',
+        lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        textAlign: 'center',
+      },
+      {
+        id: 'front-district-label',
+        x: 1035.999999999999,
+        y: 300.842105263157,
+        width: 424,
+        height: 96,
+        text: districtLabel,
+        fontSize: 54,
+        color: '#111111',
+        opacity: 1,
+        fontFamily: 'Georgia, "Times New Roman", serif',
+        fontStyle: 'italic',
+        lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        textAlign: 'center',
+      },
+      {
+        id: 'front-town-list',
+        x: 910.3421052631486,
+        y: 350.13157894736344,
+        width: 685,
+        height: 165,
+        text: townListText,
+        fontSize: 67,
+        color: '#111111',
+        opacity: 1,
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'italic bold',
+        lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        textAlign: 'center',
+      },
+      {
+        id: 'front-website',
+        x: 47.78947368420876,
+        y: 898.1578947368342,
+        width: 776,
+        height: 58,
+        text: '{{website}}',
+        fontSize: 93,
+        color: '#ffffff',
+        opacity: 1,
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'italic bold',
+        lineHeight: 1.1,
+        strokeColor: '#ffffff',
+        strokeWidth: 0,
+        rotation: 0,
+      },
+    ],
     customGroups: [],
     layers: [],
     townColumns: 1 as const,
     townRows: [],
   } satisfies ExperimentalTownScene
 
-  const scaledScene = scaleBaseScene(scene)
-
-  const alignedScene = alignSubheadToHeadline({
-    ...scaledScene,
-    headline: {
-      ...scaledScene.headline,
-      fontSize: 50,
-    },
-    headshot: {
-      ...scaledScene.headshot,
-      x: 475,
-      y: 180,
-      size: 496,
-      crop: {
-        ...scaledScene.headshot.crop,
-        zoom: 1,
-      },
-    },
-  })
   return {
-    ...alignedScene,
-    layers: buildEditorLayers(alignedScene),
+    ...scene,
+    layers: buildEditorLayers(scene).map((item) =>
+      item.kind === 'eyebrow' || item.kind === 'headline' || item.kind === 'subhead' || item.kind === 'footer'
+        ? { ...item, hidden: true }
+        : item,
+    ),
   }
 }
 
@@ -1542,20 +1678,20 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     },
     headline: {
       id: 'headline',
-      x: 21,
-      y: 90,
-      width: 520,
+      x: 50.22305764411015,
+      y: 64.69358327325051,
+      width: 678,
       text: `${buildRepShortName(repName).replace('Rep. ', '')} Announces\nSchools/Taxpayers Relief &\nAffordability Plan (STRAP)`,
-      fontSize: 31,
-      color: '#111111',
+      fontSize: 37,
+      color: '#000000',
       fontFamily: 'Georgia, Times New Roman, serif',
       fontStyle: '700',
       lineHeight: 1.05,
     },
     subhead: {
       id: 'subhead',
-      x: 24,
-      y: 0,
+      x: 52.22305764411015,
+      y: 210.6935832732505,
       dividerWidth: 0,
       dividerHeight: 0,
       dividerColor: '#111111',
