@@ -96,66 +96,66 @@ const MAILER_BACKSIDE_ONE_ASSETS = {
 } as const
 const MAILER_BACKSIDE_ONE_ROTATION = {
   paper: -118.4,
-  arrow: 163.9,
+  arrow: 165.5,
 } as const
 const MAILER_BACKSIDE_ONE_FAST_FACTS = [
   {
     id: 'back-fast-facts-paper-title',
-    x: 1077,
-    y: 39,
+    x: 1109.0924655755005,
+    y: 48.13236479459802,
     width: 416,
     text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
-    fontSize: 18,
+    fontSize: 31,
     fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
     id: 'back-fast-facts-paper-spends',
-    x: 1107,
-    y: 67,
+    x: 1128.0009408766782,
+    y: 89.88979796889627,
     width: 629,
     text: 'Spends less than budgets from\nlegislative Democrats and Governor',
-    fontSize: 13,
+    fontSize: 27,
     fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
     id: 'back-fast-facts-paper-sustainable',
-    x: 1154,
-    y: 168,
+    x: 1177.008868253901,
+    y: 164.62100357206862,
     width: 517,
     text: "Sustainable: Doesn’t rely on\nvolatile, one-time revenues",
-    fontSize: 13,
+    fontSize: 27,
     fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
     id: 'back-fast-facts-paper-relief',
-    x: 1197,
-    y: 242,
+    x: 1212.1578947368423,
+    y: 252.10526315789474,
     width: 481,
     text: 'Provides more than $400\nmillion in tax relief',
-    fontSize: 13,
+    fontSize: 27,
     fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
     id: 'back-fast-facts-paper-cap',
-    x: 1236,
-    y: 318,
+    x: 1249.473684210525,
+    y: 319.68421052631555,
     width: 445,
     text: 'More than $167 million\nbelow the spending cap',
-    fontSize: 13,
+    fontSize: 27,
     fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
     id: 'back-fast-facts-paper-reclaims',
-    x: 1276,
-    y: 387,
+    x: 1297.8947368421036,
+    y: 387.00000000000006,
     width: 430,
     text: 'Reclaims CT revenue\nfrom New York',
-    fontSize: 13,
+    fontSize: 27,
     fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
@@ -748,6 +748,7 @@ const slugToWebsite = (slug: string | null | undefined) =>
   slug ? `https://cthousegop.com/${slug}` : 'https://cthousegop.com'
 
 type MergeTagContext = {
+  repLastName: string
   officeTitle: string
   qrUrl: string
   repName: string
@@ -762,6 +763,7 @@ const resolveMergeTags = (value: string, context: MergeTagContext) =>
     if (key === 'website') return context.website
     if (key === 'tenant_slug') return context.tenantSlug
     if (key === 'rep_name') return context.repName
+    if (key === 'rep_last_name') return context.repLastName
     if (key === 'secondary_rep_name') return context.secondaryRepName
     if (key === 'office_title') return context.officeTitle
     if (key === 'qr_url') return context.qrUrl
@@ -1627,14 +1629,11 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
 const createBackScene = (data: TownFundingResponse, tenantName: string | undefined) => {
   const repName = data.repInfo?.name?.trim() || tenantName?.trim() || 'State Representative'
   const websiteUrl = slugToWebsite(data.tenant?.slug)
-  const backTownColumns = 2
-  const rowsPerColumn = Math.ceil(data.townRows.length / 2)
+  const backTownColumns = 1
   const backTownRows = data.townRows.map((row, index) => {
-    const columnIndex = index >= rowsPerColumn ? 1 : 0
-    const indexInColumn = columnIndex === 0 ? index : index - rowsPerColumn
-    const labelX = columnIndex === 0 ? 28 : 292
-    const amountX = columnIndex === 0 ? 19 : 284
-    const labelY = 352 + indexInColumn * 137
+    const labelX = 43.855860304490726
+    const amountX = labelX
+    const labelY = 284.76745213018637 + index * 134
 
     return {
       id: row.id,
@@ -1644,12 +1643,12 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       included: true,
       labelX,
       labelY,
-      labelWidth: measureTownLabelWidth(row.town, 24),
-      labelHeight: 36,
+      labelWidth: measureTownLabelWidth(row.town, 26),
+      labelHeight: 40,
       amountX,
-      amountY: labelY + 37,
-      townFontSize: 24,
-      amountFontSize: 40,
+      amountY: labelY + 50,
+      townFontSize: 26,
+      amountFontSize: 45,
       labelColor: BRAND_RED,
       textColor: BRAND_BLUE,
     }
@@ -1664,7 +1663,7 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       x: 33,
       y: 30,
       width: 488,
-      text: 'PITCHING REAL RELIEF FOR CONNECTICUT',
+      text: '',
       fontSize: 14,
       color: '#ffffff',
       fontFamily: '"Arial Narrow", Arial, sans-serif',
@@ -1681,7 +1680,7 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       x: 50.22305764411015,
       y: 64.69358327325051,
       width: 678,
-      text: `${buildRepShortName(repName).replace('Rep. ', '')} Announces\nSchools/Taxpayers Relief &\nAffordability Plan (STRAP)`,
+      text: `{{rep_last_name}} Announces\nSchools/Taxpayers Relief &\nAffordability Plan (STRAP)`,
       fontSize: 37,
       color: '#000000',
       fontFamily: 'Georgia, Times New Roman, serif',
@@ -1729,8 +1728,8 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     customImages: [
       {
         id: 'back-note-paper',
-        x: 1071,
-        y: 65,
+        x: 1074.368421052631,
+        y: 63.31578947368405,
         width: 1121,
         height: 800,
         rotation: MAILER_BACKSIDE_ONE_ROTATION.paper,
@@ -1740,20 +1739,20 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-site-screenshot',
-        x: 643,
-        y: 586,
-        width: 337,
-        height: 208,
+        x: 602.7576202716812,
+        y: 591.7646430550852,
+        width: 472,
+        height: 290,
         mediaID: 'mailer-backside-one-screenshot',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.screenshot,
         alt: 'Budget website screenshot',
       },
       {
         id: 'back-arrow',
-        x: 1228,
-        y: 703,
-        width: 118,
-        height: 160,
+        x: 1210.1331102575077,
+        y: 680.2799738719633,
+        width: 138,
+        height: 188,
         rotation: MAILER_BACKSIDE_ONE_ROTATION.arrow,
         mediaID: 'mailer-backside-one-arrow',
         sourceUrl: MAILER_BACKSIDE_ONE_ASSETS.arrow,
@@ -1789,25 +1788,25 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-monitor-frame',
-        x: 557,
-        y: 564,
-        width: 565,
-        height: 341,
+        x: 581.4393031508343,
+        y: 577.1359038264176,
+        width: 515,
+        height: 328,
         fill: '#111111',
       },
       {
         id: 'back-monitor-screen',
-        x: 581,
-        y: 590,
-        width: 516,
+        x: 602.1416062332052,
+        y: 590.0000000000001,
+        width: 474,
         height: 290,
         fill: '#ffffff',
       },
       {
         id: 'back-monitor-stand',
-        x: 557,
-        y: 905,
-        width: 565,
+        x: 584.6962924191567,
+        y: 904.0000000000005,
+        width: 509,
         height: 53,
         fill: '#f1f1f1',
       },
@@ -1817,7 +1816,15 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         y: 957,
         width: 196,
         height: 59,
-        fill: '#f7f7f7',
+        fill: '#999',
+      },
+      {
+        id: 'back-white-qr-panel',
+        x: 1106.6272189349042,
+        y: 621.0283876553846,
+        width: 593,
+        height: 414,
+        fill: '#FFF',
       },
       {
         id: 'back-qr-border-top',
@@ -1854,65 +1861,53 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     ],
     customTexts: [
       {
-        id: 'back-office-title',
-        x: 21,
-        y: 58,
-        width: 240,
-        text: 'State Representative',
-        fontSize: 18,
-        color: '#111111',
-        fontFamily: 'Georgia, Times New Roman, serif',
-        fontStyle: '400',
-        lineHeight: 1,
-      },
-      {
         id: 'back-tax-relief-title',
-        x: 622,
-        y: 16,
+        x: 619.8947368421052,
+        y: 20.210526315789473,
         width: 652,
         text: 'TAX AND FEE RELIEF',
-        fontSize: 34,
+        fontSize: 58,
         color: '#111111',
         fontFamily: '"Arial Narrow", Arial, sans-serif',
-        fontStyle: '700',
+        fontStyle: 'italic bold',
         lineHeight: 1,
       },
       {
         id: 'back-tax-relief-copy',
-        x: 622,
-        y: 92,
-        width: 580,
+        x: 627.7894736841995,
+        y: 86.36842105262713,
+        width: 560,
         text:
           "Increase property tax credit\nReduce healthcare costs\nLower vehicle sales tax\nNo tax on tips\nEliminate many license fees\nEliminate Social Security tax\nRemove Passport to Parks fee\nEliminate children's clothing taxes\nProvide $2.5 million to help municipalities cover early voting costs.",
-        fontSize: 18,
+        fontSize: 32,
         color: '#111111',
-        fontFamily: 'Arial',
-        fontStyle: '400',
-        lineHeight: 1.25,
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'normal',
+        lineHeight: 1.45,
       },
       {
         id: 'back-funding-title',
-        x: 19,
-        y: 659,
-        width: 529,
+        x: 45.26315789473648,
+        y: 679.7105263157888,
+        width: 703,
         text: 'How the plan is funded',
-        fontSize: 20,
-        color: '#1d4ed8',
+        fontSize: 46,
+        color: '#000000',
         fontFamily: 'Arial',
         fontStyle: '700',
         lineHeight: 1,
-        textDecoration: 'underline',
+        textDecoration: 'none',
       },
       {
         id: 'back-funding-copy',
-        x: 21,
-        y: 707,
+        x: 42.05263157894723,
+        y: 751.5263157894724,
         width: 523,
         text:
           'Recover $340 million by challenging New York’s “convenience of employer” rule.\nSave $153 million by budgeting state employee positions based on realistic hiring trends rather than funding all vacancies at once.',
-        fontSize: 18,
+        fontSize: 28,
         color: '#111111',
-        fontFamily: 'Arial',
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
         fontStyle: '400',
         lineHeight: 1.22,
       },
@@ -1924,11 +1919,11 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       })),
       {
         id: 'back-qr-title',
-        x: 1136,
-        y: 639,
+        x: 1125.473684210526,
+        y: 630.5789473684206,
         width: 551,
         text: 'SCAN FOR MORE DETAILS',
-        fontSize: 22,
+        fontSize: 42,
         color: '#111111',
         fontFamily: '"Arial Narrow", Arial, sans-serif',
         fontStyle: '700',
@@ -1936,27 +1931,39 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
       },
       {
         id: 'back-qr-or-visit',
-        x: 1138,
-        y: 899,
-        width: 136,
-        text: 'OR\nVISIT:',
-        fontSize: 18,
+        x: 1127.1842105263147,
+        y: 921.8947368421025,
+        width: 509,
+        text: 'OR VISIT:',
+        fontSize: 31,
         color: '#111111',
-        fontFamily: '"Arial Narrow", Arial, sans-serif',
-        fontStyle: '700',
-        lineHeight: 1.05,
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'bold',
+        lineHeight: 1.1,
       },
       {
         id: 'back-qr-website',
-        x: 1112,
-        y: 939,
-        width: 483,
+        x: 1128.6578947368416,
+        y: 946.5263157894709,
+        width: 509,
         text: '{{website}}',
-        fontSize: 22,
+        fontSize: 51,
         color: '#111111',
-        fontFamily: '"Arial Narrow", Arial, sans-serif',
-        fontStyle: '700',
-        lineHeight: 1,
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'bold',
+        lineHeight: 1.1,
+      },
+      {
+        id: 'back-top-banner-text',
+        x: 75.18421052631442,
+        y: 19.631578947365675,
+        width: 509,
+        text: 'Pitching Real Relief for Connecticut',
+        fontSize: 26,
+        color: '#ffffff',
+        fontFamily: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif',
+        fontStyle: 'bold',
+        lineHeight: 1.1,
       },
     ],
     customGroups: [],
@@ -1965,10 +1972,9 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
     townRows: backTownRows,
   } satisfies ExperimentalTownScene
 
-  const alignedScene = alignSubheadToHeadline(scene)
   return {
-    ...alignedScene,
-    layers: buildEditorLayers(alignedScene),
+    ...scene,
+    layers: buildEditorLayers(scene),
   }
 }
 
@@ -2436,9 +2442,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     const tenantSlug = townData?.tenant?.slug || ''
     const website = slugToWebsite(tenantSlug)
     const repName = townData?.repInfo?.name?.trim() || tenantName || ''
+    const repLastName = buildRepShortName(repName).replace(/^Rep\.\s*/i, '')
     return {
       officeTitle: townData?.repInfo?.officeTitle?.trim() || 'State Representative',
       qrUrl: scene?.qrUrl?.trim() || website,
+      repLastName,
       repName,
       secondaryRepName: '',
       tenantSlug,
