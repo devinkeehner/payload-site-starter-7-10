@@ -144,11 +144,15 @@ const COMPONENT_INSERT_OFFSET = 28
 let sessionClipboard: EditorClipboardItem | null = null
 
 export const TEXT_FONT_OPTIONS = [
-  { label: 'Arial', value: 'Arial' },
-  { label: 'Georgia', value: 'Georgia, Times New Roman, serif' },
+  { label: 'Work Sans', value: '"Work Sans", Arial, sans-serif' },
+  { label: 'Source Sans', value: '"Source Sans 3", "Source Sans Pro", Arial, sans-serif' },
+  { label: 'Georgia', value: 'Georgia, "Times New Roman", serif' },
+  { label: 'Trebuchet', value: '"Trebuchet MS", Arial, sans-serif' },
   { label: 'Arial Narrow', value: '"Arial Narrow", Arial, sans-serif' },
-  { label: 'Marker', value: '"Comic Sans MS", "Marker Felt", cursive' },
+  { label: 'Handwritten', value: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive' },
 ] as const
+
+export const EDITOR_ZOOM_PRESETS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2] as const
 
 export const TEXT_ALIGNMENT_OPTIONS = [
   { label: 'Left', value: 'left' },
@@ -383,6 +387,29 @@ export const reorderCustomEditorLayer = (
   return [
     ...builtins.map((layer, index) => ({ ...layer, order: index })),
     ...reordered.map((layer, index) => ({ ...layer, order: orderOffset + index })),
+  ]
+}
+
+export const reorderCustomEditorLayerToIndex = (
+  layers: EditorLayerItem[] | undefined | null,
+  target: EditorLayerTarget,
+  nextIndex: number,
+) => {
+  const currentLayers = [...(layers || [])]
+  const builtins = currentLayers.filter((item) => item.group === 'built-in').sort((left, right) => left.order - right.order)
+  const customs = currentLayers.filter((item) => item.group === 'custom').sort((left, right) => left.order - right.order)
+  const index = customs.findIndex((item) => item.id === target.id && item.kind === target.kind)
+  if (index < 0) return currentLayers
+
+  const reordered = [...customs]
+  const [item] = reordered.splice(index, 1)
+  if (!item) return currentLayers
+  reordered.splice(Math.max(0, Math.min(nextIndex, reordered.length)), 0, item)
+
+  const orderOffset = builtins.length
+  return [
+    ...builtins.map((layer, idx) => ({ ...layer, order: idx })),
+    ...reordered.map((layer, idx) => ({ ...layer, order: orderOffset + idx })),
   ]
 }
 

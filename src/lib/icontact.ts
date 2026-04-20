@@ -49,6 +49,14 @@ const errorText = (error: unknown) => {
 const looksLikeDuplicateIContactError = (message: string) =>
   /already exists|already subscribed|duplicate|conflict|409/i.test(message)
 
+const logIContact = (
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  details: Record<string, unknown> = {},
+) => {
+  console[level](`[iContact] ${message}`, details)
+}
+
 export const getIContactConfigFromEnv = (): IContactConfig | null => {
   const appId = sanitize(process.env.ICONTACT_APP_ID)
   const username = sanitize(process.env.ICONTACT_USERNAME)
@@ -337,7 +345,14 @@ export const syncSubmissionToIContact = async (args: {
   req?: any
 }): Promise<IContactSyncResult> => {
   const formDoc = args.formDoc || {}
+  const formId = sanitize(formDoc?.id)
+  const formTitle = sanitize(formDoc?.title)
   if (formDoc.enableIContactSync !== true) {
+    logIContact('warn', 'Skipping submission sync because iContact is disabled for the form.', {
+      formId,
+      formTitle,
+      reason: 'sync-disabled',
+    })
     return { status: 'skipped', reason: 'sync-disabled' }
   }
 
@@ -348,11 +363,37 @@ export const syncSubmissionToIContact = async (args: {
   })
   const clientFolderId = targets.clientFolderId
   const listIds = targets.listIds
-  if (!clientFolderId) return { status: 'skipped', reason: 'missing-client-folder' }
-  if (!listIds.length) return { status: 'skipped', reason: 'missing-list-ids' }
+  if (!clientFolderId) {
+    logIContact('warn', 'Skipping submission sync because the form has no resolved iContact folder.', {
+      formId,
+      formTitle,
+      reason: 'missing-client-folder',
+      configuredFolder: formDoc?.iContactFolder || null,
+      configuredLists: formDoc?.iContactLists || null,
+    })
+    return { status: 'skipped', reason: 'missing-client-folder' }
+  }
+  if (!listIds.length) {
+    logIContact('warn', 'Skipping submission sync because the form has no resolved iContact list IDs.', {
+      formId,
+      formTitle,
+      reason: 'missing-list-ids',
+      clientFolderId,
+      configuredLists: formDoc?.iContactLists || null,
+    })
+    return { status: 'skipped', reason: 'missing-list-ids' }
+  }
 
   const cfg = getIContactConfigFromEnv()
-  if (!cfg) return { status: 'failed', error: 'Missing iContact env credentials.' }
+  if (!cfg) {
+    logIContact('error', 'Cannot sync submission because iContact credentials are missing from environment.', {
+      formId,
+      formTitle,
+      clientFolderId,
+      listIds,
+    })
+    return { status: 'failed', error: 'Missing iContact env credentials.' }
+  }
 
   const accountId = await resolveIContactAccountId(cfg, args.accountIdOverride)
   const submissionMap = toSubmissionMap(args.submissionData)
@@ -360,6 +401,16 @@ export const syncSubmissionToIContact = async (args: {
 
   const email = pickFieldValue(submissionMap, fieldMap.emailFieldName, defaultIContactFieldMap.emailFieldName).toLowerCase()
   if (!email || !email.includes('@')) {
+    logIContact('warn', 'Skipping submission sync because no valid email field was found in submission data.', {
+      formId,
+      formTitle,
+      reason: 'missing-email',
+      accountId,
+      clientFolderId,
+      listIds,
+      configuredFieldMap: fieldMap,
+      submissionFields: Array.from(submissionMap.keys()),
+    })
     return { status: 'skipped', reason: 'missing-email', accountId, clientFolderId, listIds }
   }
   const firstName = pickFieldValue(submissionMap, fieldMap.firstNameFieldName, defaultIContactFieldMap.firstNameFieldName)
@@ -397,11 +448,34 @@ export const syncSubmissionToIContact = async (args: {
         await subscribeContactToList(cfg, accountId, clientFolderId, contactId, listId)
       } catch (subscribeError) {
         const message = errorText(subscribeError)
-        if (looksLikeDuplicateIContactError(message)) continue
+        if (looksLikeDuplicateIContactError(message)) {
+          logIContact('info', 'Contact was already subscribed to an iContact list; continuing.', {
+            formId,
+            formTitle,
+            accountId,
+            clientFolderId,
+            listId,
+            contactId,
+            email,
+            message,
+          })
+          continue
+        }
         throw subscribeError
       }
     }
 
+    logIContact('info', 'Submission synced to iContact successfully.', {
+      formId,
+      formTitle,
+      accountId,
+      clientFolderId,
+      listIds,
+      contactId,
+      email,
+      configuredFieldMap: fieldMap,
+      submissionFields: Array.from(submissionMap.keys()),
+    })
     return {
       status: 'success',
       accountId,
@@ -410,13 +484,26 @@ export const syncSubmissionToIContact = async (args: {
       contactId,
     }
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    logIContact('error', 'Submission sync to iContact failed.', {
+      formId,
+      formTitle,
+      accountId,
+      clientFolderId,
+      listIds,
+      contactId: contactId || undefined,
+      email,
+      configuredFieldMap: fieldMap,
+      submissionFields: Array.from(submissionMap.keys()),
+      error: message,
+    })
     return {
       status: 'failed',
       accountId,
       clientFolderId,
       listIds,
       contactId: contactId || undefined,
-      error: error instanceof Error ? error.message : String(error),
+      error: message,
     }
   }
 }

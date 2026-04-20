@@ -80,6 +80,14 @@ const parseRouteId = (req: any, endpointSuffixRegex: RegExp) => {
   }
 }
 
+const logIContactSubmission = (
+  level: 'info' | 'warn' | 'error',
+  message: string,
+  details: Record<string, unknown> = {},
+) => {
+  console[level](`[form-submissions] ${message}`, details)
+}
+
 const inferBrowserFromUserAgent = (userAgent: string): string => {
   const ua = userAgent.toLowerCase()
   if (!ua) return ''
@@ -1902,6 +1910,7 @@ export const plugins: Plugin[] = [
             try {
               const formId = typeof (doc as any)?.form === 'string' ? (doc as any).form : (doc as any)?.form?.id
               if (!formId) return doc
+              const submissionId = String((doc as any)?.id || '')
 
               const formDoc = await req.payload.findByID({
                 collection: 'forms',
@@ -1910,12 +1919,34 @@ export const plugins: Plugin[] = [
                 overrideAccess: true,
                 req,
               })
+              const formTitle = typeof (formDoc as any)?.title === 'string' ? (formDoc as any).title : ''
+
+              logIContactSubmission('info', 'Running iContact sync for new form submission.', {
+                submissionId,
+                formId,
+                formTitle,
+                currentStatus: (doc as any)?.iContactSyncStatus || null,
+              })
 
               const syncResult = await syncSubmissionToIContact({
                 formDoc,
                 submissionData: (doc as any)?.submissionData,
                 payload: req.payload,
                 req,
+              })
+
+              const logLevel = syncResult.status === 'success' ? 'info' : syncResult.status === 'skipped' ? 'warn' : 'error'
+              logIContactSubmission(logLevel, 'iContact sync completed for form submission.', {
+                submissionId,
+                formId,
+                formTitle,
+                status: syncResult.status,
+                reason: syncResult.reason || null,
+                error: syncResult.error || null,
+                accountId: syncResult.accountId || null,
+                clientFolderId: syncResult.clientFolderId || null,
+                listIds: syncResult.listIds || [],
+                contactId: syncResult.contactId || null,
               })
 
               await req.payload.update({
@@ -1936,6 +1967,11 @@ export const plugins: Plugin[] = [
               })
             } catch (error) {
               const message = error instanceof Error ? error.message : String(error)
+              logIContactSubmission('error', 'iContact sync hook crashed while processing a form submission.', {
+                submissionId: String((doc as any)?.id || ''),
+                formId: typeof (doc as any)?.form === 'string' ? (doc as any).form : (doc as any)?.form?.id || '',
+                error: message,
+              })
               try {
                 await req.payload.update({
                   collection: 'form-submissions',

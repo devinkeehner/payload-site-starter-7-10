@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Konva from 'konva'
 import { PDFDocument } from 'pdf-lib'
@@ -12,15 +12,19 @@ import {
   Bold,
   ChevronDown,
   ChevronUp,
-  ChevronsDown,
-  ChevronsUp,
   Clipboard,
   Copy,
   Eye,
   EyeOff,
+  GripVertical,
+  ImagePlus,
   Italic,
   Layers,
   Lock,
+  Minus,
+  Plus,
+  QrCode,
+  Search,
   Trash2,
   Underline,
   Unlock,
@@ -32,6 +36,7 @@ import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
 import {
   EDITOR_COMPONENTS,
+  EDITOR_ZOOM_PRESETS,
   EditorLayerItem,
   appendEditorLayers,
   TEXT_ALIGNMENT_OPTIONS,
@@ -58,6 +63,7 @@ import {
   readEditorClipboard,
   removeEditorLayers,
   reorderCustomEditorLayer,
+  reorderCustomEditorLayerToIndex,
   setEditorClipboard,
   useEditorAutosave,
 } from '@/components/admin/graphicsEditorShared'
@@ -81,7 +87,6 @@ const DEFAULT_MAIL_SIDE: MailSide = 'front'
 const BRAND_BLUE = '#6b7280'
 const BRAND_RED = '#334155'
 const BRAND_COLORS = [BRAND_BLUE, '#9ca3af', BRAND_RED, '#ffffff', '#111827']
-const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
 const MAILER_BACKSIDE_ONE_ASSET_BASE = '/graphics-editor-mail/mailer-backside-one'
 const MAILER_BACKSIDE_ONE_ASSETS = {
   paper: `${MAILER_BACKSIDE_ONE_ASSET_BASE}/notepaper.png`,
@@ -101,7 +106,7 @@ const MAILER_BACKSIDE_ONE_FAST_FACTS = [
     width: 416,
     text: 'FAST FACTS:\nHOUSE GOP PROPOSAL',
     fontSize: 18,
-    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
@@ -111,7 +116,7 @@ const MAILER_BACKSIDE_ONE_FAST_FACTS = [
     width: 629,
     text: 'Spends less than budgets from\nlegislative Democrats and Governor',
     fontSize: 13,
-    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
@@ -121,7 +126,7 @@ const MAILER_BACKSIDE_ONE_FAST_FACTS = [
     width: 517,
     text: "Sustainable: Doesn’t rely on\nvolatile, one-time revenues",
     fontSize: 13,
-    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
@@ -131,7 +136,7 @@ const MAILER_BACKSIDE_ONE_FAST_FACTS = [
     width: 481,
     text: 'Provides more than $400\nmillion in tax relief',
     fontSize: 13,
-    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
@@ -141,7 +146,7 @@ const MAILER_BACKSIDE_ONE_FAST_FACTS = [
     width: 445,
     text: 'More than $167 million\nbelow the spending cap',
     fontSize: 13,
-    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
   {
@@ -151,7 +156,7 @@ const MAILER_BACKSIDE_ONE_FAST_FACTS = [
     width: 430,
     text: 'Reclaims CT revenue\nfrom New York',
     fontSize: 13,
-    fontFamily: '"Comic Sans MS", "Marker Felt", cursive',
+    fontFamily: '"Segoe Print", "Bradley Hand", "Comic Sans MS", cursive',
     fontStyle: '700',
   },
 ] as const
@@ -194,7 +199,7 @@ const LEGACY_BACKSIDE_TEXT_SIGNATURES = {
   },
   'back-qr-title': { x: 1136, y: 639, width: 430, text: 'SCAN FOR MORE DETAILS' },
   'back-qr-or-visit': { x: 1128, y: 877, width: 74, text: 'OR\nVISIT:' },
-  'back-qr-website': { x: 1208, y: 935, width: 360, text: WEBSITE_TEXT },
+  'back-qr-website': { x: 1208, y: 935, width: 360, text: '{{website}}' },
 } as const
 const MAIL_PLACEHOLDER_WIDTH = 560
 const MAIL_PLACEHOLDER_HEIGHT = 364
@@ -471,6 +476,7 @@ type TownSceneRow = {
 type ExperimentalTownScene = {
   kind: typeof SCENE_KIND
   backgroundMediaID: string | null
+  qrUrl?: string
   eyebrow: EyebrowElement
   headline: SceneTextElement
   subhead: SubheadElement
@@ -677,6 +683,49 @@ const readMediaUrl = (value: unknown) => {
   return proxiedUrl(mediaDoc?.url || mediaDoc?.thumbnailURL || null)
 }
 
+const dedupeMediaOptions = (docs: MediaDoc[]) => {
+  const seen = new Set<string>()
+  return docs.filter((doc) => {
+    if (!doc?.id || seen.has(doc.id)) return false
+    seen.add(doc.id)
+    return true
+  })
+}
+
+const buildMediaSearchParams = (tenantID: string, query = '') => {
+  const params = new URLSearchParams()
+  params.set('limit', '80')
+  params.set('depth', '0')
+  params.set('sort', '-updatedAt')
+  params.set('where[tenant][equals]', tenantID)
+  if (query.trim()) params.set('where[alt][like]', query.trim())
+  return params
+}
+
+const slugToWebsite = (slug: string | null | undefined) =>
+  slug ? `https://cthousegop.com/${slug}` : 'https://cthousegop.com'
+
+type MergeTagContext = {
+  officeTitle: string
+  qrUrl: string
+  repName: string
+  secondaryRepName: string
+  tenantSlug: string
+  website: string
+}
+
+const resolveMergeTags = (value: string, context: MergeTagContext) =>
+  value.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_, rawKey) => {
+    const key = String(rawKey).toLowerCase()
+    if (key === 'website') return context.website
+    if (key === 'tenant_slug') return context.tenantSlug
+    if (key === 'rep_name') return context.repName
+    if (key === 'secondary_rep_name') return context.secondaryRepName
+    if (key === 'office_title') return context.officeTitle
+    if (key === 'qr_url') return context.qrUrl
+    return ''
+  })
+
 function useLoadedImage(src: string | undefined) {
   const [image, setImage] = useState<HTMLImageElement | null>(null)
 
@@ -701,6 +750,14 @@ function useLoadedImage(src: string | undefined) {
 
   return image
 }
+
+const loadImageNaturalSize = (src: string) =>
+  new Promise<{ width: number; height: number }>((resolve) => {
+    const image = new window.Image()
+    image.onload = () => resolve({ width: image.naturalWidth || image.width || 1, height: image.naturalHeight || image.height || 1 })
+    image.onerror = () => resolve({ width: 1, height: 1 })
+    image.src = proxiedUrl(src) || src
+  })
 
 function useLoadedImages(srcByID: Record<string, string | undefined>) {
   const [images, setImages] = useState<Record<string, HTMLImageElement | null>>({})
@@ -828,6 +885,47 @@ const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' 
   const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
   const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
   return Math.max(item.height || 0, measuredHeight)
+}
+
+const measureCustomTextMinimumHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight'>) => {
+  const fontSize = item.fontSize || 28
+  const fontFamily = item.fontFamily || 'Arial'
+  const lineHeight = item.lineHeight || 1.1
+  const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
+  return Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
+}
+
+const normalizeCustomTextBox = (
+  item: CustomTextElement,
+  patch: Partial<CustomTextElement>,
+  options: { fitHeight?: boolean } = {},
+) => {
+  const nextWidth = Math.max(80, Math.round(patch.width ?? item.width))
+  const nextFontSize = Math.max(12, Math.round(patch.fontSize ?? item.fontSize))
+  const nextText = patch.text ?? item.text
+  const nextFontFamily = patch.fontFamily ?? item.fontFamily
+  const nextLineHeight = patch.lineHeight ?? item.lineHeight
+  const minimumHeight = measureCustomTextMinimumHeight({
+    text: nextText,
+    width: nextWidth,
+    fontSize: nextFontSize,
+    fontFamily: nextFontFamily,
+    lineHeight: nextLineHeight,
+  })
+  const currentHeight = item.height || measureCustomTextHeight(item)
+  const requestedHeight = patch.height != null ? Math.round(patch.height) : options.fitHeight ? minimumHeight : currentHeight
+
+  return {
+    ...patch,
+    width: nextWidth,
+    fontSize: nextFontSize,
+    height: Math.max(minimumHeight, requestedHeight),
+  }
+}
+
+const getTransformerAnchorName = (node: Konva.Node | null) => {
+  if (!node || typeof node.name !== 'function') return ''
+  return node.name() || ''
 }
 
 const buildRichTextSvgDataUrl = (
@@ -1233,6 +1331,7 @@ const scaleBaseScene = (scene: ExperimentalTownScene) => {
 
 const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefined) => {
   const headlineText = deriveDefaultHeadline(data.repInfo?.name)
+  const websiteUrl = slugToWebsite(data.tenant?.slug)
   const townRows = data.townRows.map((row, index) => {
     const top = 670 + index * 174
     return {
@@ -1257,6 +1356,7 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
   const scene = {
     kind: SCENE_KIND,
     backgroundMediaID: null,
+    qrUrl: websiteUrl,
     eyebrow: {
       id: 'eyebrow',
       x: 72,
@@ -1305,7 +1405,7 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
       width: STAGE_WIDTH,
       height: 80,
       backgroundColor: BRAND_RED,
-      text: WEBSITE_TEXT,
+      text: '{{website}}',
       textX: 78,
       textY: 1510,
       fontSize: 34,
@@ -1359,6 +1459,7 @@ const createBaseScene = (data: TownFundingResponse, _tenantName: string | undefi
 
 const createBackScene = (data: TownFundingResponse, tenantName: string | undefined) => {
   const repName = data.repInfo?.name?.trim() || tenantName?.trim() || 'State Representative'
+  const websiteUrl = slugToWebsite(data.tenant?.slug)
   const backTownColumns = 2
   const rowsPerColumn = Math.ceil(data.townRows.length / 2)
   const backTownRows = data.townRows.map((row, index) => {
@@ -1390,6 +1491,7 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
   const scene = {
     kind: SCENE_KIND,
     backgroundMediaID: null,
+    qrUrl: websiteUrl,
     eyebrow: {
       id: 'eyebrow',
       x: 33,
@@ -1682,7 +1784,7 @@ const createBackScene = (data: TownFundingResponse, tenantName: string | undefin
         x: 1112,
         y: 939,
         width: 483,
-        text: WEBSITE_TEXT,
+        text: '{{website}}',
         fontSize: 22,
         color: '#111111',
         fontFamily: '"Arial Narrow", Arial, sans-serif',
@@ -1866,6 +1968,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [designTitle, setDesignTitle] = useState('Town Graphic')
   const [templates, setTemplates] = useState<TemplateDoc[]>([])
   const [designs, setDesigns] = useState<DesignDoc[]>([])
+  const [mediaOptions, setMediaOptions] = useState<MediaDoc[]>([])
   const [savingTemplate, setSavingTemplate] = useState(false)
   const [savingDesign, setSavingDesign] = useState(false)
   const [savingMedia, setSavingMedia] = useState(false)
@@ -1875,11 +1978,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [mailExportJob, setMailExportJob] = useState<MailExportJobState | null>(null)
   const [designsSectionOpen, setDesignsSectionOpen] = useState(false)
   const [contentSectionOpen, setContentSectionOpen] = useState(false)
+  const [imagesSectionOpen, setImagesSectionOpen] = useState(false)
   const [townsSectionOpen, setTownsSectionOpen] = useState(false)
   const [inspectorSectionOpen, setInspectorSectionOpen] = useState(false)
   const [templateSectionOpen, setTemplateSectionOpen] = useState(false)
   const [sceneRevision, setSceneRevision] = useState(0)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  const [mediaQuery, setMediaQuery] = useState('')
+  const [draggedLayerKey, setDraggedLayerKey] = useState<string | null>(null)
 
   const tenantOptions = useMemo<TenantSelectOption[]>(
     () =>
@@ -2073,6 +2179,36 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }, [isMounted, requestedDesignID, requestedTemplateID, tenantID, tenantName])
 
   useEffect(() => {
+    if (!isMounted || !tenantID) {
+      setMediaOptions([])
+      return
+    }
+
+    let cancelled = false
+
+    const loadMedia = async () => {
+      try {
+        const response = await fetch(`/api/media?${buildMediaSearchParams(tenantID, mediaQuery).toString()}`, {
+          credentials: 'include',
+        })
+        const payload = await response.json()
+        if (!response.ok) throw new Error(getString(asRecord(payload).message) || 'Failed to load media')
+        if (!cancelled) {
+          const docs = Array.isArray(asRecord(payload).docs) ? ((asRecord(payload).docs as MediaDoc[]) || []) : []
+          setMediaOptions(dedupeMediaOptions(docs))
+        }
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : String(error))
+      }
+    }
+
+    void loadMedia()
+    return () => {
+      cancelled = true
+    }
+  }, [isMounted, mediaQuery, tenantID])
+
+  useEffect(() => {
     if (!mailExportJob || (mailExportJob.status !== 'queued' && mailExportJob.status !== 'running')) return
 
     const interval = window.setInterval(async () => {
@@ -2129,6 +2265,21 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     [scene],
   )
   const customImages = useLoadedImages(customImageUrls)
+  const mergeTagContext = useMemo<MergeTagContext>(() => {
+    const tenantSlug = townData?.tenant?.slug || ''
+    const website = slugToWebsite(tenantSlug)
+    const repName = townData?.repInfo?.name?.trim() || tenantName || ''
+    return {
+      officeTitle: townData?.repInfo?.officeTitle?.trim() || 'State Representative',
+      qrUrl: scene?.qrUrl?.trim() || website,
+      repName,
+      secondaryRepName: '',
+      tenantSlug,
+      website,
+    }
+  }, [scene?.qrUrl, tenantName, townData?.repInfo?.name, townData?.repInfo?.officeTitle, townData?.tenant?.slug])
+  const resolveSceneText = useCallback((value: string) => resolveMergeTags(value || '', mergeTagContext), [mergeTagContext])
+  const resolveSceneHtml = useCallback((value: string) => resolveMergeTags(value || '', mergeTagContext), [mergeTagContext])
   const customTextRenderUrls = useMemo(
     () =>
       scene
@@ -2137,12 +2288,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               item.id,
               buildRichTextSvgDataUrl({
                 ...item,
+                html: resolveSceneHtml(getCustomTextHtml(item)),
+                text: resolveSceneText(item.text),
                 height: item.height || measureCustomTextHeight(item),
               }),
             ]),
           )
         : {},
-    [scene],
+    [resolveSceneHtml, resolveSceneText, scene],
   )
   const customTextRenderImages = useLoadedImages(customTextRenderUrls)
 
@@ -2297,6 +2450,13 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!selection) return null
     return ['eyebrow', 'headline', 'subhead', 'footer', 'custom-text'].includes(selection.kind) ? (selection as TextSelection) : null
   }, [selection])
+  const filteredMediaOptions = useMemo(() => {
+    const query = mediaQuery.trim().toLowerCase()
+    if (!query) return mediaOptions
+    return mediaOptions.filter((media) =>
+      [media.alt, media.title, media.filename].some((part) => typeof part === 'string' && part.toLowerCase().includes(query)),
+    )
+  }, [mediaOptions, mediaQuery])
 
   useEffect(() => {
     if (!selection) return
@@ -2510,6 +2670,22 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     return true
   }
 
+  const moveLayerTargetToIndex = (
+    target: { id: string; kind: EditorLayerItem['kind'] },
+    nextIndex: number,
+    side: MailSide = activeMailSide,
+  ) => {
+    if (!isCustomLayerKind(target.kind)) return false
+    updateScene(
+      (current) => ({
+        ...current,
+        layers: reorderCustomEditorLayerToIndex(current.layers, target, nextIndex),
+      }),
+      side,
+    )
+    return true
+  }
+
   const undoLastChange = (side: MailSide = activeMailSide) => {
     const previousScene = undoStackRef.current[side].pop()
     const currentScene = getActiveScene(side)
@@ -2593,9 +2769,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (nextID) handleCustomSelection({ kind: 'custom-text', id: nextID })
   }
 
-  const addCustomImage = (mediaDoc: MediaDoc) => {
+  const addCustomImage = async (mediaDoc: MediaDoc) => {
     const rawUrl = readRawMediaUrl(mediaDoc)
     if (!rawUrl) throw new Error('Uploaded media did not include a URL')
+    const naturalSize = await loadImageNaturalSize(rawUrl)
+    const aspectRatio = naturalSize.width > 0 && naturalSize.height > 0 ? naturalSize.width / naturalSize.height : 1
+    const maxInsertWidth = 360
+    const maxInsertHeight = 260
+    const width = Math.max(96, Math.round(Math.min(maxInsertWidth, maxInsertHeight * aspectRatio)))
+    const height = Math.max(96, Math.round(width / Math.max(aspectRatio, 0.01)))
 
     let nextID = ''
     updateScene((current) => {
@@ -2603,8 +2785,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         id: createEditorNodeID('custom-image'),
         x: 180,
         y: 180,
-        width: 240,
-        height: 240,
+        width: width > maxInsertWidth ? maxInsertWidth : width,
+        height: width > maxInsertWidth ? Math.max(96, Math.round(maxInsertWidth / Math.max(aspectRatio, 0.01))) : height,
         opacity: 1,
         mediaID: mediaDoc.id,
         sourceUrl: rawUrl,
@@ -2637,7 +2819,16 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const updateCustomText = (textID: string, patch: Partial<CustomTextElement>) => {
     updateScene((current) => ({
       ...current,
-      customTexts: current.customTexts.map((item) => (item.id === textID ? { ...item, ...patch } : item)),
+      customTexts: current.customTexts.map((item) => (item.id === textID ? { ...item, ...normalizeCustomTextBox(item, patch) } : item)),
+    }))
+  }
+
+  const fitCustomTextToContent = (textID: string) => {
+    updateScene((current) => ({
+      ...current,
+      customTexts: current.customTexts.map((item) =>
+        item.id === textID ? { ...item, ...normalizeCustomTextBox(item, {}, { fitHeight: true }) } : item,
+      ),
     }))
   }
 
@@ -2759,7 +2950,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       if (target.kind === 'custom-text') {
         return {
           ...current,
-          customTexts: current.customTexts.map((item) => (item.id === target.id ? { ...item, ...patch } : item)),
+          customTexts: current.customTexts.map((item) =>
+            item.id === target.id ? { ...item, ...normalizeCustomTextBox(item, patch as Partial<CustomTextElement>) } : item,
+          ),
         }
       }
       return { ...current, footer: { ...current.footer, ...patch } }
@@ -2777,6 +2970,32 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (!frontSceneRef.current || !backSceneRef.current) return null
     return buildMailSceneBundle(frontSceneRef.current, backSceneRef.current, activeMailSideRef.current)
   }
+
+  const resolveSceneForOutput = useCallback(
+    (source: ExperimentalTownScene): ExperimentalTownScene => ({
+      ...source,
+      eyebrow: { ...source.eyebrow, text: resolveSceneText(source.eyebrow.text) },
+      headline: { ...source.headline, text: resolveSceneText(source.headline.text) },
+      subhead: { ...source.subhead, text: resolveSceneText(source.subhead.text) },
+      footer: { ...source.footer, text: resolveSceneText(source.footer.text) },
+      customTexts: source.customTexts.map((item) => ({
+        ...item,
+        text: resolveSceneText(item.text),
+        html: item.html ? resolveSceneHtml(item.html) : item.html,
+      })),
+    }),
+    [resolveSceneHtml, resolveSceneText],
+  )
+
+  const getResolvedSceneBundle = useCallback((): MailSceneBundle | null => {
+    const bundle = getCurrentSceneBundle()
+    if (!bundle) return null
+    return {
+      ...bundle,
+      frontScene: resolveSceneForOutput(bundle.frontScene),
+      backScene: resolveSceneForOutput(bundle.backScene),
+    }
+  }, [resolveSceneForOutput])
 
   const resolveTextLayer = (current: ExperimentalTownScene, target: TextSelection) => resolveSelectedTextLayer(current, target)
 
@@ -2804,7 +3023,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       updateCustomText(inlineTextEditor.target.id, {
         html,
         text,
-        height: currentItem?.height || measureCustomTextHeight(currentItem || { text, width: 280, fontSize: 28, fontFamily: 'Arial', lineHeight: 1.1, height: 0 }),
+        height: currentItem?.height,
       })
       richTextEditorSeedRef.current = null
       setInlineTextEditor(null)
@@ -2848,6 +3067,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       clearUndoHistory('back')
       setSceneWithoutHistory(frontBaseScene, 'front')
       setSceneWithoutHistory(backBaseScene, 'back')
+      setTemplateTitle('Experimental Town Graphic')
       setSelection(null)
       return
     }
@@ -2884,6 +3104,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       clearUndoHistory('back')
       setSceneWithoutHistory(frontBaseScene, 'front')
       setSceneWithoutHistory(backBaseScene, 'back')
+      setDesignTitle(buildDesignTitle(townData.tenant?.name || tenantName, 'Town Graphic'))
       setSelection(null)
       return
     }
@@ -2949,7 +3170,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     try {
       setMessage(null)
       const mediaDoc = await uploadMediaAsset(file, file.name.replace(/\.[^.]+$/, ''))
-      addCustomImage(mediaDoc)
+      setMediaOptions((current) => dedupeMediaOptions([mediaDoc, ...current]))
+      await addCustomImage(mediaDoc)
       setMessage('Image added')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -2964,7 +3186,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       brandRed: BRAND_RED,
       stageHeight: STAGE_HEIGHT,
       stageWidth: STAGE_WIDTH,
-      websiteText: WEBSITE_TEXT,
+      websiteText: mergeTagContext.website,
     })
     let selectedID = ''
     updateScene((current) => {
@@ -3336,8 +3558,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const buildDesignPayload = (exportedMediaID?: string | null) => {
     const bundle = getCurrentSceneBundle()
     if (!bundle) throw new Error('No scene available')
+    const trimmedTitle = designTitle.trim()
     return {
-      title: designTitle || buildDesignTitle(townData?.tenant?.name || tenantName, 'Town Graphic'),
+      title: trimmedTitle || buildDesignTitle(townData?.tenant?.name || tenantName, 'Town Graphic'),
       template: templateID || null,
       sourceCollection: 'pages',
       sourcePost: null,
@@ -3400,6 +3623,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
   const saveDesign = async (exportedMediaID?: string | null) => {
     if (!scene) return ''
+    if (!designID && !designTitle.trim()) throw new Error('Name the design before autosave can create it')
     const response = await fetch(
       designID ? `/api/graphic-designs/${designID}?draft=true` : '/api/graphic-designs?draft=true',
       {
@@ -3420,14 +3644,38 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     return designID
   }
 
-  const handleSaveDesign = async () => {
+  const copyCurrentDesign = async () => {
     if (!scene) return
+    const nextTitle = `Copy ${designTitle.trim() || buildDesignTitle(townData?.tenant?.name || tenantName, 'Town Graphic')}`
     setSavingDesign(true)
     setMessage(null)
     try {
-      await saveDesign()
+      const previousDesignID = designID
+      const previousTitle = designTitle
+      setDesignID('')
+      setDesignTitle(nextTitle)
+      const response = await fetch('/api/graphic-designs?draft=true', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          ...buildDesignPayload(),
+          title: nextTitle,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(getString(asRecord(data).message) || 'Failed to copy design')
+      const savedDoc = sanitizeDesignDoc(((asRecord(data).doc || data) as DesignDoc) || null)
+      if (savedDoc?.id) {
+        setDesignID(savedDoc.id)
+        setDesignTitle(savedDoc.title || nextTitle)
+        setDesigns((current) => [savedDoc, ...current.filter((item) => item.id !== savedDoc.id)].slice(0, 50))
+      } else {
+        setDesignID(previousDesignID)
+        setDesignTitle(previousTitle)
+      }
       markSaved()
-      setMessage('Design saved')
+      setMessage('Design copied')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
@@ -3436,7 +3684,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const { autosaveState, markSaved, resetAutosave } = useEditorAutosave({
-    enabled: Boolean(scene && !loading),
+    enabled: Boolean(scene && !loading && (Boolean(designID) || Boolean(designTitle.trim()))),
     revision: sceneRevision,
     onError: (message) => setMessage(message),
     onSave: async () => {
@@ -3448,6 +3696,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     if (loading) return
     if (sceneRevision === 0) resetAutosave()
   }, [loading, resetAutosave, sceneRevision])
+
+  const autosaveLabel = !designID && !designTitle.trim() ? 'Name design to start autosave' : formatAutosaveLabel(autosaveState)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -3486,11 +3736,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         return
       }
 
-      if (modifier && key === 's') {
-        event.preventDefault()
-        void handleSaveDesign()
-        return
-      }
+      if (modifier && key === 's') event.preventDefault()
 
       if (event.key === 'Escape') {
         setSelection(null)
@@ -3520,7 +3766,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     copySelectedCustomObject,
     deleteSelectedCustomObject,
     duplicateSelectedCustomObject,
-    handleSaveDesign,
     nudgeSelectedObject,
     pasteClipboardObject,
     redoLastChange,
@@ -3640,8 +3885,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         new File([blob], `${filenameBase || 'town-graphic'}.png`, { type: 'image/png' }),
         designTitle || templateTitle || 'Town Graphic',
       )
-      await saveDesign(mediaDoc.id)
-      markSaved()
+      if (designID || designTitle.trim()) {
+        await saveDesign(mediaDoc.id)
+        markSaved()
+      }
       setMessage('Saved to Media Gallery')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
@@ -3673,7 +3920,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const downloadPptx = async () => {
     try {
       setDownloadingPptx(true)
-      const bundle = getCurrentSceneBundle()
+      const bundle = getResolvedSceneBundle()
       if (!bundle) throw new Error('No scene bundle available for PPTX export')
       const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
         .toLowerCase()
@@ -3728,7 +3975,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
   const downloadTemplateXml = async () => {
     try {
-      const bundle = getCurrentSceneBundle()
+      const bundle = getResolvedSceneBundle()
       if (!bundle) throw new Error('No scene bundle available')
       const xml = sceneBundleToXml(bundle, townData?.tenant?.name || tenantName || tenantID || 'unknown-tenant')
       const blob = new Blob([xml], { type: 'application/xml;charset=utf-8' })
@@ -4064,12 +4311,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         </label>
                       <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>Height</span>
-                        <input type="number" value={Math.round(selectedCustomText.height || measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Math.max(measureCustomTextHeight(selectedCustomText), Number(event.target.value) || selectedCustomText.height || 0) })} style={controlStyle} />
+                        <input type="number" value={Math.round(selectedCustomText.height || measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Number(event.target.value) || selectedCustomText.height || 0 })} style={controlStyle} />
                       </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Font size</span>
                           <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
                         </label>
+                        <Button onClick={() => fitCustomTextToContent(selectedCustomText.id)} buttonStyle="secondary">
+                          Fit box to text
+                        </Button>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Opacity</span>
                           <input type="number" min={0} max={1} step={0.05} value={selectedCustomText.opacity ?? 1} onChange={(event) => updateCustomText(selectedCustomText.id, { opacity: clamp(Number(event.target.value) || 0, 0, 1) })} style={controlStyle} />
@@ -4664,31 +4914,29 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
           const isCorner = !isHorizontalEdge && !isVerticalEdge
           const nextWidth = isVerticalEdge ? item.width : Math.max(80, Math.round(item.width * Math.max(Math.abs(node.scaleX()), 0.1)))
-          const nextFontSize = isCorner
-            ? getResizedTextTransform({
-                fontSize: item.fontSize,
-                minFontSize: 12,
-                minWidth: 80,
-                scaleX: node.scaleX(),
-                scaleY: node.scaleY(),
-                width: item.width,
-              }).nextFontSize
-            : item.fontSize
+          const sizeScale = Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))
+          const nextFontSize = isCorner ? Math.max(12, Math.round(item.fontSize * sizeScale)) : item.fontSize
           const nextRotation = Number(node.rotation().toFixed(1))
-          const measuredNextHeight = measureCustomTextHeight({ ...item, width: nextWidth, fontSize: nextFontSize })
-          const nextHeight = isHorizontalEdge
-            ? measuredNextHeight
-            : Math.max(measuredNextHeight, Math.round(textHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
+          const scaledHeight = Math.max(48, Math.round((item.height || textHeight) * Math.max(Math.abs(node.scaleY()), 0.1)))
+          const normalized = normalizeCustomTextBox(
+            item,
+            {
+              fontSize: nextFontSize,
+              height: isHorizontalEdge ? item.height || textHeight : scaledHeight,
+              width: nextWidth,
+            },
+            { fitHeight: isHorizontalEdge },
+          )
           node.scaleX(1)
           node.scaleY(1)
-          node.offsetX(nextWidth / 2)
-          node.offsetY(nextHeight / 2)
+          node.offsetX(normalized.width / 2)
+          node.offsetY((normalized.height || textHeight) / 2)
           updateCustomText(item.id, {
-            fontSize: nextFontSize,
-            height: nextHeight,
-            x: node.x() - nextWidth / 2,
-            y: node.y() - nextHeight / 2,
-            width: nextWidth,
+            fontSize: normalized.fontSize,
+            height: normalized.height,
+            x: node.x() - normalized.width / 2,
+            y: node.y() - (normalized.height || textHeight) / 2,
+            width: normalized.width,
             rotation: nextRotation,
           })
           setIsResizingHeadline(false)
@@ -4711,7 +4959,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           <Text
             width={item.width}
             height={textHeight}
-            text={item.text}
+          text={resolveSceneText(item.text)}
             align={item.textAlign || 'left'}
             fontFamily={item.fontFamily || 'Arial'}
             fontSize={item.fontSize}
@@ -4916,14 +5164,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               {savingTemplate ? 'Saving template…' : templateID ? 'Update template' : 'Save template'}
             </button>
           ) : null}
-          <button
-            type="button"
-            onClick={handleSaveDesign}
-            disabled={savingDesign}
-            style={savingDesign ? disabledButtonStyle : secondaryButtonStyle}
-          >
-            {savingDesign ? 'Saving design…' : designID ? 'Update design' : 'Save design'}
-          </button>
           <button type="button" onClick={resetCurrentSide} style={secondaryButtonStyle}>
             Reset Side
           </button>
@@ -4948,6 +5188,34 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           </button>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                const currentIndex = EDITOR_ZOOM_PRESETS.findIndex((value) => value === previewZoom)
+                const nextIndex = currentIndex <= 0 ? 0 : currentIndex - 1
+                const nextZoom = EDITOR_ZOOM_PRESETS[nextIndex] ?? EDITOR_ZOOM_PRESETS[0]
+                setPreviewZoom(nextZoom)
+              }}
+              style={iconToolbarButtonStyle}
+              title="Zoom out"
+            >
+              <Minus size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const currentIndex = EDITOR_ZOOM_PRESETS.findIndex((value) => value === previewZoom)
+                const nextIndex = currentIndex < 0 ? EDITOR_ZOOM_PRESETS.indexOf(1) : Math.min(EDITOR_ZOOM_PRESETS.length - 1, currentIndex + 1)
+                const nextZoom = EDITOR_ZOOM_PRESETS[nextIndex] ?? EDITOR_ZOOM_PRESETS[EDITOR_ZOOM_PRESETS.length - 1] ?? 1
+                setPreviewZoom(nextZoom)
+              }}
+              style={iconToolbarButtonStyle}
+              title="Zoom in"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
             <span>Zoom</span>
             <select
@@ -4955,15 +5223,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               onChange={(event) => setPreviewZoom(Number(event.target.value))}
               style={{ ...controlStyle, width: 88, padding: '6px 8px' }}
             >
-              <option value="0.75">75%</option>
-              <option value="0.9">90%</option>
-              <option value="1">Fit</option>
-              <option value="1.1">110%</option>
-              <option value="1.25">125%</option>
+              {EDITOR_ZOOM_PRESETS.map((preset) => (
+                <option key={preset} value={String(preset)}>
+                  {preset === 1 ? 'Fit' : `${Math.round(preset * 100)}%`}
+                </option>
+              ))}
             </select>
           </label>
           <div style={{ fontSize: 12, color: '#475569' }}>
-            Autosave: <strong>{formatAutosaveLabel(autosaveState)}</strong>
+            Autosave: <strong>{autosaveLabel}</strong>
           </div>
           {mailExportJob ? (
             <div style={{ fontSize: 12, color: '#475569' }}>
@@ -5047,79 +5315,45 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               <span style={fieldLabelStyle}>Design title</span>
               <input value={designTitle} onChange={(event) => setDesignTitle(event.target.value)} style={controlStyle} />
             </label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Button onClick={() => void copyCurrentDesign()} disabled={savingDesign || !scene} buttonStyle="secondary">
+                {savingDesign ? 'Copying…' : 'Copy design'}
+              </Button>
+            </div>
+            <div style={hintStyle}>
+              Enter a title once. After that, edits autosave automatically.
+            </div>
           </div>
         </details>
 
         <details open={contentSectionOpen} onToggle={(event) => setContentSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
-          <summary style={detailsSummaryStyle}>Content + Insert</summary>
+          <summary style={detailsSummaryStyle}>Insert</summary>
           <div style={accordionBodyStyle}>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Eyebrow</span>
-              <input
-                value={scene.eyebrow.text}
-                onChange={(event) => updateScene((current) => ({ ...current, eyebrow: { ...current.eyebrow, text: event.target.value } }))}
-                style={controlStyle}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Headline</span>
-              <textarea
-                rows={5}
-                value={scene.headline.text}
-                onChange={(event) => updateHeadline({ text: event.target.value })}
-                style={{ ...controlStyle, resize: 'vertical', minHeight: 110 }}
-              />
-            </label>
-            <label style={{ display: 'grid', gap: 6 }}>
-              <span style={fieldLabelStyle}>Subhead</span>
-              <input
-                value={scene.subhead.text}
-                onChange={(event) => updateScene((current) => ({ ...current, subhead: { ...current.subhead, text: event.target.value } }))}
-                style={controlStyle}
-              />
-            </label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <Button
-                onClick={() => {
-                  addCustomRect('rect')
-                  setMessage('Added rectangle')
-                }}
-                buttonStyle="secondary"
-              >
-                Add Rectangle
-              </Button>
-              <Button
-                onClick={() => {
-                  addCustomRect('circle')
-                  setMessage('Added circle')
-                }}
-                buttonStyle="secondary"
-              >
-                Add Circle
-              </Button>
-              <Button
-                onClick={() => {
-                  addCustomRect('line')
-                  setMessage('Added line')
-                }}
-                buttonStyle="secondary"
-              >
-                Add Line
-              </Button>
-              <Button
-                onClick={() => {
-                  addCustomText()
-                  setMessage('Added text box')
-                }}
-                buttonStyle="secondary"
-              >
-                Add Text Box
-              </Button>
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <button type="button" onClick={() => { addCustomRect('rect'); setMessage('Added rectangle') }} style={secondaryButtonStyle}>Rectangle</button>
+              <button type="button" onClick={() => { addCustomRect('circle'); setMessage('Added circle') }} style={secondaryButtonStyle}>Circle</button>
+              <button type="button" onClick={() => { addCustomRect('line'); setMessage('Added line') }} style={secondaryButtonStyle}>Line</button>
+              <button type="button" onClick={() => { addCustomText(); setMessage('Added text box') }} style={secondaryButtonStyle}>Text box</button>
             </div>
             <label style={{ display: 'grid', gap: 6 }}>
               <span style={fieldLabelStyle}>Add Image</span>
               <input type="file" accept="image/*" onChange={handleAddCustomImage} style={controlStyle} />
             </label>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>QR destination</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr)', alignItems: 'center', gap: 8 }}>
+                <QrCode size={14} />
+                <input
+                  value={scene.qrUrl || mergeTagContext.website}
+                  onChange={(event) => updateScene((current) => ({ ...current, qrUrl: event.target.value }))}
+                  style={controlStyle}
+                  placeholder="https://cthousegop.com/tenant-slug"
+                />
+              </div>
+            </label>
+            <div style={hintStyle}>
+              Use merge tags in any text box: <strong>{'{{website}}'}</strong>, <strong>{'{{qr_url}}'}</strong>, <strong>{'{{rep_name}}'}</strong>, <strong>{'{{office_title}}'}</strong>.
+            </div>
             <div style={{ display: 'grid', gap: 8 }}>
               <span style={fieldLabelStyle}>Reusable components</span>
               {EDITOR_COMPONENTS.map((component) => (
@@ -5139,45 +5373,45 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 </button>
               ))}
             </div>
-            <div style={{ ...hintStyle, padding: '10px 12px' }}>Website is fixed to <strong>{WEBSITE_TEXT}</strong></div>
-            <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>Footer text size</span>
-                <input
-                  type="number"
-                  value={scene.footer.fontSize}
-                  onChange={(event) =>
-                    updateScene((current) => ({
-                      ...current,
-                      footer: {
-                        ...current.footer,
-                        fontSize: Number(event.target.value) || current.footer.fontSize,
-                      },
-                    }))
-                  }
-                  style={controlStyle}
-                />
-              </label>
-              <label style={{ display: 'grid', gap: 6 }}>
-                <span style={fieldLabelStyle}>Footer bar height</span>
-                <input
-                  type="number"
-                  value={scene.footer.height}
-                  onChange={(event) =>
-                    updateScene((current) => {
-                      const nextHeight = Number(event.target.value) || current.footer.height
-                      return {
-                        ...current,
-                        footer: {
-                          ...current.footer,
-                          height: nextHeight,
-                        },
-                      }
-                    })
-                  }
-                  style={controlStyle}
-                />
-              </label>
+          </div>
+        </details>
+
+        <details open={imagesSectionOpen} onToggle={(event) => setImagesSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
+          <summary style={detailsSummaryStyle}>Images</summary>
+          <div style={accordionBodyStyle}>
+            <label style={{ display: 'grid', gap: 6 }}>
+              <span style={fieldLabelStyle}>Search media</span>
+              <div style={{ display: 'grid', gridTemplateColumns: '20px minmax(0, 1fr)', alignItems: 'center', gap: 8 }}>
+                <Search size={14} />
+                <input value={mediaQuery} onChange={(event) => setMediaQuery(event.target.value)} style={controlStyle} placeholder="Search gallery" />
+              </div>
+            </label>
+            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              {filteredMediaOptions.slice(0, 24).map((media) => (
+                <button
+                  key={media.id}
+                  type="button"
+                  onClick={() => void addCustomImage(media)}
+                  style={{ ...secondaryButtonStyle, display: 'grid', gap: 6, padding: 8, justifyItems: 'start' }}
+                >
+                  <div style={{ width: '100%', aspectRatio: '1 / 1', overflow: 'hidden', borderRadius: 8, background: '#e5e7eb' }}>
+                    {proxiedUrl(media.thumbnailURL || media.url || null) ? (
+                      <img
+                        src={proxiedUrl(media.thumbnailURL || media.url || null)}
+                        alt={media.alt || media.title || media.filename || 'Media'}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', display: 'grid', placeItems: 'center', color: '#64748b' }}>
+                        <ImagePlus size={18} />
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 12, color: '#0f172a', textAlign: 'left' }}>
+                    {media.alt || media.title || media.filename || 'Untitled media'}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
         </details>
@@ -5268,6 +5502,27 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               return (
                 <div
                   key={`${item.kind}:${item.id}`}
+                  draggable={reorderable}
+                  onDragStart={() => {
+                    if (!reorderable) return
+                    setDraggedLayerKey(`${item.kind}:${item.id}`)
+                  }}
+                  onDragOver={(event) => {
+                    if (!reorderable || !draggedLayerKey) return
+                    event.preventDefault()
+                  }}
+                  onDrop={(event) => {
+                    if (!reorderable || !draggedLayerKey) return
+                    event.preventDefault()
+                    const [dragKind, dragID] = draggedLayerKey.split(':')
+                    const customItems = layerPanelItems.filter((entry) => entry.reorderable).map((entry) => entry.item)
+                    const dropIndex = customItems.findIndex((entry) => entry.id === item.id && entry.kind === item.kind)
+                    if (dragID && dragKind && dropIndex >= 0) {
+                      moveLayerTargetToIndex({ id: dragID, kind: dragKind as EditorLayerItem['kind'] }, customItems.length - 1 - dropIndex)
+                    }
+                    setDraggedLayerKey(null)
+                  }}
+                  onDragEnd={() => setDraggedLayerKey(null)}
                   style={{
                     display: 'grid',
                     gridTemplateColumns: 'minmax(0, 1fr) auto',
@@ -5300,22 +5555,19 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       cursor: 'pointer',
                     }}
                   >
-                    {label}
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                      {reorderable ? <GripVertical size={12} color="#64748b" /> : null}
+                      {label}
+                    </span>
                   </button>
                   <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                     {reorderable ? (
                       <>
-                        <button type="button" title="Send to back" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'back')} style={iconToolbarButtonStyle}>
-                          <ChevronsDown size={12} />
-                        </button>
                         <button type="button" title="Send backward" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'backward')} style={iconToolbarButtonStyle}>
                           <ChevronDown size={12} />
                         </button>
                         <button type="button" title="Bring forward" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'forward')} style={iconToolbarButtonStyle}>
                           <ChevronUp size={12} />
-                        </button>
-                        <button type="button" title="Bring to front" onClick={() => reorderLayerTarget({ id: item.id, kind: item.kind }, 'front')} style={iconToolbarButtonStyle}>
-                          <ChevronsUp size={12} />
                         </button>
                       </>
                     ) : null}
@@ -5342,6 +5594,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           </div>
         </details>
 
+        {isSuperAdmin ? (
         <details open={inspectorSectionOpen} onToggle={(event) => setInspectorSectionOpen((event.currentTarget as HTMLDetailsElement).open)} style={detailsStyle}>
           <summary style={detailsSummaryStyle}>Inspector</summary>
           <div style={accordionBodyStyle}>
@@ -5375,6 +5628,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             )}
           </div>
         </details>
+        ) : null}
 
         {message ? <div style={hintStyle}>{message}</div> : null}
 
@@ -5822,6 +6076,30 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               }
               openContextMenu(event.evt)
             }}
+            onDblClick={(event) => {
+              if (selection?.kind !== 'custom-text') return
+              const anchorName = getTransformerAnchorName(event.target)
+              if (!anchorName) return
+              const isSideAnchor =
+                anchorName.includes('middle-left') ||
+                anchorName.includes('middle-right') ||
+                anchorName.includes('top-center') ||
+                anchorName.includes('bottom-center')
+              if (!isSideAnchor) return
+              fitCustomTextToContent(selection.id)
+            }}
+            onDblTap={(event) => {
+              if (selection?.kind !== 'custom-text') return
+              const anchorName = getTransformerAnchorName(event.target)
+              if (!anchorName) return
+              const isSideAnchor =
+                anchorName.includes('middle-left') ||
+                anchorName.includes('middle-right') ||
+                anchorName.includes('top-center') ||
+                anchorName.includes('bottom-center')
+              if (!isSideAnchor) return
+              fitCustomTextToContent(selection.id)
+            }}
           >
             <Layer>
               <Group
@@ -5856,7 +6134,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         x={scene.eyebrow.paddingX}
                         y={scene.eyebrow.paddingY}
                         width={scene.eyebrow.barWidth - scene.eyebrow.paddingX * 2}
-                        text={scene.eyebrow.text}
+                        text={resolveSceneText(scene.eyebrow.text)}
                         align={scene.eyebrow.textAlign || 'left'}
                         fontFamily={scene.eyebrow.fontFamily || 'Arial'}
                         fontSize={scene.eyebrow.fontSize}
@@ -5911,7 +6189,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       ) : null}
                       <Text
                         width={scene.headline.width}
-                        text={scene.headline.text}
+                        text={resolveSceneText(scene.headline.text)}
                         align={scene.headline.textAlign || 'left'}
                         fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.headline.fontSize}
@@ -5940,7 +6218,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       <Text
                         width={Math.max(scene.subhead.dividerWidth + 24, 320)}
                         y={14}
-                        text={scene.subhead.text}
+                        text={resolveSceneText(scene.subhead.text)}
                         align={scene.subhead.textAlign || 'left'}
                         fontFamily={scene.subhead.fontFamily || 'Arial'}
                         fontSize={scene.subhead.fontSize}
@@ -5982,7 +6260,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         x={scene.footer.textX - scene.footer.x}
                         y={scene.footer.textY - scene.footer.y}
                         width={Math.max(80, scene.footer.width - (scene.footer.textX - scene.footer.x) * 2)}
-                        text={scene.footer.text}
+                        text={resolveSceneText(scene.footer.text)}
                         align={scene.footer.textAlign || 'left'}
                         fontFamily={scene.footer.fontFamily || 'Arial'}
                         fontSize={scene.footer.fontSize}
@@ -6050,14 +6328,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     ) : null}
 
                     <Rect
-                      x={STAGE_WIDTH - MAIL_PLACEHOLDER_WIDTH}
-                      y={STAGE_HEIGHT - MAIL_PLACEHOLDER_HEIGHT}
-                      width={MAIL_PLACEHOLDER_WIDTH}
-                      height={MAIL_PLACEHOLDER_HEIGHT}
+                      x={STAGE_WIDTH - MAIL_PLACEHOLDER_WIDTH - 22}
+                      y={STAGE_HEIGHT - MAIL_PLACEHOLDER_HEIGHT - 18}
+                      width={MAIL_PLACEHOLDER_WIDTH + 34}
+                      height={MAIL_PLACEHOLDER_HEIGHT + 30}
                       fill="#ffffff"
-                      stroke="#94a3b8"
-                      strokeWidth={2}
-                      cornerRadius={16}
                     />
                   </>
                 ) : (
@@ -6153,7 +6428,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       ) : null}
                       <Text
                         width={scene.subhead.dividerWidth}
-                        text={scene.subhead.text}
+                        text={resolveSceneText(scene.subhead.text)}
                         align={scene.subhead.textAlign || 'left'}
                         fontFamily={scene.subhead.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.subhead.fontSize}
@@ -6203,7 +6478,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       <Text
                         width={scene.headline.width}
                         height={measureHeadlineHeight(scene.headline)}
-                        text={scene.headline.text}
+                        text={resolveSceneText(scene.headline.text)}
                         align={scene.headline.textAlign || 'left'}
                         fontFamily={scene.headline.fontFamily || 'Georgia, Times New Roman, serif'}
                         fontSize={scene.headline.fontSize}
