@@ -372,25 +372,15 @@ export const PostPublishingAssistant: React.FC = () => {
         <div className="post-publishing-assistant__heading">
           <h3>SEO &amp; Meta Assistant</h3>
         </div>
-        <div className="post-publishing-assistant__meta">
-          <span className="post-publishing-assistant__pill">{activeModelSummary}</span>
-          {tenantID && !templateID && tenantDefaultTemplateID ? (
-            <span className="post-publishing-assistant__pill post-publishing-assistant__pill--muted">
-              Tenant default template loaded
-            </span>
-          ) : null}
-        </div>
       </div>
 
       <div className="post-publishing-assistant__grid">
-        <section className="post-publishing-assistant__section">
+        <section className="post-publishing-assistant__section post-publishing-assistant__section--seo">
           <div className="post-publishing-assistant__section-copy">
             <h4>SEO Generation</h4>
-            {assistantSettings.defaultInstructions ? (
-              <p className="post-publishing-assistant__subtle">
-                Anything in Additional requests takes priority for this run. Saved default
-                instructions still apply underneath it.
-              </p>
+            <p className="post-publishing-assistant__subtle">{activeModelSummary}</p>
+            {tenantID && !templateID && tenantDefaultTemplateID ? (
+              <p className="post-publishing-assistant__subtle">Tenant default template loaded</p>
             ) : null}
           </div>
 
@@ -412,19 +402,6 @@ export const PostPublishingAssistant: React.FC = () => {
                 ))}
               </select>
             </label>
-
-            <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
-              <span>Additional requests</span>
-              <textarea
-                className="post-publishing-assistant__input post-publishing-assistant__textarea"
-                value={additionalInstructions}
-                placeholder="Optional author instructions for this run. Anything entered here takes priority."
-                rows={4}
-                onChange={(event) => {
-                  setAdditionalInstructions(event.target.value)
-                }}
-              />
-            </label>
           </div>
 
           <div className="post-publishing-assistant__actions">
@@ -438,12 +415,35 @@ export const PostPublishingAssistant: React.FC = () => {
           </div>
         </section>
 
-        <section className="post-publishing-assistant__section post-publishing-assistant__section--compact">
+        <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--requests">
+          <div className="post-publishing-assistant__section-copy">
+            <h4>Additional requests</h4>
+            <p className="post-publishing-assistant__subtle">
+              Optional. Anything entered here takes priority for this run.
+            </p>
+          </div>
+
+          <div className="post-publishing-assistant__controls">
+            <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
+              <textarea
+                className="post-publishing-assistant__input post-publishing-assistant__textarea"
+                value={additionalInstructions}
+                placeholder="Optional author instructions for this run."
+                rows={4}
+                onChange={(event) => {
+                  setAdditionalInstructions(event.target.value)
+                }}
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--graphics">
           <div className="post-publishing-assistant__section-copy">
             <h4>Social Graphics</h4>
           </div>
 
-          <div className="post-publishing-assistant__actions post-publishing-assistant__actions--compact">
+          <div className="post-publishing-assistant__actions post-publishing-assistant__actions--compact post-publishing-assistant__actions--stack">
             <Button
               onClick={openPostGraphicEditor}
               disabled={!documentID}

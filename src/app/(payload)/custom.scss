@@ -336,13 +336,15 @@
   }
 
   .post-publishing-assistant__subtle {
-    font-size: 0.82rem;
+    font-size: 0.76rem;
+    color: var(--theme-elevation-700);
   }
 
   .post-publishing-assistant__grid {
     display: grid;
     gap: 0.45rem;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(180px, 0.9fr) minmax(220px, 1.15fr) minmax(180px, 0.95fr);
+    align-items: start;
   }
 
   .post-publishing-assistant__section {
@@ -354,6 +356,12 @@
 
   .post-publishing-assistant__section--compact {
     gap: 0.18rem;
+  }
+
+  .post-publishing-assistant__section--seo,
+  .post-publishing-assistant__section--requests,
+  .post-publishing-assistant__section--graphics {
+    min-width: 0;
   }
 
   .post-publishing-assistant__controls {
@@ -403,6 +411,17 @@
 
   .post-publishing-assistant__actions--compact {
     align-items: flex-start;
+  }
+
+  .post-publishing-assistant__actions--stack {
+    display: grid;
+    gap: 0.32rem;
+    justify-items: stretch;
+  }
+
+  .post-publishing-assistant__actions--stack .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .post-publishing-assistant__pill {
@@ -467,6 +486,12 @@
     white-space: pre-wrap;
     line-height: 1.55;
     color: var(--theme-elevation-800);
+  }
+
+  @media (max-width: 900px) {
+    .post-publishing-assistant__grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   @media (max-width: 700px) {
