@@ -375,68 +375,70 @@ export const PostPublishingAssistant: React.FC = () => {
       </div>
 
       <div className="post-publishing-assistant__grid">
-        <section className="post-publishing-assistant__section post-publishing-assistant__section--seo">
-          <div className="post-publishing-assistant__section-copy">
-            <h4>SEO Generation</h4>
-            <p className="post-publishing-assistant__subtle">{activeModelSummary}</p>
-            {tenantID && !templateID && tenantDefaultTemplateID ? (
-              <p className="post-publishing-assistant__subtle">Tenant default template loaded</p>
-            ) : null}
-          </div>
+        <div className="post-publishing-assistant__seo-group">
+          <section className="post-publishing-assistant__section post-publishing-assistant__section--seo">
+            <div className="post-publishing-assistant__section-copy">
+              <h4>SEO Generation</h4>
+              <p className="post-publishing-assistant__subtle">{activeModelSummary}</p>
+              {tenantID && !templateID && tenantDefaultTemplateID ? (
+                <p className="post-publishing-assistant__subtle">Tenant default template loaded</p>
+              ) : null}
+            </div>
 
-          <div className="post-publishing-assistant__controls">
-            <label className="post-publishing-assistant__control">
-              <span>Tone</span>
-              <select
-                className="post-publishing-assistant__input"
-                value={tone}
-                onChange={(event) => {
-                  toneTouchedRef.current = true
-                  setTone(event.target.value as SeoAssistantTone)
-                }}
+            <div className="post-publishing-assistant__controls">
+              <label className="post-publishing-assistant__control">
+                <span>Tone</span>
+                <select
+                  className="post-publishing-assistant__input"
+                  value={tone}
+                  onChange={(event) => {
+                    toneTouchedRef.current = true
+                    setTone(event.target.value as SeoAssistantTone)
+                  }}
+                >
+                  {SEO_ASSISTANT_TONE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="post-publishing-assistant__actions">
+              <Button
+                onClick={handleGenerateSeo}
+                disabled={generateLoading}
+                buttonStyle="primary"
               >
-                {SEO_ASSISTANT_TONE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
+                {generateLoading ? 'Generating SEO…' : 'Generate SEO Draft'}
+              </Button>
+            </div>
+          </section>
 
-          <div className="post-publishing-assistant__actions">
-            <Button
-              onClick={handleGenerateSeo}
-              disabled={generateLoading}
-              buttonStyle="primary"
-            >
-              {generateLoading ? 'Generating SEO…' : 'Generate SEO Draft'}
-            </Button>
-          </div>
-        </section>
+          <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--requests">
+            <div className="post-publishing-assistant__section-copy">
+              <h4>Additional requests</h4>
+              <p className="post-publishing-assistant__subtle">
+                Optional. Anything entered here takes priority for this run.
+              </p>
+            </div>
 
-        <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--requests">
-          <div className="post-publishing-assistant__section-copy">
-            <h4>Additional requests</h4>
-            <p className="post-publishing-assistant__subtle">
-              Optional. Anything entered here takes priority for this run.
-            </p>
-          </div>
-
-          <div className="post-publishing-assistant__controls">
-            <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
-              <textarea
-                className="post-publishing-assistant__input post-publishing-assistant__textarea"
-                value={additionalInstructions}
-                placeholder="Optional author instructions for this run."
-                rows={4}
-                onChange={(event) => {
-                  setAdditionalInstructions(event.target.value)
-                }}
-              />
-            </label>
-          </div>
-        </section>
+            <div className="post-publishing-assistant__controls">
+              <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
+                <textarea
+                  className="post-publishing-assistant__input post-publishing-assistant__textarea"
+                  value={additionalInstructions}
+                  placeholder="Optional author instructions for this run."
+                  rows={4}
+                  onChange={(event) => {
+                    setAdditionalInstructions(event.target.value)
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+        </div>
 
         <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--graphics">
           <div className="post-publishing-assistant__section-copy">
