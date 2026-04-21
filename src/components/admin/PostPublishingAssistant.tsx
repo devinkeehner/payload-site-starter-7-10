@@ -376,6 +376,29 @@ export const PostPublishingAssistant: React.FC = () => {
 
       <div className="post-publishing-assistant__grid">
         <div className="post-publishing-assistant__seo-group">
+          <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--requests">
+            <div className="post-publishing-assistant__section-copy">
+              <h4>Additional requests</h4>
+              <p className="post-publishing-assistant__subtle">
+                Optional. Anything entered here takes priority for this run.
+              </p>
+            </div>
+
+            <div className="post-publishing-assistant__controls">
+              <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
+                <textarea
+                  className="post-publishing-assistant__input post-publishing-assistant__textarea"
+                  value={additionalInstructions}
+                  placeholder="Optional author instructions for this run."
+                  rows={4}
+                  onChange={(event) => {
+                    setAdditionalInstructions(event.target.value)
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+
           <section className="post-publishing-assistant__section post-publishing-assistant__section--seo">
             <div className="post-publishing-assistant__section-copy">
               <h4>SEO Generation</h4>
@@ -413,29 +436,6 @@ export const PostPublishingAssistant: React.FC = () => {
               >
                 {generateLoading ? 'Generating SEO…' : 'Generate SEO Draft'}
               </Button>
-            </div>
-          </section>
-
-          <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--requests">
-            <div className="post-publishing-assistant__section-copy">
-              <h4>Additional requests</h4>
-              <p className="post-publishing-assistant__subtle">
-                Optional. Anything entered here takes priority for this run.
-              </p>
-            </div>
-
-            <div className="post-publishing-assistant__controls">
-              <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
-                <textarea
-                  className="post-publishing-assistant__input post-publishing-assistant__textarea"
-                  value={additionalInstructions}
-                  placeholder="Optional author instructions for this run."
-                  rows={4}
-                  onChange={(event) => {
-                    setAdditionalInstructions(event.target.value)
-                  }}
-                />
-              </label>
             </div>
           </section>
         </div>
