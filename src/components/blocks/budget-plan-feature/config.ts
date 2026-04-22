@@ -139,7 +139,7 @@ const createVideoAssetGroup = (
       name: 'externalURL',
       label: 'Video URL / YouTube Link',
       type: 'text',
-      validate: (value, { siblingData }) => {
+      validate: (value: unknown, { siblingData }: { siblingData?: { source?: string | null } }) => {
         if (siblingData?.source !== 'link') return true
         if (typeof value !== 'string' || !value.trim()) return 'Enter a YouTube, Vimeo, or direct video URL.'
         return isSupportedVideoLink(value) || 'Use a YouTube, Vimeo, or direct video file URL.'

@@ -27,7 +27,7 @@ export const defaultLexical = lexicalEditor({
             },
             label: ({ t }) => t('fields:enterURL'),
             required: true,
-            validate: ((value, options) => {
+            validate: ((value: unknown, options: { siblingData?: LinkFields } | undefined) => {
               if ((options?.siblingData as LinkFields)?.linkType === 'internal') {
                 return true // no validation needed, as no url should exist for internal links
               }

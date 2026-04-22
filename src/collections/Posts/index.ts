@@ -1149,7 +1149,10 @@ export const Posts: CollectionConfig<'posts'> = {
                   label: 'Description Approved',
                   type: 'checkbox',
                   required: true,
-                  validate: (value, { data }) => {
+                  validate: (
+                    value: unknown,
+                    { data }: { data?: Record<string, unknown> | undefined },
+                  ) => {
                     const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
                     if (status === 'published' && !value) {
                       return 'Description must be approved before publishing.'
@@ -1200,7 +1203,10 @@ export const Posts: CollectionConfig<'posts'> = {
                 description:
                   'Check this only after reviewing the generated or edited takeaways for tone, accuracy, and readability.',
               },
-              validate: (value, { data }) => {
+              validate: (
+                value: unknown,
+                { data }: { data?: Record<string, unknown> | undefined },
+              ) => {
                 const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
                 if (status === 'published' && !value) {
                   return 'Key takeaways must be approved before publishing.'
