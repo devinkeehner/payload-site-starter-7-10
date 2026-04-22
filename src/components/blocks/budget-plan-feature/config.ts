@@ -21,6 +21,34 @@ const mediaSourceOptions = [
   { label: 'Upload', value: 'upload' },
 ]
 
+const directVideoFilePattern = /\.(mp4|webm|ogg|mov|m4v)(\?.*)?$/i
+
+const isSupportedVideoLink = (value: string) => {
+  const trimmedValue = value.trim()
+  if (!trimmedValue) return true
+  if (directVideoFilePattern.test(trimmedValue)) return true
+
+  try {
+    const parsed = new URL(trimmedValue)
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase()
+
+    if (host === 'youtu.be') return Boolean(parsed.pathname.split('/').filter(Boolean)[0])
+    if (host === 'youtube.com' || host === 'm.youtube.com') {
+      if (parsed.pathname === '/watch') return Boolean(parsed.searchParams.get('v'))
+      if (parsed.pathname.startsWith('/embed/')) return Boolean(parsed.pathname.split('/').filter(Boolean)[1])
+      if (parsed.pathname.startsWith('/shorts/')) return Boolean(parsed.pathname.split('/').filter(Boolean)[1])
+    }
+
+    if (host === 'vimeo.com' || host === 'player.vimeo.com') {
+      return Boolean(parsed.pathname.split('/').filter(Boolean).pop())
+    }
+  } catch {
+    return false
+  }
+
+  return false
+}
+
 const createRichTextField = (name: string, label: string, required = false): Field => ({
   name,
   label,
@@ -99,19 +127,26 @@ const createVideoAssetGroup = (
     },
     {
       name: 'media',
+      label: 'Uploaded Video',
       type: 'upload',
       relationTo: 'media',
       admin: {
         condition: (_data, siblingData) => siblingData?.source !== 'link',
+        description: 'Select an uploaded video from the Media library. Use Video URL for YouTube links.',
       },
     },
     {
       name: 'externalURL',
-      label: 'Video URL',
+      label: 'Video URL / YouTube Link',
       type: 'text',
+      validate: (value, { siblingData }) => {
+        if (siblingData?.source !== 'link') return true
+        if (typeof value !== 'string' || !value.trim()) return 'Enter a YouTube, Vimeo, or direct video URL.'
+        return isSupportedVideoLink(value) || 'Use a YouTube, Vimeo, or direct video file URL.'
+      },
       admin: {
         condition: (_data, siblingData) => siblingData?.source === 'link',
-        description: 'Use a direct video URL or a YouTube/Vimeo link.',
+        description: 'Paste a YouTube watch/share URL, Vimeo URL, or a direct video file URL.',
       },
     },
     {
