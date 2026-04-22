@@ -5347,7 +5347,7 @@ export interface SeoGeneratorSetting {
   /**
    * Default model used by the post publishing assistant for SEO generation.
    */
-  defaultModel: 'gpt-5.4' | 'gpt-5.4-mini';
+  defaultModel: 'gpt-5.4' | 'gpt-5.4-mini' | 'gpt-5.4-nano';
   /**
    * Reasoning effort for the default SEO generation run.
    */

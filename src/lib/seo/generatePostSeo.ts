@@ -114,32 +114,56 @@ const normalizeTakeaway = (value: string) =>
 const buildToneInstruction = (tone: SeoAssistantTone) => {
   switch (tone) {
     case 'neutral':
-      return 'Write in a neutral, mainstream policy-news voice. Prioritize clarity, precision, and search readability over partisan contrast. Do not add conservative framing unless the article itself uses it explicitly.'
+      return 'Keep tone neutral and mainstream. Prioritize clarity, precision, and search readability over partisan contrast.'
     case 'strong-right':
-      return 'Write in a clearly conservative political voice. Use sharper contrast with Democrats or progressive policy when supported by the article, but do not exaggerate, speculate, or invent attacks.'
+      return 'Keep tone factual but clearly conservative. Use stronger contrast with Democrats or progressive policy when supported by the article, without exaggeration or invented attacks.'
     case 'lean-right':
     default:
-      return 'Write in a disciplined right-of-center political voice. Emphasize taxpayer impact, affordability, accountability, parental rights, public safety, or government overreach when supported by the article. Avoid canned slogans and overheated rhetoric.'
+      return 'Keep tone factual but impactful, and right wing while mirroring political or policy headlines. Emphasize taxpayer impact, affordability, accountability, parental rights, public safety, or government overreach when supported by the article.'
   }
 }
 
-const buildInstructions = () =>
-  [
+const buildInstructions = (args: {
+  additionalInstructions?: string
+  defaultInstructions?: string
+  tone: SeoAssistantTone
+}) => {
+  const lines = [
     'Generate structured SEO metadata for the provided political article.',
+    'Ensure accuracy, clarity, and consistency across all fields.',
+    'Focus on the article subject matter, not on how it was reported.',
+    'Use plain, active language.',
+    'Verify names, titles, and attributions against the article text.',
     'Return only JSON matching the required schema.',
-    'Honor instruction priority in this order: 1) schema, 2) one-off editor instructions, 3) selected tone, 4) article text, 5) saved default instructions.',
-    'Focus on the article subject and policy substance, not on the act of reporting.',
-    'Use plain, active language and clean headline writing.',
-    'Treat one-off editor instructions as trusted author input. They may intentionally add or override facts, emphasis, or framing that are not spelled out in the article text.',
+    'Read the full article carefully and identify its main topics, proposals, and context.',
     'Do not invent details, numbers, people, motives, or outcomes unless they are stated in the article text or explicitly supplied in one-off editor instructions.',
-    'Meta title: one concise, click-worthy SEO headline centered on the main proposal or news hook. Avoid stacked clauses and generic phrasing.',
-    'Description: exactly one sentence summarizing the central development or proposal with high information density and no filler.',
-    'Key takeaways: exactly four lines, each under 20 words, written like political headline fragments. Start with strong subjects or verbs. No meta phrasing.',
+    'Meta title: a short, SEO-friendly headline that captures the essence of the article and encourages clicks.',
+    'Description: one concise sentence summarizing the core story or announcement. Avoid repetition and filler.',
+    'Key takeaways: write exactly four lines, each under 20 words, using headline or talking-point phrasing. Begin with strong subjects or verbs. Avoid meta wording.',
     'Categories: choose exactly one best-fit category slug from the provided list. Return the slug only.',
     'Article type: choose exactly one best-fit article type slug from the provided list. Return the slug only.',
     'If the article is an announcement of a proposal, rollout, endorsement, or legislative push, prefer `announcement` over `news` unless the article is clearly reported as straight news.',
-    'If one-off editor instructions ask for a specific fact or point to be included, include it when possible while still satisfying the schema.',
-  ].join('\n')
+  ]
+
+  if (args.tone !== 'lean-right') {
+    lines.push(buildToneInstruction(args.tone))
+  } else {
+    lines.push(buildToneInstruction('lean-right'))
+  }
+
+  if (args.additionalInstructions) {
+    lines.push(
+      'Treat one-off editor instructions as trusted author input. They may intentionally add or override facts, emphasis, or framing that are not spelled out in the article text.',
+      'If one-off editor instructions ask for a specific fact or point to be included, include it when possible while still satisfying the schema.',
+    )
+  }
+
+  if (args.defaultInstructions) {
+    lines.push('Apply saved default instructions only when they do not conflict with the schema or article facts.')
+  }
+
+  return lines.join('\n')
+}
 
 const buildUserInput = (args: {
   additionalInstructions?: string
@@ -151,10 +175,8 @@ const buildUserInput = (args: {
   tone: SeoAssistantTone
 }) => {
   const sections = [
-    args.additionalInstructions
-      ? `One-off editor instructions (highest priority after schema):\n${args.additionalInstructions}`
-      : null,
-    `Selected tone:\n${buildToneInstruction(args.tone)}`,
+    args.additionalInstructions ? `One-off editor instructions:\n${args.additionalInstructions}` : null,
+    args.tone !== 'lean-right' ? `Tone guidance:\n${buildToneInstruction(args.tone)}` : null,
     args.settings.defaultInstructions
       ? `Saved default instructions:\n${args.settings.defaultInstructions}`
       : null,
@@ -199,7 +221,11 @@ export const generatePostSeo = async (args: {
     metadata: args.metadata,
     reasoning: { effort: settings.defaultReasoning },
     safety_identifier: args.safetyIdentifier,
-    instructions: buildInstructions(),
+    instructions: buildInstructions({
+      additionalInstructions: args.additionalInstructions?.trim(),
+      defaultInstructions: settings.defaultInstructions,
+      tone,
+    }),
     input: buildUserInput({
       additionalInstructions: args.additionalInstructions?.trim(),
       articleText,

@@ -7,6 +7,7 @@ const getString = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined
 
 export const SEO_ASSISTANT_MODEL_OPTIONS = [
+  { label: 'GPT-5.4 Nano', value: 'gpt-5.4-nano' },
   { label: 'GPT-5.4', value: 'gpt-5.4' },
   { label: 'GPT-5.4 Mini', value: 'gpt-5.4-mini' },
 ] as const
@@ -37,7 +38,7 @@ export type SeoAssistantSettings = {
 
 export const DEFAULT_SEO_ASSISTANT_SETTINGS: SeoAssistantSettings = {
   defaultInstructions: '',
-  defaultModel: 'gpt-5.4',
+  defaultModel: 'gpt-5.4-nano',
   defaultReasoning: 'low',
   defaultTone: 'lean-right',
 }
