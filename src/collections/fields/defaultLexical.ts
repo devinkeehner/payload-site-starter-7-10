@@ -6,6 +6,16 @@ import {
   type LinkFields,
 } from '@payloadcms/richtext-lexical'
 
+const validateExternalLinkURL: TextFieldSingleValidation = (value, options) => {
+  const siblingData = options?.siblingData as LinkFields | undefined
+
+  if (siblingData?.linkType === 'internal') {
+    return true
+  }
+
+  return value ? true : 'URL is required'
+}
+
 export const defaultLexical = lexicalEditor({
   features: ({ defaultFeatures }) => [
     ...defaultFeatures,
@@ -27,12 +37,7 @@ export const defaultLexical = lexicalEditor({
             },
             label: ({ t }) => t('fields:enterURL'),
             required: true,
-            validate: ((value: unknown, options: { siblingData?: LinkFields } | undefined) => {
-              if ((options?.siblingData as LinkFields)?.linkType === 'internal') {
-                return true // no validation needed, as no url should exist for internal links
-              }
-              return value ? true : 'URL is required'
-            }) as TextFieldSingleValidation,
+            validate: validateExternalLinkURL,
           },
         ]
       },

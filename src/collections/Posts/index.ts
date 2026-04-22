@@ -1,4 +1,4 @@
-import type { CollectionConfig, PayloadHandler, PayloadRequest } from 'payload'
+import type { CheckboxFieldValidation, CollectionConfig, PayloadHandler, PayloadRequest } from 'payload'
 
 import {
   BlocksFeature,
@@ -71,6 +71,28 @@ const resolveTenantId = (value: TenantLike): string | undefined => {
   if (typeof value === 'string') return value
   if (value && typeof value === 'object' && typeof value.id === 'string') return value.id
   return undefined
+}
+
+const validateDescriptionApproval: CheckboxFieldValidation = (value, options) => {
+  const data = options?.data as Record<string, unknown> | undefined
+  const status = data?._status ?? data?.status
+
+  if (status === 'published' && !value) {
+    return 'Description must be approved before publishing.'
+  }
+
+  return true
+}
+
+const validateKeyTakeawaysApproval: CheckboxFieldValidation = (value, options) => {
+  const data = options?.data as Record<string, unknown> | undefined
+  const status = data?._status ?? data?.status
+
+  if (status === 'published' && !value) {
+    return 'Key takeaways must be approved before publishing.'
+  }
+
+  return true
 }
 
 const toMetadataValue = (value: unknown): string | undefined => {
@@ -1149,16 +1171,7 @@ export const Posts: CollectionConfig<'posts'> = {
                   label: 'Description Approved',
                   type: 'checkbox',
                   required: true,
-                  validate: (
-                    value: unknown,
-                    { data }: { data?: Record<string, unknown> | undefined },
-                  ) => {
-                    const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
-                    if (status === 'published' && !value) {
-                      return 'Description must be approved before publishing.'
-                    }
-                    return true
-                  },
+                  validate: validateDescriptionApproval,
                 },
                 PreviewField({
                   titlePath: 'meta.title',
@@ -1203,16 +1216,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 description:
                   'Check this only after reviewing the generated or edited takeaways for tone, accuracy, and readability.',
               },
-              validate: (
-                value: unknown,
-                { data }: { data?: Record<string, unknown> | undefined },
-              ) => {
-                const status = (data as Record<string, unknown> | undefined)?.['_status'] ?? (data as Record<string, unknown> | undefined)?.status
-                if (status === 'published' && !value) {
-                  return 'Key takeaways must be approved before publishing.'
-                }
-                return true
-              },
+              validate: validateKeyTakeawaysApproval,
             },
             {
               name: 'articleType',

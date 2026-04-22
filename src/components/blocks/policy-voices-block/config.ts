@@ -1,6 +1,27 @@
-import type { Block, Field } from 'payload'
+import type { Block, Field, TextFieldSingleValidation, TextareaFieldValidation } from 'payload'
 
 import { link } from '@/collections/fields/link'
+
+const validateBubbleText: TextFieldSingleValidation = (value, options) => {
+  const siblingData = options?.siblingData as Record<string, unknown> | undefined
+  const hasText = typeof value === 'string' && value.trim().length > 0
+  const hasImage = Boolean(siblingData?.image)
+
+  if (!hasText && !hasImage) {
+    return 'Provide bubble text or a bubble image.'
+  }
+
+  return true
+}
+
+const validateColumnEntryDescription: TextareaFieldValidation = (value, options) => {
+  const siblingData = options?.siblingData as Record<string, unknown> | undefined
+  const isSubheading = siblingData?.entryType === 'subheading'
+
+  if (isSubheading) return true
+
+  return typeof value === 'string' && value.trim().length > 0 ? true : 'Description is required for card entries.'
+}
 
 const bubbleFields: Field[] = [
   {
@@ -8,14 +29,7 @@ const bubbleFields: Field[] = [
     label: 'Bubble Text',
     type: 'text',
     required: false,
-    validate: (value: unknown, { siblingData }: { siblingData?: unknown }) => {
-      const hasText = typeof value === 'string' && value.trim().length > 0
-      const hasImage = Boolean((siblingData as Record<string, unknown> | undefined)?.image)
-      if (!hasText && !hasImage) {
-        return 'Provide bubble text or a bubble image.'
-      }
-      return true
-    },
+    validate: validateBubbleText,
   },
   {
     name: 'image',
@@ -94,12 +108,7 @@ const columnEntryFields: Field[] = [
     name: 'description',
     type: 'textarea',
     required: false,
-    validate: (value: unknown, { siblingData }: { siblingData?: unknown }) => {
-      const entryType = (siblingData as Record<string, unknown> | undefined)?.entryType
-      const isSubheading = entryType === 'subheading'
-      if (isSubheading) return true
-      return typeof value === 'string' && value.trim().length > 0 ? true : 'Description is required for card entries.'
-    },
+    validate: validateColumnEntryDescription,
     admin: {
       condition: (_data, siblingData) => siblingData?.entryType !== 'subheading',
     },

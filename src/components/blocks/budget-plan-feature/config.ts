@@ -1,4 +1,4 @@
-import type { Block, Field } from 'payload'
+import type { Block, Field, TextFieldSingleValidation } from 'payload'
 
 import {
   FixedToolbarFeature,
@@ -47,6 +47,15 @@ const isSupportedVideoLink = (value: string) => {
   }
 
   return false
+}
+
+const validateVideoLinkField: TextFieldSingleValidation = (value, options) => {
+  const siblingData = options?.siblingData as { source?: string | null } | undefined
+
+  if (siblingData?.source !== 'link') return true
+  if (typeof value !== 'string' || !value.trim()) return 'Enter a YouTube, Vimeo, or direct video URL.'
+
+  return isSupportedVideoLink(value) || 'Use a YouTube, Vimeo, or direct video file URL.'
 }
 
 const createRichTextField = (name: string, label: string, required = false): Field => ({
@@ -139,11 +148,7 @@ const createVideoAssetGroup = (
       name: 'externalURL',
       label: 'Video URL / YouTube Link',
       type: 'text',
-      validate: (value: unknown, { siblingData }: { siblingData?: { source?: string | null } }) => {
-        if (siblingData?.source !== 'link') return true
-        if (typeof value !== 'string' || !value.trim()) return 'Enter a YouTube, Vimeo, or direct video URL.'
-        return isSupportedVideoLink(value) || 'Use a YouTube, Vimeo, or direct video file URL.'
-      },
+      validate: validateVideoLinkField,
       admin: {
         condition: (_data, siblingData) => siblingData?.source === 'link',
         description: 'Paste a YouTube watch/share URL, Vimeo URL, or a direct video file URL.',
