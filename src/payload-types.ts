@@ -2690,6 +2690,7 @@ export interface FacebookOauthSession {
   repInfo: string | RepInfo;
   tenant?: (string | null) | Tenant;
   returnTo?: string | null;
+  redirectUri?: string | null;
   expiresAt: string;
   pages?:
     | {
@@ -4996,6 +4997,7 @@ export interface FacebookOauthSessionsSelect<T extends boolean = true> {
   repInfo?: T;
   tenant?: T;
   returnTo?: T;
+  redirectUri?: T;
   expiresAt?: T;
   pages?:
     | T

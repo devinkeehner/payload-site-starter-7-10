@@ -89,6 +89,27 @@ export async function GET(req: NextRequest) {
 
     const state = makeState()
     const returnTo = safeAdminReturnTo(req.nextUrl.searchParams.get('returnTo'), repInfoId)
+    const redirectUri = getFacebookRedirectUri(req.url, req.headers)
+    const authUrl = new URL('https://www.facebook.com/dialog/oauth')
+    authUrl.searchParams.set('client_id', fbConfig.appId)
+    authUrl.searchParams.set('redirect_uri', redirectUri)
+    authUrl.searchParams.set('state', state)
+    authUrl.searchParams.set('response_type', 'code')
+    authUrl.searchParams.set('scope', 'pages_show_list,pages_read_engagement')
+
+    if (req.nextUrl.searchParams.get('debug') === '1') {
+      return NextResponse.json({
+        appId: fbConfig.appId,
+        redirectUri,
+        authUrl: authUrl.toString(),
+        requestUrl: req.url,
+        headers: {
+          host: req.headers.get('host'),
+          xForwardedHost: req.headers.get('x-forwarded-host'),
+          xForwardedProto: req.headers.get('x-forwarded-proto'),
+        },
+      })
+    }
 
     await payload.create({
       collection: 'facebook-oauth-sessions',
@@ -98,19 +119,13 @@ export async function GET(req: NextRequest) {
         repInfo: repInfoId,
         ...(repResult.tenantId ? { tenant: repResult.tenantId } : {}),
         returnTo,
+        redirectUri,
         expiresAt: new Date(Date.now() + FACEBOOK_SESSION_TTL_MS).toISOString(),
         pages: [],
       },
       overrideAccess: true,
       req: req as unknown as PayloadRequest,
     })
-
-    const authUrl = new URL('https://www.facebook.com/dialog/oauth')
-    authUrl.searchParams.set('client_id', fbConfig.appId)
-    authUrl.searchParams.set('redirect_uri', getFacebookRedirectUri(req.url))
-    authUrl.searchParams.set('state', state)
-    authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('scope', 'pages_show_list,pages_read_engagement')
 
     return NextResponse.redirect(authUrl)
   } catch (error) {

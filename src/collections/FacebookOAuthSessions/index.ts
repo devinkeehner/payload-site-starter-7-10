@@ -51,6 +51,11 @@ export const FacebookOAuthSessions: CollectionConfig = {
       required: false,
     },
     {
+      name: 'redirectUri',
+      type: 'text',
+      required: false,
+    },
+    {
       name: 'expiresAt',
       type: 'date',
       required: true,

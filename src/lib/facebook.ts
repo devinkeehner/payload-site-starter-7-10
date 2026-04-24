@@ -40,7 +40,22 @@ export const getFacebookConfig = () => {
   }
 }
 
-export const getServerOrigin = (requestUrl: string, options: { preferRequestOrigin?: boolean } = {}) => {
+export const getServerOrigin = (
+  requestUrl: string,
+  options: { preferRequestOrigin?: boolean; headers?: Headers } = {},
+) => {
+  const forwardedHost = options.headers?.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const forwardedProto = options.headers?.get('x-forwarded-proto')?.split(',')[0]?.trim()
+  if (forwardedHost) {
+    return `${forwardedProto || 'https'}://${forwardedHost}`.replace(/\/+$/, '')
+  }
+
+  const host = options.headers?.get('host')?.trim()
+  if (host) {
+    const requestProtocol = new URL(requestUrl).protocol.replace(/:$/, '')
+    return `${forwardedProto || requestProtocol || 'https'}://${host}`.replace(/\/+$/, '')
+  }
+
   const requestOrigin = new URL(requestUrl).origin
   if (options.preferRequestOrigin) return requestOrigin
 
@@ -53,8 +68,8 @@ export const getServerOrigin = (requestUrl: string, options: { preferRequestOrig
   return requestOrigin
 }
 
-export const getFacebookRedirectUri = (requestUrl: string) =>
-  `${getServerOrigin(requestUrl, { preferRequestOrigin: true })}/api/facebook/oauth/callback`
+export const getFacebookRedirectUri = (requestUrl: string, headers?: Headers) =>
+  `${getServerOrigin(requestUrl, { preferRequestOrigin: true, headers })}/api/facebook/oauth/callback`
 
 export const getTenantId = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value

@@ -156,7 +156,8 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const shortLived = await exchangeCodeForUserToken({ code, redirectUri: getFacebookRedirectUri(req.url) })
+    const redirectUri = getString(session.redirectUri) || getFacebookRedirectUri(req.url, req.headers)
+    const shortLived = await exchangeCodeForUserToken({ code, redirectUri })
     if (!shortLived.access_token) throw new Error('Facebook did not return a user access token.')
 
     const longLived = await exchangeForLongLivedUserToken(shortLived.access_token)
