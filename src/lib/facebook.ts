@@ -40,18 +40,21 @@ export const getFacebookConfig = () => {
   }
 }
 
-export const getServerOrigin = (requestUrl: string) => {
+export const getServerOrigin = (requestUrl: string, options: { preferRequestOrigin?: boolean } = {}) => {
+  const requestOrigin = new URL(requestUrl).origin
+  if (options.preferRequestOrigin) return requestOrigin
+
   const explicit =
     process.env.PAYLOAD_PUBLIC_SERVER_URL ||
     process.env.NEXT_PUBLIC_PAYLOAD_URL ||
     process.env.PAYLOAD_SERVER_URL ||
     ''
   if (explicit) return explicit.replace(/\/+$/, '')
-  return new URL(requestUrl).origin
+  return requestOrigin
 }
 
 export const getFacebookRedirectUri = (requestUrl: string) =>
-  `${getServerOrigin(requestUrl)}/api/facebook/oauth/callback`
+  `${getServerOrigin(requestUrl, { preferRequestOrigin: true })}/api/facebook/oauth/callback`
 
 export const getTenantId = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value
