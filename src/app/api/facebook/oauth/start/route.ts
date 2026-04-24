@@ -95,7 +95,8 @@ export async function GET(req: NextRequest) {
     authUrl.searchParams.set('redirect_uri', redirectUri)
     authUrl.searchParams.set('state', state)
     authUrl.searchParams.set('response_type', 'code')
-    authUrl.searchParams.set('scope', 'pages_show_list,pages_read_engagement')
+    authUrl.searchParams.set('scope', 'pages_show_list,pages_read_engagement,business_management')
+    authUrl.searchParams.set('auth_type', 'rerequest')
 
     if (req.nextUrl.searchParams.get('debug') === '1') {
       return NextResponse.json({
