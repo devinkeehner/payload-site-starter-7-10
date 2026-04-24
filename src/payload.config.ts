@@ -23,6 +23,7 @@ import { WordpressPosts } from './collections/WordpressPosts';
 import { IContactFolders } from './collections/IContactFolders';
 import { IContactLists } from './collections/IContactLists';
 import { SitemapArtifacts } from './collections/SitemapArtifacts';
+import { FacebookOAuthSessions } from './collections/FacebookOAuthSessions';
 
 // Site settings and other component imports
 import { Navbar } from './components/site/navbar/config';
@@ -4981,6 +4982,7 @@ export default buildConfig({
     IContactFolders,
     IContactLists,
     SitemapArtifacts,
+    FacebookOAuthSessions,
   ],
 
   cors: {

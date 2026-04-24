@@ -2,62 +2,12 @@ import type {
   CollectionConfig,
   CollectionAfterChangeHook,
   CollectionAfterDeleteHook,
-  CollectionBeforeChangeHook,
 } from 'payload'
 import { triggerFrontendRevalidate } from '../../lib/utilities/revalidateFrontend'
+import { isSuperUser } from '@/lib/access/isSuperUser'
 
 type TenantDoc = { slug?: string | null }
 type TenantQueryResult = { docs?: TenantDoc[] }
-const getString = (value: unknown): string | undefined => (typeof value === 'string' ? value : undefined)
-
-const fetchPageAccessToken: CollectionBeforeChangeHook = async ({ data, req, operation, originalDoc }) => {
-  const previousDoc = originalDoc as Record<string, unknown> | undefined
-  const currentPageId = getString(data.facebookPageId ?? previousDoc?.facebookPageId)?.trim()
-  if (!currentPageId) return data
-
-  const previousPageId = getString(previousDoc?.facebookPageId)?.trim()
-  const existingToken = data.facebookPageAccessToken ?? previousDoc?.facebookPageAccessToken
-
-  const shouldRefresh =
-    operation === 'create' ||
-    currentPageId !== previousPageId ||
-    !existingToken
-
-  if (!shouldRefresh) return data
-
-  const systemToken = process.env.FACEBOOK_SYSTEM_USER_TOKEN
-  if (!systemToken) {
-    req.payload.logger?.warn?.('FACEBOOK_SYSTEM_USER_TOKEN env var missing; skipping page token fetch')
-    return data
-  }
-
-  const graphVersion = (process.env.FACEBOOK_GRAPH_API_VERSION || 'v22.0').trim()
-  const versionPath = graphVersion.startsWith('v') ? graphVersion : `v${graphVersion}`
-
-  const url = new URL(`https://graph.facebook.com/${versionPath}/${encodeURIComponent(currentPageId)}`)
-  url.searchParams.set('fields', 'access_token')
-  url.searchParams.set('access_token', systemToken)
-
-  try {
-    const response = await fetch(url.toString())
-    if (!response.ok) {
-      const details = await response.text()
-      req.payload.logger?.error?.(`Failed to fetch page access token for ${currentPageId}: ${response.status} ${details}`)
-      return data
-    }
-    const body = (await response.json()) as { access_token?: string }
-    if (body?.access_token) {
-      data.facebookPageAccessToken = body.access_token
-      req.payload.logger?.info?.(`Updated Facebook page access token for ${currentPageId}`)
-    } else {
-      req.payload.logger?.warn?.(`No access_token returned for page ${currentPageId}`)
-    }
-  } catch (error) {
-    req.payload.logger?.error?.(`Error fetching page access token for ${currentPageId}: ${(error as Error).message}`)
-  }
-
-  return data
-}
 
 export const RepInfo: CollectionConfig = {
   labels: {
@@ -74,7 +24,6 @@ export const RepInfo: CollectionConfig = {
     read: () => true,
   },
   hooks: {
-    beforeChange: [fetchPageAccessToken as CollectionBeforeChangeHook],
     afterChange: [
       (async ({ req: { payload, context } }) => {
         if (context?.disableRevalidate) return
@@ -225,12 +174,34 @@ export const RepInfo: CollectionConfig = {
       required: false,
     },
     {
+      name: 'facebookConnection',
+      label: 'Facebook Connection',
+      type: 'ui',
+      admin: {
+        components: {
+          Field: {
+            path: '@/components/admin/FacebookConnectionField#FacebookConnectionField',
+          },
+        },
+      },
+    },
+    {
       name: 'facebookPageId',
       label: 'Facebook Page ID',
       type: 'text',
       required: false,
       admin: {
-        description: 'Numeric page ID used to generate page access tokens.',
+        description: 'Numeric page ID selected through the Facebook connection flow.',
+        readOnly: true,
+      },
+    },
+    {
+      name: 'facebookPageName',
+      label: 'Facebook Page Name',
+      type: 'text',
+      required: false,
+      admin: {
+        readOnly: true,
       },
     },
     {
@@ -239,11 +210,80 @@ export const RepInfo: CollectionConfig = {
       type: 'textarea',
       required: false,
       admin: {
-        description: 'Automatically generated. Keep this field secure.',
+        description: 'Stored from the Facebook connection flow. Keep this field secure.',
         readOnly: true,
+        hidden: true,
       },
       access: {
-        read: ({ req }) => Boolean(req?.user),
+        read: ({ req }) => isSuperUser(req?.user),
+        update: ({ req }) => isSuperUser(req?.user),
+      },
+    },
+    {
+      name: 'facebookPageTasks',
+      label: 'Facebook Page Tasks',
+      type: 'array',
+      required: false,
+      admin: {
+        hidden: true,
+      },
+      fields: [
+        {
+          name: 'task',
+          type: 'text',
+          required: true,
+        },
+      ],
+    },
+    {
+      name: 'facebookConnectionStatus',
+      label: 'Facebook Connection Status',
+      type: 'select',
+      defaultValue: 'disconnected',
+      options: [
+        {
+          label: 'Disconnected',
+          value: 'disconnected',
+        },
+        {
+          label: 'Connected',
+          value: 'connected',
+        },
+        {
+          label: 'Error',
+          value: 'error',
+        },
+      ],
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'facebookConnectedAt',
+      label: 'Facebook Connected At',
+      type: 'date',
+      required: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'facebookConnectedBy',
+      label: 'Facebook Connected By',
+      type: 'relationship',
+      relationTo: 'users',
+      required: false,
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'facebookLastError',
+      label: 'Facebook Last Error',
+      type: 'textarea',
+      required: false,
+      admin: {
+        readOnly: true,
       },
     },
   ],

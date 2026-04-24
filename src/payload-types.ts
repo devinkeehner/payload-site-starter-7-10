@@ -91,6 +91,7 @@ export interface Config {
     'icontact-folders': IcontactFolder;
     'icontact-lists': IcontactList;
     'sitemap-artifacts': SitemapArtifact;
+    'facebook-oauth-sessions': FacebookOauthSession;
     'payload-mcp-api-keys': PayloadMcpApiKey;
     redirects: Redirect;
     search: Search;
@@ -125,6 +126,7 @@ export interface Config {
     'icontact-folders': IcontactFoldersSelect<false> | IcontactFoldersSelect<true>;
     'icontact-lists': IcontactListsSelect<false> | IcontactListsSelect<true>;
     'sitemap-artifacts': SitemapArtifactsSelect<false> | SitemapArtifactsSelect<true>;
+    'facebook-oauth-sessions': FacebookOauthSessionsSelect<false> | FacebookOauthSessionsSelect<true>;
     'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     search: SearchSelect<false> | SearchSelect<true>;
@@ -1639,9 +1641,12 @@ export interface BudgetPlanFeatureBlock {
      * Use a real press photo or poster frame source link.
      */
     source: 'link' | 'upload';
+    /**
+     * Select an uploaded video from the Media library. Use Video URL for YouTube links.
+     */
     media?: (string | null) | Media;
     /**
-     * Use a direct video URL or a YouTube/Vimeo link.
+     * Paste a YouTube watch/share URL, Vimeo URL, or a direct video file URL.
      */
     externalURL?: string | null;
     posterSource: 'link' | 'upload';
@@ -2427,15 +2432,61 @@ export interface RepInfo {
   flickrTag?: string | null;
   flickrURL?: string | null;
   /**
-   * Numeric page ID used to generate page access tokens.
+   * Numeric page ID selected through the Facebook connection flow.
    */
   facebookPageId?: string | null;
+  facebookPageName?: string | null;
   /**
-   * Automatically generated. Keep this field secure.
+   * Stored from the Facebook connection flow. Keep this field secure.
    */
   facebookPageAccessToken?: string | null;
+  facebookPageTasks?:
+    | {
+        task: string;
+        id?: string | null;
+      }[]
+    | null;
+  facebookConnectionStatus?: ('disconnected' | 'connected' | 'error') | null;
+  facebookConnectedAt?: string | null;
+  facebookConnectedBy?: (string | null) | User;
+  facebookLastError?: string | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: string;
+  name?: string | null;
+  roles?: 'super'[] | null;
+  tenants?:
+    | {
+        tenant: string | Tenant;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -2616,41 +2667,6 @@ export interface FormSubmission {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: string;
-  name?: string | null;
-  roles?: 'super'[] | null;
-  tenants?:
-    | {
-        tenant: string | Tenant;
-        id?: string | null;
-      }[]
-    | null;
-  updatedAt: string;
-  createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sitemap-artifacts".
  */
 export interface SitemapArtifact {
@@ -2660,6 +2676,34 @@ export interface SitemapArtifact {
   itemCount: number;
   generatedAt: string;
   xml: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "facebook-oauth-sessions".
+ */
+export interface FacebookOauthSession {
+  id: string;
+  state: string;
+  user: string | User;
+  repInfo: string | RepInfo;
+  tenant?: (string | null) | Tenant;
+  returnTo?: string | null;
+  expiresAt: string;
+  pages: {
+    pageId: string;
+    name?: string | null;
+    link?: string | null;
+    accessToken: string;
+    tasks?:
+      | {
+          task: string;
+          id?: string | null;
+        }[]
+      | null;
+    id?: string | null;
+  }[];
   updatedAt: string;
   createdAt: string;
 }
@@ -3458,6 +3502,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'sitemap-artifacts';
         value: string | SitemapArtifact;
+      } | null)
+    | ({
+        relationTo: 'facebook-oauth-sessions';
+        value: string | FacebookOauthSession;
       } | null)
     | ({
         relationTo: 'payload-mcp-api-keys';
@@ -4433,7 +4481,18 @@ export interface RepInfoSelect<T extends boolean = true> {
   flickrTag?: T;
   flickrURL?: T;
   facebookPageId?: T;
+  facebookPageName?: T;
   facebookPageAccessToken?: T;
+  facebookPageTasks?:
+    | T
+    | {
+        task?: T;
+        id?: T;
+      };
+  facebookConnectionStatus?: T;
+  facebookConnectedAt?: T;
+  facebookConnectedBy?: T;
+  facebookLastError?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -4927,6 +4986,35 @@ export interface SitemapArtifactsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "facebook-oauth-sessions_select".
+ */
+export interface FacebookOauthSessionsSelect<T extends boolean = true> {
+  state?: T;
+  user?: T;
+  repInfo?: T;
+  tenant?: T;
+  returnTo?: T;
+  expiresAt?: T;
+  pages?:
+    | T
+    | {
+        pageId?: T;
+        name?: T;
+        link?: T;
+        accessToken?: T;
+        tasks?:
+          | T
+          | {
+              task?: T;
+              id?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-mcp-api-keys_select".
  */
 export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
@@ -5347,7 +5435,7 @@ export interface SeoGeneratorSetting {
   /**
    * Default model used by the post publishing assistant for SEO generation.
    */
-  defaultModel: 'gpt-5.4' | 'gpt-5.4-mini' | 'gpt-5.4-nano';
+  defaultModel: 'gpt-5.4-nano' | 'gpt-5.4' | 'gpt-5.4-mini';
   /**
    * Reasoning effort for the default SEO generation run.
    */
