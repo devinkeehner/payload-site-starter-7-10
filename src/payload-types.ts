@@ -2691,19 +2691,21 @@ export interface FacebookOauthSession {
   tenant?: (string | null) | Tenant;
   returnTo?: string | null;
   expiresAt: string;
-  pages: {
-    pageId: string;
-    name?: string | null;
-    link?: string | null;
-    accessToken: string;
-    tasks?:
-      | {
-          task: string;
-          id?: string | null;
-        }[]
-      | null;
-    id?: string | null;
-  }[];
+  pages?:
+    | {
+        pageId: string;
+        name?: string | null;
+        link?: string | null;
+        accessToken: string;
+        tasks?:
+          | {
+              task: string;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
 }

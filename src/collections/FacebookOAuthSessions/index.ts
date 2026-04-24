@@ -59,7 +59,7 @@ export const FacebookOAuthSessions: CollectionConfig = {
     {
       name: 'pages',
       type: 'array',
-      required: true,
+      required: false,
       minRows: 0,
       fields: [
         {
