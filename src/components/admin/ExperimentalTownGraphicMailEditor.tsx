@@ -904,6 +904,18 @@ const getTransformerAnchorName = (node: Konva.Node | null) => {
   return node.name() || ''
 }
 
+const setRichTextContentInverseScale = (node: Konva.Node) => {
+  const scaleX = node.scaleX()
+  const scaleY = node.scaleY()
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || Math.abs(scaleX) < 0.001 || Math.abs(scaleY) < 0.001) return
+  ;(node as Konva.Container)
+    .find?.('.rich-text-render-content')
+    .forEach((child) => {
+      child.scaleX(1 / scaleX)
+      child.scaleY(1 / scaleY)
+    })
+}
+
 const resetRichTextContentScale = (node: Konva.Node) => {
   ;(node as Konva.Container)
     .find?.('.rich-text-render-content')
@@ -2014,7 +2026,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const loadingRef = useRef(true)
   const tenantIDRef = useRef<string | null>(tenantID)
   const headshotImageRef = useRef<HTMLImageElement | null>(null)
-  const customTextTransformPreviewRef = useRef<Record<string, Partial<CustomTextElement>>>({})
   const undoStackRef = useRef<Record<MailSide, ExperimentalTownScene[]>>({
     front: [],
     back: [],
@@ -2038,7 +2049,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [selection, setSelection] = useState<Selection>(null)
   const [selectedCustomTargets, setSelectedCustomTargets] = useState<CustomSelection[]>([])
   const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
-  const [customTextTransformPreview, setCustomTextTransformPreview] = useState<Record<string, Partial<CustomTextElement>>>({})
   const [templateID, setTemplateID] = useState('')
   const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
   const [designID, setDesignID] = useState('')
@@ -2935,14 +2945,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         item.id === textID ? { ...item, ...normalizeCustomTextBox(item, syncCustomTextHtmlStyles(item, patch)) } : item,
       ),
     }))
-  }
-
-  const setCustomTextTransformPreviewPatch = (textID: string, patch: Partial<CustomTextElement> | null) => {
-    const next = { ...customTextTransformPreviewRef.current }
-    if (patch) next[textID] = patch
-    else delete next[textID]
-    customTextTransformPreviewRef.current = next
-    setCustomTextTransformPreview(next)
   }
 
   const fitCustomTextToContent = useCallback((textID: string) => {
@@ -5032,15 +5034,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const renderCustomTextNode = (item: CustomTextElement) => {
-    const previewPatch = customTextTransformPreview[item.id]
-    const displayItem = previewPatch ? { ...item, ...previewPatch } : item
-    const textHeight = Math.max(1, Math.round(displayItem.height ?? measureCustomTextHeight(displayItem)))
-    const rotation = displayItem.rotation || 0
+    const textHeight = Math.max(1, Math.round(item.height ?? measureCustomTextHeight(item)))
+    const rotation = item.rotation || 0
     const hidden = isLayerHidden('custom-text', item.id)
     const locked = isLayerLocked('custom-text', item.id)
     const isEditingThisText = inlineTextEditor?.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text' && inlineTextEditor.target.id === item.id
-    const isTransformPreview = Boolean(previewPatch)
-    const fallbackText = resolveSceneText(stripHtml(getCustomTextHtml(displayItem)).replace(/\u00a0/g, ' ') || displayItem.text)
+    const fallbackText = resolveSceneText(stripHtml(getCustomTextHtml(item)).replace(/\u00a0/g, ' ') || item.text)
     if (hidden) return null
 
     return (
@@ -5050,97 +5049,41 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           customTextRefs.current[item.id] = node
         }}
         zIndex={getLayerOrder('custom-text', item.id)}
-        x={displayItem.x + displayItem.width / 2}
-        y={displayItem.y + textHeight / 2}
-        offsetX={displayItem.width / 2}
+        x={item.x + item.width / 2}
+        y={item.y + textHeight / 2}
+        offsetX={item.width / 2}
         offsetY={textHeight / 2}
         rotation={rotation}
-        opacity={displayItem.opacity ?? 1}
-        shadowBlur={displayItem.shadowBlur || 0}
-        shadowColor={displayItem.shadowColor}
-        shadowOffsetX={displayItem.shadowOffsetX || 0}
-        shadowOffsetY={displayItem.shadowOffsetY || 0}
-        shadowOpacity={displayItem.shadowOpacity || 0}
+        opacity={item.opacity ?? 1}
+        shadowBlur={item.shadowBlur || 0}
+        shadowColor={item.shadowColor}
+        shadowOffsetX={item.shadowOffsetX || 0}
+        shadowOffsetY={item.shadowOffsetY || 0}
+        shadowOpacity={item.shadowOpacity || 0}
         draggable={!locked}
         onDragStart={() => beginCustomDrag({ kind: 'custom-text', id: item.id })}
         onDragEnd={(event) => {
           if (locked) return
           const node = event.target
           handleCustomSelection({ kind: 'custom-text', id: item.id })
-          finishCustomDrag({ kind: 'custom-text', id: item.id }, node.x() - displayItem.width / 2, node.y() - textHeight / 2)
+          finishCustomDrag({ kind: 'custom-text', id: item.id }, node.x() - item.width / 2, node.y() - textHeight / 2)
         }}
         onMouseDown={(event) => {
           if (locked) return
           handleCustomSelection({ kind: 'custom-text', id: item.id }, event.evt.shiftKey || event.evt.metaKey || event.evt.ctrlKey)
         }}
         onContextMenu={(event) => openContextMenu(event.evt, { kind: 'custom-text', id: item.id })}
-        onTransformStart={() => {
-          setIsResizingHeadline(true)
-          setCustomTextTransformPreviewPatch(item.id, {
-            fontSize: item.fontSize,
-            height: item.height ?? measureCustomTextHeight(item),
-            rotation: item.rotation || 0,
-            width: item.width,
-            x: item.x,
-            y: item.y,
-          })
-        }}
+        onTransformStart={() => setIsResizingHeadline(true)}
         onTransform={(event) => {
-          if (locked) return
-          const node = event.target
-          const source = { ...item, ...customTextTransformPreviewRef.current[item.id] }
-          const sourceHeight = Math.max(1, Math.round(source.height ?? measureCustomTextHeight(source)))
-          const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
-          const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
-          const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
-          const isCorner = !isHorizontalEdge && !isVerticalEdge
-          const nextWidth = isVerticalEdge ? source.width : Math.max(24, Math.round(source.width * Math.max(Math.abs(node.scaleX()), 0.1)))
-          const sizeScale = Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))
-          const nextFontSize = isCorner ? Math.max(8, Math.round(source.fontSize * sizeScale)) : source.fontSize
-          const scaledHeight = Math.max(8, Math.round(sourceHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
-          const normalized = normalizeCustomTextBox(
-            source,
-            {
-              fontSize: nextFontSize,
-              height: isHorizontalEdge ? sourceHeight : scaledHeight,
-              width: nextWidth,
-            },
-            { fitHeight: false },
-          )
-          const nextHeight = normalized.height ?? sourceHeight
-          const nextPatch = {
-            fontSize: normalized.fontSize,
-            height: nextHeight,
-            rotation: Number(node.rotation().toFixed(1)),
-            width: normalized.width,
-            x: node.x() - normalized.width / 2,
-            y: node.y() - nextHeight / 2,
-          }
-          node.scaleX(1)
-          node.scaleY(1)
-          node.offsetX(normalized.width / 2)
-          node.offsetY(nextHeight / 2)
-          node.x(nextPatch.x + normalized.width / 2)
-          node.y(nextPatch.y + nextHeight / 2)
-          setCustomTextTransformPreviewPatch(item.id, nextPatch)
+          setRichTextContentInverseScale(event.target)
         }}
         onTransformEnd={(event) => {
           setIsResizingHeadline(false)
           if (locked) {
             resetRichTextContentScale(event.target)
-            setCustomTextTransformPreviewPatch(item.id, null)
             return
           }
           const node = event.target
-          const preview = customTextTransformPreviewRef.current[item.id]
-          if (preview) {
-            node.scaleX(1)
-            node.scaleY(1)
-            resetRichTextContentScale(node)
-            updateCustomText(item.id, preview)
-            setCustomTextTransformPreviewPatch(item.id, null)
-            return
-          }
           const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
           const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
           const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
@@ -5175,14 +5118,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         }}
       >
         {selectedCustomKeys.has(`custom-text:${item.id}`) ? (
-          <Rect x={-8} y={-8} width={displayItem.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+          <Rect x={-8} y={-8} width={item.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
         ) : null}
-        {!isEditingThisText && !isTransformPreview && customTextRenderImages[item.id] ? (
+        {!isEditingThisText && customTextRenderImages[item.id] ? (
           <KonvaImage
             name="rich-text-render-content"
             key={customTextRenderUrls[item.id] || item.id}
             image={customTextRenderImages[item.id] || undefined}
-            width={displayItem.width}
+            width={item.width}
             height={textHeight}
             onDblClick={() => {
               if (locked) return
@@ -5192,19 +5135,19 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ) : !isEditingThisText ? (
           <Text
             name="rich-text-render-content"
-            width={displayItem.width}
+            width={item.width}
             height={textHeight}
             text={fallbackText}
-            align={displayItem.textAlign || 'left'}
-            fontFamily={displayItem.fontFamily || 'Arial'}
-            fontSize={displayItem.fontSize}
-            fontStyle={displayItem.fontStyle}
-            fill={displayItem.color}
-            stroke={displayItem.strokeWidth ? displayItem.strokeColor || '#ffffff' : undefined}
-            strokeWidth={displayItem.strokeWidth || 0}
-            letterSpacing={displayItem.letterSpacing || 0}
-            lineHeight={displayItem.lineHeight || 1.1}
-            textDecoration={displayItem.textDecoration}
+            align={item.textAlign || 'left'}
+            fontFamily={item.fontFamily || 'Arial'}
+            fontSize={item.fontSize}
+            fontStyle={item.fontStyle}
+            fill={item.color}
+            stroke={item.strokeWidth ? item.strokeColor || '#ffffff' : undefined}
+            strokeWidth={item.strokeWidth || 0}
+            letterSpacing={item.letterSpacing || 0}
+            lineHeight={item.lineHeight || 1.1}
+            textDecoration={item.textDecoration}
             onDblClick={() => {
               if (locked) return
               beginInlineTextEdit({ kind: 'custom-text', id: item.id })
