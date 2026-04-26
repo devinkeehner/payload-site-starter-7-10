@@ -548,6 +548,13 @@ const normalizeRichTextHtml = normalizeEditorRichTextHtml
 const getCustomTextHtml = (item: Pick<CustomTextElement, 'html' | 'text'>) =>
   getEditorRichTextHtml(item)
 
+const stripRichTextFontSizeStyles = (root: HTMLElement) => {
+  ;[root, ...Array.from(root.querySelectorAll<HTMLElement>('[style]'))].forEach((element) => {
+    element.style.removeProperty('font-size')
+    if (!element.getAttribute('style')?.trim()) element.removeAttribute('style')
+  })
+}
+
 const syncCustomTextHtmlStyles = (item: Pick<CustomTextElement, 'html' | 'text'>, patch: Partial<CustomTextElement>) => {
   const hasStylePatch =
     patch.color != null ||
@@ -566,6 +573,7 @@ const syncCustomTextHtmlStyles = (item: Pick<CustomTextElement, 'html' | 'text'>
 
   const temp = document.createElement('div')
   temp.innerHTML = normalizeRichTextHtml(sourceHtml)
+  if (patch.fontSize != null) stripRichTextFontSizeStyles(temp)
   const blocks = Array.from(temp.querySelectorAll<HTMLElement>(RICH_TEXT_BLOCK_SELECTOR))
   const targets = blocks.length ? blocks : [temp]
   const fontStyle = patch.fontStyle || ''
@@ -573,7 +581,6 @@ const syncCustomTextHtmlStyles = (item: Pick<CustomTextElement, 'html' | 'text'>
   targets.forEach((block) => {
     if (patch.color != null) block.style.color = patch.color
     if (patch.fontFamily != null) block.style.fontFamily = patch.fontFamily
-    if (patch.fontSize != null) block.style.fontSize = `${patch.fontSize}px`
     if (patch.letterSpacing != null) block.style.letterSpacing = `${patch.letterSpacing}px`
     if (patch.lineHeight != null) block.style.lineHeight = String(patch.lineHeight)
     if (patch.textAlign != null) block.style.textAlign = patch.textAlign
@@ -4579,7 +4586,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         <input type="number" value={Math.round(selectedCustomText.height ?? measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Number(event.target.value) || selectedCustomText.height || 0 })} style={controlStyle} />
                       </label>
                         <label style={{ display: 'grid', gap: 6 }}>
-                          <span style={fieldLabelStyle}>Font size</span>
+                          <span style={fieldLabelStyle}>Box font size</span>
                           <input type="number" value={Math.round(selectedCustomText.fontSize)} onChange={(event) => updateCustomText(selectedCustomText.id, { fontSize: Number(event.target.value) || selectedCustomText.fontSize })} style={controlStyle} />
                         </label>
                         <Button onClick={() => fitCustomTextToContent(selectedCustomText.id)} buttonStyle="secondary">
@@ -6268,16 +6275,24 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             <label style={{ display: 'grid' }}>
               <input
                 type="number"
-                title="Font size"
-                aria-label="Font size"
+                title="Box font size"
+                aria-label="Box font size"
                 min={12}
                 max={140}
                 step={1}
                 value={selectedTextLayer?.fontSize || 32}
                 onChange={(event) => {
-                  const nextValue = Number(event.target.value)
+                  const nextValue = Number(event.target.value) || selectedTextLayer?.fontSize || 32
                   if (isRichTextEditing) {
-                    applyRichTextSelectionStyle({ fontSize: `${nextValue}px` })
+                    const editor = richTextEditorRef.current
+                    if (editor) {
+                      stripRichTextFontSizeStyles(editor)
+                      editor.style.fontSize = `${Math.max(1, nextValue)}px`
+                    }
+                    applySelectedTextFormatting({
+                      fontSize: nextValue,
+                      html: editor ? normalizeRichTextHtml(editor.innerHTML) : undefined,
+                    })
                     richTextEditorRef.current?.focus()
                     return
                   }
