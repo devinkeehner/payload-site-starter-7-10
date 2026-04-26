@@ -145,6 +145,9 @@ type InlineTextEditorState = {
   html: string
 } | null
 
+const getEditableTextTargetKey = (target: EditableTextTarget) =>
+  target.kind === 'headline' ? 'headline' : `repName:${target.role}`
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
 const asRecord = (value: unknown): Record<string, unknown> =>
@@ -349,18 +352,6 @@ const RICH_TEXT_BLOCK_SELECTOR = 'p, div, h1, h2, h3, li'
 
 const normalizeRichTextHtml = normalizeEditorRichTextHtml
 
-const setRichTextContentInverseScale = (node: Konva.Node) => {
-  const scaleX = node.scaleX()
-  const scaleY = node.scaleY()
-  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || Math.abs(scaleX) < 0.001 || Math.abs(scaleY) < 0.001) return
-  ;(node as Konva.Container)
-    .find?.('.rich-text-render-content')
-    .forEach((child) => {
-      child.scaleX(1 / scaleX)
-      child.scaleY(1 / scaleY)
-    })
-}
-
 const resetRichTextContentScale = (node: Konva.Node) => {
   ;(node as Konva.Container)
     .find?.('.rich-text-render-content')
@@ -559,6 +550,7 @@ export const GraphicTemplateEditor: React.FC = () => {
   const richTextEditorRef = useRef<HTMLDivElement | null>(null)
   const richTextEditorSeedRef = useRef<string | null>(null)
   const richTextSelectionRef = useRef<Range | null>(null)
+  const textTransformPreviewRef = useRef<Record<string, Partial<GraphicTextLayer>>>({})
   const backgroundUploadRef = useRef<HTMLInputElement | null>(null)
   const { ref: stageContainerRef, width: stageContainerWidth } = useContainerWidth()
   const viewportWidth = useViewportWidth()
@@ -586,6 +578,7 @@ export const GraphicTemplateEditor: React.FC = () => {
     designs: true,
   })
   const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
+  const [textTransformPreview, setTextTransformPreview] = useState<Record<string, Partial<GraphicTextLayer>>>({})
 
   const [postDoc, setPostDoc] = useState<PostDoc | null>(null)
   const [templates, setTemplates] = useState<TemplateDoc[]>([])
@@ -1135,6 +1128,15 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
   }
 
+  const setTextTransformPreviewPatch = (target: EditableTextTarget, patch: Partial<GraphicTextLayer> | null) => {
+    const key = getEditableTextTargetKey(target)
+    const next = { ...textTransformPreviewRef.current }
+    if (patch) next[key] = patch
+    else delete next[key]
+    textTransformPreviewRef.current = next
+    setTextTransformPreview(next)
+  }
+
   const fitTextLayerToContent = (target: EditableTextTarget) => {
     const layer = resolveTextLayer(target)
     updateTextLayer(target, {
@@ -1668,7 +1670,7 @@ export const GraphicTemplateEditor: React.FC = () => {
   const runRichTextCommand = (command: string, value?: string) => {
     if (!isRichTextEditing) return
     restoreRichTextSelection()
-    document.execCommand(command, false, value)
+    document.execCommand(command, false, command === 'formatBlock' && value ? `<${value}>` : value)
     saveRichTextSelection()
     richTextEditorRef.current?.focus()
   }
@@ -1708,16 +1710,22 @@ export const GraphicTemplateEditor: React.FC = () => {
     inlineTextEditor
       ? (() => {
           const layer = resolveTextLayer(inlineTextEditor.target)
+          const safePreviewScale = Math.max(previewScale, 0.01)
           const width = Math.max(140, Math.round(layer.width * previewScale))
+          const rawHeight = Math.max(
+            48 / safePreviewScale,
+            inlineTextEditor.target.kind === 'headline'
+              ? layer.height || 190
+              : measureRichTextLayerHeight(layer, getRenderedTextValue(inlineTextEditor.target)),
+          )
           const height = Math.max(
             48,
-            Math.round(
-              (inlineTextEditor.target.kind === 'headline'
-                ? layer.height || 190
-                : measureRichTextLayerHeight(layer, getRenderedTextValue(inlineTextEditor.target))) * previewScale,
-            ),
+            Math.round(rawHeight * previewScale),
           )
           return {
+            contentHeight: rawHeight,
+            contentScale: safePreviewScale,
+            contentWidth: Math.max(140 / safePreviewScale, layer.width),
             left: stageOffsetX + layer.x * previewScale,
             top: stageOffsetY + layer.y * previewScale,
             width,
@@ -1726,9 +1734,60 @@ export const GraphicTemplateEditor: React.FC = () => {
         })()
       : null
 
+  const previewTextLayerTransform = (
+    target: EditableTextTarget,
+    fallbackText: string,
+    widthLimits: { min: number; max: number },
+    node: Konva.Node,
+  ) => {
+    const key = getEditableTextTargetKey(target)
+    const source = { ...resolveTextLayer(target), ...textTransformPreviewRef.current[key] }
+    const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+    const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+    const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+    const isCorner = !isHorizontalEdge && !isVerticalEdge
+    const currentHeight = measureRichTextLayerHeight(source, fallbackText)
+    const nextWidth = isVerticalEdge
+      ? source.width
+      : clamp(Math.round(source.width * Math.max(Math.abs(node.scaleX()), 0.1)), widthLimits.min, widthLimits.max)
+    const nextHeight = isHorizontalEdge
+      ? currentHeight
+      : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
+    const nextFontSize = isCorner
+      ? clamp(Math.round((source.fontSize || 28) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 180)
+      : source.fontSize
+    const patch = {
+      fontSize: nextFontSize,
+      height: nextHeight,
+      width: nextWidth,
+      x: node.x(),
+      y: node.y(),
+    }
+    node.scaleX(1)
+    node.scaleY(1)
+    resetRichTextContentScale(node)
+    setTextTransformPreviewPatch(target, patch)
+  }
+
+  const finishTextLayerTransform = (target: EditableTextTarget, node: Konva.Node) => {
+    const key = getEditableTextTargetKey(target)
+    const preview = textTransformPreviewRef.current[key]
+    node.scaleX(1)
+    node.scaleY(1)
+    resetRichTextContentScale(node)
+    if (preview) {
+      updateTextLayer(target, preview)
+      setTextTransformPreviewPatch(target, null)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 24 }}>Loading graphics editor…</div>
   }
+
+  const headlineLayer = { ...scene.headlineLayer, ...textTransformPreview.headline }
+  const primaryRepNameLayer = { ...scene.repNameLayers.primary, ...textTransformPreview['repName:primary'] }
+  const secondaryRepNameLayer = { ...scene.repNameLayers.secondary, ...textTransformPreview['repName:secondary'] }
 
   return (
     <div
@@ -2601,8 +2660,8 @@ export const GraphicTemplateEditor: React.FC = () => {
                 ref={(node) => {
                   repNameRefs.current.primary = node
                 }}
-                x={scene.repNameLayers.primary.x}
-                y={scene.repNameLayers.primary.y}
+                x={primaryRepNameLayer.x}
+                y={primaryRepNameLayer.y}
                 draggable={!isEditingPrimaryRepName}
                 onClick={() => setSelection({ kind: 'repName', role: 'primary' })}
                 onTap={() => setSelection({ kind: 'repName', role: 'primary' })}
@@ -2612,55 +2671,44 @@ export const GraphicTemplateEditor: React.FC = () => {
                 }}
                 onDragEnd={(event) => updateRepName('primary', { x: event.target.x(), y: event.target.y() })}
                 onDblClick={() => beginInlineTextEdit({ kind: 'repName', role: 'primary' })}
+                onTransformStart={() => {
+                  setTextTransformPreviewPatch({ kind: 'repName', role: 'primary' }, {
+                    fontSize: scene.repNameLayers.primary.fontSize,
+                    height: scene.repNameLayers.primary.height ?? measureRichTextLayerHeight(scene.repNameLayers.primary, primaryRepName),
+                    width: scene.repNameLayers.primary.width,
+                    x: scene.repNameLayers.primary.x,
+                    y: scene.repNameLayers.primary.y,
+                  })
+                }}
                 onTransform={(event) => {
-                  setRichTextContentInverseScale(event.target)
+                  previewTextLayerTransform({ kind: 'repName', role: 'primary' }, primaryRepName, REP_NAME_WIDTH_LIMITS, event.target)
                 }}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
-                  const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
-                  const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
-                  const isCorner = !isHorizontalEdge && !isVerticalEdge
-                  const currentHeight = measureRichTextLayerHeight(scene.repNameLayers.primary, primaryRepName)
-                  const nextWidth = isVerticalEdge
-                    ? scene.repNameLayers.primary.width
-                    : clamp(
-                        Math.round(scene.repNameLayers.primary.width * Math.max(Math.abs(node.scaleX()), 0.1)),
-                        REP_NAME_WIDTH_LIMITS.min,
-                        REP_NAME_WIDTH_LIMITS.max,
-                      )
-                  const nextHeight = isHorizontalEdge
-                    ? currentHeight
-                    : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
-                  const nextFontSize = isCorner
-                    ? clamp(Math.round((scene.repNameLayers.primary.fontSize || 28) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 160)
-                    : scene.repNameLayers.primary.fontSize
-                  node.scaleX(1)
-                  node.scaleY(1)
-                  resetRichTextContentScale(node)
-                  updateRepName('primary', { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, fontSize: nextFontSize })
+                  finishTextLayerTransform({ kind: 'repName', role: 'primary' }, node)
                 }}
               >
-                {!isEditingPrimaryRepName && richTextRenderImages.primary ? (
+                {!isEditingPrimaryRepName && !textTransformPreview['repName:primary'] && richTextRenderImages.primary ? (
                   <KonvaImage
                     name="rich-text-render-content"
                     image={richTextRenderImages.primary}
-                    width={scene.repNameLayers.primary.width}
-                    height={measureRichTextLayerHeight(scene.repNameLayers.primary, primaryRepName)}
+                    width={primaryRepNameLayer.width}
+                    height={measureRichTextLayerHeight(primaryRepNameLayer, primaryRepName)}
                   />
                 ) : !isEditingPrimaryRepName ? (
                   <Text
                     name="rich-text-render-content"
-                    width={scene.repNameLayers.primary.width}
-                    text={stripHtml(getTextLayerHtml(scene.repNameLayers.primary, primaryRepName)) || primaryRepName}
-                    fontFamily={scene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif'}
-                    fontSize={Math.max(22, Math.round((scene.repNameLayers.primary.fontSize || 28) * contentFitScale))}
-                    fill={scene.repNameLayers.primary.color || '#aa2426'}
-                    fontStyle={scene.repNameLayers.primary.fontStyle}
-                    textDecoration={scene.repNameLayers.primary.textDecoration}
-                    align={scene.repNameLayers.primary.align}
-                    lineHeight={scene.repNameLayers.primary.lineHeight || 1}
-                    letterSpacing={scene.repNameLayers.primary.letterSpacing || 0}
+                    width={primaryRepNameLayer.width}
+                    height={measureRichTextLayerHeight(primaryRepNameLayer, primaryRepName)}
+                    text={stripHtml(getTextLayerHtml(primaryRepNameLayer, primaryRepName)) || primaryRepName}
+                    fontFamily={primaryRepNameLayer.fontFamily || 'Georgia, Times New Roman, serif'}
+                    fontSize={Math.max(22, Math.round((primaryRepNameLayer.fontSize || 28) * contentFitScale))}
+                    fill={primaryRepNameLayer.color || '#aa2426'}
+                    fontStyle={primaryRepNameLayer.fontStyle}
+                    textDecoration={primaryRepNameLayer.textDecoration}
+                    align={primaryRepNameLayer.align}
+                    lineHeight={primaryRepNameLayer.lineHeight || 1}
+                    letterSpacing={primaryRepNameLayer.letterSpacing || 0}
                   />
                 ) : null}
               </Group>
@@ -2670,8 +2718,8 @@ export const GraphicTemplateEditor: React.FC = () => {
                   ref={(node) => {
                     repNameRefs.current.secondary = node
                   }}
-                  x={scene.repNameLayers.secondary.x}
-                  y={scene.repNameLayers.secondary.y}
+                  x={secondaryRepNameLayer.x}
+                  y={secondaryRepNameLayer.y}
                   draggable={!isEditingSecondaryRepName}
                   onClick={() => setSelection({ kind: 'repName', role: 'secondary' })}
                   onTap={() => setSelection({ kind: 'repName', role: 'secondary' })}
@@ -2681,55 +2729,44 @@ export const GraphicTemplateEditor: React.FC = () => {
                   }}
                   onDragEnd={(event) => updateRepName('secondary', { x: event.target.x(), y: event.target.y() })}
                   onDblClick={() => beginInlineTextEdit({ kind: 'repName', role: 'secondary' })}
+                  onTransformStart={() => {
+                    setTextTransformPreviewPatch({ kind: 'repName', role: 'secondary' }, {
+                      fontSize: scene.repNameLayers.secondary.fontSize,
+                      height: scene.repNameLayers.secondary.height ?? measureRichTextLayerHeight(scene.repNameLayers.secondary, secondaryRepName),
+                      width: scene.repNameLayers.secondary.width,
+                      x: scene.repNameLayers.secondary.x,
+                      y: scene.repNameLayers.secondary.y,
+                    })
+                  }}
                   onTransform={(event) => {
-                    setRichTextContentInverseScale(event.target)
+                    previewTextLayerTransform({ kind: 'repName', role: 'secondary' }, secondaryRepName, REP_NAME_WIDTH_LIMITS, event.target)
                   }}
                   onTransformEnd={(event) => {
                     const node = event.target
-                    const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
-                    const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
-                    const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
-                    const isCorner = !isHorizontalEdge && !isVerticalEdge
-                    const currentHeight = measureRichTextLayerHeight(scene.repNameLayers.secondary, secondaryRepName)
-                    const nextWidth = isVerticalEdge
-                      ? scene.repNameLayers.secondary.width
-                      : clamp(
-                          Math.round(scene.repNameLayers.secondary.width * Math.max(Math.abs(node.scaleX()), 0.1)),
-                          REP_NAME_WIDTH_LIMITS.min,
-                          REP_NAME_WIDTH_LIMITS.max,
-                        )
-                    const nextHeight = isHorizontalEdge
-                      ? currentHeight
-                      : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
-                    const nextFontSize = isCorner
-                      ? clamp(Math.round((scene.repNameLayers.secondary.fontSize || 26) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 160)
-                      : scene.repNameLayers.secondary.fontSize
-                    node.scaleX(1)
-                    node.scaleY(1)
-                    resetRichTextContentScale(node)
-                    updateRepName('secondary', { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, fontSize: nextFontSize })
+                    finishTextLayerTransform({ kind: 'repName', role: 'secondary' }, node)
                   }}
                 >
-                  {!isEditingSecondaryRepName && richTextRenderImages.secondary ? (
+                  {!isEditingSecondaryRepName && !textTransformPreview['repName:secondary'] && richTextRenderImages.secondary ? (
                     <KonvaImage
                       name="rich-text-render-content"
                       image={richTextRenderImages.secondary}
-                      width={scene.repNameLayers.secondary.width}
-                      height={measureRichTextLayerHeight(scene.repNameLayers.secondary, secondaryRepName)}
+                      width={secondaryRepNameLayer.width}
+                      height={measureRichTextLayerHeight(secondaryRepNameLayer, secondaryRepName)}
                     />
                   ) : !isEditingSecondaryRepName ? (
                     <Text
                       name="rich-text-render-content"
-                      width={scene.repNameLayers.secondary.width}
-                      text={stripHtml(getTextLayerHtml(scene.repNameLayers.secondary, secondaryRepName)) || secondaryRepName}
-                      fontFamily={scene.repNameLayers.secondary.fontFamily || 'Georgia, Times New Roman, serif'}
-                      fontSize={Math.max(20, Math.round((scene.repNameLayers.secondary.fontSize || 26) * contentFitScale))}
-                      fill={scene.repNameLayers.secondary.color || '#aa2426'}
-                      fontStyle={scene.repNameLayers.secondary.fontStyle}
-                      textDecoration={scene.repNameLayers.secondary.textDecoration}
-                      align={scene.repNameLayers.secondary.align}
-                      lineHeight={scene.repNameLayers.secondary.lineHeight || 1}
-                      letterSpacing={scene.repNameLayers.secondary.letterSpacing || 0}
+                      width={secondaryRepNameLayer.width}
+                      height={measureRichTextLayerHeight(secondaryRepNameLayer, secondaryRepName)}
+                      text={stripHtml(getTextLayerHtml(secondaryRepNameLayer, secondaryRepName)) || secondaryRepName}
+                      fontFamily={secondaryRepNameLayer.fontFamily || 'Georgia, Times New Roman, serif'}
+                      fontSize={Math.max(20, Math.round((secondaryRepNameLayer.fontSize || 26) * contentFitScale))}
+                      fill={secondaryRepNameLayer.color || '#aa2426'}
+                      fontStyle={secondaryRepNameLayer.fontStyle}
+                      textDecoration={secondaryRepNameLayer.textDecoration}
+                      align={secondaryRepNameLayer.align}
+                      lineHeight={secondaryRepNameLayer.lineHeight || 1}
+                      letterSpacing={secondaryRepNameLayer.letterSpacing || 0}
                     />
                   ) : null}
                 </Group>
@@ -2737,8 +2774,8 @@ export const GraphicTemplateEditor: React.FC = () => {
 
               <Group
                 ref={titleRef}
-                x={scene.headlineLayer.x}
-                y={scene.headlineLayer.y}
+                x={headlineLayer.x}
+                y={headlineLayer.y}
                 draggable={!isEditingHeadline}
                 onClick={() => setSelection({ kind: 'headline' })}
                 onTap={() => setSelection({ kind: 'headline' })}
@@ -2747,61 +2784,54 @@ export const GraphicTemplateEditor: React.FC = () => {
                   openCanvasMenu(event.evt, { kind: 'headline' })
                 }}
                 onDragEnd={(event) => updateHeadline({ x: event.target.x(), y: event.target.y() })}
+                onTransformStart={() => {
+                  setTextTransformPreviewPatch({ kind: 'headline' }, {
+                    fontSize: scene.headlineLayer.fontSize,
+                    height: scene.headlineLayer.height ?? measureRichTextLayerHeight(scene.headlineLayer, headlineText),
+                    width: scene.headlineLayer.width,
+                    x: scene.headlineLayer.x,
+                    y: scene.headlineLayer.y,
+                  })
+                }}
                 onTransform={(event) => {
-                  setRichTextContentInverseScale(event.target)
+                  previewTextLayerTransform({ kind: 'headline' }, headlineText, TITLE_WIDTH_LIMITS, event.target)
                 }}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
-                  const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
-                  const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
-                  const isCorner = !isHorizontalEdge && !isVerticalEdge
-                  const currentHeight = measureRichTextLayerHeight(scene.headlineLayer, headlineText)
-                  const nextWidth = isVerticalEdge
-                    ? scene.headlineLayer.width
-                    : clamp(Math.round(scene.headlineLayer.width * Math.max(Math.abs(node.scaleX()), 0.1)), TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max)
-                  const nextHeight = isHorizontalEdge
-                    ? currentHeight
-                    : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
-                  const nextFontSize = isCorner
-                    ? clamp(Math.round((scene.headlineLayer.fontSize || 38) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 180)
-                    : scene.headlineLayer.fontSize
-                  node.scaleX(1)
-                  node.scaleY(1)
-                  resetRichTextContentScale(node)
-                  updateHeadline({ x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, fontSize: nextFontSize })
+                  finishTextLayerTransform({ kind: 'headline' }, node)
                 }}
               >
                 <Rect
                   x={-12}
                   y={-8}
-                  width={scene.headlineLayer.width + 24}
-                  height={(scene.headlineLayer.height ?? measureRichTextLayerHeight(scene.headlineLayer, headlineText)) + 16}
+                  width={headlineLayer.width + 24}
+                  height={(headlineLayer.height ?? measureRichTextLayerHeight(headlineLayer, headlineText)) + 16}
                   cornerRadius={18}
                   fill={selection?.kind === 'headline' ? 'rgba(125, 211, 252, 0.08)' : 'transparent'}
                   stroke={selection?.kind === 'headline' ? '#7dd3fc' : 'transparent'}
                   dash={selection?.kind === 'headline' ? [10, 8] : []}
                 />
-                {!isEditingHeadline && richTextRenderImages.headline ? (
+                {!isEditingHeadline && !textTransformPreview.headline && richTextRenderImages.headline ? (
                   <KonvaImage
                     name="rich-text-render-content"
                     image={richTextRenderImages.headline}
-                    width={scene.headlineLayer.width}
-                    height={scene.headlineLayer.height ?? measureRichTextLayerHeight(scene.headlineLayer, headlineText)}
+                    width={headlineLayer.width}
+                    height={headlineLayer.height ?? measureRichTextLayerHeight(headlineLayer, headlineText)}
                     onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
                   />
                 ) : !isEditingHeadline ? (
                   <Text
                     name="rich-text-render-content"
-                    width={scene.headlineLayer.width}
-                    text={fittedHeadline.lines.join('\n')}
-                    fontFamily={scene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
-                    fontSize={fittedHeadline.fontSize}
-                    lineHeight={fittedHeadline.lineHeight / fittedHeadline.fontSize}
-                    fill={scene.headlineLayer.color || '#a02626'}
-                    align={scene.headlineLayer.align}
-                    fontStyle={scene.headlineLayer.fontStyle}
-                    textDecoration={scene.headlineLayer.textDecoration}
+                    width={headlineLayer.width}
+                    height={headlineLayer.height ?? measureRichTextLayerHeight(headlineLayer, headlineText)}
+                    text={stripHtml(getTextLayerHtml(headlineLayer, headlineText)) || headlineText}
+                    fontFamily={headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
+                    fontSize={Math.max(14, Math.round((headlineLayer.fontSize || 38) * contentFitScale))}
+                    lineHeight={headlineLayer.lineHeight || 1.08}
+                    fill={headlineLayer.color || '#a02626'}
+                    align={headlineLayer.align}
+                    fontStyle={headlineLayer.fontStyle}
+                    textDecoration={headlineLayer.textDecoration}
                     onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
                   />
                 ) : null}
@@ -2903,10 +2933,10 @@ export const GraphicTemplateEditor: React.FC = () => {
                 style={{
                   boxSizing: 'border-box',
                   display: 'block',
-                  width: '100%',
-                  height: '100%',
-                  minHeight: '100%',
-                  maxHeight: '100%',
+                  width: inlineEditorBox.contentWidth,
+                  height: inlineEditorBox.contentHeight,
+                  minHeight: inlineEditorBox.contentHeight,
+                  maxHeight: inlineEditorBox.contentHeight,
                   padding: 0,
                   margin: 0,
                   borderWidth: 0,
@@ -2916,7 +2946,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                   boxShadow: 'none',
                   color: selectedTextLayer?.color || '#111827',
                   fontFamily: selectedTextLayer?.fontFamily || 'Georgia, Times New Roman, serif',
-                  fontSize: `${Math.max(1, (selectedTextLayer?.fontSize || 28) * previewScale)}px`,
+                  fontSize: `${Math.max(1, selectedTextLayer?.fontSize || 28)}px`,
                   fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
                   fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
                   textDecoration: selectedTextLayer?.textDecoration || 'none',
@@ -2927,6 +2957,8 @@ export const GraphicTemplateEditor: React.FC = () => {
                   overflowX: 'hidden',
                   whiteSpace: 'normal',
                   outline: 'none',
+                  transform: `scale(${inlineEditorBox.contentScale})`,
+                  transformOrigin: 'left top',
                 }}
               />
             </div>

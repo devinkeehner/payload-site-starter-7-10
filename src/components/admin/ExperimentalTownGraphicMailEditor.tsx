@@ -904,18 +904,6 @@ const getTransformerAnchorName = (node: Konva.Node | null) => {
   return node.name() || ''
 }
 
-const setRichTextContentInverseScale = (node: Konva.Node) => {
-  const scaleX = node.scaleX()
-  const scaleY = node.scaleY()
-  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || Math.abs(scaleX) < 0.001 || Math.abs(scaleY) < 0.001) return
-  ;(node as Konva.Container)
-    .find?.('.rich-text-render-content')
-    .forEach((child) => {
-      child.scaleX(1 / scaleX)
-      child.scaleY(1 / scaleY)
-    })
-}
-
 const resetRichTextContentScale = (node: Konva.Node) => {
   ;(node as Konva.Container)
     .find?.('.rich-text-render-content')
@@ -2026,6 +2014,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const loadingRef = useRef(true)
   const tenantIDRef = useRef<string | null>(tenantID)
   const headshotImageRef = useRef<HTMLImageElement | null>(null)
+  const customTextTransformPreviewRef = useRef<Record<string, Partial<CustomTextElement>>>({})
   const undoStackRef = useRef<Record<MailSide, ExperimentalTownScene[]>>({
     front: [],
     back: [],
@@ -2049,6 +2038,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const [selection, setSelection] = useState<Selection>(null)
   const [selectedCustomTargets, setSelectedCustomTargets] = useState<CustomSelection[]>([])
   const [inlineTextEditor, setInlineTextEditor] = useState<InlineTextEditorState>(null)
+  const [customTextTransformPreview, setCustomTextTransformPreview] = useState<Record<string, Partial<CustomTextElement>>>({})
   const [templateID, setTemplateID] = useState('')
   const [templateTitle, setTemplateTitle] = useState('Experimental Town Graphic')
   const [designID, setDesignID] = useState('')
@@ -2945,6 +2935,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         item.id === textID ? { ...item, ...normalizeCustomTextBox(item, syncCustomTextHtmlStyles(item, patch)) } : item,
       ),
     }))
+  }
+
+  const setCustomTextTransformPreviewPatch = (textID: string, patch: Partial<CustomTextElement> | null) => {
+    const next = { ...customTextTransformPreviewRef.current }
+    if (patch) next[textID] = patch
+    else delete next[textID]
+    customTextTransformPreviewRef.current = next
+    setCustomTextTransformPreview(next)
   }
 
   const fitCustomTextToContent = useCallback((textID: string) => {
@@ -4753,7 +4751,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   const runRichTextCommand = (command: string, value?: string) => {
     if (!inlineTextEditor || inlineTextEditor.mode !== 'rich') return
     restoreRichTextSelection()
-    document.execCommand(command, false, value)
+    document.execCommand(command, false, command === 'formatBlock' && value ? `<${value}>` : value)
     saveRichTextSelection()
     richTextEditorRef.current?.focus()
   }
@@ -4772,6 +4770,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       ? (() => {
           const currentLayer = resolveTextLayer(scene, inlineTextEditor.target)
           if (!currentLayer) return null
+          const safePreviewScale = Math.max(previewScale, 0.01)
           const inlineWidth =
             inlineTextEditor.target.kind === 'subhead'
               ? scene.subhead.dividerWidth
@@ -4784,15 +4783,20 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               : inlineTextEditor.target.kind === 'subhead' && activeMailSide === 'front'
                 ? Math.max(220, scene.subhead.dividerWidth * previewScale)
                 : Math.max(180, inlineWidth * previewScale)
-          const height =
+          const rawHeight =
             inlineTextEditor.target.kind === 'headline'
-              ? Math.max(180, measureHeadlineHeight(scene.headline) * previewScale)
+              ? Math.max(180 / safePreviewScale, measureHeadlineHeight(scene.headline))
               : inlineTextEditor.target.kind === 'subhead'
-                ? Math.max(88, ((scene.subhead.fontSize || 28) + 28) * previewScale)
+                ? Math.max(88 / safePreviewScale, (scene.subhead.fontSize || 28) + 28)
                 : inlineTextEditor.target.kind === 'custom-text'
-                  ? Math.max(1, Math.round(((currentLayer as CustomTextElement).height ?? measureCustomTextHeight(currentLayer as CustomTextElement)) * previewScale))
-                : Math.max(96, Math.max(72, ((currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4) * previewScale))
+                  ? Math.max(1, Math.round((currentLayer as CustomTextElement).height ?? measureCustomTextHeight(currentLayer as CustomTextElement)))
+                : Math.max(96 / safePreviewScale, Math.max(72, (currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4))
+          const height = Math.max(1, Math.round(rawHeight * previewScale))
+          const contentScale = inlineTextEditor.target.kind === 'custom-text' ? safePreviewScale : 1
           return {
+            contentHeight: inlineTextEditor.target.kind === 'custom-text' ? rawHeight : height,
+            contentScale,
+            contentWidth: inlineTextEditor.target.kind === 'custom-text' ? Math.max(1, inlineWidth) : width,
             left: stageOffsetX + currentLayer.x * previewScale,
             top: stageOffsetY + currentLayer.y * previewScale,
             width,
@@ -5028,12 +5032,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const renderCustomTextNode = (item: CustomTextElement) => {
-    const textHeight = Math.max(1, Math.round(item.height ?? measureCustomTextHeight(item)))
-    const rotation = item.rotation || 0
+    const previewPatch = customTextTransformPreview[item.id]
+    const displayItem = previewPatch ? { ...item, ...previewPatch } : item
+    const textHeight = Math.max(1, Math.round(displayItem.height ?? measureCustomTextHeight(displayItem)))
+    const rotation = displayItem.rotation || 0
     const hidden = isLayerHidden('custom-text', item.id)
     const locked = isLayerLocked('custom-text', item.id)
     const isEditingThisText = inlineTextEditor?.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text' && inlineTextEditor.target.id === item.id
-    const fallbackText = resolveSceneText(stripHtml(getCustomTextHtml(item)).replace(/\u00a0/g, ' ') || item.text)
+    const isTransformPreview = Boolean(previewPatch)
+    const fallbackText = resolveSceneText(stripHtml(getCustomTextHtml(displayItem)).replace(/\u00a0/g, ' ') || displayItem.text)
     if (hidden) return null
 
     return (
@@ -5043,41 +5050,97 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           customTextRefs.current[item.id] = node
         }}
         zIndex={getLayerOrder('custom-text', item.id)}
-        x={item.x + item.width / 2}
-        y={item.y + textHeight / 2}
-        offsetX={item.width / 2}
+        x={displayItem.x + displayItem.width / 2}
+        y={displayItem.y + textHeight / 2}
+        offsetX={displayItem.width / 2}
         offsetY={textHeight / 2}
         rotation={rotation}
-        opacity={item.opacity ?? 1}
-        shadowBlur={item.shadowBlur || 0}
-        shadowColor={item.shadowColor}
-        shadowOffsetX={item.shadowOffsetX || 0}
-        shadowOffsetY={item.shadowOffsetY || 0}
-        shadowOpacity={item.shadowOpacity || 0}
+        opacity={displayItem.opacity ?? 1}
+        shadowBlur={displayItem.shadowBlur || 0}
+        shadowColor={displayItem.shadowColor}
+        shadowOffsetX={displayItem.shadowOffsetX || 0}
+        shadowOffsetY={displayItem.shadowOffsetY || 0}
+        shadowOpacity={displayItem.shadowOpacity || 0}
         draggable={!locked}
         onDragStart={() => beginCustomDrag({ kind: 'custom-text', id: item.id })}
         onDragEnd={(event) => {
           if (locked) return
           const node = event.target
           handleCustomSelection({ kind: 'custom-text', id: item.id })
-          finishCustomDrag({ kind: 'custom-text', id: item.id }, node.x() - item.width / 2, node.y() - textHeight / 2)
+          finishCustomDrag({ kind: 'custom-text', id: item.id }, node.x() - displayItem.width / 2, node.y() - textHeight / 2)
         }}
         onMouseDown={(event) => {
           if (locked) return
           handleCustomSelection({ kind: 'custom-text', id: item.id }, event.evt.shiftKey || event.evt.metaKey || event.evt.ctrlKey)
         }}
         onContextMenu={(event) => openContextMenu(event.evt, { kind: 'custom-text', id: item.id })}
-        onTransformStart={() => setIsResizingHeadline(true)}
+        onTransformStart={() => {
+          setIsResizingHeadline(true)
+          setCustomTextTransformPreviewPatch(item.id, {
+            fontSize: item.fontSize,
+            height: item.height ?? measureCustomTextHeight(item),
+            rotation: item.rotation || 0,
+            width: item.width,
+            x: item.x,
+            y: item.y,
+          })
+        }}
         onTransform={(event) => {
-          setRichTextContentInverseScale(event.target)
+          if (locked) return
+          const node = event.target
+          const source = { ...item, ...customTextTransformPreviewRef.current[item.id] }
+          const sourceHeight = Math.max(1, Math.round(source.height ?? measureCustomTextHeight(source)))
+          const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+          const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+          const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+          const isCorner = !isHorizontalEdge && !isVerticalEdge
+          const nextWidth = isVerticalEdge ? source.width : Math.max(24, Math.round(source.width * Math.max(Math.abs(node.scaleX()), 0.1)))
+          const sizeScale = Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))
+          const nextFontSize = isCorner ? Math.max(8, Math.round(source.fontSize * sizeScale)) : source.fontSize
+          const scaledHeight = Math.max(8, Math.round(sourceHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
+          const normalized = normalizeCustomTextBox(
+            source,
+            {
+              fontSize: nextFontSize,
+              height: isHorizontalEdge ? sourceHeight : scaledHeight,
+              width: nextWidth,
+            },
+            { fitHeight: false },
+          )
+          const nextHeight = normalized.height ?? sourceHeight
+          const nextPatch = {
+            fontSize: normalized.fontSize,
+            height: nextHeight,
+            rotation: Number(node.rotation().toFixed(1)),
+            width: normalized.width,
+            x: node.x() - normalized.width / 2,
+            y: node.y() - nextHeight / 2,
+          }
+          node.scaleX(1)
+          node.scaleY(1)
+          node.offsetX(normalized.width / 2)
+          node.offsetY(nextHeight / 2)
+          node.x(nextPatch.x + normalized.width / 2)
+          node.y(nextPatch.y + nextHeight / 2)
+          setCustomTextTransformPreviewPatch(item.id, nextPatch)
         }}
         onTransformEnd={(event) => {
           setIsResizingHeadline(false)
           if (locked) {
             resetRichTextContentScale(event.target)
+            setCustomTextTransformPreviewPatch(item.id, null)
             return
           }
           const node = event.target
+          const preview = customTextTransformPreviewRef.current[item.id]
+          if (preview) {
+            node.scaleX(1)
+            node.scaleY(1)
+            resetRichTextContentScale(node)
+            updateCustomText(item.id, preview)
+            setCustomTextTransformPreviewPatch(item.id, null)
+            return
+          }
           const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
           const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
           const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
@@ -5091,7 +5154,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             item,
             {
               fontSize: nextFontSize,
-              height: isHorizontalEdge ? item.height || textHeight : scaledHeight,
+              height: isHorizontalEdge ? item.height ?? textHeight : scaledHeight,
               width: nextWidth,
             },
             { fitHeight: false },
@@ -5112,14 +5175,14 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         }}
       >
         {selectedCustomKeys.has(`custom-text:${item.id}`) ? (
-          <Rect x={-8} y={-8} width={item.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
+          <Rect x={-8} y={-8} width={displayItem.width + 16} height={textHeight + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
         ) : null}
-        {!isEditingThisText && customTextRenderImages[item.id] ? (
+        {!isEditingThisText && !isTransformPreview && customTextRenderImages[item.id] ? (
           <KonvaImage
             name="rich-text-render-content"
             key={customTextRenderUrls[item.id] || item.id}
             image={customTextRenderImages[item.id] || undefined}
-            width={item.width}
+            width={displayItem.width}
             height={textHeight}
             onDblClick={() => {
               if (locked) return
@@ -5129,19 +5192,19 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ) : !isEditingThisText ? (
           <Text
             name="rich-text-render-content"
-            width={item.width}
+            width={displayItem.width}
             height={textHeight}
             text={fallbackText}
-            align={item.textAlign || 'left'}
-            fontFamily={item.fontFamily || 'Arial'}
-            fontSize={item.fontSize}
-            fontStyle={item.fontStyle}
-            fill={item.color}
-            stroke={item.strokeWidth ? item.strokeColor || '#ffffff' : undefined}
-            strokeWidth={item.strokeWidth || 0}
-            letterSpacing={item.letterSpacing || 0}
-            lineHeight={item.lineHeight || 1.1}
-            textDecoration={item.textDecoration}
+            align={displayItem.textAlign || 'left'}
+            fontFamily={displayItem.fontFamily || 'Arial'}
+            fontSize={displayItem.fontSize}
+            fontStyle={displayItem.fontStyle}
+            fill={displayItem.color}
+            stroke={displayItem.strokeWidth ? displayItem.strokeColor || '#ffffff' : undefined}
+            strokeWidth={displayItem.strokeWidth || 0}
+            letterSpacing={displayItem.letterSpacing || 0}
+            lineHeight={displayItem.lineHeight || 1.1}
+            textDecoration={displayItem.textDecoration}
             onDblClick={() => {
               if (locked) return
               beginInlineTextEdit({ kind: 'custom-text', id: item.id })
@@ -6806,10 +6869,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                     style={{
                       boxSizing: 'border-box',
                       display: 'block',
-                      width: '100%',
-                      height: '100%',
-                      minHeight: '100%',
-                      maxHeight: '100%',
+                      width: inlineEditorBox.contentWidth,
+                      height: inlineEditorBox.contentHeight,
+                      minHeight: inlineEditorBox.contentHeight,
+                      maxHeight: inlineEditorBox.contentHeight,
                       padding: 0,
                       margin: 0,
                       borderWidth: 0,
@@ -6819,7 +6882,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       boxShadow: 'none',
                       color: selectedTextLayer?.color || '#111827',
                       fontFamily: selectedTextLayer?.fontFamily || 'Arial',
-                      fontSize: `${Math.max(1, (selectedTextLayer?.fontSize || 28) * previewScale)}px`,
+                      fontSize: `${Math.max(1, (selectedTextLayer?.fontSize || 28) * (inlineEditorBox.contentScale === 1 ? previewScale : 1))}px`,
                       fontStyle: selectedTextLayer?.fontStyle?.includes('italic') ? 'italic' : 'normal',
                       fontWeight: getCssFontWeight(selectedTextLayer?.fontStyle),
                       textDecoration: selectedTextLayer?.textDecoration || 'none',
@@ -6832,6 +6895,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       wordBreak: 'break-word',
                       whiteSpace: 'normal',
                       outline: 'none',
+                      transform: inlineEditorBox.contentScale === 1 ? undefined : `scale(${inlineEditorBox.contentScale})`,
+                      transformOrigin: 'left top',
                     }}
                   />
                 </>

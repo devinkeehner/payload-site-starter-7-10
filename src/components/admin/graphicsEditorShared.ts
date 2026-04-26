@@ -500,7 +500,10 @@ export const EDITOR_RICH_TEXT_LAYOUT_CSS = `
   * { box-sizing:border-box; }
   p, div { margin: 0 0 0.45em; }
   p:last-child, div:last-child { margin-bottom: 0; }
-  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  b, strong { font-weight: 700; }
+  i, em { font-style: italic; }
+  u { text-decoration: underline; }
+  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; font-weight: 700; }
   h1 { font-size: 1.45em; }
   h2 { font-size: 1.25em; }
   h3 { font-size: 1.1em; }
@@ -514,9 +517,14 @@ export const EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS = `
   [data-rich-text-editor="true"] div { margin: 0 0 0.45em; }
   [data-rich-text-editor="true"] p:last-child,
   [data-rich-text-editor="true"] div:last-child { margin-bottom: 0; }
+  [data-rich-text-editor="true"] b,
+  [data-rich-text-editor="true"] strong { font-weight: 700; }
+  [data-rich-text-editor="true"] i,
+  [data-rich-text-editor="true"] em { font-style: italic; }
+  [data-rich-text-editor="true"] u { text-decoration: underline; }
   [data-rich-text-editor="true"] h1,
   [data-rich-text-editor="true"] h2,
-  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; font-weight: 700; }
   [data-rich-text-editor="true"] h1 { font-size: 1.45em; }
   [data-rich-text-editor="true"] h2 { font-size: 1.25em; }
   [data-rich-text-editor="true"] h3 { font-size: 1.1em; }
@@ -615,6 +623,7 @@ export const normalizeEditorRichTextHtml = (value: string) => {
 
   temp.querySelectorAll('div').forEach((node) => {
     const paragraph = document.createElement('p')
+    Array.from(node.attributes).forEach((attribute) => paragraph.setAttribute(attribute.name, attribute.value))
     while (node.firstChild) paragraph.appendChild(node.firstChild)
     node.replaceWith(paragraph)
   })
@@ -633,11 +642,21 @@ export const normalizeEditorRichTextHtml = (value: string) => {
 export const getEditorRichTextHtml = (box: Pick<EditorRichTextBox, 'html' | 'text'>, fallbackText = '') =>
   box.html?.trim() ? box.html : convertPlainTextToEditorHtml(box.text || fallbackText)
 
-export const getSvgSafeEditorRichTextHtml = (value: string) =>
-  value
+export const getSvgSafeEditorRichTextHtml = (value: string) => {
+  const normalized = value
     .replace(/&nbsp;/gi, '&#160;')
     .replace(/\u00a0/g, '&#160;')
     .replace(/<br\b([^>]*)>/gi, (_, attrs: string) => (attrs.trim().endsWith('/') ? `<br${attrs}>` : `<br${attrs} />`))
+  if (typeof document === 'undefined' || typeof XMLSerializer === 'undefined') return normalized
+
+  const temp = document.createElement('div')
+  temp.innerHTML = normalized
+  return Array.from(temp.childNodes)
+    .map((node) => new XMLSerializer().serializeToString(node))
+    .join('')
+    .replace(/&nbsp;/gi, '&#160;')
+    .replace(/\u00a0/g, '&#160;')
+}
 
 const approximateRichTextHeight = (box: EditorRichTextBox, fallbackText = '') => {
   const fontSize = box.fontSize || 28
