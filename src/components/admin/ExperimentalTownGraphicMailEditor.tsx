@@ -2713,7 +2713,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
       return
     }
 
-    if (singleNode && !selectedLayer?.locked) {
+    const lineUsesEndpointHandles = selection?.kind === 'custom-rect' && (selectedCustomRect?.shapeType || 'rect') === 'line'
+
+    if (singleNode && !selectedLayer?.locked && !lineUsesEndpointHandles) {
       transformer.nodes([singleNode])
       transformer.getLayer()?.batchDraw()
       return
@@ -2721,7 +2723,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
 
     transformer.nodes([])
     transformer.getLayer()?.batchDraw()
-  }, [scene, selectedCustomTargets, selectedLayer?.locked, selection])
+  }, [scene, selectedCustomRect?.shapeType, selectedCustomTargets, selectedLayer?.locked, selection])
 
   useEffect(() => {
     if (selection?.kind !== 'headline') {
@@ -3039,6 +3041,44 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     updateScene((current) => ({
       ...current,
       customRects: current.customRects.map((item) => (item.id === rectID ? { ...item, ...patch } : item)),
+    }))
+  }
+
+  const updateCustomLineEndpoint = (rectID: string, endpoint: 'start' | 'end', point: { x: number; y: number }) => {
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.map((item) => {
+        if (item.id !== rectID || (item.shapeType || 'rect') !== 'line') return item
+        const nextX = Math.round(point.x)
+        const nextY = Math.round(point.y)
+        if (endpoint === 'end') {
+          return { ...item, width: nextX, height: nextY }
+        }
+        return {
+          ...item,
+          x: item.x + nextX,
+          y: item.y + nextY,
+          width: item.width - nextX,
+          height: item.height - nextY,
+        }
+      }),
+    }))
+  }
+
+  const snapCustomLineAxis = (rectID: string, axis: 'horizontal' | 'vertical') => {
+    updateScene((current) => ({
+      ...current,
+      customRects: current.customRects.map((item) => {
+        if (item.id !== rectID || (item.shapeType || 'rect') !== 'line') return item
+        const angle = ((item.rotation || 0) * Math.PI) / 180
+        const deltaX = item.width * Math.cos(angle) - item.height * Math.sin(angle)
+        const deltaY = item.width * Math.sin(angle) + item.height * Math.cos(angle)
+        const length = Math.max(1, Math.round(Math.hypot(deltaX, deltaY)))
+        if (axis === 'horizontal') {
+          return { ...item, width: (deltaX < 0 ? -1 : 1) * length, height: 0, rotation: 0 }
+        }
+        return { ...item, width: 0, height: (deltaY < 0 ? -1 : 1) * length, rotation: 0 }
+      }),
     }))
   }
 
@@ -4490,7 +4530,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 : selection?.kind === 'custom-rect' && selectedCustomRect
                 ? (
                     <div style={slotCardStyle}>
-                      <strong style={{ fontSize: 13 }}>Selected: Rectangle</strong>
+                      <strong style={{ fontSize: 13 }}>Selected: {(selectedCustomRect.shapeType || 'rect') === 'line' ? 'Line' : 'Rectangle'}</strong>
                       <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>Shape</span>
                         <select value={selectedCustomRect.shapeType || 'rect'} onChange={(event) => updateCustomRect(selectedCustomRect.id, { shapeType: event.target.value as 'rect' | 'circle' | 'line' })} style={controlStyle}>
@@ -4499,6 +4539,17 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                           <option value="line">Line</option>
                         </select>
                       </label>
+                      {(selectedCustomRect.shapeType || 'rect') === 'line' ? (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          <Button buttonStyle="secondary" onClick={() => snapCustomLineAxis(selectedCustomRect.id, 'horizontal')}>
+                            Horizontal
+                          </Button>
+                          <Button buttonStyle="secondary" onClick={() => snapCustomLineAxis(selectedCustomRect.id, 'vertical')}>
+                            Vertical
+                          </Button>
+                          <span style={{ ...fieldLabelStyle, alignSelf: 'center' }}>Hold Shift while dragging a node to constrain.</span>
+                        </div>
+                      ) : null}
                       <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>Fill</span>
                         <input value={selectedCustomRect.fill} onChange={(event) => updateCustomRect(selectedCustomRect.id, { fill: event.target.value })} style={controlStyle} />
@@ -4516,11 +4567,11 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         <input type="number" value={Math.round(selectedCustomRect.y)} onChange={(event) => updateSelectionPosition(selectedCustomRect.x, Number(event.target.value))} style={controlStyle} />
                       </label>
                       <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={fieldLabelStyle}>Width</span>
+                        <span style={fieldLabelStyle}>{(selectedCustomRect.shapeType || 'rect') === 'line' ? 'End X' : 'Width'}</span>
                         <input type="number" value={Math.round(selectedCustomRect.width)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { width: Number(event.target.value) || selectedCustomRect.width })} style={controlStyle} />
                       </label>
                       <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={fieldLabelStyle}>Height</span>
+                        <span style={fieldLabelStyle}>{(selectedCustomRect.shapeType || 'rect') === 'line' ? 'End Y' : 'Height'}</span>
                         <input type="number" value={Math.round(selectedCustomRect.height)} onChange={(event) => updateCustomRect(selectedCustomRect.id, { height: Number(event.target.value) || selectedCustomRect.height })} style={controlStyle} />
                       </label>
                       <label style={{ display: 'grid', gap: 6 }}>
@@ -5311,6 +5362,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const locked = isLayerLocked('custom-rect', customRect.id)
           const dash = getDashPattern(customRect.dashStyle)
           const shapeType = customRect.shapeType || 'rect'
+          const selected = selectedCustomKeys.has(`custom-rect:${customRect.id}`)
+          const lineStrokeWidth = customRect.strokeWidth || 8
+          const lineHitStrokeWidth = Math.max(28, lineStrokeWidth + 18)
           return (
             <Group
               key={customRect.id}
@@ -5350,7 +5404,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 updateCustomRect(customRect.id, { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, rotation: nextRotation })
               }}
             >
-              {selectedCustomKeys.has(`custom-rect:${customRect.id}`) ? (
+              {selected && shapeType !== 'line' ? (
                 <Rect x={-8} y={-8} width={customRect.width + 16} height={customRect.height + 16} stroke="#0ea5e9" dash={[10, 6]} cornerRadius={10} />
               ) : null}
               {shapeType === 'circle' ? (
@@ -5364,14 +5418,73 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   dash={dash}
                 />
               ) : shapeType === 'line' ? (
-                <Line
-                  points={[0, 0, customRect.width, customRect.height]}
-                  stroke={customRect.strokeColor || customRect.fill}
-                  strokeWidth={customRect.strokeWidth || 8}
-                  dash={dash}
-                  lineCap="round"
-                  lineJoin="round"
-                />
+                <>
+                  <Line
+                    points={[0, 0, customRect.width, customRect.height]}
+                    stroke={customRect.strokeColor || customRect.fill}
+                    strokeWidth={lineStrokeWidth}
+                    hitStrokeWidth={lineHitStrokeWidth}
+                    dash={dash}
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                  {selected ? (
+                    <>
+                      <Line
+                        points={[0, 0, customRect.width, customRect.height]}
+                        stroke="#0ea5e9"
+                        strokeWidth={Math.max(2, lineStrokeWidth + 4)}
+                        opacity={0.3}
+                        lineCap="round"
+                        lineJoin="round"
+                        listening={false}
+                      />
+                      {[
+                        { endpoint: 'start' as const, x: 0, y: 0 },
+                        { endpoint: 'end' as const, x: customRect.width, y: customRect.height },
+                      ].map((handle) => (
+                        <Circle
+                          key={handle.endpoint}
+                          x={handle.x}
+                          y={handle.y}
+                          radius={10}
+                          fill="#ffffff"
+                          stroke="#0ea5e9"
+                          strokeWidth={3}
+                          draggable={!locked}
+                          onMouseDown={(event) => {
+                            event.cancelBubble = true
+                            handleCustomSelection({ kind: 'custom-rect', id: customRect.id })
+                          }}
+                          onDragMove={(event) => {
+                            if (locked) return
+                            event.cancelBubble = true
+                            const node = event.target
+                            const constrainAxis = 'shiftKey' in event.evt && Boolean(event.evt.shiftKey)
+                            const point = { x: node.x(), y: node.y() }
+                            if (constrainAxis && handle.endpoint === 'end') {
+                              if (Math.abs(point.x) >= Math.abs(point.y)) point.y = 0
+                              else point.x = 0
+                              node.position(point)
+                            }
+                            if (constrainAxis && handle.endpoint === 'start') {
+                              const nextDeltaX = customRect.width - point.x
+                              const nextDeltaY = customRect.height - point.y
+                              if (Math.abs(nextDeltaX) >= Math.abs(nextDeltaY)) point.y = customRect.height
+                              else point.x = customRect.width
+                            }
+                            updateCustomLineEndpoint(customRect.id, handle.endpoint, point)
+                            if (handle.endpoint === 'start') node.position({ x: 0, y: 0 })
+                          }}
+                          onDragEnd={(event) => {
+                            event.cancelBubble = true
+                            if (handle.endpoint === 'start') event.target.position({ x: 0, y: 0 })
+                          }}
+                        />
+                      ))}
+                    </>
+                  ) : null}
+                </>
               ) : (
                 <Rect
                   width={customRect.width}
@@ -6842,7 +6955,9 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 rotateEnabled={
                   selectedCustomTargets.length > 1
                     ? false
-                    : selection?.kind === 'custom-image' || selection?.kind === 'custom-text' || selection?.kind === 'custom-rect'
+                    : selection?.kind === 'custom-image' ||
+                      selection?.kind === 'custom-text' ||
+                      (selection?.kind === 'custom-rect' && (selectedCustomRect?.shapeType || 'rect') !== 'line')
                 }
                 flipEnabled={false}
                 keepRatio={
@@ -6859,7 +6974,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                       ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     : selection?.kind === 'custom-image'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
-                    : selection?.kind === 'custom-rect'
+                    : selection?.kind === 'custom-rect' && (selectedCustomRect?.shapeType || 'rect') !== 'line'
                       ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     : selection?.kind === 'towns' || selection?.kind === 'towns-left' || selection?.kind === 'towns-right'
                       ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
