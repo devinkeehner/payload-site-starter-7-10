@@ -184,13 +184,13 @@ export const RepInfo: CollectionConfig = {
           value: 'featured',
         },
         {
-          label: 'Inline at bottom',
+          label: 'Collapsible bottom row',
           value: 'footer',
         },
       ],
       admin: {
         description:
-          'Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing.',
+          'Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing; the bottom option tucks them into expandable post details.',
       },
     },
     {
