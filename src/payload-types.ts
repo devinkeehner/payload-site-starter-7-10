@@ -2432,7 +2432,7 @@ export interface RepInfo {
   flickrTag?: string | null;
   flickrURL?: string | null;
   /**
-   * Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing.
+   * Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing; the bottom option tucks them into expandable post details.
    */
   postTakeawaysPlacement?: ('featured' | 'footer') | null;
   /**

@@ -479,6 +479,274 @@ export const getCssFontWeight = (fontStyle?: string) => {
   return normalized.includes('800') || normalized.includes('900') || normalized.includes('700') || normalized.includes('bold') ? 700 : 400
 }
 
+export type EditorRichTextBox = {
+  align?: 'left' | 'center' | 'right' | string
+  color?: string
+  fontFamily?: string
+  fontSize?: number
+  fontStyle?: string
+  height?: number
+  html?: string
+  letterSpacing?: number
+  lineHeight?: number
+  strokeColor?: string
+  strokeWidth?: number
+  text?: string
+  textAlign?: 'left' | 'center' | 'right' | string
+  width: number
+}
+
+export const EDITOR_RICH_TEXT_LAYOUT_CSS = `
+  * { box-sizing:border-box; }
+  p, div { margin: 0 0 0.45em; }
+  p:last-child, div:last-child { margin-bottom: 0; }
+  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  h1 { font-size: 1.45em; }
+  h2 { font-size: 1.25em; }
+  h3 { font-size: 1.1em; }
+  ul, ol { margin: 0 0 0.45em 1.2em; padding: 0; }
+  li { margin: 0 0 0.15em; }
+`
+
+export const EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS = `
+  [data-rich-text-editor="true"] * { box-sizing:border-box; }
+  [data-rich-text-editor="true"] p,
+  [data-rich-text-editor="true"] div { margin: 0 0 0.45em; }
+  [data-rich-text-editor="true"] p:last-child,
+  [data-rich-text-editor="true"] div:last-child { margin-bottom: 0; }
+  [data-rich-text-editor="true"] h1,
+  [data-rich-text-editor="true"] h2,
+  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; }
+  [data-rich-text-editor="true"] h1 { font-size: 1.45em; }
+  [data-rich-text-editor="true"] h2 { font-size: 1.25em; }
+  [data-rich-text-editor="true"] h3 { font-size: 1.1em; }
+  [data-rich-text-editor="true"] ul,
+  [data-rich-text-editor="true"] ol { margin: 0 0 0.45em 1.2em; padding: 0; }
+  [data-rich-text-editor="true"] li { margin: 0 0 0.15em; }
+`
+
+export const escapeEditorHtml = (value: string) =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+
+export const getEditorRichTextPlainText = (value: string) => {
+  if (typeof document === 'undefined') {
+    return value
+      .replace(/<br\b[^>]*>/gi, '\n')
+      .replace(/<li\b[^>]*>/gi, '- ')
+      .replace(/<\/(p|div|h1|h2|h3|li)>/gi, '\n')
+      .replace(/<\/?(ul|ol)\b[^>]*>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  }
+
+  const temp = document.createElement('div')
+  temp.innerHTML = value
+
+  const lines: string[] = []
+  const pushText = (text: string, prefix = '') => {
+    const normalized = text
+      .replace(/\u00a0/g, ' ')
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+\n/g, '\n')
+      .trim()
+    if (!normalized) return
+    normalized.split('\n').forEach((line, index) => {
+      const trimmed = line.trim()
+      if (trimmed) lines.push(index === 0 ? `${prefix}${trimmed}` : trimmed)
+    })
+  }
+
+  const visit = (node: ChildNode) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      pushText(node.textContent || '')
+      return
+    }
+    if (!(node instanceof HTMLElement)) return
+
+    const tagName = node.tagName.toUpperCase()
+    if (tagName === 'BR') {
+      lines.push('')
+      return
+    }
+    if (tagName === 'UL' || tagName === 'OL') {
+      Array.from(node.children).forEach((child, index) => {
+        if (!(child instanceof HTMLElement) || child.tagName.toUpperCase() !== 'LI') return
+        pushText(child.innerText || child.textContent || '', tagName === 'OL' ? `${index + 1}. ` : '- ')
+      })
+      return
+    }
+    if (tagName === 'LI') {
+      pushText(node.innerText || node.textContent || '', '- ')
+      return
+    }
+    if (/^(P|DIV|H1|H2|H3)$/.test(tagName)) {
+      pushText(node.innerText || node.textContent || '')
+      return
+    }
+
+    Array.from(node.childNodes).forEach(visit)
+  }
+
+  Array.from(temp.childNodes).forEach(visit)
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+}
+
+export const stripEditorRichTextHtml = getEditorRichTextPlainText
+
+export const convertPlainTextToEditorHtml = (value: string) =>
+  value
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .map((line) => `<p>${escapeEditorHtml(line || ' ')}</p>`)
+    .join('')
+
+export const normalizeEditorRichTextHtml = (value: string) => {
+  const fallback = convertPlainTextToEditorHtml(stripEditorRichTextHtml(value || '').replace(/\u00a0/g, ' ') || 'Text')
+  if (typeof window === 'undefined') return fallback
+
+  const temp = document.createElement('div')
+  temp.innerHTML = value?.trim() || fallback
+
+  temp.querySelectorAll('div').forEach((node) => {
+    const paragraph = document.createElement('p')
+    while (node.firstChild) paragraph.appendChild(node.firstChild)
+    node.replaceWith(paragraph)
+  })
+
+  const hasSupportedBlocks = temp.querySelector('p, h1, h2, h3, ul, ol')
+  if (!hasSupportedBlocks) {
+    const wrapped = document.createElement('p')
+    wrapped.innerHTML = temp.innerHTML.trim() || escapeEditorHtml('Text')
+    temp.innerHTML = ''
+    temp.appendChild(wrapped)
+  }
+
+  return temp.innerHTML.trim() || fallback
+}
+
+export const getEditorRichTextHtml = (box: Pick<EditorRichTextBox, 'html' | 'text'>, fallbackText = '') =>
+  box.html?.trim() ? box.html : convertPlainTextToEditorHtml(box.text || fallbackText)
+
+export const getSvgSafeEditorRichTextHtml = (value: string) =>
+  value
+    .replace(/&nbsp;/gi, '&#160;')
+    .replace(/\u00a0/g, '&#160;')
+    .replace(/<br\b([^>]*)>/gi, (_, attrs: string) => (attrs.trim().endsWith('/') ? `<br${attrs}>` : `<br${attrs} />`))
+
+const approximateRichTextHeight = (box: EditorRichTextBox, fallbackText = '') => {
+  const fontSize = box.fontSize || 28
+  const lineHeight = box.lineHeight || 1.1
+  const width = Math.max(1, box.width)
+  const plain = stripEditorRichTextHtml(getEditorRichTextHtml(box, fallbackText)).replace(/\u00a0/g, ' ') || 'Text'
+  const approxCharsPerLine = Math.max(1, Math.floor(width / Math.max(1, fontSize * 0.52)))
+  const lines = plain
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .reduce((count, line) => count + Math.max(1, Math.ceil((line.trim().length || 1) / approxCharsPerLine)), 0)
+  return Math.max(fontSize + 8, Math.ceil(lines * fontSize * lineHeight))
+}
+
+export const measureEditorRichTextContentHeight = (
+  box: EditorRichTextBox,
+  fallbackText = '',
+  options: {
+    defaultFontFamily?: string
+    defaultFontSize?: number
+    defaultLineHeight?: number
+  } = {},
+) => {
+  if (typeof document === 'undefined') return approximateRichTextHeight(box, fallbackText)
+
+  const width = Math.max(1, Math.round(box.width))
+  const element = document.createElement('div')
+  element.setAttribute('data-rich-text-editor', 'true')
+  element.style.cssText = `
+    position:fixed;
+    left:-10000px;
+    top:0;
+    width:${width}px;
+    box-sizing:border-box;
+    visibility:hidden;
+    pointer-events:none;
+    color:${box.color || '#111111'};
+    font-family:${box.fontFamily || options.defaultFontFamily || 'Arial'};
+    font-size:${box.fontSize || options.defaultFontSize || 28}px;
+    font-style:${box.fontStyle?.includes('italic') ? 'italic' : 'normal'};
+    font-weight:${getCssFontWeight(box.fontStyle)};
+    line-height:${box.lineHeight || options.defaultLineHeight || 1.1};
+    letter-spacing:${box.letterSpacing || 0}px;
+    text-align:${box.textAlign || box.align || 'left'};
+    overflow-wrap:anywhere;
+    word-break:break-word;
+    white-space:normal;
+  `
+  const style = document.createElement('style')
+  style.textContent = EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS
+  element.appendChild(style)
+  const content = document.createElement('div')
+  content.innerHTML = normalizeEditorRichTextHtml(getEditorRichTextHtml(box, fallbackText))
+  element.appendChild(content)
+  document.body.appendChild(element)
+  const measured = Math.ceil(content.scrollHeight || element.scrollHeight || approximateRichTextHeight(box, fallbackText))
+  element.remove()
+  return Math.max(1, measured)
+}
+
+export const buildEditorRichTextSvgDataUrl = (
+  box: EditorRichTextBox,
+  fallbackText = '',
+  options: {
+    defaultFontFamily?: string
+    defaultFontSize?: number
+    defaultLineHeight?: number
+  } = {},
+) => {
+  const width = Math.max(1, Math.round(box.width))
+  const height = Math.max(
+    1,
+    Math.round(box.height ?? measureEditorRichTextContentHeight(box, fallbackText, options)),
+  )
+  const html = getSvgSafeEditorRichTextHtml(normalizeEditorRichTextHtml(getEditorRichTextHtml(box, fallbackText)))
+  const fontStyle = box.fontStyle || ''
+  const cssFontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
+  const cssFontWeight = getCssFontWeight(fontStyle)
+  const textStroke =
+    box.strokeWidth && box.strokeColor
+      ? `-webkit-text-stroke:${box.strokeWidth}px ${box.strokeColor};paint-order:stroke fill;`
+      : ''
+  const wrapper = `
+    <div xmlns="http://www.w3.org/1999/xhtml" style="
+      width:${width}px;
+      height:${height}px;
+      box-sizing:border-box;
+      overflow:hidden;
+      color:${box.color || '#111111'};
+      font-family:${box.fontFamily || options.defaultFontFamily || 'Arial'};
+      font-size:${box.fontSize || options.defaultFontSize || 28}px;
+      font-style:${cssFontStyle};
+      font-weight:${cssFontWeight};
+      line-height:${box.lineHeight || options.defaultLineHeight || 1.1};
+      letter-spacing:${box.letterSpacing || 0}px;
+      text-align:${box.textAlign || box.align || 'left'};
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      white-space:normal;
+      ${textStroke}
+    ">
+      <style>${EDITOR_RICH_TEXT_LAYOUT_CSS}</style>
+      ${html}
+    </div>
+  `
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${wrapper}</foreignObject></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
 export function useEditorAutosave({ debounceMs = 1200, enabled, onError, onSave, revision }: AutosaveOptions) {
   const [state, setState] = useState<AutosaveState>({
     error: null,

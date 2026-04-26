@@ -41,9 +41,12 @@ import {
   appendEditorLayers,
   TEXT_ALIGNMENT_OPTIONS,
   TEXT_FONT_OPTIONS,
+  EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS,
+  buildEditorRichTextSvgDataUrl,
   buildFontStyle,
   buildEditorLayers,
   clampNumber,
+  convertPlainTextToEditorHtml,
   createEditorNodeID,
   duplicateImage,
   duplicateRect,
@@ -52,18 +55,22 @@ import {
   getDashPattern,
   getCssFontWeight,
   getEditorLayerItem,
+  getEditorRichTextHtml,
   getShortcutNudgeDistance,
   getFontStyleFlags,
   getResizedTextTransform,
   hasEditorClipboard,
   hydrateEditorLayers,
   isEditableTarget,
+  measureEditorRichTextContentHeight,
+  normalizeEditorRichTextHtml,
   patchEditorLayer,
   readEditorClipboard,
   removeEditorLayers,
   reorderCustomEditorLayer,
   reorderCustomEditorLayerToIndex,
   setEditorClipboard,
+  stripEditorRichTextHtml,
   useEditorAutosave,
 } from '@/components/admin/graphicsEditorShared'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
@@ -533,90 +540,13 @@ type CustomGroup = {
 
 const getSelectionKey = (selection: CustomSelection) => `${selection.kind}:${selection.id}`
 const isSameSelection = (left: CustomSelection, right: CustomSelection) => left.kind === right.kind && left.id === right.id
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-
-const stripHtml = (value: string) => {
-  if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, ' ')
-  const temp = document.createElement('div')
-  temp.innerHTML = value
-  return temp.innerText || temp.textContent || ''
-}
-
-const convertPlainTextToHtml = (value: string) =>
-  value
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => `<p>${escapeHtml(line || ' ')}</p>`)
-    .join('')
-
-const RICH_TEXT_LAYOUT_CSS = `
-  * { box-sizing:border-box; }
-  p, div { margin: 0 0 0.45em; }
-  p:last-child, div:last-child { margin-bottom: 0; }
-  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; }
-  h1 { font-size: 1.45em; }
-  h2 { font-size: 1.25em; }
-  h3 { font-size: 1.1em; }
-  ul, ol { margin: 0 0 0.45em 1.2em; padding: 0; }
-  li { margin: 0 0 0.15em; }
-`
-
-const RICH_TEXT_EDITOR_SCOPE_CSS = `
-  [data-rich-text-editor="true"] * { box-sizing:border-box; }
-  [data-rich-text-editor="true"] p,
-  [data-rich-text-editor="true"] div { margin: 0 0 0.45em; }
-  [data-rich-text-editor="true"] p:last-child,
-  [data-rich-text-editor="true"] div:last-child { margin-bottom: 0; }
-  [data-rich-text-editor="true"] h1,
-  [data-rich-text-editor="true"] h2,
-  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; }
-  [data-rich-text-editor="true"] h1 { font-size: 1.45em; }
-  [data-rich-text-editor="true"] h2 { font-size: 1.25em; }
-  [data-rich-text-editor="true"] h3 { font-size: 1.1em; }
-  [data-rich-text-editor="true"] ul,
-  [data-rich-text-editor="true"] ol { margin: 0 0 0.45em 1.2em; padding: 0; }
-  [data-rich-text-editor="true"] li { margin: 0 0 0.15em; }
-`
-
-const normalizeRichTextHtml = (value: string) => {
-  const fallback = convertPlainTextToHtml(stripHtml(value || '').replace(/\u00a0/g, ' ') || 'Text')
-  if (typeof window === 'undefined') return fallback
-
-  const temp = document.createElement('div')
-  temp.innerHTML = value?.trim() || fallback
-
-  temp.querySelectorAll('div').forEach((node) => {
-    const paragraph = document.createElement('p')
-    while (node.firstChild) paragraph.appendChild(node.firstChild)
-    node.replaceWith(paragraph)
-  })
-
-  const hasSupportedBlocks = temp.querySelector('p, h1, h2, h3, ul, ol')
-  if (!hasSupportedBlocks) {
-    const wrapped = document.createElement('p')
-    wrapped.innerHTML = temp.innerHTML.trim() || escapeHtml('Text')
-    temp.innerHTML = ''
-    temp.appendChild(wrapped)
-  }
-
-  const normalized = temp.innerHTML.trim()
-  return normalized || fallback
-}
+const stripHtml = stripEditorRichTextHtml
+const convertPlainTextToHtml = convertPlainTextToEditorHtml
+const RICH_TEXT_EDITOR_SCOPE_CSS = EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS
+const normalizeRichTextHtml = normalizeEditorRichTextHtml
 
 const getCustomTextHtml = (item: Pick<CustomTextElement, 'html' | 'text'>) =>
-  item.html?.trim() ? item.html : convertPlainTextToHtml(item.text || '')
-
-const getSvgSafeRichTextHtml = (value: string) =>
-  value
-    .replace(/&nbsp;/gi, '&#160;')
-    .replace(/\u00a0/g, '&#160;')
-    .replace(/<br\s*>/gi, '<br />')
+  getEditorRichTextHtml(item)
 
 const syncCustomTextHtmlStyles = (item: Pick<CustomTextElement, 'html' | 'text'>, patch: Partial<CustomTextElement>) => {
   const hasStylePatch =
@@ -804,22 +734,19 @@ const loadImageNaturalSize = (src: string) =>
 
 function useLoadedImages(srcByID: Record<string, string | undefined>) {
   const [images, setImages] = useState<Record<string, HTMLImageElement | null>>({})
-  const previousSourcesRef = useRef<Record<string, string | undefined>>({})
 
   useEffect(() => {
     const entries = Object.entries(srcByID)
     if (!entries.length) {
       setImages({})
-      previousSourcesRef.current = {}
       return
     }
 
     let cancelled = false
-    const previousSources = previousSourcesRef.current
     setImages((current) => {
       const next: Record<string, HTMLImageElement | null> = {}
       for (const [id, src] of entries) {
-        next[id] = previousSources[id] === src ? current[id] || null : null
+        next[id] = src ? current[id] || null : null
       }
       return next
     })
@@ -832,16 +759,16 @@ function useLoadedImages(srcByID: Record<string, string | undefined>) {
         if (cancelled) return
         setImages((current) => ({ ...current, [id]: nextImage }))
       }
+      nextImage.onerror = () => {
+        if (cancelled) return
+        setImages((current) => ({ ...current, [id]: current[id] || null }))
+      }
       nextImage.src = src
     })
 
     return () => {
       cancelled = true
     }
-  }, [srcByID])
-
-  useEffect(() => {
-    previousSourcesRef.current = srcByID
   }, [srcByID])
 
   return images
@@ -930,22 +857,15 @@ const measureHeadlineHeight = (headline: SceneTextElement) => {
   return Math.max(120, Math.ceil(lines.length * fontSize * lineHeight))
 }
 
-const measureCustomTextHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight' | 'height'>) => {
-  const fontSize = item.fontSize || 28
-  const fontFamily = item.fontFamily || 'Arial'
-  const lineHeight = item.lineHeight || 1.1
-  const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
-  const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
-  return Math.max(item.height || 0, measuredHeight)
-}
+const measureCustomTextContentHeight = (item: Pick<CustomTextElement, 'html' | 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight' | 'letterSpacing' | 'textAlign' | 'color' | 'fontStyle'>) =>
+  measureEditorRichTextContentHeight(item, '', {
+    defaultFontFamily: 'Arial',
+    defaultFontSize: 28,
+    defaultLineHeight: 1.1,
+  })
 
-const measureCustomTextMinimumHeight = (item: Pick<CustomTextElement, 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight'>) => {
-  const fontSize = item.fontSize || 28
-  const fontFamily = item.fontFamily || 'Arial'
-  const lineHeight = item.lineHeight || 1.1
-  const lines = wrapTextToWidth(item.text || '', `${fontSize}px ${fontFamily}`, item.width)
-  return Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
-}
+const measureCustomTextHeight = (item: Pick<CustomTextElement, 'html' | 'text' | 'width' | 'fontSize' | 'fontFamily' | 'lineHeight' | 'letterSpacing' | 'textAlign' | 'color' | 'fontStyle' | 'height'>) =>
+  Math.max(1, Math.round(item.height ?? measureCustomTextContentHeight(item)))
 
 const normalizeCustomTextBox = (
   item: CustomTextElement,
@@ -955,29 +875,54 @@ const normalizeCustomTextBox = (
   const nextWidth = Math.max(24, Math.round(patch.width ?? item.width))
   const nextFontSize = Math.max(8, Math.round(patch.fontSize ?? item.fontSize))
   const nextText = patch.text ?? item.text
+  const nextHtml = patch.html ?? item.html
   const nextFontFamily = patch.fontFamily ?? item.fontFamily
   const nextLineHeight = patch.lineHeight ?? item.lineHeight
-  const minimumHeight = measureCustomTextMinimumHeight({
+  const contentHeight = measureCustomTextContentHeight({
+    ...item,
+    ...patch,
+    html: nextHtml,
     text: nextText,
     width: nextWidth,
     fontSize: nextFontSize,
     fontFamily: nextFontFamily,
     lineHeight: nextLineHeight,
   })
-  const currentHeight = item.height || measureCustomTextHeight(item)
-  const requestedHeight = patch.height != null ? Math.round(patch.height) : options.fitHeight ? minimumHeight : currentHeight
+  const currentHeight = item.height ?? contentHeight
+  const requestedHeight = patch.height != null ? Math.round(patch.height) : options.fitHeight ? contentHeight : currentHeight
 
   return {
     ...patch,
     width: nextWidth,
     fontSize: nextFontSize,
-    height: options.fitHeight ? minimumHeight : Math.max(24, requestedHeight),
+    height: options.fitHeight ? contentHeight : Math.max(8, requestedHeight),
   }
 }
 
 const getTransformerAnchorName = (node: Konva.Node | null) => {
   if (!node || typeof node.name !== 'function') return ''
   return node.name() || ''
+}
+
+const setRichTextContentInverseScale = (node: Konva.Node) => {
+  const scaleX = node.scaleX()
+  const scaleY = node.scaleY()
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || Math.abs(scaleX) < 0.001 || Math.abs(scaleY) < 0.001) return
+  ;(node as Konva.Container)
+    .find?.('.rich-text-render-content')
+    .forEach((child) => {
+      child.scaleX(1 / scaleX)
+      child.scaleY(1 / scaleY)
+    })
+}
+
+const resetRichTextContentScale = (node: Konva.Node) => {
+  ;(node as Konva.Container)
+    .find?.('.rich-text-render-content')
+    .forEach((child) => {
+      child.scaleX(1)
+      child.scaleY(1)
+    })
 }
 
 const buildRichTextSvgDataUrl = (
@@ -998,41 +943,11 @@ const buildRichTextSvgDataUrl = (
     | 'strokeWidth'
   >,
 ) => {
-  const width = Math.max(1, Math.round(item.width))
-  const height = Math.max(1, Math.round(item.height || measureCustomTextHeight(item)))
-  const html = getSvgSafeRichTextHtml(getCustomTextHtml(item))
-  const fontStyle = item.fontStyle || ''
-  const cssFontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
-  const cssFontWeight = getCssFontWeight(fontStyle)
-  const textStroke =
-    item.strokeWidth && item.strokeColor
-      ? `-webkit-text-stroke:${item.strokeWidth}px ${item.strokeColor};paint-order:stroke fill;`
-      : ''
-  const wrapper = `
-    <div xmlns="http://www.w3.org/1999/xhtml" style="
-      width:${width}px;
-      height:${height}px;
-      box-sizing:border-box;
-      overflow:hidden;
-      color:${item.color || '#111111'};
-      font-family:${item.fontFamily || 'Arial'};
-      font-size:${item.fontSize || 28}px;
-      font-style:${cssFontStyle};
-      font-weight:${cssFontWeight};
-      line-height:${item.lineHeight || 1.1};
-      letter-spacing:${item.letterSpacing || 0}px;
-      text-align:${item.textAlign || 'left'};
-      overflow-wrap:anywhere;
-      word-break:break-word;
-      white-space:normal;
-      ${textStroke}
-    ">
-      <style>${RICH_TEXT_LAYOUT_CSS}</style>
-      ${html}
-    </div>
-  `
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${wrapper}</foreignObject></svg>`
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  return buildEditorRichTextSvgDataUrl(item, '', {
+    defaultFontFamily: 'Arial',
+    defaultFontSize: 28,
+    defaultLineHeight: 1.1,
+  })
 }
 
 const measureTownGroupHeight = (row: TownSceneRow) =>
@@ -2464,7 +2379,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                 ...item,
                 html: resolveSceneHtml(getCustomTextHtml(item)),
                 text: resolveSceneText(item.text),
-                height: item.height || measureCustomTextHeight(item),
+                height: item.height ?? measureCustomTextHeight(item),
               }),
             ]),
           )
@@ -4546,7 +4461,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                         </label>
                       <label style={{ display: 'grid', gap: 6 }}>
                         <span style={fieldLabelStyle}>Height</span>
-                        <input type="number" value={Math.round(selectedCustomText.height || measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Number(event.target.value) || selectedCustomText.height || 0 })} style={controlStyle} />
+                        <input type="number" value={Math.round(selectedCustomText.height ?? measureCustomTextHeight(selectedCustomText))} onChange={(event) => updateCustomText(selectedCustomText.id, { height: Number(event.target.value) || selectedCustomText.height || 0 })} style={controlStyle} />
                       </label>
                         <label style={{ display: 'grid', gap: 6 }}>
                           <span style={fieldLabelStyle}>Font size</span>
@@ -4875,7 +4790,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               : inlineTextEditor.target.kind === 'subhead'
                 ? Math.max(88, ((scene.subhead.fontSize || 28) + 28) * previewScale)
                 : inlineTextEditor.target.kind === 'custom-text'
-                  ? Math.max(1, Math.round(((currentLayer as CustomTextElement).height || measureCustomTextHeight(currentLayer as CustomTextElement)) * previewScale))
+                  ? Math.max(1, Math.round(((currentLayer as CustomTextElement).height ?? measureCustomTextHeight(currentLayer as CustomTextElement)) * previewScale))
                 : Math.max(96, Math.max(72, ((currentLayer.fontSize || 28) * (currentLayer.lineHeight || 1.12) * 2.4) * previewScale))
           return {
             left: stageOffsetX + currentLayer.x * previewScale,
@@ -5113,11 +5028,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }
 
   const renderCustomTextNode = (item: CustomTextElement) => {
-    const textHeight = Math.max(1, Math.round(item.height || measureCustomTextHeight(item)))
+    const textHeight = Math.max(1, Math.round(item.height ?? measureCustomTextHeight(item)))
     const rotation = item.rotation || 0
     const hidden = isLayerHidden('custom-text', item.id)
     const locked = isLayerLocked('custom-text', item.id)
     const isEditingThisText = inlineTextEditor?.mode === 'rich' && inlineTextEditor.target.kind === 'custom-text' && inlineTextEditor.target.id === item.id
+    const fallbackText = resolveSceneText(stripHtml(getCustomTextHtml(item)).replace(/\u00a0/g, ' ') || item.text)
     if (hidden) return null
 
     return (
@@ -5152,8 +5068,15 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         }}
         onContextMenu={(event) => openContextMenu(event.evt, { kind: 'custom-text', id: item.id })}
         onTransformStart={() => setIsResizingHeadline(true)}
+        onTransform={(event) => {
+          setRichTextContentInverseScale(event.target)
+        }}
         onTransformEnd={(event) => {
-          if (locked) return
+          setIsResizingHeadline(false)
+          if (locked) {
+            resetRichTextContentScale(event.target)
+            return
+          }
           const node = event.target
           const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
           const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
@@ -5163,7 +5086,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           const sizeScale = Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))
           const nextFontSize = isCorner ? Math.max(8, Math.round(item.fontSize * sizeScale)) : item.fontSize
           const nextRotation = Number(node.rotation().toFixed(1))
-          const scaledHeight = Math.max(24, Math.round((item.height || textHeight) * Math.max(Math.abs(node.scaleY()), 0.1)))
+          const scaledHeight = Math.max(8, Math.round((item.height ?? textHeight) * Math.max(Math.abs(node.scaleY()), 0.1)))
           const normalized = normalizeCustomTextBox(
             item,
             {
@@ -5175,6 +5098,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           )
           node.scaleX(1)
           node.scaleY(1)
+          resetRichTextContentScale(node)
           node.offsetX(normalized.width / 2)
           node.offsetY((normalized.height || textHeight) / 2)
           updateCustomText(item.id, {
@@ -5185,7 +5109,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
             width: normalized.width,
             rotation: nextRotation,
           })
-          setIsResizingHeadline(false)
         }}
       >
         {selectedCustomKeys.has(`custom-text:${item.id}`) ? (
@@ -5193,6 +5116,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         ) : null}
         {!isEditingThisText && customTextRenderImages[item.id] ? (
           <KonvaImage
+            name="rich-text-render-content"
             key={customTextRenderUrls[item.id] || item.id}
             image={customTextRenderImages[item.id] || undefined}
             width={item.width}
@@ -5204,9 +5128,10 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           />
         ) : !isEditingThisText ? (
           <Text
+            name="rich-text-render-content"
             width={item.width}
             height={textHeight}
-          text={resolveSceneText(item.text)}
+            text={fallbackText}
             align={item.textAlign || 'left'}
             fontFamily={item.fontFamily || 'Arial'}
             fontSize={item.fontSize}
@@ -6801,7 +6726,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
                   }
 
                   if (selection?.kind === 'custom-text') {
-                    return { ...newBox, width: Math.max(24, newBox.width), height: Math.max(24, newBox.height) }
+                    return { ...newBox, width: Math.max(24, newBox.width), height: Math.max(8, newBox.height) }
                   }
 
                   if (selection?.kind === 'custom-rect') {

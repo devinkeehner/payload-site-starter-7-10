@@ -8,11 +8,18 @@ import { Group, Image as KonvaImage, Layer, Rect, Stage, Text, Transformer } fro
 import { useAuth } from '@payloadcms/ui'
 
 import {
+  EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS,
   TEXT_ALIGNMENT_OPTIONS,
   TEXT_FONT_OPTIONS,
+  buildEditorRichTextSvgDataUrl,
   buildFontStyle,
+  convertPlainTextToEditorHtml,
   getCssFontWeight,
+  getEditorRichTextHtml,
   getFontStyleFlags,
+  measureEditorRichTextContentHeight,
+  normalizeEditorRichTextHtml,
+  stripEditorRichTextHtml,
 } from '@/components/admin/graphicsEditorShared'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import type {
@@ -229,6 +236,10 @@ function useLoadedImages(srcByID: Record<string, string | undefined>) {
         if (cancelled) return
         setImages((current) => ({ ...current, [id]: nextImage }))
       }
+      nextImage.onerror = () => {
+        if (cancelled) return
+        setImages((current) => ({ ...current, [id]: current[id] || null }))
+      }
       nextImage.src = src
     })
 
@@ -330,92 +341,37 @@ function wrapText(text: string, font: string, maxWidth: number) {
   return allLines
 }
 
-const escapeHtml = (value: string) =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-
-const stripHtml = (value: string) => {
-  if (typeof window === 'undefined') return value.replace(/<[^>]+>/g, ' ')
-  const temp = document.createElement('div')
-  temp.innerHTML = value
-  return temp.innerText || temp.textContent || ''
-}
-
-const convertPlainTextToHtml = (value: string) =>
-  value
-    .replace(/\r\n/g, '\n')
-    .split('\n')
-    .map((line) => `<p>${escapeHtml(line || ' ')}</p>`)
-    .join('')
-
-const RICH_TEXT_LAYOUT_CSS = `
-  * { box-sizing:border-box; }
-  p, div { margin: 0 0 0.45em; }
-  p:last-child, div:last-child { margin-bottom: 0; }
-  h1, h2, h3 { margin: 0 0 0.35em; line-height: 1.05; }
-  h1 { font-size: 1.45em; }
-  h2 { font-size: 1.25em; }
-  h3 { font-size: 1.1em; }
-  ul, ol { margin: 0 0 0.45em 1.2em; padding: 0; }
-  li { margin: 0 0 0.15em; }
-`
-
-const RICH_TEXT_EDITOR_SCOPE_CSS = `
-  [data-rich-text-editor="true"] * { box-sizing:border-box; }
-  [data-rich-text-editor="true"] p,
-  [data-rich-text-editor="true"] div { margin: 0 0 0.45em; }
-  [data-rich-text-editor="true"] p:last-child,
-  [data-rich-text-editor="true"] div:last-child { margin-bottom: 0; }
-  [data-rich-text-editor="true"] h1,
-  [data-rich-text-editor="true"] h2,
-  [data-rich-text-editor="true"] h3 { margin: 0 0 0.35em; line-height: 1.05; }
-  [data-rich-text-editor="true"] h1 { font-size: 1.45em; }
-  [data-rich-text-editor="true"] h2 { font-size: 1.25em; }
-  [data-rich-text-editor="true"] h3 { font-size: 1.1em; }
-  [data-rich-text-editor="true"] ul,
-  [data-rich-text-editor="true"] ol { margin: 0 0 0.45em 1.2em; padding: 0; }
-  [data-rich-text-editor="true"] li { margin: 0 0 0.15em; }
-`
+const stripHtml = stripEditorRichTextHtml
+const convertPlainTextToHtml = convertPlainTextToEditorHtml
+const RICH_TEXT_EDITOR_SCOPE_CSS = EDITOR_RICH_TEXT_EDITOR_SCOPE_CSS
 
 const RICH_TEXT_BLOCK_SELECTOR = 'p, div, h1, h2, h3, li'
 
-const normalizeRichTextHtml = (value: string) => {
-  const fallback = convertPlainTextToHtml(stripHtml(value || '').replace(/\u00a0/g, ' ') || 'Text')
-  if (typeof window === 'undefined') return fallback
+const normalizeRichTextHtml = normalizeEditorRichTextHtml
 
-  const temp = document.createElement('div')
-  temp.innerHTML = value?.trim() || fallback
-
-  temp.querySelectorAll('div').forEach((node) => {
-    const paragraph = document.createElement('p')
-    while (node.firstChild) paragraph.appendChild(node.firstChild)
-    node.replaceWith(paragraph)
-  })
-
-  const hasSupportedBlocks = temp.querySelector('p, h1, h2, h3, ul, ol')
-  if (!hasSupportedBlocks) {
-    const wrapped = document.createElement('p')
-    wrapped.innerHTML = temp.innerHTML.trim() || escapeHtml('Text')
-    temp.innerHTML = ''
-    temp.appendChild(wrapped)
-  }
-
-  const normalized = temp.innerHTML.trim()
-  return normalized || fallback
+const setRichTextContentInverseScale = (node: Konva.Node) => {
+  const scaleX = node.scaleX()
+  const scaleY = node.scaleY()
+  if (!Number.isFinite(scaleX) || !Number.isFinite(scaleY) || Math.abs(scaleX) < 0.001 || Math.abs(scaleY) < 0.001) return
+  ;(node as Konva.Container)
+    .find?.('.rich-text-render-content')
+    .forEach((child) => {
+      child.scaleX(1 / scaleX)
+      child.scaleY(1 / scaleY)
+    })
 }
 
-const getSvgSafeRichTextHtml = (value: string) =>
-  value
-    .replace(/&nbsp;/gi, '&#160;')
-    .replace(/\u00a0/g, '&#160;')
-    .replace(/<br\s*>/gi, '<br />')
+const resetRichTextContentScale = (node: Konva.Node) => {
+  ;(node as Konva.Container)
+    .find?.('.rich-text-render-content')
+    .forEach((child) => {
+      child.scaleX(1)
+      child.scaleY(1)
+    })
+}
 
 const getTextLayerHtml = (layer: GraphicTextLayer, fallbackText: string) =>
-  layer.html?.trim() ? layer.html : convertPlainTextToHtml(layer.text || fallbackText)
+  getEditorRichTextHtml(layer, fallbackText)
 
 const isRichTextBlockElement = (node: Node | null): node is HTMLElement =>
   node instanceof HTMLElement && /^(P|DIV|H1|H2|H3|LI)$/i.test(node.tagName)
@@ -439,45 +395,25 @@ const selectionMatchesWholeBlock = (range: Range, block: HTMLElement) => {
 }
 
 const measureRichTextLayerHeight = (layer: GraphicTextLayer, fallbackText: string) => {
-  const fontSize = layer.fontSize || 28
-  const fontFamily = layer.fontFamily || 'Georgia, Times New Roman, serif'
-  const lineHeight = layer.lineHeight || 1.08
-  const lines = wrapText((layer.text || fallbackText || 'Text').replace(/\u00a0/g, ' '), `${fontSize}px ${fontFamily}`, layer.width)
-  const measuredHeight = Math.max(fontSize + 8, Math.ceil(lines.length * fontSize * lineHeight))
-  return Math.max(layer.height || 0, measuredHeight)
+  return Math.max(
+    1,
+    Math.round(
+      layer.height ??
+        measureEditorRichTextContentHeight(layer, fallbackText, {
+          defaultFontFamily: 'Georgia, Times New Roman, serif',
+          defaultFontSize: 28,
+          defaultLineHeight: 1.08,
+        }),
+    ),
+  )
 }
 
 const buildRichTextSvgDataUrl = (layer: GraphicTextLayer, fallbackText: string) => {
-  const width = Math.max(1, Math.round(layer.width))
-  const height = Math.max(1, Math.round(measureRichTextLayerHeight(layer, fallbackText)))
-  const html = getSvgSafeRichTextHtml(getTextLayerHtml(layer, fallbackText))
-  const fontStyle = layer.fontStyle || ''
-  const cssFontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
-  const cssFontWeight = getCssFontWeight(fontStyle)
-  const wrapper = `
-    <div xmlns="http://www.w3.org/1999/xhtml" style="
-      width:${width}px;
-      height:${height}px;
-      box-sizing:border-box;
-      overflow:hidden;
-      color:${layer.color || '#111111'};
-      font-family:${layer.fontFamily || 'Georgia, Times New Roman, serif'};
-      font-size:${layer.fontSize || 28}px;
-      font-style:${cssFontStyle};
-      font-weight:${cssFontWeight};
-      line-height:${layer.lineHeight || 1.08};
-      letter-spacing:${layer.letterSpacing || 0}px;
-      text-align:${layer.align || 'left'};
-      overflow-wrap:anywhere;
-      word-break:break-word;
-      white-space:normal;
-    ">
-      <style>${RICH_TEXT_LAYOUT_CSS}</style>
-      ${html}
-    </div>
-  `
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject width="100%" height="100%">${wrapper}</foreignObject></svg>`
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+  return buildEditorRichTextSvgDataUrl(layer, fallbackText, {
+    defaultFontFamily: 'Georgia, Times New Roman, serif',
+    defaultFontSize: 28,
+    defaultLineHeight: 1.08,
+  })
 }
 
 function fitHeadlineText(text: string, layer: GraphicTextLayer, fitScale = 1) {
@@ -1199,6 +1135,17 @@ export const GraphicTemplateEditor: React.FC = () => {
     }
   }
 
+  const fitTextLayerToContent = (target: EditableTextTarget) => {
+    const layer = resolveTextLayer(target)
+    updateTextLayer(target, {
+      height: measureEditorRichTextContentHeight(layer, getRenderedTextValue(target), {
+        defaultFontFamily: 'Georgia, Times New Roman, serif',
+        defaultFontSize: 28,
+        defaultLineHeight: 1.08,
+      }),
+    })
+  }
+
   const getRenderedTextValue = (target: EditableTextTarget): string => {
     const layer = resolveTextLayer(target)
     if (typeof layer.text === 'string' && layer.text.length > 0) return layer.text
@@ -1226,6 +1173,25 @@ export const GraphicTemplateEditor: React.FC = () => {
     richTextEditorSeedRef.current = null
     setInlineTextEditor(null)
   }
+
+  useEffect(() => {
+    if (!selection || (selection.kind !== 'headline' && selection.kind !== 'repName')) return
+    const transformer = transformerRef.current
+    if (!transformer) return
+    const sideAnchors = transformer.find('._anchor').filter((anchor) => {
+      const name = typeof anchor.name === 'function' ? anchor.name() : ''
+      return name === 'middle-left' || name === 'middle-right' || name === 'top-center' || name === 'bottom-center'
+    })
+
+    sideAnchors.forEach((anchor) => {
+      anchor.off('dblclick.fittext dbltap.fittext')
+      anchor.on('dblclick.fittext dbltap.fittext', () => fitTextLayerToContent(selection))
+    })
+
+    return () => {
+      sideAnchors.forEach((anchor) => anchor.off('dblclick.fittext dbltap.fittext'))
+    }
+  }, [scene, selection])
 
   const removeHeadshot = (id: string) => {
     setScene((current) => {
@@ -2646,28 +2612,47 @@ export const GraphicTemplateEditor: React.FC = () => {
                 }}
                 onDragEnd={(event) => updateRepName('primary', { x: event.target.x(), y: event.target.y() })}
                 onDblClick={() => beginInlineTextEdit({ kind: 'repName', role: 'primary' })}
+                onTransform={(event) => {
+                  setRichTextContentInverseScale(event.target)
+                }}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const nextWidth = clamp(
-                    Math.round(scene.repNameLayers.primary.width * node.scaleX()),
-                    REP_NAME_WIDTH_LIMITS.min,
-                    REP_NAME_WIDTH_LIMITS.max,
-                  )
+                  const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+                  const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+                  const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+                  const isCorner = !isHorizontalEdge && !isVerticalEdge
+                  const currentHeight = measureRichTextLayerHeight(scene.repNameLayers.primary, primaryRepName)
+                  const nextWidth = isVerticalEdge
+                    ? scene.repNameLayers.primary.width
+                    : clamp(
+                        Math.round(scene.repNameLayers.primary.width * Math.max(Math.abs(node.scaleX()), 0.1)),
+                        REP_NAME_WIDTH_LIMITS.min,
+                        REP_NAME_WIDTH_LIMITS.max,
+                      )
+                  const nextHeight = isHorizontalEdge
+                    ? currentHeight
+                    : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
+                  const nextFontSize = isCorner
+                    ? clamp(Math.round((scene.repNameLayers.primary.fontSize || 28) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 160)
+                    : scene.repNameLayers.primary.fontSize
                   node.scaleX(1)
                   node.scaleY(1)
-                  updateRepName('primary', { x: node.x(), y: node.y(), width: nextWidth })
+                  resetRichTextContentScale(node)
+                  updateRepName('primary', { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, fontSize: nextFontSize })
                 }}
               >
                 {!isEditingPrimaryRepName && richTextRenderImages.primary ? (
                   <KonvaImage
+                    name="rich-text-render-content"
                     image={richTextRenderImages.primary}
                     width={scene.repNameLayers.primary.width}
                     height={measureRichTextLayerHeight(scene.repNameLayers.primary, primaryRepName)}
                   />
                 ) : !isEditingPrimaryRepName ? (
                   <Text
+                    name="rich-text-render-content"
                     width={scene.repNameLayers.primary.width}
-                    text={scene.repNameLayers.primary.text || primaryRepName}
+                    text={stripHtml(getTextLayerHtml(scene.repNameLayers.primary, primaryRepName)) || primaryRepName}
                     fontFamily={scene.repNameLayers.primary.fontFamily || 'Georgia, Times New Roman, serif'}
                     fontSize={Math.max(22, Math.round((scene.repNameLayers.primary.fontSize || 28) * contentFitScale))}
                     fill={scene.repNameLayers.primary.color || '#aa2426'}
@@ -2696,28 +2681,47 @@ export const GraphicTemplateEditor: React.FC = () => {
                   }}
                   onDragEnd={(event) => updateRepName('secondary', { x: event.target.x(), y: event.target.y() })}
                   onDblClick={() => beginInlineTextEdit({ kind: 'repName', role: 'secondary' })}
+                  onTransform={(event) => {
+                    setRichTextContentInverseScale(event.target)
+                  }}
                   onTransformEnd={(event) => {
                     const node = event.target
-                    const nextWidth = clamp(
-                      Math.round(scene.repNameLayers.secondary.width * node.scaleX()),
-                      REP_NAME_WIDTH_LIMITS.min,
-                      REP_NAME_WIDTH_LIMITS.max,
-                    )
+                    const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+                    const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+                    const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+                    const isCorner = !isHorizontalEdge && !isVerticalEdge
+                    const currentHeight = measureRichTextLayerHeight(scene.repNameLayers.secondary, secondaryRepName)
+                    const nextWidth = isVerticalEdge
+                      ? scene.repNameLayers.secondary.width
+                      : clamp(
+                          Math.round(scene.repNameLayers.secondary.width * Math.max(Math.abs(node.scaleX()), 0.1)),
+                          REP_NAME_WIDTH_LIMITS.min,
+                          REP_NAME_WIDTH_LIMITS.max,
+                        )
+                    const nextHeight = isHorizontalEdge
+                      ? currentHeight
+                      : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
+                    const nextFontSize = isCorner
+                      ? clamp(Math.round((scene.repNameLayers.secondary.fontSize || 26) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 160)
+                      : scene.repNameLayers.secondary.fontSize
                     node.scaleX(1)
                     node.scaleY(1)
-                    updateRepName('secondary', { x: node.x(), y: node.y(), width: nextWidth })
+                    resetRichTextContentScale(node)
+                    updateRepName('secondary', { x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, fontSize: nextFontSize })
                   }}
                 >
                   {!isEditingSecondaryRepName && richTextRenderImages.secondary ? (
                     <KonvaImage
+                      name="rich-text-render-content"
                       image={richTextRenderImages.secondary}
                       width={scene.repNameLayers.secondary.width}
                       height={measureRichTextLayerHeight(scene.repNameLayers.secondary, secondaryRepName)}
                     />
                   ) : !isEditingSecondaryRepName ? (
                     <Text
+                      name="rich-text-render-content"
                       width={scene.repNameLayers.secondary.width}
-                      text={scene.repNameLayers.secondary.text || secondaryRepName}
+                      text={stripHtml(getTextLayerHtml(scene.repNameLayers.secondary, secondaryRepName)) || secondaryRepName}
                       fontFamily={scene.repNameLayers.secondary.fontFamily || 'Georgia, Times New Roman, serif'}
                       fontSize={Math.max(20, Math.round((scene.repNameLayers.secondary.fontSize || 26) * contentFitScale))}
                       fill={scene.repNameLayers.secondary.color || '#aa2426'}
@@ -2743,19 +2747,36 @@ export const GraphicTemplateEditor: React.FC = () => {
                   openCanvasMenu(event.evt, { kind: 'headline' })
                 }}
                 onDragEnd={(event) => updateHeadline({ x: event.target.x(), y: event.target.y() })}
+                onTransform={(event) => {
+                  setRichTextContentInverseScale(event.target)
+                }}
                 onTransformEnd={(event) => {
                   const node = event.target
-                  const nextWidth = clamp(Math.round(scene.headlineLayer.width * node.scaleX()), TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max)
+                  const activeAnchor = transformerRef.current?.getActiveAnchor() || ''
+                  const isHorizontalEdge = activeAnchor === 'middle-left' || activeAnchor === 'middle-right'
+                  const isVerticalEdge = activeAnchor === 'top-center' || activeAnchor === 'bottom-center'
+                  const isCorner = !isHorizontalEdge && !isVerticalEdge
+                  const currentHeight = measureRichTextLayerHeight(scene.headlineLayer, headlineText)
+                  const nextWidth = isVerticalEdge
+                    ? scene.headlineLayer.width
+                    : clamp(Math.round(scene.headlineLayer.width * Math.max(Math.abs(node.scaleX()), 0.1)), TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max)
+                  const nextHeight = isHorizontalEdge
+                    ? currentHeight
+                    : Math.max(8, Math.round(currentHeight * Math.max(Math.abs(node.scaleY()), 0.1)))
+                  const nextFontSize = isCorner
+                    ? clamp(Math.round((scene.headlineLayer.fontSize || 38) * Math.max(0.1, Math.min(Math.abs(node.scaleX()), Math.abs(node.scaleY())))), 8, 180)
+                    : scene.headlineLayer.fontSize
                   node.scaleX(1)
                   node.scaleY(1)
-                  updateHeadline({ x: node.x(), y: node.y(), width: nextWidth })
+                  resetRichTextContentScale(node)
+                  updateHeadline({ x: node.x(), y: node.y(), width: nextWidth, height: nextHeight, fontSize: nextFontSize })
                 }}
               >
                 <Rect
                   x={-12}
                   y={-8}
                   width={scene.headlineLayer.width + 24}
-                  height={(scene.headlineLayer.height || 200) + 16}
+                  height={(scene.headlineLayer.height ?? measureRichTextLayerHeight(scene.headlineLayer, headlineText)) + 16}
                   cornerRadius={18}
                   fill={selection?.kind === 'headline' ? 'rgba(125, 211, 252, 0.08)' : 'transparent'}
                   stroke={selection?.kind === 'headline' ? '#7dd3fc' : 'transparent'}
@@ -2763,13 +2784,15 @@ export const GraphicTemplateEditor: React.FC = () => {
                 />
                 {!isEditingHeadline && richTextRenderImages.headline ? (
                   <KonvaImage
+                    name="rich-text-render-content"
                     image={richTextRenderImages.headline}
                     width={scene.headlineLayer.width}
-                    height={Math.max(scene.headlineLayer.height || 200, measureRichTextLayerHeight(scene.headlineLayer, headlineText))}
+                    height={scene.headlineLayer.height ?? measureRichTextLayerHeight(scene.headlineLayer, headlineText)}
                     onDblClick={() => beginInlineTextEdit({ kind: 'headline' })}
                   />
                 ) : !isEditingHeadline ? (
                   <Text
+                    name="rich-text-render-content"
                     width={scene.headlineLayer.width}
                     text={fittedHeadline.lines.join('\n')}
                     fontFamily={scene.headlineLayer.fontFamily || 'Georgia, Times New Roman, serif'}
@@ -2790,9 +2813,9 @@ export const GraphicTemplateEditor: React.FC = () => {
                 flipEnabled={false}
                 enabledAnchors={
                   selection?.kind === 'headline'
-                    ? ['middle-left', 'middle-right']
+                    ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                     : selection?.kind === 'repName'
-                      ? ['middle-left', 'middle-right']
+                      ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
                       : selection?.kind === 'image'
                         ? ['top-left', 'top-right', 'bottom-left', 'bottom-right']
                       : selection?.kind === 'headshot'
@@ -2808,7 +2831,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                     return {
                       ...newBox,
                       width: clamp(newBox.width, TITLE_WIDTH_LIMITS.min, TITLE_WIDTH_LIMITS.max),
-                      height: scene.headlineLayer.height || 200,
+                      height: Math.max(8, newBox.height),
                     }
                   }
 
@@ -2816,7 +2839,7 @@ export const GraphicTemplateEditor: React.FC = () => {
                     return {
                       ...newBox,
                       width: clamp(newBox.width, REP_NAME_WIDTH_LIMITS.min, REP_NAME_WIDTH_LIMITS.max),
-                      height: newBox.height,
+                      height: Math.max(8, newBox.height),
                     }
                   }
 
