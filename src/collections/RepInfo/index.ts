@@ -174,6 +174,26 @@ export const RepInfo: CollectionConfig = {
       required: false,
     },
     {
+      name: 'postTakeawaysPlacement',
+      label: 'Post Takeaways Display',
+      type: 'select',
+      defaultValue: 'featured',
+      options: [
+        {
+          label: 'Featured near top',
+          value: 'featured',
+        },
+        {
+          label: 'Inline at bottom',
+          value: 'footer',
+        },
+      ],
+      admin: {
+        description:
+          'Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing.',
+      },
+    },
+    {
       name: 'facebookConnection',
       label: 'Facebook Connection',
       type: 'ui',

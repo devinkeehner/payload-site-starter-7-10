@@ -2432,6 +2432,10 @@ export interface RepInfo {
   flickrTag?: string | null;
   flickrURL?: string | null;
   /**
+   * Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing.
+   */
+  postTakeawaysPlacement?: ('featured' | 'footer') | null;
+  /**
    * Numeric page ID selected through the Facebook connection flow.
    */
   facebookPageId?: string | null;
@@ -4483,6 +4487,7 @@ export interface RepInfoSelect<T extends boolean = true> {
   x?: T;
   flickrTag?: T;
   flickrURL?: T;
+  postTakeawaysPlacement?: T;
   facebookPageId?: T;
   facebookPageName?: T;
   facebookPageAccessToken?: T;
