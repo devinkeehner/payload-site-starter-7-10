@@ -1249,6 +1249,33 @@ const buildCircularHeadshotDataUrl = async ({
   return canvas.toDataURL('image/png')
 }
 
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+    reader.onerror = () => reject(reader.error || new Error('Failed to read image data'))
+    reader.readAsDataURL(blob)
+  })
+
+const fetchImageAsDataUrl = async (url: string | undefined | null) => {
+  const source = proxiedUrl(url) || url
+  if (!source) return null
+  const response = await fetch(source, { credentials: 'include' })
+  if (!response.ok) return null
+  return blobToDataUrl(await response.blob())
+}
+
+const buildSceneImageDataUrls = async (side: MailSide, scene: ExperimentalTownScene) => {
+  const entries = await Promise.all(
+    scene.customImages.map(async (item) => [`${side}:${item.id}`, await fetchImageAsDataUrl(item.sourceUrl)] as const),
+  )
+  const dataUrls: Record<string, string> = {}
+  entries.forEach(([key, value]) => {
+    if (value) dataUrls[key] = value
+  })
+  return dataUrls
+}
+
 const buildDesignTitle = (tenantName: string | undefined | null, fallback: string) =>
   tenantName ? `${tenantName} Town Graphic` : fallback || 'Town Graphic'
 
@@ -4109,6 +4136,20 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
+      const [frontCircularHeadshotDataUrl, backCircularHeadshotDataUrl, frontImageDataUrls, backImageDataUrls] = await Promise.all([
+        buildCircularHeadshotDataUrl({
+          image: headshotImage,
+          placement: headshotPlacement,
+          size: bundle.frontScene.headshot.size,
+        }),
+        buildCircularHeadshotDataUrl({
+          image: headshotImage,
+          placement: backHeadshotPlacement,
+          size: bundle.backScene.headshot.size,
+        }),
+        buildSceneImageDataUrls('front', bundle.frontScene),
+        buildSceneImageDataUrls('back', bundle.backScene),
+      ])
 
       const response = await fetch('/api/graphics-editor-mail/export-all', {
         method: 'POST',
@@ -4118,6 +4159,12 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           mode: 'single-print-pdf',
           filenameBase,
           bundle,
+          imageDataUrls: {
+            ...frontImageDataUrls,
+            ...backImageDataUrls,
+          },
+          frontCircularHeadshotDataUrl,
+          backCircularHeadshotDataUrl,
           headshotUrl: readRawMediaUrl(townData?.standardMedia?.mobileHeadshot) || null,
         }),
       })

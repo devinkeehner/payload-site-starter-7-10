@@ -152,6 +152,9 @@ type RequestBody = {
   bundle?: unknown
   downloadName?: string
   filenameBase?: string
+  imageDataUrls?: Record<string, string | null | undefined>
+  frontCircularHeadshotDataUrl?: string | null
+  backCircularHeadshotDataUrl?: string | null
   headshotUrl?: string | null
   mode?: 'export-all' | 'single-print-pdf'
   tenantOptions?: TenantSelectOption[]
@@ -264,7 +267,13 @@ type HeadshotElement = {
 }
 
 type CustomRectElement = {
+  dashStyle?: 'solid' | 'dashed' | 'dotted'
   id: string
+  fillEnabled?: boolean
+  rotation?: number
+  shapeType?: 'rect' | 'circle' | 'line'
+  strokeColor?: string
+  strokeWidth?: number
   x: number
   y: number
   width: number
@@ -1294,6 +1303,13 @@ const drawPdfImageBytes = async ({
   })
 }
 
+const dataUrlToBuffer = (value: string | null | undefined) => {
+  if (!value) return null
+  const match = value.match(/^data:[^;]+;base64,(.+)$/)
+  if (!match?.[1]) return null
+  return Buffer.from(match[1], 'base64')
+}
+
 const buildTransformedImageBuffer = async ({
   assetBytes,
   width,
@@ -1416,16 +1432,20 @@ const buildCircularHeadshotBuffer = async ({
 
 const buildPdfBufferFromSceneBundle = async ({
   bundle,
+  circularHeadshotDataUrls,
   headshotBytes,
+  imageDataUrls,
   origin,
 }: {
   bundle: MailSceneBundle
+  circularHeadshotDataUrls?: { back?: string | null; front?: string | null }
   headshotBytes: Buffer | null
+  imageDataUrls?: Record<string, string | null | undefined>
   origin: string
 }) => {
   const pdf = await PDFDocument.create()
 
-  const drawScenePage = async (scene: ExperimentalTownScene, options: { includePlaceholder: boolean }) => {
+  const drawScenePage = async (scene: ExperimentalTownScene, options: { includePlaceholder: boolean; side: 'front' | 'back' }) => {
     const page = pdf.addPage([STAGE_WIDTH, STAGE_HEIGHT])
     const townLabelFont = await pdf.embedFont(StandardFonts.HelveticaBold)
 
@@ -1446,9 +1466,12 @@ const buildPdfBufferFromSceneBundle = async ({
     })
 
     for (const item of scene.customImages) {
-      const absoluteUrl = resolveAbsoluteUrl(item.sourceUrl, origin)
-      if (!absoluteUrl) continue
-      const assetBytes = await fetchBuffer(absoluteUrl)
+      let assetBytes = dataUrlToBuffer(imageDataUrls?.[`${options.side}:${item.id}`] || imageDataUrls?.[item.id])
+      if (!assetBytes) {
+        const absoluteUrl = resolveAbsoluteUrl(item.sourceUrl, origin)
+        if (!absoluteUrl) continue
+        assetBytes = await fetchBuffer(absoluteUrl)
+      }
       if (!assetBytes) continue
       const transformed = await buildTransformedImageBuffer({
         assetBytes,
@@ -1468,8 +1491,49 @@ const buildPdfBufferFromSceneBundle = async ({
     }
 
     for (const item of scene.customRects) {
-      const rectBytes = await buildRectanglePngBuffer({ width: item.width, height: item.height, color: item.fill })
+      const shapeType = item.shapeType || 'rect'
+      const strokeWidth = item.strokeWidth || 0
+      const strokeColor = colorToRgb(item.strokeColor || item.fill || '#111827')
+      const dashArray = item.dashStyle === 'dashed' ? [16, 10] : item.dashStyle === 'dotted' ? [2, 9] : undefined
+      if (shapeType === 'line') {
+        const angle = ((item.rotation || 0) * Math.PI) / 180
+        const deltaX = item.width * Math.cos(angle) - item.height * Math.sin(angle)
+        const deltaY = item.width * Math.sin(angle) + item.height * Math.cos(angle)
+        page.drawLine({
+          start: { x: item.x, y: STAGE_HEIGHT - item.y },
+          end: { x: item.x + deltaX, y: STAGE_HEIGHT - (item.y + deltaY) },
+          thickness: Math.max(1, strokeWidth || 8),
+          color: strokeColor,
+          dashArray,
+        })
+        continue
+      }
+
+      if (shapeType === 'circle') {
+        page.drawEllipse({
+          x: item.x + item.width / 2,
+          y: STAGE_HEIGHT - item.y - item.height / 2,
+          xScale: Math.max(1, Math.abs(item.width) / 2),
+          yScale: Math.max(1, Math.abs(item.height) / 2),
+          color: item.fillEnabled === false ? undefined : colorToRgb(item.fill),
+          borderColor: strokeWidth ? strokeColor : undefined,
+          borderWidth: strokeWidth || undefined,
+        })
+        continue
+      }
+
+      const rectBytes = await buildRectanglePngBuffer({ width: item.width, height: item.height, color: item.fillEnabled === false ? '#ffffff' : item.fill })
       await drawPdfImageBytes({ doc: pdf, page, assetBytes: rectBytes, x: item.x, y: item.y, width: item.width, height: item.height })
+      if (strokeWidth) {
+        page.drawRectangle({
+          x: item.x,
+          y: STAGE_HEIGHT - item.y - item.height,
+          width: item.width,
+          height: item.height,
+          borderColor: strokeColor,
+          borderWidth: strokeWidth,
+        })
+      }
     }
 
     for (const item of scene.customTexts) {
@@ -1619,7 +1683,9 @@ const buildPdfBufferFromSceneBundle = async ({
       color: scene.footer.color,
     })
 
-    const circularHeadshotBuffer = await buildCircularHeadshotBuffer({ imageBytes: headshotBytes, scene })
+    const circularHeadshotBuffer =
+      dataUrlToBuffer(options.side === 'front' ? circularHeadshotDataUrls?.front : circularHeadshotDataUrls?.back) ||
+      await buildCircularHeadshotBuffer({ imageBytes: headshotBytes, scene })
     if (circularHeadshotBuffer) {
       await drawPdfImageBytes({
         doc: pdf,
@@ -1645,21 +1711,25 @@ const buildPdfBufferFromSceneBundle = async ({
     }
   }
 
-  await drawScenePage(bundle.frontScene, { includePlaceholder: true })
-  await drawScenePage(bundle.backScene, { includePlaceholder: false })
+  await drawScenePage(bundle.frontScene, { includePlaceholder: true, side: 'front' })
+  await drawScenePage(bundle.backScene, { includePlaceholder: false, side: 'back' })
   return Buffer.from(await pdf.save())
 }
 
 const buildPrintPdfBufferFromSceneBundle = async ({
   bundle,
+  circularHeadshotDataUrls,
   headshotBytes,
+  imageDataUrls,
   origin,
 }: {
   bundle: MailSceneBundle
+  circularHeadshotDataUrls?: { back?: string | null; front?: string | null }
   headshotBytes: Buffer | null
+  imageDataUrls?: Record<string, string | null | undefined>
   origin: string
 }) => {
-  const scenePdfBuffer = await buildPdfBufferFromSceneBundle({ bundle, headshotBytes, origin })
+  const scenePdfBuffer = await buildPdfBufferFromSceneBundle({ bundle, circularHeadshotDataUrls, headshotBytes, imageDataUrls, origin })
   const pdf = await PDFDocument.create()
   const [frontPage, backPage] = await pdf.embedPdf(scenePdfBuffer, [0, 1])
   if (!frontPage || !backPage) throw new Error('Failed to render front/back mailer pages')
@@ -1846,7 +1916,6 @@ const runMailExportJob = async ({
   requestedTemplateID?: string
 }) => {
   updateMailExportJob(jobID, { status: 'running' })
-  // @ts-expect-error jszip types are not exposed in this workspace
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
   const skipped: Array<{ label: string; id: string; reason: string }> = []
@@ -1865,6 +1934,7 @@ const runMailExportJob = async ({
       const pdfBuffer = await buildPdfBufferFromSceneBundle({
         bundle,
         headshotBytes,
+        imageDataUrls: undefined,
         origin,
       })
       const folderName = (slug || option.label || option.value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || option.value
@@ -1918,7 +1988,12 @@ export async function POST(req: NextRequest) {
     const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
     const pdfBuffer = await buildPrintPdfBufferFromSceneBundle({
       bundle: body.bundle,
+      circularHeadshotDataUrls: {
+        front: body.frontCircularHeadshotDataUrl || null,
+        back: body.backCircularHeadshotDataUrl || null,
+      },
       headshotBytes,
+      imageDataUrls: body.imageDataUrls,
       origin,
     })
     const filenameBase =
