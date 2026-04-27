@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload, type PayloadRequest } from 'payload'
-import { PDFDocument, StandardFonts, degrees, rgb, type PDFImage } from 'pdf-lib'
+import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib'
 import sharp from 'sharp'
 
 import configPromise from '@payload-config'
@@ -153,8 +153,6 @@ type RequestBody = {
   downloadName?: string
   filenameBase?: string
   imageDataUrls?: Record<string, string | null | undefined>
-  frontSceneDataUrl?: string | null
-  backSceneDataUrl?: string | null
   frontCircularHeadshotDataUrl?: string | null
   backCircularHeadshotDataUrl?: string | null
   headshotUrl?: string | null
@@ -1347,48 +1345,6 @@ const dataUrlToBuffer = (value: string | null | undefined) => {
   return Buffer.from(match[1], 'base64')
 }
 
-const embedImageDataUrl = async (doc: PDFDocument, value: string | null | undefined) => {
-  const bytes = dataUrlToBuffer(value)
-  if (!bytes) return null
-  const hex = bytes.subarray(0, 8).toString('hex')
-  if (hex.startsWith('89504e470d0a1a0a')) return doc.embedPng(bytes)
-  if (hex.startsWith('ffd8ff')) return doc.embedJpg(bytes)
-  return null
-}
-
-const buildPrintPdfBufferFromSceneSnapshots = async ({
-  backSceneDataUrl,
-  frontSceneDataUrl,
-}: {
-  backSceneDataUrl: string
-  frontSceneDataUrl: string
-}) => {
-  const pdf = await PDFDocument.create()
-  const frontImage = await embedImageDataUrl(pdf, frontSceneDataUrl)
-  const backImage = await embedImageDataUrl(pdf, backSceneDataUrl)
-  if (!frontImage || !backImage) throw new Error('Failed to read rendered scene snapshots')
-
-  const drawImposedImage = (image: PDFImage) => {
-    const page = pdf.addPage([LETTER_WIDTH, LETTER_HEIGHT])
-    page.drawImage(image, {
-      x: PRINT_MARGIN,
-      y: PRINT_MARGIN + PRINT_SLOT_HEIGHT + PRINT_GAP,
-      width: PRINT_SLOT_WIDTH,
-      height: PRINT_SLOT_HEIGHT,
-    })
-    page.drawImage(image, {
-      x: PRINT_MARGIN,
-      y: PRINT_MARGIN,
-      width: PRINT_SLOT_WIDTH,
-      height: PRINT_SLOT_HEIGHT,
-    })
-  }
-
-  drawImposedImage(frontImage)
-  drawImposedImage(backImage)
-  return Buffer.from(await pdf.save())
-}
-
 const buildTransformedImageBuffer = async ({
   assetBytes,
   width,
@@ -2116,26 +2072,18 @@ export async function POST(req: NextRequest) {
     }
 
     const origin = req.nextUrl.origin
-    const pdfBuffer =
-      body.frontSceneDataUrl && body.backSceneDataUrl
-        ? await buildPrintPdfBufferFromSceneSnapshots({
-            frontSceneDataUrl: body.frontSceneDataUrl,
-            backSceneDataUrl: body.backSceneDataUrl,
-          })
-        : await (async () => {
-            const headshotUrl = typeof body.headshotUrl === 'string' ? resolveAbsoluteUrl(body.headshotUrl, origin) : null
-            const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
-            return buildPrintPdfBufferFromSceneBundle({
-              bundle: body.bundle as MailSceneBundle,
-              circularHeadshotDataUrls: {
-                front: body.frontCircularHeadshotDataUrl || null,
-                back: body.backCircularHeadshotDataUrl || null,
-              },
-              headshotBytes,
-              imageDataUrls: body.imageDataUrls,
-              origin,
-            })
-          })()
+    const headshotUrl = typeof body.headshotUrl === 'string' ? resolveAbsoluteUrl(body.headshotUrl, origin) : null
+    const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
+    const pdfBuffer = await buildPrintPdfBufferFromSceneBundle({
+      bundle: body.bundle,
+      circularHeadshotDataUrls: {
+        front: body.frontCircularHeadshotDataUrl || null,
+        back: body.backCircularHeadshotDataUrl || null,
+      },
+      headshotBytes,
+      imageDataUrls: body.imageDataUrls,
+      origin,
+    })
     const filenameBase =
       (body.filenameBase || body.downloadName || 'town-graphic')
         .toLowerCase()
