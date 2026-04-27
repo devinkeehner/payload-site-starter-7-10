@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto'
 
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload, type PayloadRequest } from 'payload'
-import { PDFDocument, StandardFonts, degrees, rgb } from 'pdf-lib'
+import { PDFDocument, StandardFonts, degrees, rgb, type PDFImage } from 'pdf-lib'
 import sharp from 'sharp'
 
 import configPromise from '@payload-config'
@@ -153,6 +153,8 @@ type RequestBody = {
   downloadName?: string
   filenameBase?: string
   imageDataUrls?: Record<string, string | null | undefined>
+  frontSceneDataUrl?: string | null
+  backSceneDataUrl?: string | null
   frontCircularHeadshotDataUrl?: string | null
   backCircularHeadshotDataUrl?: string | null
   headshotUrl?: string | null
@@ -286,6 +288,7 @@ type CustomTextElement = {
   x: number
   y: number
   width: number
+  height?: number
   rotation?: number
   text: string
   fontSize: number
@@ -293,6 +296,7 @@ type CustomTextElement = {
   fontFamily?: string
   fontStyle?: string
   lineHeight?: number
+  textAlign?: 'left' | 'center' | 'right'
   textDecoration?: string
 }
 
@@ -326,6 +330,14 @@ type TownSceneRow = {
   textColor: string
 }
 
+type SceneLayerItem = {
+  group?: 'built-in' | 'custom'
+  hidden?: boolean
+  id: string
+  kind: 'custom-image' | 'custom-rect' | 'custom-text' | string
+  order: number
+}
+
 type ExperimentalTownScene = {
   kind: string
   backgroundMediaID: string | null
@@ -337,6 +349,7 @@ type ExperimentalTownScene = {
   customImages: CustomImageElement[]
   customRects: CustomRectElement[]
   customTexts: CustomTextElement[]
+  layers?: SceneLayerItem[]
   townColumns: 1 | 2
   townRows: TownSceneRow[]
 }
@@ -1176,11 +1189,18 @@ const mergeSceneWithFreshData = (savedScene: ExperimentalTownScene | null | unde
   })
 }
 
-const colorToRgb = (value: string, fallback = '#000000') => {
-  const normalized = (value || fallback).trim()
-  const match = normalized.match(/^#?([0-9a-f]{6})$/i)
-  if (!match?.[1]) return rgb(0, 0, 0)
+const normalizeHexColor = (value: string | null | undefined, fallback = '#000000'): string => {
+  const raw = (value || fallback).trim()
+  if (raw.toLowerCase() === 'transparent') return '00000000'
+  const match = raw.match(/^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i)
+  if (!match?.[1]) return fallback === '#000000' ? '000000' : normalizeHexColor(fallback, '#000000')
   const hex = match[1]
+  if (hex.length === 3) return hex.split('').map((char) => `${char}${char}`).join('')
+  return hex
+}
+
+const colorToRgb = (value: string, fallback = '#000000') => {
+  const hex = normalizeHexColor(value, fallback).slice(0, 6)
   return rgb(
     Number.parseInt(hex.slice(0, 2), 16) / 255,
     Number.parseInt(hex.slice(2, 4), 16) / 255,
@@ -1215,12 +1235,14 @@ const drawWrappedPdfText = async ({
   x,
   y,
   width,
+  height,
   fontFamily,
   fontStyle,
   fontSize,
   color,
   lineHeight,
   rotation,
+  textAlign,
 }: {
   doc: PDFDocument
   page: import('pdf-lib').PDFPage
@@ -1228,37 +1250,52 @@ const drawWrappedPdfText = async ({
   x: number
   y: number
   width: number
+  height?: number
   fontFamily?: string
   fontStyle?: string
   fontSize: number
   color: string
   lineHeight?: number
   rotation?: number
+  textAlign?: 'left' | 'center' | 'right'
 }) => {
   const font = await doc.embedFont(getPdfFontName(fontFamily, fontStyle))
   const lines = wrapTextToWidth(text || '', fontSize, width, fontFamily)
   const lineGap = fontSize * (lineHeight || 1.1)
+  const rotationDegrees = rotation || 0
+  const boxHeight = height || Math.max(fontSize, lines.length * lineGap)
+  const centerX = x + width / 2
+  const centerY = y + boxHeight / 2
+  const radians = (rotationDegrees * Math.PI) / 180
+  const cos = Math.cos(radians)
+  const sin = Math.sin(radians)
 
   lines.forEach((line, index) => {
+    const lineWidth = font.widthOfTextAtSize(line, fontSize)
+    const lineX = textAlign === 'center' ? x + (width - lineWidth) / 2 : textAlign === 'right' ? x + width - lineWidth : x
+    const lineBaselineY = y + fontSize + index * lineGap
+    const rotatedX = rotationDegrees ? centerX + (lineX - centerX) * cos - (lineBaselineY - centerY) * sin : lineX
+    const rotatedY = rotationDegrees ? centerY + (lineX - centerX) * sin + (lineBaselineY - centerY) * cos : lineBaselineY
+
     page.drawText(line, {
-      x,
-      y: STAGE_HEIGHT - y - fontSize - index * lineGap,
+      x: rotatedX,
+      y: STAGE_HEIGHT - rotatedY,
       size: fontSize,
       font,
       color: colorToRgb(color),
-      rotate: rotation ? degrees(rotation) : undefined,
+      rotate: rotationDegrees ? degrees(-rotationDegrees) : undefined,
     })
   })
 }
 
 const hexToRgbaObject = (value: string) => {
-  const normalized = (value || '').replace(/^#/, '')
-  if (!/^[0-9a-f]{6}$/i.test(normalized)) return { r: 0, g: 0, b: 0, alpha: 1 }
+  const normalized = normalizeHexColor(value)
+  const alpha = normalized.length === 8 ? Number.parseInt(normalized.slice(6, 8), 16) / 255 : 1
   return {
     r: Number.parseInt(normalized.slice(0, 2), 16),
     g: Number.parseInt(normalized.slice(2, 4), 16),
     b: Number.parseInt(normalized.slice(4, 6), 16),
-    alpha: 1,
+    alpha,
   }
 }
 
@@ -1308,6 +1345,48 @@ const dataUrlToBuffer = (value: string | null | undefined) => {
   const match = value.match(/^data:[^;]+;base64,(.+)$/)
   if (!match?.[1]) return null
   return Buffer.from(match[1], 'base64')
+}
+
+const embedImageDataUrl = async (doc: PDFDocument, value: string | null | undefined) => {
+  const bytes = dataUrlToBuffer(value)
+  if (!bytes) return null
+  const hex = bytes.subarray(0, 8).toString('hex')
+  if (hex.startsWith('89504e470d0a1a0a')) return doc.embedPng(bytes)
+  if (hex.startsWith('ffd8ff')) return doc.embedJpg(bytes)
+  return null
+}
+
+const buildPrintPdfBufferFromSceneSnapshots = async ({
+  backSceneDataUrl,
+  frontSceneDataUrl,
+}: {
+  backSceneDataUrl: string
+  frontSceneDataUrl: string
+}) => {
+  const pdf = await PDFDocument.create()
+  const frontImage = await embedImageDataUrl(pdf, frontSceneDataUrl)
+  const backImage = await embedImageDataUrl(pdf, backSceneDataUrl)
+  if (!frontImage || !backImage) throw new Error('Failed to read rendered scene snapshots')
+
+  const drawImposedImage = (image: PDFImage) => {
+    const page = pdf.addPage([LETTER_WIDTH, LETTER_HEIGHT])
+    page.drawImage(image, {
+      x: PRINT_MARGIN,
+      y: PRINT_MARGIN + PRINT_SLOT_HEIGHT + PRINT_GAP,
+      width: PRINT_SLOT_WIDTH,
+      height: PRINT_SLOT_HEIGHT,
+    })
+    page.drawImage(image, {
+      x: PRINT_MARGIN,
+      y: PRINT_MARGIN,
+      width: PRINT_SLOT_WIDTH,
+      height: PRINT_SLOT_HEIGHT,
+    })
+  }
+
+  drawImposedImage(frontImage)
+  drawImposedImage(backImage)
+  return Buffer.from(await pdf.save())
 }
 
 const buildTransformedImageBuffer = async ({
@@ -1465,14 +1544,27 @@ const buildPdfBufferFromSceneBundle = async ({
       opacity: 0.66,
     })
 
-    for (const item of scene.customImages) {
+    const customImagesByID = new Map(scene.customImages.map((item) => [item.id, item] as const))
+    const customRectsByID = new Map(scene.customRects.map((item) => [item.id, item] as const))
+    const customTextsByID = new Map(scene.customTexts.map((item) => [item.id, item] as const))
+    const drawnCustomKeys = new Set<string>()
+    const hiddenCustomKeys = new Set(
+      Array.isArray(scene.layers)
+        ? scene.layers
+            .filter((item) => item.group === 'custom' && item.hidden)
+            .map((item) => `${item.kind}:${item.id}`)
+        : [],
+    )
+
+    const drawCustomImage = async (item: CustomImageElement) => {
+      drawnCustomKeys.add(`custom-image:${item.id}`)
       let assetBytes = dataUrlToBuffer(imageDataUrls?.[`${options.side}:${item.id}`] || imageDataUrls?.[item.id])
       if (!assetBytes) {
         const absoluteUrl = resolveAbsoluteUrl(item.sourceUrl, origin)
-        if (!absoluteUrl) continue
+        if (!absoluteUrl) return
         assetBytes = await fetchBuffer(absoluteUrl)
       }
-      if (!assetBytes) continue
+      if (!assetBytes) return
       const transformed = await buildTransformedImageBuffer({
         assetBytes,
         width: item.width,
@@ -1490,7 +1582,8 @@ const buildPdfBufferFromSceneBundle = async ({
       })
     }
 
-    for (const item of scene.customRects) {
+    const drawCustomRect = async (item: CustomRectElement) => {
+      drawnCustomKeys.add(`custom-rect:${item.id}`)
       const shapeType = item.shapeType || 'rect'
       const strokeWidth = item.strokeWidth || 0
       const strokeColor = colorToRgb(item.strokeColor || item.fill || '#111827')
@@ -1506,7 +1599,7 @@ const buildPdfBufferFromSceneBundle = async ({
           color: strokeColor,
           dashArray,
         })
-        continue
+        return
       }
 
       if (shapeType === 'circle') {
@@ -1519,11 +1612,13 @@ const buildPdfBufferFromSceneBundle = async ({
           borderColor: strokeWidth ? strokeColor : undefined,
           borderWidth: strokeWidth || undefined,
         })
-        continue
+        return
       }
 
-      const rectBytes = await buildRectanglePngBuffer({ width: item.width, height: item.height, color: item.fillEnabled === false ? '#ffffff' : item.fill })
-      await drawPdfImageBytes({ doc: pdf, page, assetBytes: rectBytes, x: item.x, y: item.y, width: item.width, height: item.height })
+      if (item.fillEnabled !== false) {
+        const rectBytes = await buildRectanglePngBuffer({ width: item.width, height: item.height, color: item.fill })
+        await drawPdfImageBytes({ doc: pdf, page, assetBytes: rectBytes, x: item.x, y: item.y, width: item.width, height: item.height })
+      }
       if (strokeWidth) {
         page.drawRectangle({
           x: item.x,
@@ -1536,7 +1631,8 @@ const buildPdfBufferFromSceneBundle = async ({
       }
     }
 
-    for (const item of scene.customTexts) {
+    const drawCustomText = async (item: CustomTextElement) => {
+      drawnCustomKeys.add(`custom-text:${item.id}`)
       await drawWrappedPdfText({
         doc: pdf,
         page,
@@ -1544,13 +1640,49 @@ const buildPdfBufferFromSceneBundle = async ({
         x: item.x,
         y: item.y,
         width: item.width,
+        height: item.height,
         fontFamily: item.fontFamily,
         fontStyle: item.fontStyle,
         fontSize: item.fontSize,
         color: item.color,
         lineHeight: item.lineHeight,
         rotation: item.rotation,
+        textAlign: item.textAlign,
       })
+    }
+
+    const orderedCustomLayers = Array.isArray(scene.layers)
+      ? scene.layers
+          .filter((item) => item.group === 'custom' && !item.hidden)
+          .sort((left, right) => left.order - right.order)
+      : []
+
+    if (orderedCustomLayers.length) {
+      for (const layer of orderedCustomLayers) {
+        if (layer.kind === 'custom-image') {
+          const item = customImagesByID.get(layer.id)
+          if (item) await drawCustomImage(item)
+        } else if (layer.kind === 'custom-rect') {
+          const item = customRectsByID.get(layer.id)
+          if (item) await drawCustomRect(item)
+        } else if (layer.kind === 'custom-text') {
+          const item = customTextsByID.get(layer.id)
+          if (item) await drawCustomText(item)
+        }
+      }
+    }
+
+    for (const item of scene.customImages) {
+      const key = `custom-image:${item.id}`
+      if (!drawnCustomKeys.has(key) && !hiddenCustomKeys.has(key)) await drawCustomImage(item)
+    }
+    for (const item of scene.customRects) {
+      const key = `custom-rect:${item.id}`
+      if (!drawnCustomKeys.has(key) && !hiddenCustomKeys.has(key)) await drawCustomRect(item)
+    }
+    for (const item of scene.customTexts) {
+      const key = `custom-text:${item.id}`
+      if (!drawnCustomKeys.has(key) && !hiddenCustomKeys.has(key)) await drawCustomText(item)
     }
 
     const eyebrowBarBytes = await buildRectanglePngBuffer({
@@ -1984,18 +2116,26 @@ export async function POST(req: NextRequest) {
     }
 
     const origin = req.nextUrl.origin
-    const headshotUrl = typeof body.headshotUrl === 'string' ? resolveAbsoluteUrl(body.headshotUrl, origin) : null
-    const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
-    const pdfBuffer = await buildPrintPdfBufferFromSceneBundle({
-      bundle: body.bundle,
-      circularHeadshotDataUrls: {
-        front: body.frontCircularHeadshotDataUrl || null,
-        back: body.backCircularHeadshotDataUrl || null,
-      },
-      headshotBytes,
-      imageDataUrls: body.imageDataUrls,
-      origin,
-    })
+    const pdfBuffer =
+      body.frontSceneDataUrl && body.backSceneDataUrl
+        ? await buildPrintPdfBufferFromSceneSnapshots({
+            frontSceneDataUrl: body.frontSceneDataUrl,
+            backSceneDataUrl: body.backSceneDataUrl,
+          })
+        : await (async () => {
+            const headshotUrl = typeof body.headshotUrl === 'string' ? resolveAbsoluteUrl(body.headshotUrl, origin) : null
+            const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
+            return buildPrintPdfBufferFromSceneBundle({
+              bundle: body.bundle as MailSceneBundle,
+              circularHeadshotDataUrls: {
+                front: body.frontCircularHeadshotDataUrl || null,
+                back: body.backCircularHeadshotDataUrl || null,
+              },
+              headshotBytes,
+              imageDataUrls: body.imageDataUrls,
+              origin,
+            })
+          })()
     const filenameBase =
       (body.filenameBase || body.downloadName || 'town-graphic')
         .toLowerCase()

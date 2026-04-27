@@ -4107,22 +4107,57 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(undefined))))
   }
 
-  const exportStageDataUrl = async () => {
+  const captureRenderedStageDataUrl = async () => {
     const stage = stageRef.current
     if (!stage) return null
-    const previousSelection = selection
     const previousScaleX = stage.scaleX()
     const previousScaleY = stage.scaleY()
 
-    setSelection(null)
     stage.scale({ x: 1, y: 1 })
     stage.draw()
     await waitForStagePaint()
     const dataUrl = stage.toDataURL({ pixelRatio: 2 })
     stage.scale({ x: previousScaleX, y: previousScaleY })
     stage.draw()
+    return dataUrl
+  }
+
+  const exportStageDataUrl = async () => {
+    const previousSelection = selection
+    if (inlineTextEditor) {
+      commitInlineTextEdit()
+    }
+    setSelection(null)
+    await waitForStagePaint()
+    const dataUrl = await captureRenderedStageDataUrl()
     setSelection(previousSelection)
     return dataUrl
+  }
+
+  const exportMailSideDataUrls = async () => {
+    const previousSide = activeMailSideRef.current
+    const previousSelection = selection
+    if (inlineTextEditor) {
+      commitInlineTextEdit()
+    }
+    setSelection(null)
+    setInlineTextEditor(null)
+
+    const captures: Record<MailSide, string | null> = { front: null, back: null }
+    for (const side of ['front', 'back'] as const) {
+      if (activeMailSideRef.current !== side) {
+        setActiveMailSide(side)
+      }
+      await waitForStagePaint()
+      captures[side] = await captureRenderedStageDataUrl()
+    }
+
+    if (activeMailSideRef.current !== previousSide) {
+      setActiveMailSide(previousSide)
+      await waitForStagePaint()
+    }
+    setSelection(previousSelection)
+    return captures
   }
 
   const downloadPrintPdf = async () => {
@@ -4136,7 +4171,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
-      const [frontCircularHeadshotDataUrl, backCircularHeadshotDataUrl, frontImageDataUrls, backImageDataUrls] = await Promise.all([
+      const [sceneDataUrls, frontCircularHeadshotDataUrl, backCircularHeadshotDataUrl, frontImageDataUrls, backImageDataUrls] = await Promise.all([
+        exportMailSideDataUrls(),
         buildCircularHeadshotDataUrl({
           image: headshotImage,
           placement: headshotPlacement,
@@ -4159,6 +4195,8 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
           mode: 'single-print-pdf',
           filenameBase,
           bundle,
+          frontSceneDataUrl: sceneDataUrls.front,
+          backSceneDataUrl: sceneDataUrls.back,
           imageDataUrls: {
             ...frontImageDataUrls,
             ...backImageDataUrls,
