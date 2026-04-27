@@ -2690,6 +2690,20 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
   }, [isLayerHidden, selection])
 
   useEffect(() => {
+    setInlineTextEditor(null)
+    setCustomTextTransformPreview({})
+    customTextTransformPreviewRef.current = {}
+    setFontRenderTick((tick) => tick + 1)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        stageRef.current?.getLayers().forEach((layer) => {
+          layer.batchDraw()
+        })
+      })
+    })
+  }, [activeMailSide])
+
+  useEffect(() => {
     const transformer = transformerRef.current
     if (!transformer) return
 
@@ -6552,7 +6566,7 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
               openContextMenu(event.evt)
             }}
           >
-            <Layer>
+            <Layer key={activeMailSide}>
               <Group
                 clipFunc={(ctx) => {
                   ctx.beginPath()
