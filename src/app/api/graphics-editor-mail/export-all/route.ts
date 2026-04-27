@@ -14,6 +14,12 @@ export const runtime = 'nodejs'
 
 const STAGE_WIDTH = 1600
 const STAGE_HEIGHT = 1000
+const LETTER_WIDTH = 8.5 * 72
+const LETTER_HEIGHT = 11 * 72
+const PRINT_MARGIN = 0.25 * 72
+const PRINT_GAP = 0.5 * 72
+const PRINT_SLOT_WIDTH = LETTER_WIDTH - PRINT_MARGIN * 2
+const PRINT_SLOT_HEIGHT = (LETTER_HEIGHT - PRINT_MARGIN * 2 - PRINT_GAP) / 2
 const BRAND_BLUE = '#6b7280'
 const BRAND_RED = '#334155'
 const WEBSITE_TEXT = 'CTHOUSEGOP.COM/BUDGET'
@@ -143,6 +149,11 @@ type TenantSelectOption = {
 }
 
 type RequestBody = {
+  bundle?: unknown
+  downloadName?: string
+  filenameBase?: string
+  headshotUrl?: string | null
+  mode?: 'export-all' | 'single-print-pdf'
   tenantOptions?: TenantSelectOption[]
   requestedDesignID?: string
   requestedTemplateID?: string
@@ -1639,6 +1650,41 @@ const buildPdfBufferFromSceneBundle = async ({
   return Buffer.from(await pdf.save())
 }
 
+const buildPrintPdfBufferFromSceneBundle = async ({
+  bundle,
+  headshotBytes,
+  origin,
+}: {
+  bundle: MailSceneBundle
+  headshotBytes: Buffer | null
+  origin: string
+}) => {
+  const scenePdfBuffer = await buildPdfBufferFromSceneBundle({ bundle, headshotBytes, origin })
+  const pdf = await PDFDocument.create()
+  const [frontPage, backPage] = await pdf.embedPdf(scenePdfBuffer, [0, 1])
+  if (!frontPage || !backPage) throw new Error('Failed to render front/back mailer pages')
+
+  const drawImposedPage = (sourcePage: NonNullable<Awaited<ReturnType<typeof pdf.embedPdf>>[number]>) => {
+    const page = pdf.addPage([LETTER_WIDTH, LETTER_HEIGHT])
+    page.drawPage(sourcePage, {
+      x: PRINT_MARGIN,
+      y: PRINT_MARGIN + PRINT_SLOT_HEIGHT + PRINT_GAP,
+      width: PRINT_SLOT_WIDTH,
+      height: PRINT_SLOT_HEIGHT,
+    })
+    page.drawPage(sourcePage, {
+      x: PRINT_MARGIN,
+      y: PRINT_MARGIN,
+      width: PRINT_SLOT_WIDTH,
+      height: PRINT_SLOT_HEIGHT,
+    })
+  }
+
+  drawImposedPage(frontPage)
+  drawImposedPage(backPage)
+  return Buffer.from(await pdf.save())
+}
+
 const readMediaUrl = (value: unknown, origin: string) => {
   const record = asRecord(value)
   const rawUrl = getString(record.url) || getString(record.thumbnailURL)
@@ -1861,6 +1907,35 @@ export async function POST(req: NextRequest) {
   if (!user) return new NextResponse('Unauthorized', { status: 401 })
 
   const body = (await req.json()) as RequestBody
+
+  if (body.mode === 'single-print-pdf') {
+    if (!isMailSceneBundle(body.bundle)) {
+      return NextResponse.json({ message: 'Missing or invalid mail scene bundle' }, { status: 400 })
+    }
+
+    const origin = req.nextUrl.origin
+    const headshotUrl = typeof body.headshotUrl === 'string' ? resolveAbsoluteUrl(body.headshotUrl, origin) : null
+    const headshotBytes = headshotUrl ? await fetchBuffer(headshotUrl) : null
+    const pdfBuffer = await buildPrintPdfBufferFromSceneBundle({
+      bundle: body.bundle,
+      headshotBytes,
+      origin,
+    })
+    const filenameBase =
+      (body.filenameBase || body.downloadName || 'town-graphic')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') || 'town-graphic'
+
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        'content-type': 'application/pdf',
+        'content-disposition': `attachment; filename="${filenameBase}-print.pdf"`,
+      },
+    })
+  }
+
   const tenantOptions = Array.isArray(body.tenantOptions)
     ? body.tenantOptions.filter((item): item is TenantSelectOption => Boolean(item?.value))
     : []

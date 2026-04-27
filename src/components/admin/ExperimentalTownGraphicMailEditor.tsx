@@ -3,8 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Konva from 'konva'
-import { PDFDocument } from 'pdf-lib'
-import { flushSync } from 'react-dom'
 import { drawLayout, layout as layoutRichText } from 'render-tag'
 import type { LayoutResult } from 'render-tag'
 import {
@@ -80,12 +78,6 @@ const BASE_CANVAS_WIDTH = 1200
 const BASE_CANVAS_HEIGHT = 1600
 const STAGE_WIDTH = 1600
 const STAGE_HEIGHT = 1000
-const LETTER_WIDTH = 8.5 * 72
-const LETTER_HEIGHT = 11 * 72
-const PRINT_MARGIN = 0.25 * 72
-const PRINT_GAP = 0.5 * 72
-const PRINT_SLOT_WIDTH = LETTER_WIDTH - PRINT_MARGIN * 2
-const PRINT_SLOT_HEIGHT = (LETTER_HEIGHT - PRINT_MARGIN * 2 - PRINT_GAP) / 2
 const MAX_PREVIEW_WIDTH = 760
 const MAX_PREVIEW_HEIGHT = 900
 const SCENE_KIND = 'experimental-town-graphic/v1'
@@ -4106,58 +4098,35 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     return dataUrl
   }
 
-  const ensureActiveMailSideForExport = async (side: MailSide) => {
-    if (activeMailSideRef.current === side) return
-    flushSync(() => {
-      setActiveMailSide(side)
-    })
-    await waitForStagePaint()
-  }
-
   const downloadPrintPdf = async () => {
-    const previousSide = activeMailSideRef.current
     setDownloadingPrintPdf(true)
     setMessage(null)
 
     try {
+      const bundle = getResolvedSceneBundle()
+      if (!bundle) throw new Error('No scene bundle available for print PDF export')
       const filenameBase = (designTitle || templateTitle || townData?.tenant?.slug || 'town-graphic')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
 
-      await ensureActiveMailSideForExport('front')
-      const frontDataUrl = await exportStageDataUrl()
-      await ensureActiveMailSideForExport('back')
-      const backDataUrl = await exportStageDataUrl()
-
-      if (!frontDataUrl || !backDataUrl) throw new Error('Failed to render print PDF')
-
-      const pdf = await PDFDocument.create()
-      const [frontImage, backImage] = await Promise.all([
-        pdf.embedPng(frontDataUrl),
-        pdf.embedPng(backDataUrl),
-      ])
-      const drawImposedPage = (image: Awaited<ReturnType<typeof pdf.embedPng>>) => {
-        const page = pdf.addPage([LETTER_WIDTH, LETTER_HEIGHT])
-        page.drawImage(image, {
-          x: PRINT_MARGIN,
-          y: PRINT_MARGIN + PRINT_SLOT_HEIGHT + PRINT_GAP,
-          width: PRINT_SLOT_WIDTH,
-          height: PRINT_SLOT_HEIGHT,
-        })
-        page.drawImage(image, {
-          x: PRINT_MARGIN,
-          y: PRINT_MARGIN,
-          width: PRINT_SLOT_WIDTH,
-          height: PRINT_SLOT_HEIGHT,
-        })
+      const response = await fetch('/api/graphics-editor-mail/export-all', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          mode: 'single-print-pdf',
+          filenameBase,
+          bundle,
+          headshotUrl: readRawMediaUrl(townData?.standardMedia?.mobileHeadshot) || null,
+        }),
+      })
+      if (!response.ok) {
+        const json = await response.json().catch(() => null)
+        const text = json ? '' : await response.text().catch(() => '')
+        throw new Error(getString(asRecord(json).message) || text || `Print PDF export failed (${response.status})`)
       }
-
-      drawImposedPage(frontImage)
-      drawImposedPage(backImage)
-
-      const pdfBytes = await pdf.save()
-      const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' })
+      const pdfBlob = await response.blob()
       const pdfUrl = URL.createObjectURL(pdfBlob)
       const link = document.createElement('a')
       link.href = pdfUrl
@@ -4170,12 +4139,6 @@ export const ExperimentalTownGraphicMailEditor: React.FC = () => {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error))
     } finally {
-      if (activeMailSideRef.current !== previousSide) {
-        flushSync(() => {
-          setActiveMailSide(previousSide)
-        })
-        await waitForStagePaint()
-      }
       setDownloadingPrintPdf(false)
     }
   }
