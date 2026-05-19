@@ -1,9 +1,20 @@
-import type { CollectionConfig, CollectionSlug } from 'payload'
+import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug } from 'payload'
 
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
+import { buildDefaultEmailLayout } from '@/lib/email/defaultEmailLayout'
 
 const EMAIL_LISTS_COLLECTION = 'email-lists' as CollectionSlug
+
+const populateDefaultLayout: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
+  if (operation !== 'create' || !data) return data
+  if (Array.isArray(data.layout) && data.layout.length > 0) return data
+
+  return {
+    ...data,
+    layout: await buildDefaultEmailLayout(data as Record<string, unknown>, req),
+  }
+}
 
 export const Emails: CollectionConfig<'emails'> = {
   slug: 'emails',
@@ -40,6 +51,9 @@ export const Emails: CollectionConfig<'emails'> = {
   labels: {
     singular: 'Email',
     plural: 'Emails',
+  },
+  hooks: {
+    beforeValidate: [populateDefaultLayout],
   },
   fields: [
     {

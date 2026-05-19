@@ -3039,7 +3039,7 @@ export interface EmailHeaderSocialBlock {
   subtitle?: string | null;
   socialLinks?:
     | {
-        platform: 'facebook' | 'instagram' | 'linkedin' | 'x' | 'youtube' | 'website';
+        platform: 'facebook' | 'instagram' | 'linkedin' | 'x' | 'youtube' | 'flickr' | 'website';
         url: string;
         id?: string | null;
       }[]
@@ -3365,6 +3365,20 @@ export interface EmailFooterOneColumnBlock {
     | {
         label: string;
         url: string;
+        id?: string | null;
+      }[]
+    | null;
+  socialLinks?:
+    | {
+        platform: 'facebook' | 'instagram' | 'linkedin' | 'x' | 'youtube' | 'flickr' | 'website';
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  towns?:
+    | {
+        town: string;
+        url?: string | null;
         id?: string | null;
       }[]
     | null;
@@ -6378,6 +6392,20 @@ export interface EmailFooterOneColumnBlockSelect<T extends boolean = true> {
     | T
     | {
         label?: T;
+        url?: T;
+        id?: T;
+      };
+  socialLinks?:
+    | T
+    | {
+        platform?: T;
+        url?: T;
+        id?: T;
+      };
+  towns?:
+    | T
+    | {
+        town?: T;
         url?: T;
         id?: T;
       };

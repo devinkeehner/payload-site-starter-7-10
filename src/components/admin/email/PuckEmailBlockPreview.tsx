@@ -131,6 +131,8 @@ function getSocialLabel(value: unknown): string {
       return 'x'
     case 'youtube':
       return 'yt'
+    case 'flickr':
+      return 'fl'
     case 'website':
       return 'www'
     default:
@@ -880,6 +882,8 @@ function EmailCalloutPreview(props: BlockProps) {
 
 function EmailFooterOneColumnPreview(props: BlockProps) {
   const links = getItems(props.links)
+  const socialLinks = getItems(props.socialLinks)
+  const towns = getItems(props.towns)
 
   return (
     <div style={{ background: COLORS.primary, borderRadius: 16, marginTop: 30, padding: '24px 28px', textAlign: 'center' }}>
@@ -892,6 +896,42 @@ function EmailFooterOneColumnPreview(props: BlockProps) {
             <React.Fragment key={index}>
               {index > 0 ? '  |  ' : null}
               {getText(link.label) || 'Footer link'}
+            </React.Fragment>
+          ))}
+        </div>
+      ) : null}
+      {socialLinks.length ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 16 }}>
+          {socialLinks.map((item, index) => (
+            <span
+              key={index}
+              style={{
+                alignItems: 'center',
+                background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.24)',
+                borderRadius: 999,
+                color: COLORS.white,
+                display: 'inline-flex',
+                fontSize: 11,
+                fontWeight: 800,
+                height: 28,
+                justifyContent: 'center',
+                textTransform: 'uppercase',
+                width: 28,
+              }}
+            >
+              {getSocialLabel(item.platform)}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {towns.length ? (
+        <div style={{ color: '#d8e0ee', fontSize: 11, lineHeight: '18px', marginTop: 16 }}>
+          <span style={{ color: '#9fb0c8', fontWeight: 800, textTransform: 'uppercase' }}>Serving </span>
+          {towns.map((town, index) => (
+            <React.Fragment key={index}>
+              {index > 0 ? ', ' : null}
+              <span style={{ color: COLORS.white, fontWeight: 800 }}>{getText(town.town) || 'Town'}</span>
             </React.Fragment>
           ))}
         </div>

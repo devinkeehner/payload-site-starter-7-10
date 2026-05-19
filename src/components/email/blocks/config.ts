@@ -38,6 +38,7 @@ const socialPlatformOptions = [
   { label: 'LinkedIn', value: 'linkedin' },
   { label: 'X', value: 'x' },
   { label: 'YouTube', value: 'youtube' },
+  { label: 'Flickr', value: 'flickr' },
   { label: 'Website', value: 'website' },
 ]
 
@@ -850,6 +851,45 @@ export const EmailFooterOneColumnBlock: Block = {
           type: 'text',
           defaultValue: 'https://',
           required: true,
+        },
+      ],
+    },
+    {
+      name: 'socialLinks',
+      label: 'Social links',
+      type: 'array',
+      maxRows: 8,
+      fields: [
+        {
+          name: 'platform',
+          type: 'select',
+          defaultValue: 'facebook',
+          options: socialPlatformOptions,
+          required: true,
+        },
+        {
+          name: 'url',
+          type: 'text',
+          defaultValue: 'https://',
+          required: true,
+        },
+      ],
+    },
+    {
+      name: 'towns',
+      label: 'District towns',
+      type: 'array',
+      maxRows: 20,
+      fields: [
+        {
+          name: 'town',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'url',
+          label: 'Town website URL',
+          type: 'text',
         },
       ],
     },

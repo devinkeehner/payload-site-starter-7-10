@@ -394,14 +394,28 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
       return converted ? [converted] : []
     }
     case 'emailFooterOneColumn':
-      return [
-        postLinks(
-          getString(block.heading),
-          [getString(block.body), getString(block.address), getString(block.copyright)].filter(Boolean).join('\n\n'),
-          getItems(block.links),
-          'footer',
-        ),
-      ].filter((item): item is Record<string, unknown> => Boolean(item))
+      {
+        const links = [
+          ...getItems(block.links),
+          ...getItems(block.socialLinks).map((link) => ({
+            label: getString(link.platform),
+            url: getString(link.url),
+          })),
+          ...getItems(block.towns).map((town) => ({
+            label: getString(town.town),
+            url: getString(town.url),
+          })),
+        ]
+
+        return [
+          postLinks(
+            getString(block.heading),
+            [getString(block.body), getString(block.address), getString(block.copyright)].filter(Boolean).join('\n\n'),
+            links,
+            'footer',
+          ),
+        ].filter((item): item is Record<string, unknown> => Boolean(item))
+      }
     default:
       return []
   }

@@ -184,6 +184,8 @@ function getSocialLabel(value: unknown): string {
       return 'x'
     case 'youtube':
       return 'yt'
+    case 'flickr':
+      return 'fl'
     case 'website':
       return 'www'
     default:
@@ -1091,6 +1093,8 @@ function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
   const address = normalizeText(block.address)
   const copyright = normalizeText(block.copyright)
   const links = normalizeItems(block.links)
+  const socialLinks = normalizeItems(block.socialLinks)
+  const towns = normalizeItems(block.towns)
 
   return (
     <Section style={{ backgroundColor: COLORS.primary, borderRadius: 16, margin: '30px 0 0', padding: '24px 28px', textAlign: 'center' }}>
@@ -1109,6 +1113,62 @@ function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
                 <Link href={url} style={{ color: COLORS.white, fontWeight: 800, textDecoration: 'underline' }}>
                   {label}
                 </Link>
+              </React.Fragment>
+            )
+          })}
+        </Text>
+      ) : null}
+      {socialLinks.length ? (
+        <Text style={{ margin: '16px 0 0' }}>
+          {socialLinks.map((item, index) => {
+            const url = normalizeText(item.url)
+            if (!url) return null
+
+            return (
+              <Link
+                key={`${url}-${index}`}
+                href={url}
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.12)',
+                  border: '1px solid rgba(255,255,255,0.24)',
+                  borderRadius: 999,
+                  color: COLORS.white,
+                  display: 'inline-block',
+                  fontSize: 11,
+                  fontWeight: 800,
+                  lineHeight: '28px',
+                  margin: '0 3px',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  textTransform: 'uppercase',
+                  width: 28,
+                }}
+              >
+                {getSocialLabel(item.platform)}
+              </Link>
+            )
+          })}
+        </Text>
+      ) : null}
+      {towns.length ? (
+        <Text style={{ color: '#d8e0ee', fontSize: 11, lineHeight: '18px', margin: '16px 0 0' }}>
+          <span style={{ color: '#9fb0c8', fontWeight: 800, textTransform: 'uppercase' }}>Serving </span>
+          {towns.map((town, index) => {
+            const label = normalizeText(town.town)
+            const url = normalizeText(town.url)
+            if (!label) return null
+
+            const separator = index > 0 ? ', ' : ''
+            return (
+              <React.Fragment key={`${label}-${index}`}>
+                {separator}
+                {url ? (
+                  <Link href={url} style={{ color: COLORS.white, fontWeight: 800, textDecoration: 'underline' }}>
+                    {label}
+                  </Link>
+                ) : (
+                  <span style={{ color: COLORS.white, fontWeight: 800 }}>{label}</span>
+                )}
               </React.Fragment>
             )
           })}
