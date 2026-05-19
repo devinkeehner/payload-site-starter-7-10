@@ -19,7 +19,7 @@ If you still have older setup scripts, `PAYLOAD_MCP_API_KEY` is accepted by the 
 
 ## Optional compatibility routes
 
-- `http://localhost:3000/api/mcp-chatgpt` is the custom local bridge for the curated tool surface
+- `https://admin.cthousegop.com/api/chatgpt-mcp` is the OAuth-backed ChatGPT connector route. Set `CHATGPT_PAYLOAD_MCP_API_KEY` to a valid Payload MCP API key so it can proxy to `/api/mcp`.
 - `https://admin.cthousegop.com/api/mcp-public/<secret>` is the secret-path proxy for connector testing
 
 ## Notes

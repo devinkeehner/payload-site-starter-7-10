@@ -1,4 +1,4 @@
-import type { PayloadRequest, SanitizedPermissions, ServerProps } from 'payload'
+import type { PayloadComponent, PayloadRequest, SanitizedPermissions, ServerProps } from 'payload'
 
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { EntityType, getVisibleEntities, groupNavItems } from '@payloadcms/ui/shared'
@@ -21,10 +21,10 @@ export async function CampaignAdminNav(props: Props) {
   if (!payload?.config || !permissions || !req) return null
 
   const adminComponents = (payload.config.admin.components || {}) as {
-    afterNav?: unknown
-    afterNavLinks?: unknown
-    beforeNav?: unknown
-    beforeNavLinks?: unknown
+    afterNav?: PayloadComponent | PayloadComponent[]
+    afterNavLinks?: PayloadComponent | PayloadComponent[]
+    beforeNav?: PayloadComponent | PayloadComponent[]
+    beforeNavLinks?: PayloadComponent | PayloadComponent[]
   }
   const { afterNav, afterNavLinks, beforeNav, beforeNavLinks } = adminComponents
   const { collections, globals } = payload.config
