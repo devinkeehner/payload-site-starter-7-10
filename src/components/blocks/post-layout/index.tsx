@@ -228,6 +228,31 @@ function PostLinks({ block }: { block: PostLayoutBlock }) {
   const body = typeof block.body === 'string' ? block.body.trim() : ''
   const links = getBlockItems(block.links)
   if (!heading && !body && !links.length) return null
+  const footerVariant = block.variant === 'footer'
+
+  if (footerVariant) {
+    return (
+      <aside className="rounded-xl bg-[#0b1e3a] p-8 text-center text-white shadow-sm">
+        {heading ? <h2 className="text-2xl font-bold tracking-tight">{heading}</h2> : null}
+        {body ? <p className="mx-auto mt-3 max-w-2xl whitespace-pre-line leading-7 text-white/85">{body}</p> : null}
+        {links.length ? (
+          <div className="mt-5 flex flex-wrap justify-center gap-x-4 gap-y-2">
+            {links.map((link, index) => {
+              const label = typeof link.label === 'string' ? link.label.trim() : ''
+              const url = typeof link.url === 'string' ? link.url.trim() : ''
+              if (!label || !url) return null
+
+              return (
+                <a className="text-sm font-bold text-white underline underline-offset-4" href={url} key={`${url}-${index}`}>
+                  {label}
+                </a>
+              )
+            })}
+          </div>
+        ) : null}
+      </aside>
+    )
+  }
 
   return (
     <aside className="rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-sm">

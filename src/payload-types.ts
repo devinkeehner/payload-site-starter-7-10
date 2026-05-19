@@ -563,6 +563,7 @@ export interface PostListBlock {
  * via the `definition` "PostLinksBlock".
  */
 export interface PostLinksBlock {
+  variant: 'card' | 'footer';
   heading?: string | null;
   body?: string | null;
   links?:
@@ -4488,6 +4489,7 @@ export interface PostListBlockSelect<T extends boolean = true> {
  * via the `definition` "PostLinksBlock_select".
  */
 export interface PostLinksBlockSelect<T extends boolean = true> {
+  variant?: T;
   heading?: T;
   body?: T;
   links?:

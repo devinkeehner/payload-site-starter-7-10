@@ -219,6 +219,7 @@ function postLinks(
   headingText: string,
   bodyText: string,
   links: Record<string, unknown>[],
+  variant: 'card' | 'footer' = 'card',
 ): Record<string, unknown> | null {
   const convertedLinks = links
     .map((link) => ({
@@ -234,6 +235,7 @@ function postLinks(
     body: bodyText || undefined,
     heading: headingText || undefined,
     links: convertedLinks,
+    variant,
   }
 }
 
@@ -371,6 +373,7 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
           getString(block.heading),
           [getString(block.body), getString(block.address), getString(block.copyright)].filter(Boolean).join('\n\n'),
           getItems(block.links),
+          'footer',
         ),
       ].filter((item): item is Record<string, unknown> => Boolean(item))
     default:

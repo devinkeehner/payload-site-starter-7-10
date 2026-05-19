@@ -301,6 +301,16 @@ export const PostLinksBlock: Block = {
   },
   fields: [
     {
+      name: 'variant',
+      type: 'select',
+      defaultValue: 'card',
+      options: [
+        { label: 'Card', value: 'card' },
+        { label: 'Footer', value: 'footer' },
+      ],
+      required: true,
+    },
+    {
       name: 'heading',
       type: 'text',
       defaultValue: 'Related links',
