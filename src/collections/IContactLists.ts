@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { isSuperUser } from '@/lib/access/isSuperUser'
+
 export const IContactLists: CollectionConfig = {
   slug: 'icontact-lists',
   labels: {
@@ -10,9 +12,10 @@ export const IContactLists: CollectionConfig = {
     group: 'Forms & Submissions',
     useAsTitle: 'name',
     defaultColumns: ['name', 'listId', 'clientFolder', 'updatedAt'],
+    hidden: ({ user }) => !isSuperUser(user),
   },
   access: {
-    read: () => true,
+    read: ({ req }) => isSuperUser(req.user),
   },
   fields: [
     {
@@ -70,4 +73,3 @@ export const IContactLists: CollectionConfig = {
     },
   ],
 }
-

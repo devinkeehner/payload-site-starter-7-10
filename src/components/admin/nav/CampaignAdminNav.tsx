@@ -5,6 +5,7 @@ import { EntityType, getVisibleEntities, groupNavItems } from '@payloadcms/ui/sh
 import React from 'react'
 
 import { getQuickTasks } from '@/components/admin/dashboard/adminDashboardMeta'
+import { canAccessCollection } from '@/lib/access/roles'
 
 import { CampaignAdminNavClient } from './CampaignAdminNavClient'
 
@@ -33,7 +34,7 @@ export async function CampaignAdminNav(props: Props) {
   const groups = groupNavItems(
     ([
       ...collections
-        .filter(({ slug }) => visibleEntities.collections.includes(slug))
+        .filter(({ slug }) => visibleEntities.collections.includes(slug) && canAccessCollection(req.user, slug))
         .map((collection) => ({
           entity: collection,
           type: EntityType.collection,

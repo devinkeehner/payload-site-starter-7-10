@@ -36,6 +36,13 @@ export const CONTENT_EDITOR_COLLECTIONS = [
 ] as const
 
 const SUPER_ONLY_COLLECTIONS = new Set([
+  'api-keys',
+  'payload-mcp-api-keys',
+  'bad-bills',
+  'categories',
+  'article-types',
+  'icontact-folders',
+  'icontact-lists',
   'emails',
   'email-lists',
   'contacts',

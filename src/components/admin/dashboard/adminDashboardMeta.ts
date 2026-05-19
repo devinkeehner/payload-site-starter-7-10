@@ -6,12 +6,9 @@ import { CONTENT_EDITOR_COLLECTIONS, canAccessCollection } from '@/lib/access/ro
 
 export type AdminTaskKey =
   | 'createPost'
-  | 'editHomepage'
-  | 'editHeader'
-  | 'editFooter'
-  | 'createForm'
-  | 'editBoomBar'
-  | 'facebookSettings'
+  | 'changeHomePageBanner'
+  | 'updateSocialMedia'
+  | 'editTowns'
 
 export type AdminTask = {
   description: string
@@ -65,12 +62,9 @@ export const navGroupHelperText: Record<string, string> = {
 
 export const quickTaskDescriptions: Record<AdminTaskKey, string> = {
   createPost: 'Draft a new news update or announcement.',
-  editHomepage: 'Open the homepage in the visual builder.',
-  editHeader: 'Update navigation, logo, buttons, and header style.',
-  editFooter: 'Update site-wide footer content.',
-  createForm: 'Build a signup, contact, volunteer, or RSVP form.',
-  editBoomBar: 'Open tenant navigation settings.',
-  facebookSettings: 'Review tenant profile and domain settings.',
+  changeHomePageBanner: 'Update the homepage hero image, video, and default social images.',
+  updateSocialMedia: 'Update representative social media links and Facebook connection settings.',
+  editTowns: 'Update towns, town URLs, and district aid details.',
 }
 
 function getAdminRoute(req: PayloadRequest) {
@@ -133,38 +127,6 @@ async function findTenantDocument(req: PayloadRequest, collection: 'navbars' | '
   }
 }
 
-async function findHomepage(req: PayloadRequest) {
-  const tenantID = getSelectedTenantID(req)
-
-  try {
-    const result = await req.payload.find({
-      collection: 'pages',
-      depth: 0,
-      limit: 1,
-      overrideAccess: false,
-      pagination: false,
-      req,
-      where: {
-        ...(tenantID
-          ? {
-              tenant: {
-                equals: tenantID,
-              },
-            }
-          : {}),
-        slug: {
-          equals: 'home',
-        },
-      },
-    })
-
-    const doc = result.docs[0] as { id?: string | number } | undefined
-    return doc?.id ? String(doc.id) : null
-  } catch {
-    return null
-  }
-}
-
 async function singletonTaskURL(
   req: PayloadRequest,
   collection: 'navbars' | 'rep-info' | 'standard-media' | 'site-seo',
@@ -181,9 +143,6 @@ async function singletonTaskURL(
 
 export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
   const tenantID = getSelectedTenantID(req)
-  const homeID = await findHomepage(req)
-  const homeFallback = adminURL(req, '/collections/pages?where[slug][equals]=home')
-  const homeURL = homeID ? adminURL(req, `/collections/pages/${homeID}/visual`) : homeFallback
 
   const tasks: AdminTask[] = [
     {
@@ -193,56 +152,31 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
       label: 'Create Post',
     },
     {
-      description: homeID
-        ? quickTaskDescriptions.editHomepage
-        : 'No homepage was found for this tenant. Review pages with slug home.',
-      href: homeURL,
-      key: 'editHomepage',
-      label: 'Edit Homepage',
+      description: quickTaskDescriptions.changeHomePageBanner,
+      href: await singletonTaskURL(req, 'standard-media'),
+      key: 'changeHomePageBanner',
+      label: 'Change Home Page Banner',
     },
     {
-      description: quickTaskDescriptions.editHeader,
-      href: adminURL(req, '/globals/header'),
-      key: 'editHeader',
-      label: 'Edit Header',
+      description: quickTaskDescriptions.updateSocialMedia,
+      href: await singletonTaskURL(req, 'rep-info'),
+      key: 'updateSocialMedia',
+      label: 'Update Social Media',
     },
     {
-      description: quickTaskDescriptions.editFooter,
-      href: adminURL(req, '/globals/footer'),
-      key: 'editFooter',
-      label: 'Edit Footer',
-    },
-    {
-      description: quickTaskDescriptions.createForm,
-      href: appendTenantQuery(adminURL(req, '/collections/forms/create'), tenantID),
-      key: 'createForm',
-      label: 'Create Form',
-    },
-    {
-      description: quickTaskDescriptions.editBoomBar,
-      href: await singletonTaskURL(req, 'navbars'),
-      key: 'editBoomBar',
-      label: 'Edit Navbar',
-    },
-    {
-      description: quickTaskDescriptions.facebookSettings,
-      href: tenantID
-        ? adminURL(req, `/collections/tenants/${tenantID}`)
-        : adminURL(req, '/collections/tenants'),
-      key: 'facebookSettings',
-      label: 'Tenant Settings',
+      description: quickTaskDescriptions.editTowns,
+      href: await singletonTaskURL(req, 'rep-info'),
+      key: 'editTowns',
+      label: 'Edit Towns',
     },
   ]
 
   return tasks.filter((task) => {
     const user = req.user as DashboardUser
-    if (task.key === 'createForm') return canAccessCollection(user, 'forms')
     if (task.key === 'createPost') return canAccessCollection(user, 'posts')
-    if (task.key === 'editHomepage') return canAccessCollection(user, 'pages')
-    if (task.key === 'editHeader') return canAccessCollection(user, 'header')
-    if (task.key === 'editFooter') return canAccessCollection(user, 'footer')
-    if (task.key === 'editBoomBar') return canAccessCollection(user, 'navbars')
-    if (task.key === 'facebookSettings') return canAccessCollection(user, 'tenants')
+    if (task.key === 'changeHomePageBanner') return canAccessCollection(user, 'standard-media')
+    if (task.key === 'updateSocialMedia') return canAccessCollection(user, 'rep-info')
+    if (task.key === 'editTowns') return canAccessCollection(user, 'rep-info')
     return false
   })
 }

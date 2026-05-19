@@ -1,5 +1,4 @@
 import type {
-  Access,
   CollectionAfterChangeHook,
   CollectionAfterDeleteHook,
   CollectionBeforeChangeHook,
@@ -88,23 +87,6 @@ const isMainTenantSelection = (selectedTenant: string | undefined, mainTenant: T
   return selectedTenant === mainTenant.id || selectedTenant === mainTenant.slug
 }
 
-const validateMainTenantAccess: Access = async ({ req, data }) => {
-  if (!req.user) return false
-  if (isSuperUser(req.user)) return true
-
-  const mainTenant = await getMainTenant(req)
-  if (!mainTenant) return false
-
-  const selectedTenant = readSelectedTenantHint(req)
-  if (!isMainTenantSelection(selectedTenant, mainTenant)) {
-    return false
-  }
-
-  const tenantId = resolveTenantId((data as Record<string, unknown> | undefined)?.tenant)
-
-  return !tenantId || tenantId === mainTenant.id
-}
-
 const enforceMainTenant: CollectionBeforeChangeHook = async ({ data, req, originalDoc }) => {
   const mainTenant = await getMainTenant(req)
   if (!mainTenant) {
@@ -165,12 +147,13 @@ export const BadBills: CollectionConfig = {
   },
   access: {
     read: authenticatedOrPublished,
-    create: validateMainTenantAccess,
-    update: validateMainTenantAccess,
-    delete: validateMainTenantAccess,
+    create: ({ req }) => isSuperUser(req.user),
+    update: ({ req }) => isSuperUser(req.user),
+    delete: ({ req }) => isSuperUser(req.user),
   },
   admin: {
     group: 'Content',
+    hidden: ({ user }) => !isSuperUser(user),
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
     description: 'Campaign landing pages for the root /bad-bills route. This collection is reserved for the main site.',

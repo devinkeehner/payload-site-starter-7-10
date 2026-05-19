@@ -78,12 +78,9 @@ const entityIcons: Record<string, LucideIcon> = {
 
 const taskIcons: Record<AdminTask['key'], LucideIcon> = {
   createPost: FileText,
-  editHomepage: LayoutTemplate,
-  editHeader: PanelTop,
-  editFooter: PanelBottom,
-  createForm: ClipboardList,
-  editBoomBar: Bell,
-  facebookSettings: Facebook,
+  changeHomePageBanner: ImageIcon,
+  updateSocialMedia: Facebook,
+  editTowns: Building2,
 }
 
 function getEntityLabel(label: unknown, locale?: string): string {

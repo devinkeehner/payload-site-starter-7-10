@@ -4953,9 +4953,6 @@ export default buildConfig({
       defaultLayout: [
         { widgetSlug: 'quickTasks', width: 'full' },
         { widgetSlug: 'iconCollectionLauncher', width: 'full' },
-        { widgetSlug: 'contentAreas', width: 'full' },
-        { widgetSlug: 'recentActivity', width: 'medium' },
-        { widgetSlug: 'draftsNeedingPublish', width: 'medium' },
       ],
       widgets: [
         {
@@ -4969,24 +4966,6 @@ export default buildConfig({
           ComponentPath: '@/components/admin/dashboard/DashboardWidgets#IconCollectionLauncherWidget',
           label: 'Collections',
           minWidth: 'full',
-        },
-        {
-          slug: 'contentAreas',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#CollectionLinksWidget',
-          label: 'Content Areas',
-          minWidth: 'full',
-        },
-        {
-          slug: 'recentActivity',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#RecentActivityWidget',
-          label: 'Recent Activity',
-          minWidth: 'medium',
-        },
-        {
-          slug: 'draftsNeedingPublish',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#DraftsWidget',
-          label: 'Drafts Needing Publish',
-          minWidth: 'medium',
         },
       ],
     },
