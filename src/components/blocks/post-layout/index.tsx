@@ -37,12 +37,12 @@ function getButtonAppearance(value: unknown): 'default' | 'secondary' | 'outline
 function getCalloutClass(value: unknown): string {
   switch (value) {
     case 'accent':
-      return 'border-primary/30 bg-primary/5'
+      return 'border-[#a71e22]/30 bg-[#a71e22]/5'
     case 'strong':
-      return 'border-foreground/20 bg-foreground text-background'
+      return 'border-[#000042] bg-[#000042] text-white'
     case 'note':
     default:
-      return 'border-border bg-card'
+      return 'border-slate-200 bg-slate-50'
   }
 }
 
@@ -59,12 +59,12 @@ function PostBody({ content }: { content?: Post['content'] | null }) {
     )
   }
 
-  return <RichText className="mx-auto max-w-[48rem]" data={content as NonNullable<Post['content']>} enableGutter={false} />
+  return <RichText className="post-layout-rich-text" data={content as NonNullable<Post['content']>} enableGutter={false} />
 }
 
 function PostRichText({ block }: { block: PostLayoutBlock }) {
   return hasRichTextContent(block.content) ? (
-    <RichText className="mx-auto max-w-[48rem]" data={block.content as Post['content']} enableGutter={false} />
+    <RichText className="post-layout-rich-text" data={block.content as Post['content']} enableGutter={false} />
   ) : null
 }
 
@@ -72,8 +72,8 @@ function PostCallout({ block }: { block: PostLayoutBlock }) {
   const heading = typeof block.heading === 'string' ? block.heading.trim() : ''
 
   return (
-    <aside className={cn('mx-auto max-w-[48rem] rounded-md border p-5 shadow-sm', getCalloutClass(block.tone))}>
-      {heading ? <h2 className="mb-3 text-xl font-semibold tracking-tight">{heading}</h2> : null}
+    <aside className={cn('rounded-lg border p-6 shadow-sm', getCalloutClass(block.tone))}>
+      {heading ? <h2 className="mb-3 text-2xl font-bold tracking-tight">{heading}</h2> : null}
       {hasRichTextContent(block.content) ? (
         <RichText data={block.content as Post['content']} enableGutter={false} enableProse={false} />
       ) : null}
@@ -87,7 +87,7 @@ function PostButton({ block }: { block: PostLayoutBlock }) {
   if (!label || !url) return null
 
   return (
-    <div className={cn('mx-auto flex max-w-[48rem]', getAlignClass(block.align))}>
+    <div className={cn('flex', getAlignClass(block.align))}>
       <CMSLink
         appearance={getButtonAppearance(block.variant)}
         label={label}
@@ -104,10 +104,10 @@ function PostImage({ block }: { block: PostLayoutBlock }) {
   if (!media) return null
 
   return (
-    <figure className="mx-auto max-w-[52rem]">
+    <figure>
       <Media
-        className="overflow-hidden rounded-md border bg-muted"
-        imgClassName="h-auto w-full"
+        className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+        imgClassName="aspect-[16/7] h-auto max-h-[360px] w-full object-cover"
         resource={media}
       />
       {caption ? (
@@ -125,9 +125,10 @@ function getBlockItems(value: unknown): Record<string, unknown>[] {
     : []
 }
 
-function getMediaResource(value: unknown): MediaType | string | number | null {
-  if (typeof value === 'string' || typeof value === 'number') return value
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value as MediaType
+function getMediaResource(value: unknown): MediaType | null {
+  if (value && typeof value === 'object' && !Array.isArray(value) && typeof (value as { url?: unknown }).url === 'string') {
+    return value as MediaType
+  }
   return null
 }
 
@@ -139,7 +140,7 @@ function PostGallery({ block }: { block: PostLayoutBlock }) {
   return (
     <div
       className={cn(
-        'mx-auto grid max-w-[52rem] gap-5',
+        'grid gap-5',
         stacked ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2',
       )}
     >
@@ -151,8 +152,8 @@ function PostGallery({ block }: { block: PostLayoutBlock }) {
         return (
           <figure key={index}>
             <Media
-              className="overflow-hidden rounded-md border bg-muted"
-              imgClassName="h-auto w-full"
+              className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+              imgClassName="aspect-[4/3] h-auto w-full object-cover"
               resource={media}
             />
             {caption ? (
@@ -174,24 +175,24 @@ function PostList({ block }: { block: PostLayoutBlock }) {
 
   if (imageLeft) {
     return (
-      <div className="mx-auto grid max-w-[48rem] gap-4">
+      <div className="grid gap-4">
         {items.map((item, index) => {
           const title = typeof item.title === 'string' ? item.title.trim() : ''
           const body = typeof item.body === 'string' ? item.body.trim() : ''
           const media = getMediaResource(item.media)
 
           return (
-            <article key={index} className="grid gap-4 rounded-md border bg-card p-4 sm:grid-cols-[96px_1fr]">
+            <article key={index} className="grid gap-4 rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm sm:grid-cols-[112px_1fr]">
               {media ? (
                 <Media
-                  className="overflow-hidden rounded-md border bg-muted"
+                  className="overflow-hidden rounded-md border border-slate-200 bg-slate-100"
                   imgClassName="aspect-square h-auto w-full object-cover"
                   resource={media}
                 />
               ) : null}
               <div className="min-w-0">
-                {title ? <h3 className="text-lg font-semibold tracking-tight">{title}</h3> : null}
-                {body ? <p className="mt-2 leading-7 text-muted-foreground">{body}</p> : null}
+                {title ? <h3 className="text-lg font-bold tracking-tight text-[#000042]">{title}</h3> : null}
+                {body ? <p className="mt-2 leading-7 text-slate-600">{body}</p> : null}
               </div>
             </article>
           )
@@ -201,20 +202,24 @@ function PostList({ block }: { block: PostLayoutBlock }) {
   }
 
   return (
-    <ul className="mx-auto grid max-w-[48rem] list-disc gap-3 pl-6">
+    <div className="grid gap-3">
       {items.map((item, index) => {
         const title = typeof item.title === 'string' ? item.title.trim() : ''
         const body = typeof item.body === 'string' ? item.body.trim() : ''
 
         return (
-          <li key={index} className="leading-7">
-            {title ? <strong>{title}</strong> : null}
-            {title && body ? <span>: </span> : null}
-            {body ? <span className="text-muted-foreground">{body}</span> : null}
-          </li>
+          <article key={index} className="rounded-lg border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm">
+            <div className="flex gap-3">
+              <span className="mt-2 h-2 w-2 flex-none rounded-full bg-[#a71e22]" />
+              <div className="min-w-0">
+                {title ? <h3 className="font-bold leading-6 text-[#000042]">{title}</h3> : null}
+                {body ? <p className="mt-1 leading-7 text-slate-600">{body}</p> : null}
+              </div>
+            </div>
+          </article>
         )
       })}
-    </ul>
+    </div>
   )
 }
 
@@ -225,9 +230,9 @@ function PostLinks({ block }: { block: PostLayoutBlock }) {
   if (!heading && !body && !links.length) return null
 
   return (
-    <aside className="mx-auto max-w-[48rem] rounded-md border bg-card p-5">
-      {heading ? <h2 className="text-xl font-semibold tracking-tight">{heading}</h2> : null}
-      {body ? <p className="mt-2 leading-7 text-muted-foreground">{body}</p> : null}
+    <aside className="rounded-lg border border-slate-200 bg-slate-50 p-6 shadow-sm">
+      {heading ? <h2 className="text-2xl font-bold tracking-tight text-[#000042]">{heading}</h2> : null}
+      {body ? <p className="mt-2 whitespace-pre-line leading-7 text-slate-600">{body}</p> : null}
       {links.length ? (
         <div className="mt-4 flex flex-wrap gap-3">
           {links.map((link, index) => {
@@ -252,7 +257,7 @@ function PostLinks({ block }: { block: PostLayoutBlock }) {
 }
 
 function PostDivider() {
-  return <hr className="mx-auto max-w-[48rem] border-border" />
+  return <hr className="border-slate-200" />
 }
 
 function PostSpacer({ block }: { block: PostLayoutBlock }) {
@@ -269,7 +274,7 @@ export function RenderPostBlocks({ blocks, content }: RenderPostBlocksProps) {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="post-layout-renderer mx-auto flex max-w-[64rem] flex-col gap-8 text-[18px] leading-8 text-slate-950">
       {safeBlocks.map((block, index) => {
         if (!block || typeof block !== 'object' || Array.isArray(block)) return null
 

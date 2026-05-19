@@ -39,14 +39,24 @@ function createConfig(blockSchema: PuckBlockSchema[], previewThemeStyle?: React.
         <main
           style={{
             ...previewThemeStyle,
-            background: 'var(--tenant-background, hsl(var(--background)))',
-            color: 'var(--tenant-foreground, hsl(var(--foreground)))',
+            background: '#f3f4f6',
+            color: '#030712',
             fontFamily: 'var(--tenant-body-font, var(--font-sans, Arial, Helvetica, sans-serif))',
             minHeight: '100%',
-            padding: '48px 16px',
+            padding: '36px 20px 64px',
           }}
         >
-          <article style={{ margin: '0 auto', maxWidth: 960 }}>
+          <article
+            style={{
+              background: '#fff',
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              boxShadow: '0 18px 45px rgba(15, 23, 42, 0.08)',
+              margin: '0 auto',
+              maxWidth: 1080,
+              padding: '48px min(6vw, 64px)',
+            }}
+          >
             {props.children}
           </article>
         </main>
@@ -86,8 +96,8 @@ function PuckPreviewIframe({
       className={styles.previewFrameRoot}
       style={{
         ...previewThemeStyle,
-        background: 'var(--tenant-background, hsl(var(--background)))',
-        color: 'var(--tenant-foreground, hsl(var(--foreground)))',
+        background: '#f3f4f6',
+        color: '#030712',
         fontFamily: 'var(--tenant-body-font, var(--font-sans, Arial, Helvetica, sans-serif))',
         minHeight: '100%',
       }}
