@@ -35,6 +35,7 @@ const LINK_APPEARANCES = new Set([
 ])
 
 const COLUMNS_BLOCK_TYPE = 'columnsBlock'
+const GRID_BLOCK_TYPES = new Set(['emailGrid', 'postGrid'])
 
 function getColumnsZoneId(blockId: string, columnIndex: number): string {
   return `${blockId}:columns.${columnIndex}.blocks`
@@ -328,8 +329,9 @@ function layoutToPuckData(layout: unknown[] | null | undefined): PuckPageData {
       .map((block, index) => {
         const id = getBlockId(block, index)
         const props = withoutBlockType(block)
+        const blockType = String(block.blockType)
 
-        if (block.blockType === 'emailGrid') {
+        if (GRID_BLOCK_TYPES.has(blockType)) {
           zones[`${id}:left`] = emailLayoutToPuckContent(block.leftBlocks)
           zones[`${id}:center`] = emailLayoutToPuckContent(block.centerBlocks)
           zones[`${id}:right`] = emailLayoutToPuckContent(block.rightBlocks)
@@ -339,7 +341,7 @@ function layoutToPuckData(layout: unknown[] | null | undefined): PuckPageData {
         }
 
         return {
-          type: block.blockType as string,
+          type: blockType,
           props: {
             ...props,
             id,
@@ -401,7 +403,7 @@ function puckContentToEmailLayout(
         blockType: itemRecord.type,
       }
 
-      if (itemRecord.type === 'emailGrid' && id) {
+      if (GRID_BLOCK_TYPES.has(itemRecord.type) && id) {
         payloadBlock.leftBlocks = puckContentToEmailLayout(zones?.[`${id}:left`], zones)
         payloadBlock.centerBlocks = puckContentToEmailLayout(zones?.[`${id}:center`], zones)
         payloadBlock.rightBlocks = puckContentToEmailLayout(zones?.[`${id}:right`], zones)

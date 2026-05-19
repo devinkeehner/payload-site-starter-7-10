@@ -281,6 +281,63 @@ function PostLinks({ block }: { block: PostLayoutBlock }) {
   )
 }
 
+function PostBentoGrid({ block }: { block: PostLayoutBlock }) {
+  const heading = typeof block.heading === 'string' ? block.heading.trim() : ''
+  const items = getBlockItems(block.items)
+  if (!heading && !items.length) return null
+
+  return (
+    <section>
+      {heading ? <h2 className="mb-5 text-3xl font-black tracking-tight text-[#000042]">{heading}</h2> : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        {items.map((item, index) => {
+          const media = getMediaResource(item.media)
+          const wide = item.size === 'wide'
+          const title = typeof item.title === 'string' ? item.title.trim() : ''
+          const body = typeof item.body === 'string' ? item.body.trim() : ''
+
+          return (
+            <article
+              className={cn(
+                'rounded-lg border border-slate-200 bg-slate-50 p-5 shadow-sm',
+                wide ? 'border-l-4 border-l-[#a71e22] sm:col-span-2 sm:p-6' : '',
+              )}
+              key={index}
+            >
+              {media ? (
+                <Media
+                  className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                  imgClassName={cn('h-auto w-full object-cover', wide ? 'aspect-[16/7]' : 'aspect-[4/3]')}
+                  resource={media}
+                />
+              ) : null}
+              {title ? <h3 className={cn('font-black tracking-tight text-[#000042]', wide ? 'text-2xl' : 'text-lg')}>{title}</h3> : null}
+              {body ? <p className="mt-2 leading-7 text-slate-600">{body}</p> : null}
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function PostGrid({ block, content }: { block: PostLayoutBlock; content?: Post['content'] | null }) {
+  const threeColumns = block.layout === 'threeColumns'
+  const columns = threeColumns
+    ? [block.leftBlocks, block.centerBlocks, block.rightBlocks]
+    : [block.leftBlocks, block.rightBlocks]
+
+  return (
+    <div className={cn('grid gap-5', threeColumns ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
+      {columns.map((column, index) => (
+        <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm" key={index}>
+          <RenderPostBlocks blocks={Array.isArray(column) ? column : []} content={content} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PostDivider() {
   return <hr className="border-slate-200" />
 }
@@ -323,6 +380,10 @@ export function RenderPostBlocks({ blocks, content }: RenderPostBlocksProps) {
             return <PostList key={key} block={postBlock} />
           case 'postLinks':
             return <PostLinks key={key} block={postBlock} />
+          case 'postBentoGrid':
+            return <PostBentoGrid key={key} block={postBlock} />
+          case 'postGrid':
+            return <PostGrid key={key} block={postBlock} content={content} />
           case 'postDivider':
             return <PostDivider key={key} />
           case 'postSpacer':

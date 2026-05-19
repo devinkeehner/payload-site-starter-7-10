@@ -2,7 +2,7 @@
 
 import '@puckeditor/core/puck.css'
 
-import { Puck, type Config, type Data } from '@puckeditor/core'
+import { DropZone, Puck, type Config, type Data } from '@puckeditor/core'
 import React, { useEffect, useMemo, useState } from 'react'
 
 import { buildDefaults, buildFields } from '@/components/admin/puck/PuckPageBuilderEditor'
@@ -33,6 +33,10 @@ function getThemeStyleFromPayload(payload: PuckPostPayload): React.CSSProperties
 }
 
 function createConfig(blockSchema: PuckBlockSchema[], previewThemeStyle?: React.CSSProperties): Config {
+  const nestedBlockSlugs = blockSchema
+    .map((block) => block.slug)
+    .filter((slug) => !['postBody', 'postGrid'].includes(slug))
+
   return {
     root: {
       render: (props: { children?: React.ReactNode }) => (
@@ -72,12 +76,27 @@ function createConfig(blockSchema: PuckBlockSchema[], previewThemeStyle?: React.
         label: block.label,
         fields: buildFields(block.fields, []),
         defaultProps: buildDefaults(block.fields),
-        render: (props) => (
-          <PuckPostBlockPreview
-            blockType={block.slug}
-            props={props as Record<string, unknown>}
-          />
-        ),
+        render: (props) => {
+          if (block.slug === 'postGrid') {
+            const gridProps = props as Record<string, unknown>
+            const threeColumns = gridProps.layout === 'threeColumns'
+
+            return (
+              <PuckPostBlockPreview blockType={block.slug} props={gridProps}>
+                <DropZone zone="left" allow={nestedBlockSlugs} minEmptyHeight={120} />
+                {threeColumns ? <DropZone zone="center" allow={nestedBlockSlugs} minEmptyHeight={120} /> : null}
+                <DropZone zone="right" allow={nestedBlockSlugs} minEmptyHeight={120} />
+              </PuckPostBlockPreview>
+            )
+          }
+
+          return (
+            <PuckPostBlockPreview
+              blockType={block.slug}
+              props={props as Record<string, unknown>}
+            />
+          )
+        },
       }
       return acc
     }, {}),

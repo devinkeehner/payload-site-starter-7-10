@@ -260,6 +260,8 @@ export interface Post {
         | PostLinksBlock
         | PostDividerBlock
         | PostSpacerBlock
+        | PostBentoGridBlock
+        | PostGridBlock
       )[]
     | null;
   graphicTemplate?: (string | null) | GraphicTemplate;
@@ -595,6 +597,78 @@ export interface PostSpacerBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'postSpacer';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostBentoGridBlock".
+ */
+export interface PostBentoGridBlock {
+  heading?: string | null;
+  items?:
+    | {
+        size: 'normal' | 'wide';
+        media?: (string | null) | Media;
+        alt?: string | null;
+        title: string;
+        body?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postBentoGrid';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostGridBlock".
+ */
+export interface PostGridBlock {
+  layout: 'twoColumns' | 'threeColumns';
+  leftBlocks?:
+    | (
+        | PostRichTextBlock
+        | PostCalloutBlock
+        | PostButtonBlock
+        | PostImageBlock
+        | PostGalleryBlock
+        | PostListBlock
+        | PostLinksBlock
+        | PostDividerBlock
+        | PostSpacerBlock
+        | PostBentoGridBlock
+      )[]
+    | null;
+  centerBlocks?:
+    | (
+        | PostRichTextBlock
+        | PostCalloutBlock
+        | PostButtonBlock
+        | PostImageBlock
+        | PostGalleryBlock
+        | PostListBlock
+        | PostLinksBlock
+        | PostDividerBlock
+        | PostSpacerBlock
+        | PostBentoGridBlock
+      )[]
+    | null;
+  rightBlocks?:
+    | (
+        | PostRichTextBlock
+        | PostCalloutBlock
+        | PostButtonBlock
+        | PostImageBlock
+        | PostGalleryBlock
+        | PostListBlock
+        | PostLinksBlock
+        | PostDividerBlock
+        | PostSpacerBlock
+        | PostBentoGridBlock
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postGrid';
 }
 /**
  * Editable generated graphics linked to posts and reusable templates.
@@ -4373,6 +4447,8 @@ export interface PostsSelect<T extends boolean = true> {
         postLinks?: T | PostLinksBlockSelect<T>;
         postDivider?: T | PostDividerBlockSelect<T>;
         postSpacer?: T | PostSpacerBlockSelect<T>;
+        postBentoGrid?: T | PostBentoGridBlockSelect<T>;
+        postGrid?: T | PostGridBlockSelect<T>;
       };
   graphicTemplate?: T;
   graphicDesign?: T;
@@ -4516,6 +4592,76 @@ export interface PostDividerBlockSelect<T extends boolean = true> {
  */
 export interface PostSpacerBlockSelect<T extends boolean = true> {
   size?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostBentoGridBlock_select".
+ */
+export interface PostBentoGridBlockSelect<T extends boolean = true> {
+  heading?: T;
+  items?:
+    | T
+    | {
+        size?: T;
+        media?: T;
+        alt?: T;
+        title?: T;
+        body?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostGridBlock_select".
+ */
+export interface PostGridBlockSelect<T extends boolean = true> {
+  layout?: T;
+  leftBlocks?:
+    | T
+    | {
+        postRichText?: T | PostRichTextBlockSelect<T>;
+        postCallout?: T | PostCalloutBlockSelect<T>;
+        postButton?: T | PostButtonBlockSelect<T>;
+        postImage?: T | PostImageBlockSelect<T>;
+        postGallery?: T | PostGalleryBlockSelect<T>;
+        postList?: T | PostListBlockSelect<T>;
+        postLinks?: T | PostLinksBlockSelect<T>;
+        postDivider?: T | PostDividerBlockSelect<T>;
+        postSpacer?: T | PostSpacerBlockSelect<T>;
+        postBentoGrid?: T | PostBentoGridBlockSelect<T>;
+      };
+  centerBlocks?:
+    | T
+    | {
+        postRichText?: T | PostRichTextBlockSelect<T>;
+        postCallout?: T | PostCalloutBlockSelect<T>;
+        postButton?: T | PostButtonBlockSelect<T>;
+        postImage?: T | PostImageBlockSelect<T>;
+        postGallery?: T | PostGalleryBlockSelect<T>;
+        postList?: T | PostListBlockSelect<T>;
+        postLinks?: T | PostLinksBlockSelect<T>;
+        postDivider?: T | PostDividerBlockSelect<T>;
+        postSpacer?: T | PostSpacerBlockSelect<T>;
+        postBentoGrid?: T | PostBentoGridBlockSelect<T>;
+      };
+  rightBlocks?:
+    | T
+    | {
+        postRichText?: T | PostRichTextBlockSelect<T>;
+        postCallout?: T | PostCalloutBlockSelect<T>;
+        postButton?: T | PostButtonBlockSelect<T>;
+        postImage?: T | PostImageBlockSelect<T>;
+        postGallery?: T | PostGalleryBlockSelect<T>;
+        postList?: T | PostListBlockSelect<T>;
+        postLinks?: T | PostLinksBlockSelect<T>;
+        postDivider?: T | PostDividerBlockSelect<T>;
+        postSpacer?: T | PostSpacerBlockSelect<T>;
+        postBentoGrid?: T | PostBentoGridBlockSelect<T>;
+      };
   id?: T;
   blockName?: T;
 }

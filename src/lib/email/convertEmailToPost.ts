@@ -215,6 +215,42 @@ function postList(items: Record<string, unknown>[], style: unknown): Record<stri
   }
 }
 
+function postBentoGrid(block: EmailBlock): Record<string, unknown> | null {
+  const items = getItems(block.items)
+    .map((item) => ({
+      alt: getString(item.alt) || undefined,
+      body: getString(item.body) || undefined,
+      media: item.media ? getUploadId(item.media) : undefined,
+      size: item.size === 'wide' ? 'wide' : 'normal',
+      title: getString(item.title),
+    }))
+    .filter((item) => item.title || item.body || item.media)
+
+  if (!items.length && !getString(block.heading)) return null
+
+  return {
+    blockType: 'postBentoGrid',
+    heading: getString(block.heading) || undefined,
+    items,
+  }
+}
+
+function postGrid(block: EmailBlock): Record<string, unknown> | null {
+  const leftBlocks = convertEmailLayout(block.leftBlocks)
+  const centerBlocks = convertEmailLayout(block.centerBlocks)
+  const rightBlocks = convertEmailLayout(block.rightBlocks)
+
+  if (!leftBlocks.length && !centerBlocks.length && !rightBlocks.length) return null
+
+  return {
+    blockType: 'postGrid',
+    centerBlocks,
+    layout: block.layout === 'threeColumns' ? 'threeColumns' : 'twoColumns',
+    leftBlocks,
+    rightBlocks,
+  }
+}
+
 function postLinks(
   headingText: string,
   bodyText: string,
@@ -337,23 +373,13 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
       return blocks.length ? [postRichText(richText(blocks))] : []
     }
     case 'emailBentoGrid': {
-      const blocks: Array<Record<string, unknown>> = []
-      const headingText = getString(block.heading)
-      if (headingText) blocks.push(postRichText(richText([heading(headingText)])))
-      getItems(block.items).forEach((item) => {
-        const image = postImage(item.media)
-        const text = textSection(getString(item.title), getString(item.body))
-        if (image) blocks.push(image)
-        if (text) blocks.push(text)
-      })
-      return blocks
+      const converted = postBentoGrid(block)
+      return converted ? [converted] : []
     }
-    case 'emailGrid':
-      return [
-        ...convertEmailLayout(block.leftBlocks),
-        ...convertEmailLayout(block.centerBlocks),
-        ...convertEmailLayout(block.rightBlocks),
-      ]
+    case 'emailGrid': {
+      const converted = postGrid(block)
+      return converted ? [converted] : []
+    }
     case 'emailSpacer':
       return [{
         blockType: 'postSpacer',

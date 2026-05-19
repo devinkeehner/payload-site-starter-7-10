@@ -380,6 +380,123 @@ export const PostSpacerBlock: Block = {
   },
 }
 
+export const PostBentoGridBlock: Block = {
+  slug: 'postBentoGrid',
+  admin: {
+    group: 'Post',
+  },
+  fields: [
+    {
+      name: 'heading',
+      type: 'text',
+      defaultValue: 'Highlights',
+    },
+    {
+      name: 'items',
+      type: 'array',
+      minRows: 1,
+      maxRows: 6,
+      fields: [
+        {
+          name: 'size',
+          type: 'select',
+          defaultValue: 'normal',
+          options: [
+            { label: 'Normal', value: 'normal' },
+            { label: 'Wide', value: 'wide' },
+          ],
+          required: true,
+        },
+        {
+          name: 'media',
+          type: 'upload',
+          relationTo: 'media',
+        },
+        {
+          name: 'alt',
+          type: 'text',
+        },
+        {
+          name: 'title',
+          type: 'text',
+          defaultValue: 'Bento item',
+          required: true,
+        },
+        {
+          name: 'body',
+          type: 'textarea',
+        },
+      ],
+    },
+  ],
+  interfaceName: 'PostBentoGridBlock',
+  labels: {
+    plural: 'Post Bento Grids',
+    singular: 'Post Bento Grid',
+  },
+}
+
+const POST_NESTED_LAYOUT_BLOCKS = [
+  PostRichTextBlock,
+  PostCalloutBlock,
+  PostButtonBlock,
+  PostImageBlock,
+  PostGalleryBlock,
+  PostListBlock,
+  PostLinksBlock,
+  PostDividerBlock,
+  PostSpacerBlock,
+  PostBentoGridBlock,
+]
+
+export const PostGridBlock: Block = {
+  slug: 'postGrid',
+  admin: {
+    group: 'Post',
+  },
+  fields: [
+    {
+      name: 'layout',
+      type: 'select',
+      defaultValue: 'twoColumns',
+      options: [
+        { label: 'One row, two columns', value: 'twoColumns' },
+        { label: 'One row, three columns', value: 'threeColumns' },
+      ],
+      required: true,
+    },
+    {
+      name: 'leftBlocks',
+      type: 'blocks',
+      blocks: POST_NESTED_LAYOUT_BLOCKS,
+      admin: {
+        initCollapsed: true,
+      },
+    },
+    {
+      name: 'centerBlocks',
+      type: 'blocks',
+      blocks: POST_NESTED_LAYOUT_BLOCKS,
+      admin: {
+        initCollapsed: true,
+      },
+    },
+    {
+      name: 'rightBlocks',
+      type: 'blocks',
+      blocks: POST_NESTED_LAYOUT_BLOCKS,
+      admin: {
+        initCollapsed: true,
+      },
+    },
+  ],
+  interfaceName: 'PostGridBlock',
+  labels: {
+    plural: 'Post Grids',
+    singular: 'Post Grid',
+  },
+}
+
 export const POST_LAYOUT_BLOCKS = [
   PostBodyBlock,
   PostRichTextBlock,
@@ -391,4 +508,6 @@ export const POST_LAYOUT_BLOCKS = [
   PostLinksBlock,
   PostDividerBlock,
   PostSpacerBlock,
+  PostBentoGridBlock,
+  PostGridBlock,
 ]

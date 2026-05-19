@@ -378,6 +378,72 @@ function PostGalleryPreview(props: BlockProps) {
   )
 }
 
+function PostBentoGridPreview(props: BlockProps) {
+  const heading = getString(props.heading)
+  const items = getItems(props.items)
+  if (!heading && !items.length) return <Placeholder label="Add bento grid items" />
+
+  return (
+    <section style={{ margin: '4px 0 30px' }}>
+      {heading ? <div style={{ color: COLORS.primary, fontSize: 28, fontWeight: 900, lineHeight: '34px', marginBottom: 16 }}>{heading}</div> : null}
+      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        {items.map((item, index) => {
+          const media = getMediaSource(item.media)
+          const wide = item.size === 'wide'
+
+          return (
+            <article
+              key={index}
+              style={{
+                ...cardStyle,
+                borderLeft: wide ? `4px solid ${COLORS.accent}` : `1px solid ${COLORS.border}`,
+                gridColumn: wide ? 'span 2' : undefined,
+                padding: wide ? 22 : 18,
+              }}
+            >
+              {media ? (
+                <PreviewImage
+                  alt={getString(item.alt) || media.alt}
+                  src={media.src}
+                  style={{
+                    aspectRatio: wide ? '16 / 7' : '4 / 3',
+                    border: `1px solid ${COLORS.border}`,
+                    borderRadius: 12,
+                    display: 'block',
+                    marginBottom: 12,
+                    objectFit: 'cover',
+                    width: '100%',
+                  }}
+                />
+              ) : null}
+              <div style={{ color: COLORS.primary, fontSize: wide ? 20 : 17, fontWeight: 900, lineHeight: wide ? '26px' : '23px' }}>
+                {getString(item.title) || 'Bento item'}
+              </div>
+              {item.body ? <div style={{ color: COLORS.muted, fontSize: 15, lineHeight: '24px', marginTop: 7 }}>{getString(item.body)}</div> : null}
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+function PostGridPreview({ children, props }: { children?: React.ReactNode; props: BlockProps }) {
+  const childrenArray = React.Children.toArray(children)
+  const threeColumns = props.layout === 'threeColumns'
+  const columns = threeColumns ? childrenArray.slice(0, 3) : [childrenArray[0], childrenArray[childrenArray.length - 1]]
+
+  return (
+    <div style={{ display: 'grid', gap: 16, gridTemplateColumns: `repeat(${threeColumns ? 3 : 2}, minmax(0, 1fr))`, margin: '4px 0 30px' }}>
+      {columns.map((child, index) => (
+        <div key={index} style={{ ...cardStyle, borderStyle: 'dashed', minHeight: 140, padding: 12 }}>
+          {child}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function PostCalloutPreview(props: BlockProps) {
   const strong = props.tone === 'strong'
   const accent = props.tone === 'accent'
@@ -427,9 +493,11 @@ function PostButtonPreview(props: BlockProps) {
 
 export function PuckPostBlockPreview({
   blockType,
+  children,
   props,
 }: {
   blockType: string
+  children?: React.ReactNode
   props: BlockProps
 }) {
   switch (blockType) {
@@ -449,6 +517,10 @@ export function PuckPostBlockPreview({
       return <PostListPreview {...props} />
     case 'postLinks':
       return <PostLinksPreview {...props} />
+    case 'postBentoGrid':
+      return <PostBentoGridPreview {...props} />
+    case 'postGrid':
+      return <PostGridPreview props={props}>{children}</PostGridPreview>
     case 'postDivider':
       return <hr style={{ border: 0, borderTop: `1px solid ${COLORS.border}`, margin: '28px 0' }} />
     case 'postSpacer':
