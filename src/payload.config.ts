@@ -24,6 +24,12 @@ import { IContactFolders } from './collections/IContactFolders';
 import { IContactLists } from './collections/IContactLists';
 import { SitemapArtifacts } from './collections/SitemapArtifacts';
 import { FacebookOAuthSessions } from './collections/FacebookOAuthSessions';
+import { Emails } from './collections/Emails';
+import { EmailLists } from './collections/EmailLists';
+import { Contacts } from './collections/Contacts';
+import { ChatgptOAuthClients } from './collections/ChatgptOAuthClients';
+import { ChatgptOAuthCodes } from './collections/ChatgptOAuthCodes';
+import { ChatgptOAuthTokens } from './collections/ChatgptOAuthTokens';
 
 // Site settings and other component imports
 import { Navbar } from './components/site/navbar/config';
@@ -204,6 +210,9 @@ const mcpCollections = {
   'wordpress-posts': { enabled: { find: true, create: true, update: true, delete: true } },
   'sitemap-artifacts': { enabled: { find: true, create: true, update: true, delete: true } },
   navbars: { enabled: { find: true, create: true, update: true, delete: true } },
+  emails: { enabled: { find: true, create: true, update: true, delete: true } },
+  'email-lists': { enabled: { find: true, create: true, update: true, delete: true } },
+  contacts: { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
 
 const deepEqual = (a: unknown, b: unknown): boolean => {
@@ -4906,8 +4915,10 @@ const updatePolicyVoicesCardLinksTool = {
 export default buildConfig({
   admin: {
     components: {
+      Nav: '@/components/admin/nav/CampaignAdminNav#CampaignAdminNav',
       // Wrap the admin UI with providers for tenant UX
       providers: [
+        '@/components/admin/theme/AdminPaletteProvider#default',
         '@/components/admin/TenantSwitchGuard#default',
         '@/components/admin/TenantHeaderIndicator#default',
       ],
@@ -4935,6 +4946,47 @@ export default buildConfig({
           rel: 'icon',
           type: 'image/svg+xml',
           url: '/brand/icon-light.svg',
+        },
+      ],
+    },
+    dashboard: {
+      defaultLayout: [
+        { widgetSlug: 'quickTasks', width: 'full' },
+        { widgetSlug: 'iconCollectionLauncher', width: 'full' },
+        { widgetSlug: 'contentAreas', width: 'full' },
+        { widgetSlug: 'recentActivity', width: 'medium' },
+        { widgetSlug: 'draftsNeedingPublish', width: 'medium' },
+      ],
+      widgets: [
+        {
+          slug: 'quickTasks',
+          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#QuickTasksWidget',
+          label: 'Common Tasks',
+          minWidth: 'full',
+        },
+        {
+          slug: 'iconCollectionLauncher',
+          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#IconCollectionLauncherWidget',
+          label: 'Collections',
+          minWidth: 'full',
+        },
+        {
+          slug: 'contentAreas',
+          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#CollectionLinksWidget',
+          label: 'Content Areas',
+          minWidth: 'full',
+        },
+        {
+          slug: 'recentActivity',
+          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#RecentActivityWidget',
+          label: 'Recent Activity',
+          minWidth: 'half',
+        },
+        {
+          slug: 'draftsNeedingPublish',
+          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#DraftsWidget',
+          label: 'Drafts Needing Publish',
+          minWidth: 'half',
         },
       ],
     },
@@ -4981,6 +5033,12 @@ export default buildConfig({
     Tags,
     IContactFolders,
     IContactLists,
+    Emails,
+    EmailLists,
+    Contacts,
+    ChatgptOAuthClients,
+    ChatgptOAuthCodes,
+    ChatgptOAuthTokens,
     SitemapArtifacts,
     FacebookOAuthSessions,
   ],

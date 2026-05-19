@@ -1,0 +1,955 @@
+'use client'
+
+import React from 'react'
+
+import { normalizeMediaResource } from '@/lib/utilities/image'
+
+type BlockProps = Record<string, unknown>
+
+type LexicalNode = Record<string, unknown> & {
+  children?: LexicalNode[]
+  fields?: Record<string, unknown>
+  format?: number | string
+  listType?: string
+  style?: string
+  tag?: string
+  text?: string
+  type?: string
+  url?: string
+}
+
+type LexicalState = {
+  root?: {
+    children?: LexicalNode[]
+  }
+}
+
+const COLORS = {
+  accent: '#7a0012',
+  accentSoft: '#fff1f2',
+  background: '#f6f7f9',
+  border: '#d9dee7',
+  borderStrong: '#c5cbd6',
+  foreground: '#111827',
+  muted: '#5b6472',
+  primary: '#0b1e3a',
+  primarySoft: '#eef3f9',
+  surface: '#ffffff',
+  surfaceAlt: '#f8fafc',
+  white: '#ffffff',
+}
+
+const cardStyle: React.CSSProperties = {
+  background: COLORS.surface,
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 14,
+}
+
+const softCardStyle: React.CSSProperties = {
+  background: COLORS.surfaceAlt,
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 14,
+}
+
+const imageFrameStyle: React.CSSProperties = {
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: 12,
+  display: 'block',
+}
+
+function getTextColor(value: unknown): string {
+  switch (value) {
+    case 'primary':
+      return COLORS.primary
+    case 'accent':
+      return COLORS.accent
+    case 'white':
+      return COLORS.white
+    default:
+      return COLORS.foreground
+  }
+}
+
+function getAlign(value: unknown): 'left' | 'center' | 'justify' | 'right' {
+  return value === 'center' || value === 'right' || value === 'justify' ? value : 'left'
+}
+
+function getButtonVariant(value: unknown): 'primary' | 'accent' | 'outline' {
+  return value === 'accent' || value === 'outline' ? value : 'primary'
+}
+
+function getButtonStyle(value: unknown): React.CSSProperties {
+  const variant = getButtonVariant(value)
+  const backgroundColor = variant === 'outline' ? COLORS.white : variant === 'accent' ? COLORS.accent : COLORS.primary
+  const color = variant === 'outline' ? COLORS.primary : COLORS.white
+
+  return {
+    backgroundColor,
+    border: `1px solid ${variant === 'outline' ? COLORS.borderStrong : backgroundColor}`,
+    borderRadius: 999,
+    color,
+    display: 'inline-block',
+    fontSize: 14,
+    fontWeight: 800,
+    lineHeight: '20px',
+    padding: '13px 22px',
+    textTransform: 'uppercase',
+  }
+}
+
+function getNumber(value: unknown, fallback: number, min: number, max: number): number {
+  const numberValue = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(numberValue)) return fallback
+  return Math.max(min, Math.min(max, numberValue))
+}
+
+function getText(value: unknown): React.ReactNode {
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (React.isValidElement(value)) return value
+  return null
+}
+
+function getString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function getItems(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object' && !Array.isArray(item)))
+    : []
+}
+
+function getSocialLabel(value: unknown): string {
+  switch (value) {
+    case 'facebook':
+      return 'f'
+    case 'instagram':
+      return 'ig'
+    case 'linkedin':
+      return 'in'
+    case 'x':
+      return 'x'
+    case 'youtube':
+      return 'yt'
+    case 'website':
+      return 'www'
+    default:
+      return 'link'
+  }
+}
+
+function getMediaSource(value: unknown): { alt: string; src: string } | null {
+  const media = normalizeMediaResource(value)
+  const src = media?.url
+  if (!src) return null
+  return { alt: media.alt || '', src }
+}
+
+function isLexicalState(value: unknown): value is LexicalState {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'root' in value)
+}
+
+function getNodeChildren(node: LexicalNode): LexicalNode[] {
+  return Array.isArray(node.children) ? node.children : []
+}
+
+function parseTextColor(style?: string): string | undefined {
+  if (!style) return undefined
+  const match = /(^|;)\s*color\s*:\s*([^;]+)/i.exec(style)
+  const color = match?.[2]?.trim()
+
+  if (!color) return undefined
+  if (color.includes('--tenant-primary')) return COLORS.primary
+  if (color.includes('--tenant-accent')) return COLORS.accent
+
+  return color
+}
+
+function getNodeAlignment(node: LexicalNode, fallback: unknown): 'left' | 'center' | 'justify' | 'right' {
+  return typeof node.format === 'string' && node.format ? getAlign(node.format) : getAlign(fallback)
+}
+
+function getTextNodeStyle(node: LexicalNode): React.CSSProperties | undefined {
+  const format = typeof node.format === 'number' ? node.format : 0
+  const style: React.CSSProperties = {}
+
+  if (format & 1) style.fontWeight = 800
+  if (format & 2) style.fontStyle = 'italic'
+  if (format & 8) style.textDecoration = 'underline'
+  if (format & 4) style.textDecoration = style.textDecoration ? `${style.textDecoration} line-through` : 'line-through'
+  if (format & 16) {
+    style.backgroundColor = COLORS.primarySoft
+    style.borderRadius = 4
+    style.fontFamily = 'Menlo, Monaco, Consolas, monospace'
+    style.fontSize = '0.92em'
+    style.padding = '1px 4px'
+  }
+
+  const color = parseTextColor(node.style)
+  if (color) style.color = color
+
+  return Object.keys(style).length ? style : undefined
+}
+
+function getLinkURL(node: LexicalNode): string {
+  const fields = node.fields
+  const url = typeof fields?.url === 'string' ? fields.url : typeof node.url === 'string' ? node.url : ''
+  return url.trim()
+}
+
+function renderInlineNodes(nodes: LexicalNode[], keyPrefix: string): React.ReactNode[] {
+  return nodes.map((node, index) => {
+    const key = `${keyPrefix}-${index}`
+
+    if (node.type === 'text') {
+      const text = node.text || ''
+      const style = getTextNodeStyle(node)
+      return style ? <span key={key} style={style}>{text}</span> : text
+    }
+
+    if (node.type === 'linebreak') {
+      return <br key={key} />
+    }
+
+    if (node.type === 'link' || node.type === 'autolink') {
+      const url = getLinkURL(node)
+      const children = renderInlineNodes(getNodeChildren(node), key)
+
+      return (
+        <a
+          key={key}
+          href={url || undefined}
+          style={{ color: COLORS.accent, fontWeight: 800, textDecoration: 'underline' }}
+        >
+          {children}
+        </a>
+      )
+    }
+
+    return <React.Fragment key={key}>{renderInlineNodes(getNodeChildren(node), key)}</React.Fragment>
+  })
+}
+
+function renderRichTextPreview(value: unknown, color: unknown, align: unknown): React.ReactNode[] | null {
+  if (!isLexicalState(value)) return null
+
+  const blocks = value.root?.children || []
+  if (!blocks.length) return null
+
+  return blocks.map((node, index) => {
+    const children = renderInlineNodes(getNodeChildren(node), `rt-${index}`)
+    const alignment = getNodeAlignment(node, align)
+    const textColor = getTextColor(color)
+    const hasChildren = children.some((child) => child !== '')
+
+    if (!hasChildren && node.type !== 'horizontalrule') return null
+
+    if (node.type === 'heading') {
+      const tag = node.tag === 'h1' || node.tag === 'h2' || node.tag === 'h3' ? node.tag : 'h3'
+      const fontSize = tag === 'h1' ? 30 : tag === 'h2' ? 24 : 19
+
+      return (
+        <div
+          key={index}
+          style={{
+            color: textColor,
+            fontSize,
+            fontWeight: 800,
+            lineHeight: tag === 'h1' ? '36px' : tag === 'h2' ? '30px' : '25px',
+            margin: index === 0 ? '0 0 14px' : '18px 0 14px',
+            textAlign: alignment,
+          }}
+        >
+          {children}
+        </div>
+      )
+    }
+
+    if (node.type === 'quote') {
+      return (
+        <div key={index} style={{ borderLeft: `4px solid ${COLORS.accent}`, margin: '10px 0 20px', padding: '2px 0 2px 16px' }}>
+          <div style={{ color: COLORS.muted, fontSize: 16, fontStyle: 'italic', lineHeight: '26px', textAlign: alignment }}>
+            {children}
+          </div>
+        </div>
+      )
+    }
+
+    if (node.type === 'list') {
+      const listItems = getNodeChildren(node)
+      const ordered = node.listType === 'number' || node.listType === 'ordered'
+
+      return (
+        <div key={index} style={{ margin: '4px 0 18px' }}>
+          {listItems.map((item, itemIndex) => (
+            <div key={itemIndex} style={{ color: textColor, fontSize: 16, lineHeight: '26px', margin: '0 0 6px', textAlign: alignment }}>
+              <span style={{ color: COLORS.accent, fontWeight: 800 }}>{ordered ? `${itemIndex + 1}. ` : '• '}</span>
+              {renderInlineNodes(getNodeChildren(item), `rt-${index}-${itemIndex}`)}
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    if (node.type === 'horizontalrule') {
+      return <hr key={index} style={{ border: 0, borderTop: `1px solid ${COLORS.border}`, margin: '20px 0' }} />
+    }
+
+    return (
+      <div
+        key={index}
+        style={{
+          color: textColor,
+          fontSize: 16,
+          lineHeight: '27px',
+          margin: index === blocks.length - 1 ? '0 0 18px' : '0 0 14px',
+          textAlign: alignment,
+        }}
+      >
+        {children}
+      </div>
+    )
+  })
+}
+
+function needsInlineSeparatorBefore(value: string): boolean {
+  return Boolean(value && !/\s$/.test(value))
+}
+
+function needsInlineSeparatorAfter(value: string): boolean {
+  return Boolean(value && !/^\s|^[.,;:!?]/.test(value))
+}
+
+function Placeholder({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        alignItems: 'center',
+        background: '#eef2f7',
+        border: `1px dashed ${COLORS.border}`,
+        borderRadius: 12,
+        color: COLORS.muted,
+        display: 'flex',
+        justifyContent: 'center',
+        minHeight: 96,
+        padding: 12,
+        textAlign: 'center',
+      }}
+    >
+      {label}
+    </div>
+  )
+}
+
+function PreviewImage({
+  alt,
+  src,
+  style,
+}: {
+  alt: string
+  src: string
+  style?: React.CSSProperties
+}) {
+  return (
+    // Email previews should display the literal R2/media URL instead of using Next image optimization.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img alt={alt} src={src} style={style} />
+  )
+}
+
+function EmailHeaderSocialPreview(props: BlockProps) {
+  const socialLinks = getItems(props.socialLinks)
+
+  return (
+    <div
+      style={{
+        alignItems: 'center',
+        background: COLORS.primary,
+        borderRadius: 16,
+        display: 'flex',
+        gap: 16,
+        justifyContent: 'space-between',
+        marginBottom: 30,
+        padding: '22px 24px',
+      }}
+    >
+      <div>
+        <div style={{ color: COLORS.white, fontSize: 22, fontWeight: 800, letterSpacing: '0.02em', lineHeight: '26px' }}>
+          {getText(props.logoText) || 'Campaign Update'}
+        </div>
+        {props.subtitle ? (
+          <div style={{ color: '#d8e0ee', fontSize: 13, lineHeight: '19px', marginTop: 6 }}>
+            {getText(props.subtitle)}
+          </div>
+        ) : null}
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        {socialLinks.length ? socialLinks.map((link, index) => (
+          <span
+            key={index}
+            style={{
+              background: 'rgba(255,255,255,0.12)',
+              border: '1px solid rgba(255,255,255,0.22)',
+              borderRadius: 999,
+              color: COLORS.white,
+              display: 'inline-block',
+              fontSize: 11,
+              fontWeight: 800,
+              lineHeight: '28px',
+              textAlign: 'center',
+              textTransform: 'uppercase',
+              width: 28,
+            }}
+          >
+            {getSocialLabel(link.platform)}
+          </span>
+        )) : null}
+      </div>
+    </div>
+  )
+}
+
+function EmailHeadingPreview(props: BlockProps) {
+  const level = props.level === 'h2' || props.level === 'h3' ? props.level : 'h1'
+  const fontSize = level === 'h1' ? 34 : level === 'h2' ? 26 : 20
+  const text = getText(props.text)
+  if (!text) return null
+
+  return (
+    <div
+      style={{
+        color: getTextColor(props.color),
+        fontSize,
+        fontWeight: 800,
+        letterSpacing: '0.01em',
+        lineHeight: level === 'h1' ? '39px' : level === 'h2' ? '32px' : '26px',
+        margin: '0 0 18px',
+        textAlign: getAlign(props.align),
+      }}
+    >
+      {text}
+    </div>
+  )
+}
+
+function EmailTextPreview(props: BlockProps) {
+  const richText = renderRichTextPreview(props.text, props.color, props.align)
+  if (richText) return <>{richText}</>
+
+  const text = getText(props.text)
+  if (!text) return null
+
+  return (
+    <div
+      style={{
+        color: getTextColor(props.color),
+        fontSize: 16,
+        lineHeight: '27px',
+        margin: '0 0 18px',
+        textAlign: getAlign(props.align),
+        whiteSpace: 'pre-line',
+      }}
+    >
+      {text}
+    </div>
+  )
+}
+
+function EmailInlineLinkPreview(props: BlockProps) {
+  const beforeText = getString(props.beforeText)
+  const label = getText(props.label) || 'inline link'
+  const afterText = getString(props.afterText)
+
+  return (
+    <div
+      style={{
+        color: COLORS.foreground,
+        fontSize: 16,
+        lineHeight: '26px',
+        margin: '0 0 18px',
+        textAlign: getAlign(props.align),
+      }}
+    >
+      {beforeText}
+      {needsInlineSeparatorBefore(beforeText) ? ' ' : null}
+      <span style={{ color: COLORS.accent, fontWeight: 800, textDecoration: 'underline' }}>{label}</span>
+      {needsInlineSeparatorAfter(afterText) ? ' ' : null}
+      {afterText}
+    </div>
+  )
+}
+
+function EmailButtonPreview(props: BlockProps) {
+  const label = getText(props.label)
+
+  return (
+    <div style={{ margin: '10px 0 26px', textAlign: getAlign(props.align) }}>
+      <span style={getButtonStyle(props.variant)}>
+        {label || 'Button'}
+      </span>
+    </div>
+  )
+}
+
+function EmailTwoButtonsPreview(props: BlockProps) {
+  const primaryLabel = getText(props.primaryLabel)
+  const secondaryLabel = getText(props.secondaryLabel)
+
+  return (
+    <div style={{ margin: '10px 0 26px', textAlign: getAlign(props.align) }}>
+      <span style={{ ...getButtonStyle(props.primaryVariant), margin: '0 8px 8px 0' }}>
+        {primaryLabel || 'Primary action'}
+      </span>
+      <span style={{ ...getButtonStyle(props.secondaryVariant), margin: '0 0 8px' }}>
+        {secondaryLabel || 'Secondary action'}
+      </span>
+    </div>
+  )
+}
+
+function EmailListPreview(props: BlockProps) {
+  const items = getItems(props.items)
+  const imageLeft = props.style === 'imageLeft'
+
+  if (!items.length) return <Placeholder label="Add list items" />
+
+  return (
+    <div style={{ margin: '10px 0 26px' }}>
+      {items.map((item, index) => {
+        const media = getMediaSource(item.media)
+
+        if (imageLeft) {
+          return (
+            <div key={index} style={{ ...softCardStyle, display: 'flex', gap: 12, marginBottom: 10, padding: 14 }}>
+              <div style={{ flex: '0 0 56px' }}>
+                {media ? (
+                  <PreviewImage
+                    alt={getString(item.alt) || media.alt}
+                    src={media.src}
+                    style={{ ...imageFrameStyle, borderRadius: 10, height: 56, objectFit: 'cover', width: 56 }}
+                  />
+                ) : (
+                  <div style={{ background: COLORS.accent, borderRadius: 999, color: COLORS.white, fontSize: 13, fontWeight: 800, lineHeight: '32px', textAlign: 'center', width: 32 }}>
+                    {index + 1}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ color: COLORS.foreground, fontSize: 15, fontWeight: 800, lineHeight: '20px' }}>
+                  {getText(item.title) || 'List item'}
+                </div>
+                {item.body ? <div style={{ color: COLORS.muted, fontSize: 14, lineHeight: '22px', marginTop: 4 }}>{getText(item.body)}</div> : null}
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <div key={index} style={{ ...softCardStyle, marginBottom: 10, padding: '14px 16px' }}>
+            <div style={{ color: COLORS.foreground, fontSize: 15, fontWeight: 800, lineHeight: '21px' }}>
+              <span style={{ color: COLORS.accent }}>• </span>
+              {getText(item.title) || 'List item'}
+            </div>
+            {item.body ? <div style={{ color: COLORS.muted, fontSize: 14, lineHeight: '22px', marginTop: 4 }}>{getText(item.body)}</div> : null}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function EmailMarkdownPreview(props: BlockProps) {
+  const markdown = getString(props.markdown)
+
+  return (
+    <div
+      style={{
+        ...softCardStyle,
+        color: COLORS.foreground,
+        fontSize: 15,
+        lineHeight: '24px',
+        margin: '0 0 24px',
+        padding: '18px 20px',
+        whiteSpace: 'pre-line',
+      }}
+    >
+      {markdown || 'Markdown content'}
+    </div>
+  )
+}
+
+function EmailImagePreview(props: BlockProps) {
+  const media = normalizeMediaResource(props.media)
+  const src = media?.url
+
+  if (!src) {
+    return (
+      <div
+        style={{
+          alignItems: 'center',
+          background: '#eef2f7',
+          border: `1px dashed ${COLORS.border}`,
+          borderRadius: 12,
+          color: COLORS.muted,
+          display: 'flex',
+          height: 180,
+          justifyContent: 'center',
+          marginBottom: 20,
+        }}
+      >
+        Select an image
+      </div>
+    )
+  }
+
+  return (
+    <PreviewImage
+      alt={typeof props.alt === 'string' ? props.alt : media.alt || ''}
+      src={src}
+      style={{
+        ...imageFrameStyle,
+        borderRadius: 14,
+        display: 'block',
+        height: 'auto',
+        margin: '0 auto 24px',
+        maxWidth: '100%',
+        width: getNumber(props.width, 560, 120, 640),
+      }}
+    />
+  )
+}
+
+function EmailArticleImageRightPreview(props: BlockProps) {
+  const media = getMediaSource(props.media)
+
+  return (
+    <div style={{ ...softCardStyle, display: 'grid', gap: 16, gridTemplateColumns: '1.35fr 1fr', margin: '10px 0 26px', padding: 18 }}>
+      <div>
+        <div style={{ color: COLORS.foreground, fontSize: 20, fontWeight: 800, lineHeight: '25px' }}>
+          {getText(props.heading) || 'Article headline'}
+        </div>
+        <div style={{ color: COLORS.muted, fontSize: 14, lineHeight: '22px', marginTop: 8, whiteSpace: 'pre-line' }}>
+          {getText(props.body)}
+        </div>
+        {props.linkLabel ? <div style={{ color: COLORS.accent, fontSize: 14, fontWeight: 800, marginTop: 12 }}>{getText(props.linkLabel)}</div> : null}
+      </div>
+      <div>
+        {media ? (
+          <PreviewImage alt={getString(props.alt) || media.alt} src={media.src} style={{ ...imageFrameStyle, width: '100%' }} />
+        ) : (
+          <Placeholder label="Select article image" />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function EmailArticleTwoCardsPreview(props: BlockProps) {
+  const cards = getItems(props.cards).slice(0, 2)
+  if (!cards.length) return <Placeholder label="Add article cards" />
+
+  return (
+    <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', margin: '10px 0 26px' }}>
+      {cards.map((card, index) => {
+        const media = getMediaSource(card.media)
+        return (
+          <div key={index} style={{ ...cardStyle, padding: 16 }}>
+            {media ? <PreviewImage alt={getString(card.alt) || media.alt} src={media.src} style={{ ...imageFrameStyle, marginBottom: 12, width: '100%' }} /> : null}
+            <div style={{ color: COLORS.foreground, fontSize: 16, fontWeight: 800, lineHeight: '21px' }}>{getText(card.heading) || 'Article headline'}</div>
+            {card.body ? <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: '20px', marginTop: 7 }}>{getText(card.body)}</div> : null}
+            {card.linkLabel ? <div style={{ color: COLORS.accent, fontSize: 13, fontWeight: 800, marginTop: 10 }}>{getText(card.linkLabel)}</div> : null}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+type GalleryItemPreview = {
+  alt: string
+  caption: React.ReactNode
+  src: string
+}
+
+function getGalleryItems(value: unknown): GalleryItemPreview[] {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+
+      const record = item as Record<string, unknown>
+      const media = normalizeMediaResource(record.media)
+      const src = media?.url
+
+      if (!src) return null
+
+      return {
+        alt: typeof record.alt === 'string' ? record.alt : media.alt || '',
+        caption: getText(record.caption),
+        src,
+      }
+    })
+    .filter((item): item is GalleryItemPreview => Boolean(item))
+}
+
+function GalleryPlaceholder() {
+  return (
+    <div
+      style={{
+        alignItems: 'center',
+        background: '#eef2f7',
+        border: `1px dashed ${COLORS.border}`,
+        borderRadius: 12,
+        color: COLORS.muted,
+        display: 'flex',
+        minHeight: 120,
+        justifyContent: 'center',
+        textAlign: 'center',
+      }}
+    >
+      Select gallery images
+    </div>
+  )
+}
+
+function EmailGalleryPreview(props: BlockProps) {
+  const items = getGalleryItems(props.items)
+  const layout = props.layout === 'threeColumns' || props.layout === 'horizontalGrid' || props.layout === 'verticalGrid'
+    ? props.layout
+    : 'fourGrid'
+
+  if (!items.length) {
+    return <GalleryPlaceholder />
+  }
+
+  const columns = layout === 'threeColumns'
+    ? 3
+    : layout === 'horizontalGrid'
+      ? Math.min(4, Math.max(1, items.length))
+      : layout === 'verticalGrid'
+        ? 1
+        : 2
+
+  const visibleItems = layout === 'fourGrid' ? items.slice(0, 4) : items
+
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gap: 10,
+        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        margin: '10px 0 26px',
+      }}
+    >
+      {visibleItems.map((item, index) => (
+        <div key={`${item.src}-${index}`} style={{ minWidth: 0 }}>
+          <PreviewImage
+            alt={item.alt}
+            src={item.src}
+            style={{
+              aspectRatio: '4 / 3',
+              ...imageFrameStyle,
+              borderRadius: 12,
+              display: 'block',
+              height: 'auto',
+              objectFit: 'cover',
+              width: '100%',
+            }}
+          />
+          {item.caption ? (
+            <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: '18px', marginTop: 8 }}>
+              {item.caption}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EmailFeatureThreeCenteredPreview(props: BlockProps) {
+  const paragraphs = getItems(props.paragraphs).map((item) => getText(item.text)).filter(Boolean).slice(0, 3)
+
+  return (
+    <div style={{ ...softCardStyle, margin: '10px 0 28px', padding: '24px 28px', textAlign: 'center' }}>
+      <div style={{ color: COLORS.foreground, fontSize: 26, fontWeight: 800, lineHeight: '32px', marginBottom: 16 }}>
+        {getText(props.heading) || 'What to know'}
+      </div>
+      {paragraphs.map((paragraph, index) => (
+        <div key={index} style={{ color: COLORS.muted, fontSize: 15, lineHeight: '24px', marginBottom: index === paragraphs.length - 1 ? 0 : 10 }}>
+          {paragraph}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EmailBentoGridPreview(props: BlockProps) {
+  const items = getItems(props.items)
+
+  return (
+    <div style={{ margin: '10px 0 26px' }}>
+      {props.heading ? <div style={{ color: COLORS.foreground, fontSize: 26, fontWeight: 800, lineHeight: '32px', marginBottom: 16 }}>{getText(props.heading)}</div> : null}
+      <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        {items.map((item, index) => {
+          const media = getMediaSource(item.media)
+          return (
+            <div key={index} style={{ ...(item.size === 'wide' ? softCardStyle : cardStyle), borderLeft: item.size === 'wide' ? `4px solid ${COLORS.accent}` : undefined, gridColumn: item.size === 'wide' ? 'span 2' : undefined, padding: item.size === 'wide' ? 18 : 16 }}>
+              {media ? <PreviewImage alt={getString(item.alt) || media.alt} src={media.src} style={{ ...imageFrameStyle, marginBottom: 10, width: '100%' }} /> : null}
+              <div style={{ color: COLORS.foreground, fontSize: 15, fontWeight: 800, lineHeight: '20px' }}>{getText(item.title) || 'Bento item'}</div>
+              {item.body ? <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: '20px', marginTop: 6 }}>{getText(item.body)}</div> : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function EmailGridPreview({ children, props }: { children?: React.ReactNode; props: BlockProps }) {
+  const childrenArray = React.Children.toArray(children)
+  const threeColumns = props.layout === 'threeColumns'
+  const columns = threeColumns ? childrenArray.slice(0, 3) : [childrenArray[0], childrenArray[childrenArray.length - 1]]
+
+  return (
+    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: `repeat(${threeColumns ? 3 : 2}, minmax(0, 1fr))`, margin: '10px 0 26px' }}>
+      {columns.map((child, index) => (
+        <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 120, padding: 10 }}>
+          {child}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function EmailDividerPreview(props: BlockProps) {
+  const spacing = getNumber(props.spacing, 24, 0, 64)
+  const color = props.color === 'primary'
+    ? COLORS.primary
+    : props.color === 'accent'
+      ? COLORS.accent
+      : COLORS.border
+
+  return (
+    <hr
+      style={{
+        border: 0,
+        borderTop: `${props.color === 'border' ? 1 : 2}px solid ${color}`,
+        margin: `${spacing}px 0`,
+      }}
+    />
+  )
+}
+
+function EmailSpacerPreview(props: BlockProps) {
+  return <div style={{ height: getNumber(props.size, 24, 4, 96) }} />
+}
+
+function EmailCalloutPreview(props: BlockProps) {
+  const heading = getText(props.heading)
+  const body = getText(props.body)
+  const variant = props.variant === 'primary' || props.variant === 'neutral' ? props.variant : 'accent'
+  const borderColor = variant === 'primary' ? COLORS.primary : variant === 'neutral' ? COLORS.border : COLORS.accent
+  const backgroundColor = variant === 'primary' ? COLORS.primarySoft : variant === 'neutral' ? COLORS.surfaceAlt : COLORS.accentSoft
+
+  return (
+    <div
+      style={{
+        backgroundColor,
+        border: `1px solid ${variant === 'neutral' ? COLORS.border : borderColor}`,
+        borderLeft: `4px solid ${borderColor}`,
+        borderRadius: 12,
+        margin: '10px 0 24px',
+        padding: '18px 20px',
+      }}
+    >
+      {heading ? (
+        <div style={{ color: COLORS.foreground, fontSize: 17, fontWeight: 800, lineHeight: '22px', marginBottom: 6 }}>
+          {heading}
+        </div>
+      ) : null}
+      {body ? (
+        <div style={{ color: COLORS.muted, fontSize: 15, lineHeight: '24px', whiteSpace: 'pre-line' }}>
+          {body}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function EmailFooterOneColumnPreview(props: BlockProps) {
+  const links = getItems(props.links)
+
+  return (
+    <div style={{ background: COLORS.primary, borderRadius: 16, marginTop: 30, padding: '24px 28px', textAlign: 'center' }}>
+      {props.heading ? <div style={{ color: COLORS.white, fontSize: 17, fontWeight: 800, lineHeight: '23px' }}>{getText(props.heading)}</div> : null}
+      {props.body ? <div style={{ color: '#d8e0ee', fontSize: 13, lineHeight: '20px', marginTop: 7, whiteSpace: 'pre-line' }}>{getText(props.body)}</div> : null}
+      {props.address ? <div style={{ color: '#bac6d8', fontSize: 12, lineHeight: '18px', marginTop: 14, whiteSpace: 'pre-line' }}>{getText(props.address)}</div> : null}
+      {links.length ? (
+        <div style={{ color: COLORS.white, fontSize: 12, fontWeight: 800, lineHeight: '18px', marginTop: 14, textDecoration: 'underline' }}>
+          {links.map((link, index) => (
+            <React.Fragment key={index}>
+              {index > 0 ? '  |  ' : null}
+              {getText(link.label) || 'Footer link'}
+            </React.Fragment>
+          ))}
+        </div>
+      ) : null}
+      {props.copyright ? <div style={{ color: '#9fb0c8', fontSize: 11, lineHeight: '16px', marginTop: 14 }}>{getText(props.copyright)}</div> : null}
+    </div>
+  )
+}
+
+export function PuckEmailBlockPreview({
+  blockType,
+  children,
+  props,
+}: {
+  blockType: string
+  children?: React.ReactNode
+  props: BlockProps
+}) {
+  switch (blockType) {
+    case 'emailHeaderSocial':
+      return <EmailHeaderSocialPreview {...props} />
+    case 'emailHeading':
+      return <EmailHeadingPreview {...props} />
+    case 'emailText':
+      return <EmailTextPreview {...props} />
+    case 'emailInlineLink':
+      return <EmailInlineLinkPreview {...props} />
+    case 'emailButton':
+      return <EmailButtonPreview {...props} />
+    case 'emailTwoButtons':
+      return <EmailTwoButtonsPreview {...props} />
+    case 'emailList':
+      return <EmailListPreview {...props} />
+    case 'emailMarkdown':
+      return <EmailMarkdownPreview {...props} />
+    case 'emailImage':
+      return <EmailImagePreview {...props} />
+    case 'emailArticleImageRight':
+      return <EmailArticleImageRightPreview {...props} />
+    case 'emailArticleTwoCards':
+      return <EmailArticleTwoCardsPreview {...props} />
+    case 'emailGallery':
+      return <EmailGalleryPreview {...props} />
+    case 'emailFeatureThreeCentered':
+      return <EmailFeatureThreeCenteredPreview {...props} />
+    case 'emailBentoGrid':
+      return <EmailBentoGridPreview {...props} />
+    case 'emailGrid':
+      return <EmailGridPreview props={props}>{children}</EmailGridPreview>
+    case 'emailDivider':
+      return <EmailDividerPreview {...props} />
+    case 'emailSpacer':
+      return <EmailSpacerPreview {...props} />
+    case 'emailCallout':
+      return <EmailCalloutPreview {...props} />
+    case 'emailFooterOneColumn':
+      return <EmailFooterOneColumnPreview {...props} />
+    default:
+      return null
+  }
+}

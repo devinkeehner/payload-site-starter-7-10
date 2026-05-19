@@ -1,0 +1,55 @@
+.campaign-admin-nav__link {
+  align-items: center;
+  gap: 0.45rem;
+  white-space: normal;
+}
+
+.campaign-admin-nav__link-icon {
+  align-items: center;
+  color: var(--theme-elevation-500);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 1.05rem;
+  justify-content: center;
+  width: 1.05rem;
+}
+
+.campaign-admin-nav__link:hover .campaign-admin-nav__link-icon,
+.campaign-admin-nav__link:focus-visible .campaign-admin-nav__link-icon {
+  color: var(--theme-text);
+}
+
+.campaign-admin-nav__link-label {
+  line-height: 1.2;
+}
+
+.campaign-admin-nav__controls {
+  display: grid;
+  gap: calc(var(--base) * 0.35);
+  margin-top: var(--base);
+}
+
+.campaign-admin-nav__palette-toggle {
+  align-items: center;
+  background: var(--theme-elevation-50);
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 4px;
+  color: var(--theme-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 0.4rem;
+  justify-content: center;
+  line-height: 1.2;
+  min-height: calc(var(--base) * 1.6);
+  padding: 0.45rem 0.6rem;
+  text-align: center;
+  width: 100%;
+}
+
+.campaign-admin-nav__palette-toggle:hover,
+.campaign-admin-nav__palette-toggle:focus-visible,
+.campaign-admin-nav__palette-toggle[aria-pressed='true'] {
+  background: var(--theme-elevation-150);
+  border-color: var(--theme-elevation-300);
+}

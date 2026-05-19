@@ -1,0 +1,1 @@
+export { TextColorFeatureClient } from './textColorFeature'

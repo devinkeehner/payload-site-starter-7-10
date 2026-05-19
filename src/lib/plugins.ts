@@ -2033,6 +2033,9 @@ export const plugins: Plugin[] = [
       'site-seo': { isGlobal: true },
       forms: {},
       'form-submissions': {},
+      emails: {},
+      'email-lists': {},
+      contacts: {},
     } as any,
   }),
   // Rename tenant field labels to use "Site" terminology

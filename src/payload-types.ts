@@ -90,6 +90,12 @@ export interface Config {
     tags: Tag;
     'icontact-folders': IcontactFolder;
     'icontact-lists': IcontactList;
+    emails: Email;
+    'email-lists': EmailList;
+    contacts: Contact;
+    'chatgpt-oauth-clients': ChatgptOauthClient;
+    'chatgpt-oauth-codes': ChatgptOauthCode;
+    'chatgpt-oauth-tokens': ChatgptOauthToken;
     'sitemap-artifacts': SitemapArtifact;
     'facebook-oauth-sessions': FacebookOauthSession;
     'payload-mcp-api-keys': PayloadMcpApiKey;
@@ -125,6 +131,12 @@ export interface Config {
     tags: TagsSelect<false> | TagsSelect<true>;
     'icontact-folders': IcontactFoldersSelect<false> | IcontactFoldersSelect<true>;
     'icontact-lists': IcontactListsSelect<false> | IcontactListsSelect<true>;
+    emails: EmailsSelect<false> | EmailsSelect<true>;
+    'email-lists': EmailListsSelect<false> | EmailListsSelect<true>;
+    contacts: ContactsSelect<false> | ContactsSelect<true>;
+    'chatgpt-oauth-clients': ChatgptOauthClientsSelect<false> | ChatgptOauthClientsSelect<true>;
+    'chatgpt-oauth-codes': ChatgptOauthCodesSelect<false> | ChatgptOauthCodesSelect<true>;
+    'chatgpt-oauth-tokens': ChatgptOauthTokensSelect<false> | ChatgptOauthTokensSelect<true>;
     'sitemap-artifacts': SitemapArtifactsSelect<false> | SitemapArtifactsSelect<true>;
     'facebook-oauth-sessions': FacebookOauthSessionsSelect<false> | FacebookOauthSessionsSelect<true>;
     'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
@@ -2671,6 +2683,514 @@ export interface FormSubmission {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emails".
+ */
+export interface Email {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  /**
+   * Internal title shown in the admin.
+   */
+  title: string;
+  subject: string;
+  /**
+   * Short preview text shown by many email clients.
+   */
+  preheader?: string | null;
+  /**
+   * Send Test Email sends only to this address, never to the audience list.
+   */
+  recipientEmail: string;
+  /**
+   * Intended audience for future campaign sends. Test sends do not use this list.
+   */
+  emailList?: (string | null) | EmailList;
+  replyTo?: string | null;
+  /**
+   * Build this email in the Email Builder tab.
+   */
+  layout: (
+    | EmailHeaderSocialBlock
+    | EmailHeadingBlock
+    | EmailTextBlock
+    | EmailInlineLinkBlock
+    | EmailButtonBlock
+    | EmailTwoButtonBlock
+    | EmailImageBlock
+    | EmailGalleryBlock
+    | EmailGridBlock
+    | EmailListBlock
+    | EmailMarkdownBlock
+    | EmailArticleImageRightBlock
+    | EmailArticleTwoCardsBlock
+    | EmailFeatureThreeCenteredBlock
+    | EmailBentoGridBlock
+    | EmailDividerBlock
+    | EmailSpacerBlock
+    | EmailCalloutBlock
+    | EmailFooterOneColumnBlock
+  )[];
+  lastSend?: {
+    status?: ('sent' | 'failed') | null;
+    recipientEmail?: string | null;
+    sentAt?: string | null;
+    message?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-lists".
+ */
+export interface EmailList {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  name: string;
+  description?: string | null;
+  status: 'active' | 'archived';
+  /**
+   * Contacts included in this audience list.
+   */
+  contacts?: (string | Contact)[] | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contacts".
+ */
+export interface Contact {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  phone?: string | null;
+  status: 'subscribed' | 'unsubscribed' | 'inactive' | 'bounced' | 'doNotContact';
+  source: 'manual' | 'form' | 'import' | 'event' | 'crm' | 'other';
+  /**
+   * Short CRM labels such as donor, volunteer, press, or precinct captain.
+   */
+  tags?:
+    | {
+        tag: string;
+        id?: string | null;
+      }[]
+    | null;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailHeaderSocialBlock".
+ */
+export interface EmailHeaderSocialBlock {
+  logoText: string;
+  subtitle?: string | null;
+  socialLinks?:
+    | {
+        platform: 'facebook' | 'instagram' | 'linkedin' | 'x' | 'youtube' | 'website';
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailHeaderSocial';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailHeadingBlock".
+ */
+export interface EmailHeadingBlock {
+  text: string;
+  level: 'h1' | 'h2' | 'h3';
+  align: 'left' | 'center' | 'right';
+  color: 'default' | 'foreground' | 'primary' | 'accent' | 'white';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailHeading';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailTextBlock".
+ */
+export interface EmailTextBlock {
+  text: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  align: 'left' | 'center' | 'right';
+  color: 'default' | 'foreground' | 'primary' | 'accent' | 'white';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailText';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailInlineLinkBlock".
+ */
+export interface EmailInlineLinkBlock {
+  beforeText?: string | null;
+  label: string;
+  url: string;
+  afterText?: string | null;
+  align: 'left' | 'center' | 'right';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailInlineLink';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailButtonBlock".
+ */
+export interface EmailButtonBlock {
+  label: string;
+  url: string;
+  variant: 'primary' | 'accent' | 'outline';
+  align: 'left' | 'center' | 'right';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailButton';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailTwoButtonBlock".
+ */
+export interface EmailTwoButtonBlock {
+  primaryLabel: string;
+  primaryUrl: string;
+  primaryVariant: 'primary' | 'accent' | 'outline';
+  secondaryLabel: string;
+  secondaryUrl: string;
+  secondaryVariant: 'primary' | 'accent' | 'outline';
+  align: 'left' | 'center' | 'right';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailTwoButtons';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailImageBlock".
+ */
+export interface EmailImageBlock {
+  media: string | Media;
+  alt?: string | null;
+  href?: string | null;
+  width?: number | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailImage';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailGalleryBlock".
+ */
+export interface EmailGalleryBlock {
+  layout: 'fourGrid' | 'threeColumns' | 'horizontalGrid' | 'verticalGrid';
+  items?:
+    | {
+        media: string | Media;
+        alt?: string | null;
+        href?: string | null;
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailGallery';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailGridBlock".
+ */
+export interface EmailGridBlock {
+  layout: 'twoColumns' | 'threeColumns';
+  leftBlocks?:
+    | (
+        | EmailHeadingBlock
+        | EmailTextBlock
+        | EmailInlineLinkBlock
+        | EmailButtonBlock
+        | EmailTwoButtonBlock
+        | EmailImageBlock
+        | EmailGalleryBlock
+        | EmailListBlock
+        | EmailMarkdownBlock
+        | EmailDividerBlock
+        | EmailSpacerBlock
+        | EmailCalloutBlock
+      )[]
+    | null;
+  centerBlocks?:
+    | (
+        | EmailHeadingBlock
+        | EmailTextBlock
+        | EmailInlineLinkBlock
+        | EmailButtonBlock
+        | EmailTwoButtonBlock
+        | EmailImageBlock
+        | EmailGalleryBlock
+        | EmailListBlock
+        | EmailMarkdownBlock
+        | EmailDividerBlock
+        | EmailSpacerBlock
+        | EmailCalloutBlock
+      )[]
+    | null;
+  rightBlocks?:
+    | (
+        | EmailHeadingBlock
+        | EmailTextBlock
+        | EmailInlineLinkBlock
+        | EmailButtonBlock
+        | EmailTwoButtonBlock
+        | EmailImageBlock
+        | EmailGalleryBlock
+        | EmailListBlock
+        | EmailMarkdownBlock
+        | EmailDividerBlock
+        | EmailSpacerBlock
+        | EmailCalloutBlock
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailGrid';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailListBlock".
+ */
+export interface EmailListBlock {
+  style: 'simple' | 'imageLeft';
+  items?:
+    | {
+        media?: (string | null) | Media;
+        alt?: string | null;
+        title: string;
+        body?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailList';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailMarkdownBlock".
+ */
+export interface EmailMarkdownBlock {
+  markdown: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailMarkdown';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailDividerBlock".
+ */
+export interface EmailDividerBlock {
+  color: 'border' | 'primary' | 'accent';
+  spacing?: number | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailDivider';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailSpacerBlock".
+ */
+export interface EmailSpacerBlock {
+  size: number;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailSpacer';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailCalloutBlock".
+ */
+export interface EmailCalloutBlock {
+  heading?: string | null;
+  body: string;
+  variant: 'accent' | 'primary' | 'neutral';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailCallout';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailArticleImageRightBlock".
+ */
+export interface EmailArticleImageRightBlock {
+  heading: string;
+  body: string;
+  media?: (string | null) | Media;
+  alt?: string | null;
+  url?: string | null;
+  linkLabel?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailArticleImageRight';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailArticleTwoCardsBlock".
+ */
+export interface EmailArticleTwoCardsBlock {
+  cards?:
+    | {
+        media?: (string | null) | Media;
+        alt?: string | null;
+        heading: string;
+        body?: string | null;
+        url?: string | null;
+        linkLabel?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailArticleTwoCards';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailFeatureThreeCenteredBlock".
+ */
+export interface EmailFeatureThreeCenteredBlock {
+  heading: string;
+  paragraphs?:
+    | {
+        text: string;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailFeatureThreeCentered';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailBentoGridBlock".
+ */
+export interface EmailBentoGridBlock {
+  heading?: string | null;
+  items?:
+    | {
+        size: 'normal' | 'wide';
+        media?: (string | null) | Media;
+        alt?: string | null;
+        title: string;
+        body?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailBentoGrid';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailFooterOneColumnBlock".
+ */
+export interface EmailFooterOneColumnBlock {
+  heading?: string | null;
+  body?: string | null;
+  address?: string | null;
+  links?:
+    | {
+        label: string;
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  copyright?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailFooterOneColumn';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chatgpt-oauth-clients".
+ */
+export interface ChatgptOauthClient {
+  id: string;
+  clientId: string;
+  clientName: string;
+  redirectUris: {
+    uri: string;
+    id?: string | null;
+  }[];
+  /**
+   * Original dynamic client registration payload from ChatGPT.
+   */
+  rawMetadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chatgpt-oauth-codes".
+ */
+export interface ChatgptOauthCode {
+  id: string;
+  codeHash: string;
+  client: string | ChatgptOauthClient;
+  user: string | User;
+  redirectUri: string;
+  codeChallenge: string;
+  scope: string;
+  resource: string;
+  expiresAt: string;
+  consumedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chatgpt-oauth-tokens".
+ */
+export interface ChatgptOauthToken {
+  id: string;
+  accessTokenHash: string;
+  refreshTokenHash: string;
+  client: string | ChatgptOauthClient;
+  user: string | User;
+  scope: string;
+  resource: string;
+  accessTokenExpiresAt: string;
+  refreshTokenExpiresAt: string;
+  revokedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sitemap-artifacts".
  */
 export interface SitemapArtifact {
@@ -3130,6 +3650,60 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  emails?: {
+    /**
+     * Allow clients to find emails.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create emails.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update emails.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete emails.
+     */
+    delete?: boolean | null;
+  };
+  emailLists?: {
+    /**
+     * Allow clients to find email-lists.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create email-lists.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update email-lists.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete email-lists.
+     */
+    delete?: boolean | null;
+  };
+  contacts?: {
+    /**
+     * Allow clients to find contacts.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create contacts.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update contacts.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete contacts.
+     */
+    delete?: boolean | null;
+  };
   'payload-mcp-tool'?: {
     /**
      * Refresh local iContact folder/list cache collections from the live iContact account.
@@ -3505,6 +4079,30 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'icontact-lists';
         value: string | IcontactList;
+      } | null)
+    | ({
+        relationTo: 'emails';
+        value: string | Email;
+      } | null)
+    | ({
+        relationTo: 'email-lists';
+        value: string | EmailList;
+      } | null)
+    | ({
+        relationTo: 'contacts';
+        value: string | Contact;
+      } | null)
+    | ({
+        relationTo: 'chatgpt-oauth-clients';
+        value: string | ChatgptOauthClient;
+      } | null)
+    | ({
+        relationTo: 'chatgpt-oauth-codes';
+        value: string | ChatgptOauthCode;
+      } | null)
+    | ({
+        relationTo: 'chatgpt-oauth-tokens';
+        value: string | ChatgptOauthToken;
       } | null)
     | ({
         relationTo: 'sitemap-artifacts';
@@ -4981,6 +5579,449 @@ export interface IcontactListsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "emails_select".
+ */
+export interface EmailsSelect<T extends boolean = true> {
+  tenant?: T;
+  title?: T;
+  subject?: T;
+  preheader?: T;
+  recipientEmail?: T;
+  emailList?: T;
+  replyTo?: T;
+  layout?:
+    | T
+    | {
+        emailHeaderSocial?: T | EmailHeaderSocialBlockSelect<T>;
+        emailHeading?: T | EmailHeadingBlockSelect<T>;
+        emailText?: T | EmailTextBlockSelect<T>;
+        emailInlineLink?: T | EmailInlineLinkBlockSelect<T>;
+        emailButton?: T | EmailButtonBlockSelect<T>;
+        emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
+        emailImage?: T | EmailImageBlockSelect<T>;
+        emailGallery?: T | EmailGalleryBlockSelect<T>;
+        emailGrid?: T | EmailGridBlockSelect<T>;
+        emailList?: T | EmailListBlockSelect<T>;
+        emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
+        emailArticleImageRight?: T | EmailArticleImageRightBlockSelect<T>;
+        emailArticleTwoCards?: T | EmailArticleTwoCardsBlockSelect<T>;
+        emailFeatureThreeCentered?: T | EmailFeatureThreeCenteredBlockSelect<T>;
+        emailBentoGrid?: T | EmailBentoGridBlockSelect<T>;
+        emailDivider?: T | EmailDividerBlockSelect<T>;
+        emailSpacer?: T | EmailSpacerBlockSelect<T>;
+        emailCallout?: T | EmailCalloutBlockSelect<T>;
+        emailFooterOneColumn?: T | EmailFooterOneColumnBlockSelect<T>;
+      };
+  lastSend?:
+    | T
+    | {
+        status?: T;
+        recipientEmail?: T;
+        sentAt?: T;
+        message?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailHeaderSocialBlock_select".
+ */
+export interface EmailHeaderSocialBlockSelect<T extends boolean = true> {
+  logoText?: T;
+  subtitle?: T;
+  socialLinks?:
+    | T
+    | {
+        platform?: T;
+        url?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailHeadingBlock_select".
+ */
+export interface EmailHeadingBlockSelect<T extends boolean = true> {
+  text?: T;
+  level?: T;
+  align?: T;
+  color?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailTextBlock_select".
+ */
+export interface EmailTextBlockSelect<T extends boolean = true> {
+  text?: T;
+  align?: T;
+  color?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailInlineLinkBlock_select".
+ */
+export interface EmailInlineLinkBlockSelect<T extends boolean = true> {
+  beforeText?: T;
+  label?: T;
+  url?: T;
+  afterText?: T;
+  align?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailButtonBlock_select".
+ */
+export interface EmailButtonBlockSelect<T extends boolean = true> {
+  label?: T;
+  url?: T;
+  variant?: T;
+  align?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailTwoButtonBlock_select".
+ */
+export interface EmailTwoButtonBlockSelect<T extends boolean = true> {
+  primaryLabel?: T;
+  primaryUrl?: T;
+  primaryVariant?: T;
+  secondaryLabel?: T;
+  secondaryUrl?: T;
+  secondaryVariant?: T;
+  align?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailImageBlock_select".
+ */
+export interface EmailImageBlockSelect<T extends boolean = true> {
+  media?: T;
+  alt?: T;
+  href?: T;
+  width?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailGalleryBlock_select".
+ */
+export interface EmailGalleryBlockSelect<T extends boolean = true> {
+  layout?: T;
+  items?:
+    | T
+    | {
+        media?: T;
+        alt?: T;
+        href?: T;
+        caption?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailGridBlock_select".
+ */
+export interface EmailGridBlockSelect<T extends boolean = true> {
+  layout?: T;
+  leftBlocks?:
+    | T
+    | {
+        emailHeading?: T | EmailHeadingBlockSelect<T>;
+        emailText?: T | EmailTextBlockSelect<T>;
+        emailInlineLink?: T | EmailInlineLinkBlockSelect<T>;
+        emailButton?: T | EmailButtonBlockSelect<T>;
+        emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
+        emailImage?: T | EmailImageBlockSelect<T>;
+        emailGallery?: T | EmailGalleryBlockSelect<T>;
+        emailList?: T | EmailListBlockSelect<T>;
+        emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
+        emailDivider?: T | EmailDividerBlockSelect<T>;
+        emailSpacer?: T | EmailSpacerBlockSelect<T>;
+        emailCallout?: T | EmailCalloutBlockSelect<T>;
+      };
+  centerBlocks?:
+    | T
+    | {
+        emailHeading?: T | EmailHeadingBlockSelect<T>;
+        emailText?: T | EmailTextBlockSelect<T>;
+        emailInlineLink?: T | EmailInlineLinkBlockSelect<T>;
+        emailButton?: T | EmailButtonBlockSelect<T>;
+        emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
+        emailImage?: T | EmailImageBlockSelect<T>;
+        emailGallery?: T | EmailGalleryBlockSelect<T>;
+        emailList?: T | EmailListBlockSelect<T>;
+        emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
+        emailDivider?: T | EmailDividerBlockSelect<T>;
+        emailSpacer?: T | EmailSpacerBlockSelect<T>;
+        emailCallout?: T | EmailCalloutBlockSelect<T>;
+      };
+  rightBlocks?:
+    | T
+    | {
+        emailHeading?: T | EmailHeadingBlockSelect<T>;
+        emailText?: T | EmailTextBlockSelect<T>;
+        emailInlineLink?: T | EmailInlineLinkBlockSelect<T>;
+        emailButton?: T | EmailButtonBlockSelect<T>;
+        emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
+        emailImage?: T | EmailImageBlockSelect<T>;
+        emailGallery?: T | EmailGalleryBlockSelect<T>;
+        emailList?: T | EmailListBlockSelect<T>;
+        emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
+        emailDivider?: T | EmailDividerBlockSelect<T>;
+        emailSpacer?: T | EmailSpacerBlockSelect<T>;
+        emailCallout?: T | EmailCalloutBlockSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailListBlock_select".
+ */
+export interface EmailListBlockSelect<T extends boolean = true> {
+  style?: T;
+  items?:
+    | T
+    | {
+        media?: T;
+        alt?: T;
+        title?: T;
+        body?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailMarkdownBlock_select".
+ */
+export interface EmailMarkdownBlockSelect<T extends boolean = true> {
+  markdown?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailDividerBlock_select".
+ */
+export interface EmailDividerBlockSelect<T extends boolean = true> {
+  color?: T;
+  spacing?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailSpacerBlock_select".
+ */
+export interface EmailSpacerBlockSelect<T extends boolean = true> {
+  size?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailCalloutBlock_select".
+ */
+export interface EmailCalloutBlockSelect<T extends boolean = true> {
+  heading?: T;
+  body?: T;
+  variant?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailArticleImageRightBlock_select".
+ */
+export interface EmailArticleImageRightBlockSelect<T extends boolean = true> {
+  heading?: T;
+  body?: T;
+  media?: T;
+  alt?: T;
+  url?: T;
+  linkLabel?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailArticleTwoCardsBlock_select".
+ */
+export interface EmailArticleTwoCardsBlockSelect<T extends boolean = true> {
+  cards?:
+    | T
+    | {
+        media?: T;
+        alt?: T;
+        heading?: T;
+        body?: T;
+        url?: T;
+        linkLabel?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailFeatureThreeCenteredBlock_select".
+ */
+export interface EmailFeatureThreeCenteredBlockSelect<T extends boolean = true> {
+  heading?: T;
+  paragraphs?:
+    | T
+    | {
+        text?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailBentoGridBlock_select".
+ */
+export interface EmailBentoGridBlockSelect<T extends boolean = true> {
+  heading?: T;
+  items?:
+    | T
+    | {
+        size?: T;
+        media?: T;
+        alt?: T;
+        title?: T;
+        body?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailFooterOneColumnBlock_select".
+ */
+export interface EmailFooterOneColumnBlockSelect<T extends boolean = true> {
+  heading?: T;
+  body?: T;
+  address?: T;
+  links?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  copyright?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-lists_select".
+ */
+export interface EmailListsSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  description?: T;
+  status?: T;
+  contacts?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "contacts_select".
+ */
+export interface ContactsSelect<T extends boolean = true> {
+  tenant?: T;
+  email?: T;
+  firstName?: T;
+  lastName?: T;
+  phone?: T;
+  status?: T;
+  source?: T;
+  tags?:
+    | T
+    | {
+        tag?: T;
+        id?: T;
+      };
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chatgpt-oauth-clients_select".
+ */
+export interface ChatgptOauthClientsSelect<T extends boolean = true> {
+  clientId?: T;
+  clientName?: T;
+  redirectUris?:
+    | T
+    | {
+        uri?: T;
+        id?: T;
+      };
+  rawMetadata?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chatgpt-oauth-codes_select".
+ */
+export interface ChatgptOauthCodesSelect<T extends boolean = true> {
+  codeHash?: T;
+  client?: T;
+  user?: T;
+  redirectUri?: T;
+  codeChallenge?: T;
+  scope?: T;
+  resource?: T;
+  expiresAt?: T;
+  consumedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chatgpt-oauth-tokens_select".
+ */
+export interface ChatgptOauthTokensSelect<T extends boolean = true> {
+  accessTokenHash?: T;
+  refreshTokenHash?: T;
+  client?: T;
+  user?: T;
+  scope?: T;
+  resource?: T;
+  accessTokenExpiresAt?: T;
+  refreshTokenExpiresAt?: T;
+  revokedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "sitemap-artifacts_select".
  */
 export interface SitemapArtifactsSelect<T extends boolean = true> {
@@ -5199,6 +6240,30 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   navbars?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  emails?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  emailLists?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  contacts?:
     | T
     | {
         find?: T;

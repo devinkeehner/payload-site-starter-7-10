@@ -1,5 +1,4 @@
 import type { NextRequest } from 'next/server'
-import { GET as getChatgptMcp, POST as postChatgptMcp } from '../../mcp-chatgpt/route'
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -88,43 +87,6 @@ async function forwardToMcp(req: NextRequest) {
       contentType: req.headers.get('content-type'),
       hasSessionId: Boolean(req.headers.get('mcp-session-id')),
     })
-
-    if (targetPath === '/api/mcp-chatgpt') {
-      const headers = getForwardHeaders(req)
-      const rewrittenURL = new URL(targetPath, req.nextUrl.origin)
-
-      const proxiedRequest = new Request(rewrittenURL.toString(), {
-        method,
-        headers,
-        body: requestBody,
-      })
-
-      let response: Response
-      if (method === 'POST') {
-        response = await postChatgptMcp(proxiedRequest)
-      } else if (method === 'GET') {
-        response = await getChatgptMcp(proxiedRequest)
-      } else {
-        return new Response(JSON.stringify({ message: 'Method not allowed' }), {
-          status: 405,
-          headers: { 'content-type': 'application/json' },
-        })
-      }
-
-      if (!response.ok) {
-        const responseText = await response.clone().text()
-        console.error('[mcp-public] chatgpt upstream returned error', {
-          method,
-          targetPath,
-          status: response.status,
-          statusText: response.statusText,
-          requestBodyPreview: truncateForLog(requestBody || ''),
-          responseBodyPreview: truncateForLog(responseText),
-        })
-      }
-
-      return response
-    }
 
     const upstreamURL = new URL(targetPath, normalizedOrigin)
 

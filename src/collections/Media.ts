@@ -37,6 +37,13 @@ const asFileLike = (value: unknown): FileLike | null => {
 export const Media: CollectionConfig = {
   admin: {
     group: 'Content',
+    components: {
+      views: {
+        list: {
+          Component: '@/components/admin/media/MediaGalleryListView#default',
+        },
+      },
+    },
   },
   slug: 'media',
   access: {
