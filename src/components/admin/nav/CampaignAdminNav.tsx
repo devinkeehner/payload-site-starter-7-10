@@ -20,13 +20,14 @@ export async function CampaignAdminNav(props: Props) {
 
   if (!payload?.config || !permissions || !req) return null
 
-  const {
-    admin: {
-      components: { afterNav, afterNavLinks, beforeNav, beforeNavLinks } = {},
-    },
-    collections,
-    globals,
-  } = payload.config
+  const adminComponents = (payload.config.admin.components || {}) as {
+    afterNav?: unknown
+    afterNavLinks?: unknown
+    beforeNav?: unknown
+    beforeNavLinks?: unknown
+  }
+  const { afterNav, afterNavLinks, beforeNav, beforeNavLinks } = adminComponents
+  const { collections, globals } = payload.config
 
   const visibleEntities = getVisibleEntities({ req })
   const groups = groupNavItems(

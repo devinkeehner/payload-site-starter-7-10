@@ -1,8 +1,8 @@
-import type { Access, PayloadRequest } from 'payload'
+import type { Access } from 'payload'
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
 
-type UserLike = PayloadRequest['user']
+type UserLike = unknown
 
 export const CONTENT_EDITOR_COLLECTIONS = [
   'pages',
