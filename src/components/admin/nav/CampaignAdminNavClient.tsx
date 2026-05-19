@@ -81,6 +81,7 @@ const taskIcons: Record<AdminTask['key'], LucideIcon> = {
   changeHomePageBanner: ImageIcon,
   updateSocialMedia: Facebook,
   editTowns: Building2,
+  editNavbar: PanelTop,
 }
 
 function getEntityLabel(label: unknown, locale?: string): string {

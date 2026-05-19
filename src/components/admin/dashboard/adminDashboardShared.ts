@@ -3,6 +3,7 @@ export type AdminTaskKey =
   | 'changeHomePageBanner'
   | 'updateSocialMedia'
   | 'editTowns'
+  | 'editNavbar'
 
 export type AdminTask = {
   description: string
@@ -43,4 +44,5 @@ export const quickTaskDescriptions: Record<AdminTaskKey, string> = {
   changeHomePageBanner: 'Update the homepage hero image, video, and default social images.',
   updateSocialMedia: 'Update representative social media links and Facebook connection settings.',
   editTowns: 'Update towns, town URLs, and district aid details.',
+  editNavbar: 'Update tenant navigation links and labels.',
 }

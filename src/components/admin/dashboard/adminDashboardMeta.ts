@@ -9,6 +9,7 @@ export type AdminTaskKey =
   | 'changeHomePageBanner'
   | 'updateSocialMedia'
   | 'editTowns'
+  | 'editNavbar'
 
 export type AdminTask = {
   description: string
@@ -65,6 +66,7 @@ export const quickTaskDescriptions: Record<AdminTaskKey, string> = {
   changeHomePageBanner: 'Update the homepage hero image, video, and default social images.',
   updateSocialMedia: 'Update representative social media links and Facebook connection settings.',
   editTowns: 'Update towns, town URLs, and district aid details.',
+  editNavbar: 'Update tenant navigation links and labels.',
 }
 
 function getAdminRoute(req: PayloadRequest) {
@@ -169,6 +171,12 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
       key: 'editTowns',
       label: 'Edit Towns',
     },
+    {
+      description: quickTaskDescriptions.editNavbar,
+      href: await singletonTaskURL(req, 'navbars'),
+      key: 'editNavbar',
+      label: 'Edit Navbar',
+    },
   ]
 
   return tasks.filter((task) => {
@@ -177,6 +185,7 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
     if (task.key === 'changeHomePageBanner') return canAccessCollection(user, 'standard-media')
     if (task.key === 'updateSocialMedia') return canAccessCollection(user, 'rep-info')
     if (task.key === 'editTowns') return canAccessCollection(user, 'rep-info')
+    if (task.key === 'editNavbar') return canAccessCollection(user, 'navbars')
     return false
   })
 }
