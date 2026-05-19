@@ -6,7 +6,7 @@ import RichText from '@/components/site/rich-text'
 import { CMSLink } from '@/components/site/link'
 import { Media } from '@/components/site/media'
 import { cn } from '@/lib/utils'
-import type { Post } from '@/payload-types'
+import type { Media as MediaType, Post } from '@/payload-types'
 
 type PostLayoutBlock = Record<string, unknown> & {
   blockType?: string
@@ -100,14 +100,15 @@ function PostButton({ block }: { block: PostLayoutBlock }) {
 
 function PostImage({ block }: { block: PostLayoutBlock }) {
   const caption = typeof block.caption === 'string' ? block.caption.trim() : ''
-  if (!block.media) return null
+  const media = getMediaResource(block.media)
+  if (!media) return null
 
   return (
     <figure className="mx-auto max-w-[52rem]">
       <Media
         className="overflow-hidden rounded-md border bg-muted"
         imgClassName="h-auto w-full"
-        resource={block.media}
+        resource={media}
       />
       {caption ? (
         <figcaption className="mt-3 text-center text-sm leading-6 text-muted-foreground">
@@ -124,6 +125,12 @@ function getBlockItems(value: unknown): Record<string, unknown>[] {
     : []
 }
 
+function getMediaResource(value: unknown): MediaType | string | number | null {
+  if (typeof value === 'string' || typeof value === 'number') return value
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as MediaType
+  return null
+}
+
 function PostGallery({ block }: { block: PostLayoutBlock }) {
   const items = getBlockItems(block.items)
   if (!items.length) return null
@@ -138,14 +145,15 @@ function PostGallery({ block }: { block: PostLayoutBlock }) {
     >
       {items.map((item, index) => {
         const caption = typeof item.caption === 'string' ? item.caption.trim() : ''
-        if (!item.media) return null
+        const media = getMediaResource(item.media)
+        if (!media) return null
 
         return (
           <figure key={index}>
             <Media
               className="overflow-hidden rounded-md border bg-muted"
               imgClassName="h-auto w-full"
-              resource={item.media}
+              resource={media}
             />
             {caption ? (
               <figcaption className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -170,14 +178,15 @@ function PostList({ block }: { block: PostLayoutBlock }) {
         {items.map((item, index) => {
           const title = typeof item.title === 'string' ? item.title.trim() : ''
           const body = typeof item.body === 'string' ? item.body.trim() : ''
+          const media = getMediaResource(item.media)
 
           return (
             <article key={index} className="grid gap-4 rounded-md border bg-card p-4 sm:grid-cols-[96px_1fr]">
-              {item.media ? (
+              {media ? (
                 <Media
                   className="overflow-hidden rounded-md border bg-muted"
                   imgClassName="aspect-square h-auto w-full object-cover"
-                  resource={item.media}
+                  resource={media}
                 />
               ) : null}
               <div className="min-w-0">

@@ -10,7 +10,7 @@ import { PuckPostBuilderClient } from './PuckPostBuilderClient'
 export default function PuckPostBuilderView(props: DocumentViewServerProps) {
   const doc = props.doc as PuckPostDoc
   const id = props.id ?? doc?.id
-  const user = props.req?.user
+  const user = props.user
 
   if (!isSuperUser(user)) {
     return (
