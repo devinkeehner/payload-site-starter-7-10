@@ -21,6 +21,7 @@ import { VideoBlockConfig } from '@/components/blocks/video-block/config'
 import { LunchComparisonGraphicBlockConfig } from '@/components/blocks/lunch-comparison-graphic/config'
 import { PropertyTaxCreditTableBlockConfig } from '@/components/blocks/property-tax-credit-table/config'
 import { TenantTownTableBlockConfig } from '@/components/blocks/tenant-town-table/config'
+import { POST_LAYOUT_BLOCKS } from '@/lib/blocks/postLayoutBlocks'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
@@ -214,6 +215,16 @@ export const Posts: CollectionConfig<'posts'> = {
         edit: {
           default: {
             Component: '@/components/admin/live-preview/ResponsiveEditView#default',
+          },
+          visual: {
+            path: '/visual',
+            Component: '@/components/admin/post/PuckPostBuilderView',
+            tab: {
+              href: '/visual',
+              label: 'Post Builder',
+              order: 75,
+              condition: ({ req }) => isSuperUser(req.user),
+            },
           },
         },
       },
@@ -1103,6 +1114,15 @@ export const Posts: CollectionConfig<'posts'> = {
               }),
               label: false,
               required: true,
+            },
+            {
+              name: 'layout',
+              type: 'blocks',
+              admin: {
+                description: 'Optional visual post layout. Leave empty to render the Content rich text exactly as before.',
+                initCollapsed: true,
+              },
+              blocks: POST_LAYOUT_BLOCKS,
             },
           ],
           label: 'Content',

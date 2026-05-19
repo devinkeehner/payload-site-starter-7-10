@@ -20,6 +20,66 @@ function buildOptionList(options: PuckFieldSchema['options'] = []) {
   }))
 }
 
+const INLINE_EDITABLE_FIELD_NAMES = new Set([
+  'attribution',
+  'body',
+  'caption',
+  'description',
+  'eyebrow',
+  'heading',
+  'intro',
+  'label',
+  'name',
+  'note',
+  'preheader',
+  'quote',
+  'role',
+  'subheading',
+  'subtitle',
+  'text',
+  'title',
+  'value',
+])
+
+const INLINE_EDITABLE_SUFFIXES = [
+  'Body',
+  'Caption',
+  'Description',
+  'Heading',
+  'Intro',
+  'Label',
+  'Name',
+  'Note',
+  'Quote',
+  'Role',
+  'Subtitle',
+  'Text',
+  'Title',
+  'Value',
+]
+
+function isInlineEditableField(field: PuckFieldSchema): boolean {
+  if (field.type !== 'text' && field.type !== 'textarea') return false
+
+  const lowerName = field.name.toLowerCase()
+  if (
+    lowerName === 'id' ||
+    lowerName === 'slug' ||
+    lowerName === 'type' ||
+    lowerName === 'url' ||
+    lowerName === 'href' ||
+    lowerName === 'email' ||
+    lowerName.endsWith('id') ||
+    lowerName.endsWith('url') ||
+    lowerName.endsWith('color') ||
+    lowerName.includes('classname')
+  ) {
+    return false
+  }
+
+  return INLINE_EDITABLE_FIELD_NAMES.has(field.name) || INLINE_EDITABLE_SUFFIXES.some((suffix) => field.name.endsWith(suffix))
+}
+
 function getDefaultValue(field: PuckFieldSchema): unknown {
   if (typeof field.defaultValue !== 'undefined') return field.defaultValue
 
@@ -57,9 +117,9 @@ function createField(field: PuckFieldSchema, blockSchema: PuckBlockSchema[]): Fi
       return { type: 'radio', label: field.label || field.name, options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] }
     case 'email':
     case 'text':
-      return { type: 'text', label: field.label || field.name }
+      return { type: 'text', label: field.label || field.name, contentEditable: isInlineEditableField(field) }
     case 'textarea':
-      return { type: 'textarea', label: field.label || field.name }
+      return { type: 'textarea', label: field.label || field.name, contentEditable: isInlineEditableField(field) }
     case 'number':
       return { type: 'number', label: field.label || field.name }
     case 'select':

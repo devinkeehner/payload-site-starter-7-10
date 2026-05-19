@@ -245,6 +245,23 @@ export interface Post {
     };
     [k: string]: unknown;
   };
+  /**
+   * Optional visual post layout. Leave empty to render the Content rich text exactly as before.
+   */
+  layout?:
+    | (
+        | PostBodyBlock
+        | PostRichTextBlock
+        | PostCalloutBlock
+        | PostButtonBlock
+        | PostImageBlock
+        | PostGalleryBlock
+        | PostListBlock
+        | PostLinksBlock
+        | PostDividerBlock
+        | PostSpacerBlock
+      )[]
+    | null;
   graphicTemplate?: (string | null) | GraphicTemplate;
   graphicDesign?: (string | null) | GraphicDesign;
   meta: {
@@ -422,6 +439,161 @@ export interface Media {
       filename?: string | null;
     };
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostBodyBlock".
+ */
+export interface PostBodyBlock {
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postBody';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostRichTextBlock".
+ */
+export interface PostRichTextBlock {
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postRichText';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostCalloutBlock".
+ */
+export interface PostCalloutBlock {
+  tone: 'note' | 'accent' | 'strong';
+  heading?: string | null;
+  content: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postCallout';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostButtonBlock".
+ */
+export interface PostButtonBlock {
+  label: string;
+  url: string;
+  variant: 'primary' | 'secondary' | 'outline';
+  align: 'left' | 'center' | 'right';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postButton';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostImageBlock".
+ */
+export interface PostImageBlock {
+  media: string | Media;
+  caption?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postImage';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostGalleryBlock".
+ */
+export interface PostGalleryBlock {
+  layout: 'grid' | 'stacked';
+  items?:
+    | {
+        media: string | Media;
+        caption?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postGallery';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostListBlock".
+ */
+export interface PostListBlock {
+  style: 'simple' | 'imageLeft';
+  items?:
+    | {
+        media?: (string | null) | Media;
+        title: string;
+        body?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postList';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostLinksBlock".
+ */
+export interface PostLinksBlock {
+  heading?: string | null;
+  body?: string | null;
+  links?:
+    | {
+        label: string;
+        url: string;
+        id?: string | null;
+      }[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postLinks';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostDividerBlock".
+ */
+export interface PostDividerBlock {
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postDivider';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostSpacerBlock".
+ */
+export interface PostSpacerBlock {
+  size: number;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postSpacer';
 }
 /**
  * Editable generated graphics linked to posts and reusable templates.
@@ -4187,6 +4359,20 @@ export interface PostsSelect<T extends boolean = true> {
   heroImage?: T;
   heroExternalURL?: T;
   content?: T;
+  layout?:
+    | T
+    | {
+        postBody?: T | PostBodyBlockSelect<T>;
+        postRichText?: T | PostRichTextBlockSelect<T>;
+        postCallout?: T | PostCalloutBlockSelect<T>;
+        postButton?: T | PostButtonBlockSelect<T>;
+        postImage?: T | PostImageBlockSelect<T>;
+        postGallery?: T | PostGalleryBlockSelect<T>;
+        postList?: T | PostListBlockSelect<T>;
+        postLinks?: T | PostLinksBlockSelect<T>;
+        postDivider?: T | PostDividerBlockSelect<T>;
+        postSpacer?: T | PostSpacerBlockSelect<T>;
+      };
   graphicTemplate?: T;
   graphicDesign?: T;
   meta?:
@@ -4213,6 +4399,123 @@ export interface PostsSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostBodyBlock_select".
+ */
+export interface PostBodyBlockSelect<T extends boolean = true> {
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostRichTextBlock_select".
+ */
+export interface PostRichTextBlockSelect<T extends boolean = true> {
+  content?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostCalloutBlock_select".
+ */
+export interface PostCalloutBlockSelect<T extends boolean = true> {
+  tone?: T;
+  heading?: T;
+  content?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostButtonBlock_select".
+ */
+export interface PostButtonBlockSelect<T extends boolean = true> {
+  label?: T;
+  url?: T;
+  variant?: T;
+  align?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostImageBlock_select".
+ */
+export interface PostImageBlockSelect<T extends boolean = true> {
+  media?: T;
+  caption?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostGalleryBlock_select".
+ */
+export interface PostGalleryBlockSelect<T extends boolean = true> {
+  layout?: T;
+  items?:
+    | T
+    | {
+        media?: T;
+        caption?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostListBlock_select".
+ */
+export interface PostListBlockSelect<T extends boolean = true> {
+  style?: T;
+  items?:
+    | T
+    | {
+        media?: T;
+        title?: T;
+        body?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostLinksBlock_select".
+ */
+export interface PostLinksBlockSelect<T extends boolean = true> {
+  heading?: T;
+  body?: T;
+  links?:
+    | T
+    | {
+        label?: T;
+        url?: T;
+        id?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostDividerBlock_select".
+ */
+export interface PostDividerBlockSelect<T extends boolean = true> {
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostSpacerBlock_select".
+ */
+export interface PostSpacerBlockSelect<T extends boolean = true> {
+  size?: T;
+  id?: T;
+  blockName?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

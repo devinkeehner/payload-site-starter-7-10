@@ -56,6 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const data: Record<string, unknown> = {
       _status: 'draft',
       content: converted.content,
+      layout: converted.layout,
       meta: {
         description: email.preheader || undefined,
         title,
@@ -77,7 +78,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
 
     return Response.json({
-      adminUrl: `/admin/collections/posts/${post.id}`,
+      adminUrl: `/admin/collections/posts/${post.id}/visual`,
       post,
     })
   } catch (error) {

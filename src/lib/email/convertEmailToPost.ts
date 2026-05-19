@@ -135,36 +135,6 @@ function firstTextFromLexical(value: unknown): string {
   return parts.join(' ').replace(/\s+/g, ' ').trim()
 }
 
-function lexicalChildrenFromText(text: string): LexicalNode[] {
-  return text
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => paragraph([textNode(part)]))
-}
-
-function getPostBlockText(block: Record<string, unknown>): string {
-  const contentText = firstTextFromLexical(block.content)
-  const parts = [
-    getString(block.heading),
-    getString(block.title),
-    contentText,
-    getString(block.body),
-    getString(block.label),
-    getString(block.url),
-  ].filter(Boolean)
-
-  const nestedItems = getItems(block.items)
-    .map((item) => [getString(item.title), getString(item.heading), getString(item.body), getString(item.caption)].filter(Boolean).join('\n'))
-    .filter(Boolean)
-
-  const nestedLinks = getItems(block.links)
-    .map((link) => [getString(link.label), getString(link.url)].filter(Boolean).join(' '))
-    .filter(Boolean)
-
-  return [...parts, ...nestedItems, ...nestedLinks].join('\n').trim()
-}
-
 function getTextAlignment(value: unknown): 'left' | 'center' | 'right' {
   return value === 'center' || value === 'right' ? value : 'left'
 }
@@ -417,13 +387,11 @@ function convertEmailLayout(layout: unknown): Array<Record<string, unknown>> {
 
 export function convertEmailToPost(layout: unknown, fallbackContent: string): ConvertedEmailPost {
   const convertedLayout = convertEmailLayout(layout)
-  const contentChildren = convertedLayout
-    .map(getPostBlockText)
-    .filter(Boolean)
-    .flatMap(lexicalChildrenFromText)
+  const firstRichText = convertedLayout.find((block) => isLexicalState(block.content))?.content
+  const firstText = firstTextFromLexical(firstRichText) || fallbackContent
 
   return {
-    content: richText(contentChildren.length ? contentChildren : [paragraph([textNode(fallbackContent || 'Draft post content.')])]),
+    content: textRichText(firstText || 'Draft post content.'),
     layout: convertedLayout.length ? convertedLayout : [{ blockType: 'postBody' }],
   }
 }
