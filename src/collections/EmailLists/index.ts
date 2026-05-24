@@ -29,6 +29,21 @@ export const EmailLists: CollectionConfig = {
     group: 'Email Marketing',
     hidden: isCollectionHiddenForRole('email-lists'),
     useAsTitle: 'name',
+    components: {
+      views: {
+        edit: {
+          profile: {
+            path: '/profile',
+            Component: '@/components/admin/email-list-profile/EmailListProfileView#default',
+            tab: {
+              href: '/profile',
+              label: 'Profile',
+              order: 50,
+            },
+          },
+        },
+      },
+    },
   },
   labels: {
     singular: 'Email List',

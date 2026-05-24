@@ -1,0 +1,237 @@
+.email-center {
+  display: grid;
+  gap: 18px;
+}
+
+.email-center__hero,
+.email-workflow__hero,
+.email-list-profile__hero {
+  background: linear-gradient(135deg, #0b1e3a 0%, #172f57 58%, #a71e22 100%);
+  border-radius: 8px;
+  color: #fff;
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+}
+
+.email-center__hero h2,
+.email-workflow__hero h2,
+.email-list-profile__hero h2 {
+  font-size: 24px;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.email-center__hero p,
+.email-workflow__hero p,
+.email-list-profile__hero p {
+  color: rgba(255, 255, 255, 0.82);
+  margin: 0;
+  max-width: 720px;
+}
+
+.email-center__actions,
+.email-workflow__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.email-center__button,
+.email-workflow__button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid rgba(11, 30, 58, 0.12);
+  border-radius: 6px;
+  color: #0b1e3a;
+  display: inline-flex;
+  font-weight: 700;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  text-decoration: none;
+}
+
+.email-center__button--dark,
+.email-workflow__button--dark {
+  background: #0b1e3a;
+  border-color: #0b1e3a;
+  color: #fff;
+}
+
+.email-center__grid {
+  display: grid;
+  gap: 12px;
+}
+
+.email-center__card {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.email-center__card-main {
+  display: grid;
+  gap: 6px;
+}
+
+.email-center__card-title {
+  color: var(--theme-elevation-900);
+  font-size: 18px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.email-center__meta,
+.email-center__stats,
+.email-workflow__meta,
+.email-list-profile__stats {
+  color: var(--theme-elevation-650);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 13px;
+  gap: 8px 14px;
+}
+
+.email-center__pill,
+.email-workflow__pill {
+  background: var(--theme-elevation-100);
+  border-radius: 999px;
+  color: var(--theme-elevation-850);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 4px 9px;
+  width: max-content;
+}
+
+.email-center__pill[data-status='sent'],
+.email-workflow__pill[data-status='pass'] {
+  background: #e8f7ef;
+  color: #146c43;
+}
+
+.email-center__pill[data-status='failed'],
+.email-workflow__pill[data-status='fail'] {
+  background: #fdecec;
+  color: #a71e22;
+}
+
+.email-workflow__pill[data-status='warn'] {
+  background: #fff4d6;
+  color: #7a4d00;
+}
+
+.email-center__card-actions,
+.email-workflow__panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.email-workflow {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+
+.email-workflow__layout {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+}
+
+.email-workflow__panel,
+.email-list-profile__panel {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.email-workflow__panel h3,
+.email-list-profile__panel h3 {
+  margin: 0 0 12px;
+}
+
+.email-workflow__checklist {
+  display: grid;
+  gap: 8px;
+}
+
+.email-workflow__check {
+  align-items: flex-start;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+}
+
+.email-workflow__check strong {
+  color: var(--theme-elevation-900);
+}
+
+.email-workflow__check span {
+  color: var(--theme-elevation-650);
+  font-size: 13px;
+}
+
+.email-workflow__preview {
+  background: #f6f7f9;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  min-height: 480px;
+  overflow: hidden;
+}
+
+.email-workflow__preview iframe {
+  background: #fff;
+  border: 0;
+  display: block;
+  height: 640px;
+  margin: 0 auto;
+  max-width: 100%;
+  width: 680px;
+}
+
+.email-list-profile {
+  display: grid;
+  gap: 18px;
+  padding: 18px;
+}
+
+.email-list-profile__cards {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.email-list-profile__metric {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.email-list-profile__metric strong {
+  display: block;
+  font-size: 24px;
+}
+
+.email-list-profile__metric span {
+  color: var(--theme-elevation-650);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+@media (max-width: 900px) {
+  .email-workflow__layout,
+  .email-list-profile__cards {
+    grid-template-columns: 1fr;
+  }
+}

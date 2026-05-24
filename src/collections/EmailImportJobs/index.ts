@@ -13,7 +13,7 @@ export const EmailImportJobs: CollectionConfig = {
   admin: {
     defaultColumns: ['source', 'status', 'dryRun', 'totalContacts', 'importedContacts', 'updatedAt'],
     group: 'Email Marketing',
-    hidden: isCollectionHiddenForRole('email-import-jobs'),
+    hidden: true,
     useAsTitle: 'source',
   },
   labels: {

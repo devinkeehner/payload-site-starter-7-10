@@ -16,7 +16,7 @@ export const EmailListMemberships: CollectionConfig = {
   admin: {
     defaultColumns: ['emailList', 'contact', 'status', 'source', 'updatedAt'],
     group: 'Email Marketing',
-    hidden: isCollectionHiddenForRole('email-list-memberships'),
+    hidden: true,
     useAsTitle: 'id',
   },
   labels: {

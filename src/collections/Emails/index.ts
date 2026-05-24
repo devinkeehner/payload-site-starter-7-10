@@ -34,7 +34,19 @@ export const Emails: CollectionConfig<'emails'> = {
         beforeDocumentControls: ['@/components/admin/email/EmailSendControl#EmailSendControl'],
       },
       views: {
+        list: {
+          Component: '@/components/admin/email-center/EmailCenterListView#default',
+        },
         edit: {
+          workflow: {
+            path: '/workflow',
+            Component: '@/components/admin/email-center/EmailWorkflowView#default',
+            tab: {
+              href: '/workflow',
+              label: 'Workflow',
+              order: 60,
+            },
+          },
           visual: {
             path: '/visual',
             Component: '@/components/admin/email/PuckEmailBuilderView',

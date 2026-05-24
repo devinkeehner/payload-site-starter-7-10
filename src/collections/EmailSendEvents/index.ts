@@ -16,7 +16,7 @@ export const EmailSendEvents: CollectionConfig = {
   admin: {
     defaultColumns: ['email', 'eventType', 'recipientEmail', 'occurredAt'],
     group: 'Email Marketing',
-    hidden: isCollectionHiddenForRole('email-send-events'),
+    hidden: true,
     useAsTitle: 'recipientEmail',
   },
   labels: {
