@@ -127,7 +127,7 @@ export function PuckEmailBuilderEditor({
   const overrides = useMemo(() => ({ iframe: PuckPreviewIframe }), [])
   const [data, setData] = useState<PuckPageData | null>(null)
   const [isDirty, setIsDirty] = useState(false)
-  const [status, setStatus] = useState<'idle' | 'creatingPost' | 'loading' | 'saving' | 'saved' | 'sending' | 'sent' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'creatingPost' | 'loading' | 'saving' | 'saved' | 'sending' | 'sendingProduction' | 'sent' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const savedDataSnapshotRef = useRef('')
   const latestDataSnapshotRef = useRef('')
@@ -319,6 +319,28 @@ export function PuckEmailBuilderEditor({
     }
   }
 
+  async function sendProductionEmail() {
+    const saved = await saveLatestData()
+    if (!saved) return
+    if (!window.confirm('Send this email to the selected audience list? This creates a production Elastic Email campaign.')) return
+
+    setStatus('sendingProduction')
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/emails/${emailId}/send`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) throw new Error(await res.text())
+      const payload = (await res.json()) as { message?: string; recipientCount?: number }
+      setStatus('sent')
+      setMessage(payload.message || `Production email sent to ${payload.recipientCount || 0} recipients.`)
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to send production email')
+    }
+  }
+
   if (!data) {
     return <div className={styles.loading}>Loading email builder...</div>
   }
@@ -354,7 +376,7 @@ export function PuckEmailBuilderEditor({
           <>
             <button
               className={styles.saveButton}
-              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost'}
+              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'}
               type="button"
               onClick={() => void sendTestEmail()}
             >
@@ -362,11 +384,19 @@ export function PuckEmailBuilderEditor({
             </button>
             <button
               className={styles.saveButton}
-              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost'}
+              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'}
               type="button"
               onClick={() => void createPostDraft()}
             >
               {status === 'creatingPost' ? 'Creating...' : 'Create Post Draft'}
+            </button>
+            <button
+              className={styles.saveButton}
+              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'}
+              type="button"
+              onClick={() => void sendProductionEmail()}
+            >
+              {status === 'sendingProduction' ? 'Sending Campaign...' : 'Send Campaign'}
             </button>
           </>
         )}
@@ -382,6 +412,8 @@ export function PuckEmailBuilderEditor({
             ? 'Sending test email...'
             : status === 'creatingPost'
               ? 'Creating post draft...'
+              : status === 'sendingProduction'
+                ? 'Sending campaign...'
             : isDirty
               ? 'Autosave pending...'
               : message}

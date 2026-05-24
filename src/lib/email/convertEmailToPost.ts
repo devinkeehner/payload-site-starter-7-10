@@ -342,26 +342,40 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
         tone: getCalloutTone(block.variant),
       }]
     case 'emailArticleImageRight': {
-      const blocks: Array<Record<string, unknown>> = []
       const image = postImage(block.media)
       const text = textSection(getString(block.heading), getString(block.body))
-      if (image) blocks.push(image)
-      if (text) blocks.push(text)
       const button = postButton(getString(block.linkLabel), getString(block.url), 'outline', 'left')
-      if (button) blocks.push(button)
-      return blocks
+      const leftBlocks = [text, button].filter((item): item is Record<string, unknown> => Boolean(item))
+      const rightBlocks = [image].filter((item): item is Record<string, unknown> => Boolean(item))
+
+      return leftBlocks.length || rightBlocks.length
+        ? [{
+            blockType: 'postGrid',
+            layout: 'twoColumns',
+            leftBlocks,
+            rightBlocks,
+          }]
+        : []
     }
-    case 'emailArticleTwoCards':
-      return getItems(block.cards).flatMap((card) => {
-        const blocks: Array<Record<string, unknown>> = []
+    case 'emailArticleTwoCards': {
+      const cards = getItems(block.cards).map((card) => {
         const image = postImage(card.media)
         const text = textSection(getString(card.heading), getString(card.body))
         const button = postButton(getString(card.linkLabel), getString(card.url), 'outline', 'left')
-        if (image) blocks.push(image)
-        if (text) blocks.push(text)
-        if (button) blocks.push(button)
-        return blocks
+        return [image, text, button].filter((item): item is Record<string, unknown> => Boolean(item))
       })
+      const leftBlocks = cards[0] || []
+      const rightBlocks = cards[1] || []
+
+      if (!leftBlocks.length && !rightBlocks.length) return []
+
+      return [{
+        blockType: 'postGrid',
+        layout: 'twoColumns',
+        leftBlocks,
+        rightBlocks,
+      }]
+    }
     case 'emailFeatureThreeCentered': {
       const blocks: LexicalNode[] = []
       const headingText = getString(block.heading)

@@ -92,6 +92,9 @@ export interface Config {
     'icontact-lists': IcontactList;
     emails: Email;
     'email-lists': EmailList;
+    'email-list-memberships': EmailListMembership;
+    'email-send-events': EmailSendEvent;
+    'email-import-jobs': EmailImportJob;
     contacts: Contact;
     'chatgpt-oauth-clients': ChatgptOauthClient;
     'chatgpt-oauth-codes': ChatgptOauthCode;
@@ -133,6 +136,9 @@ export interface Config {
     'icontact-lists': IcontactListsSelect<false> | IcontactListsSelect<true>;
     emails: EmailsSelect<false> | EmailsSelect<true>;
     'email-lists': EmailListsSelect<false> | EmailListsSelect<true>;
+    'email-list-memberships': EmailListMembershipsSelect<false> | EmailListMembershipsSelect<true>;
+    'email-send-events': EmailSendEventsSelect<false> | EmailSendEventsSelect<true>;
+    'email-import-jobs': EmailImportJobsSelect<false> | EmailImportJobsSelect<true>;
     contacts: ContactsSelect<false> | ContactsSelect<true>;
     'chatgpt-oauth-clients': ChatgptOauthClientsSelect<false> | ChatgptOauthClientsSelect<true>;
     'chatgpt-oauth-codes': ChatgptOauthCodesSelect<false> | ChatgptOauthCodesSelect<true>;
@@ -2953,6 +2959,8 @@ export interface Email {
    */
   emailList?: (string | null) | EmailList;
   replyTo?: string | null;
+  status: 'draft' | 'approved' | 'scheduled' | 'sending' | 'sent' | 'failed';
+  scheduledAt?: string | null;
   /**
    * Build this email in the Email Builder tab.
    */
@@ -2977,6 +2985,14 @@ export interface Email {
     | EmailCalloutBlock
     | EmailFooterOneColumnBlock
   )[];
+  sendSummary?: {
+    elasticCampaignId?: string | null;
+    recipientCount?: number | null;
+    approvedAt?: string | null;
+    approvedBy?: (string | null) | User;
+    sentAt?: string | null;
+    sendError?: string | null;
+  };
   lastSend?: {
     status?: ('sent' | 'failed') | null;
     recipientEmail?: string | null;
@@ -2996,11 +3012,24 @@ export interface EmailList {
   tenant?: (string | null) | Tenant;
   name: string;
   description?: string | null;
+  /**
+   * Used when syncing this audience list to Elastic Email.
+   */
+  elasticListName?: string | null;
+  elasticPublicListID?: string | null;
+  /**
+   * Should remain enabled for normal campaign audiences.
+   */
+  allowUnsubscribe?: boolean | null;
   status: 'active' | 'archived';
   /**
-   * Contacts included in this audience list.
+   * Legacy quick picker. Rich membership data is stored in Email List Memberships.
    */
   contacts?: (string | Contact)[] | null;
+  activeContactCount?: number | null;
+  lastSyncedToElasticAt?: string | null;
+  iContactClientFolderId?: string | null;
+  iContactListId?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3012,9 +3041,12 @@ export interface Contact {
   id: string;
   tenant?: (string | null) | Tenant;
   email: string;
+  normalizedEmail: string;
+  tenantScopedKey?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   phone?: string | null;
+  postalCode?: string | null;
   status: 'subscribed' | 'unsubscribed' | 'inactive' | 'bounced' | 'doNotContact';
   source: 'manual' | 'form' | 'import' | 'event' | 'crm' | 'other';
   /**
@@ -3026,6 +3058,12 @@ export interface Contact {
         id?: string | null;
       }[]
     | null;
+  consentSource?: ('form' | 'manual' | 'icontact' | 'elastic' | 'unknown') | null;
+  consentAt?: string | null;
+  sourceDetails?: string | null;
+  elasticContactId?: string | null;
+  iContactContactId?: string | null;
+  lastSyncedToElasticAt?: string | null;
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -3386,6 +3424,89 @@ export interface EmailFooterOneColumnBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'emailFooterOneColumn';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-list-memberships".
+ */
+export interface EmailListMembership {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  emailList: string | EmailList;
+  contact: string | Contact;
+  status: 'subscribed' | 'unsubscribed' | 'inactive' | 'bounced' | 'doNotContact';
+  source: 'manual' | 'form' | 'icontact' | 'import' | 'elastic';
+  subscribedAt?: string | null;
+  unsubscribedAt?: string | null;
+  iContactSubscriptionId?: string | null;
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-send-events".
+ */
+export interface EmailSendEvent {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  email?: (string | null) | Email;
+  contact?: (string | null) | Contact;
+  recipientEmail: string;
+  eventType:
+    | 'queued'
+    | 'sent'
+    | 'delivered'
+    | 'opened'
+    | 'clicked'
+    | 'bounced'
+    | 'complaint'
+    | 'unsubscribed'
+    | 'failed';
+  elasticCampaignId?: string | null;
+  elasticMessageId?: string | null;
+  occurredAt: string;
+  url?: string | null;
+  raw?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-import-jobs".
+ */
+export interface EmailImportJob {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  source: 'icontact' | 'csv' | 'manual';
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  dryRun?: boolean | null;
+  iContactClientFolderId?: string | null;
+  iContactListId?: string | null;
+  totalContacts?: number | null;
+  importedContacts?: number | null;
+  updatedContacts?: number | null;
+  failedContacts?: number | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  message?: string | null;
+  errors?:
+    | {
+        email?: string | null;
+        message: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -3947,6 +4068,60 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  emailListMemberships?: {
+    /**
+     * Allow clients to find email-list-memberships.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create email-list-memberships.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update email-list-memberships.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete email-list-memberships.
+     */
+    delete?: boolean | null;
+  };
+  emailSendEvents?: {
+    /**
+     * Allow clients to find email-send-events.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create email-send-events.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update email-send-events.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete email-send-events.
+     */
+    delete?: boolean | null;
+  };
+  emailImportJobs?: {
+    /**
+     * Allow clients to find email-import-jobs.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create email-import-jobs.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update email-import-jobs.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete email-import-jobs.
+     */
+    delete?: boolean | null;
+  };
   contacts?: {
     /**
      * Allow clients to find contacts.
@@ -4348,6 +4523,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'email-lists';
         value: string | EmailList;
+      } | null)
+    | ({
+        relationTo: 'email-list-memberships';
+        value: string | EmailListMembership;
+      } | null)
+    | ({
+        relationTo: 'email-send-events';
+        value: string | EmailSendEvent;
+      } | null)
+    | ({
+        relationTo: 'email-import-jobs';
+        value: string | EmailImportJob;
       } | null)
     | ({
         relationTo: 'contacts';
@@ -6054,6 +6241,8 @@ export interface EmailsSelect<T extends boolean = true> {
   recipientEmail?: T;
   emailList?: T;
   replyTo?: T;
+  status?: T;
+  scheduledAt?: T;
   layout?:
     | T
     | {
@@ -6076,6 +6265,16 @@ export interface EmailsSelect<T extends boolean = true> {
         emailSpacer?: T | EmailSpacerBlockSelect<T>;
         emailCallout?: T | EmailCalloutBlockSelect<T>;
         emailFooterOneColumn?: T | EmailFooterOneColumnBlockSelect<T>;
+      };
+  sendSummary?:
+    | T
+    | {
+        elasticCampaignId?: T;
+        recipientCount?: T;
+        approvedAt?: T;
+        approvedBy?: T;
+        sentAt?: T;
+        sendError?: T;
       };
   lastSend?:
     | T
@@ -6421,8 +6620,78 @@ export interface EmailListsSelect<T extends boolean = true> {
   tenant?: T;
   name?: T;
   description?: T;
+  elasticListName?: T;
+  elasticPublicListID?: T;
+  allowUnsubscribe?: T;
   status?: T;
   contacts?: T;
+  activeContactCount?: T;
+  lastSyncedToElasticAt?: T;
+  iContactClientFolderId?: T;
+  iContactListId?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-list-memberships_select".
+ */
+export interface EmailListMembershipsSelect<T extends boolean = true> {
+  tenant?: T;
+  emailList?: T;
+  contact?: T;
+  status?: T;
+  source?: T;
+  subscribedAt?: T;
+  unsubscribedAt?: T;
+  iContactSubscriptionId?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-send-events_select".
+ */
+export interface EmailSendEventsSelect<T extends boolean = true> {
+  tenant?: T;
+  email?: T;
+  contact?: T;
+  recipientEmail?: T;
+  eventType?: T;
+  elasticCampaignId?: T;
+  elasticMessageId?: T;
+  occurredAt?: T;
+  url?: T;
+  raw?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-import-jobs_select".
+ */
+export interface EmailImportJobsSelect<T extends boolean = true> {
+  tenant?: T;
+  source?: T;
+  status?: T;
+  dryRun?: T;
+  iContactClientFolderId?: T;
+  iContactListId?: T;
+  totalContacts?: T;
+  importedContacts?: T;
+  updatedContacts?: T;
+  failedContacts?: T;
+  startedAt?: T;
+  completedAt?: T;
+  message?: T;
+  errors?:
+    | T
+    | {
+        email?: T;
+        message?: T;
+        id?: T;
+      };
   updatedAt?: T;
   createdAt?: T;
 }
@@ -6433,9 +6702,12 @@ export interface EmailListsSelect<T extends boolean = true> {
 export interface ContactsSelect<T extends boolean = true> {
   tenant?: T;
   email?: T;
+  normalizedEmail?: T;
+  tenantScopedKey?: T;
   firstName?: T;
   lastName?: T;
   phone?: T;
+  postalCode?: T;
   status?: T;
   source?: T;
   tags?:
@@ -6444,6 +6716,12 @@ export interface ContactsSelect<T extends boolean = true> {
         tag?: T;
         id?: T;
       };
+  consentSource?: T;
+  consentAt?: T;
+  sourceDetails?: T;
+  elasticContactId?: T;
+  iContactContactId?: T;
+  lastSyncedToElasticAt?: T;
   notes?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -6735,6 +7013,30 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   emailLists?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  emailListMemberships?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  emailSendEvents?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  emailImportJobs?:
     | T
     | {
         find?: T;

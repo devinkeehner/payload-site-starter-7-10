@@ -26,6 +26,9 @@ import { SitemapArtifacts } from './collections/SitemapArtifacts';
 import { FacebookOAuthSessions } from './collections/FacebookOAuthSessions';
 import { Emails } from './collections/Emails';
 import { EmailLists } from './collections/EmailLists';
+import { EmailListMemberships } from './collections/EmailListMemberships';
+import { EmailSendEvents } from './collections/EmailSendEvents';
+import { EmailImportJobs } from './collections/EmailImportJobs';
 import { Contacts } from './collections/Contacts';
 import { ChatgptOAuthClients } from './collections/ChatgptOAuthClients';
 import { ChatgptOAuthCodes } from './collections/ChatgptOAuthCodes';
@@ -212,6 +215,9 @@ const mcpCollections = {
   navbars: { enabled: { find: true, create: true, update: true, delete: true } },
   emails: { enabled: { find: true, create: true, update: true, delete: true } },
   'email-lists': { enabled: { find: true, create: true, update: true, delete: true } },
+  'email-list-memberships': { enabled: { find: true, create: true, update: true, delete: true } },
+  'email-send-events': { enabled: { find: true, create: true, update: true, delete: true } },
+  'email-import-jobs': { enabled: { find: true, create: true, update: true, delete: true } },
   contacts: { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
 
@@ -5014,6 +5020,9 @@ export default buildConfig({
     IContactLists,
     Emails,
     EmailLists,
+    EmailListMemberships,
+    EmailSendEvents,
+    EmailImportJobs,
     Contacts,
     ChatgptOAuthClients,
     ChatgptOAuthCodes,

@@ -18,6 +18,29 @@ type ElasticEmailPayload = {
   }
 }
 
+type ElasticContactPayload = {
+  Email: string
+  Status?: 'Active' | 'Bounced' | 'Unsubscribed' | 'Inactive'
+  FirstName?: string
+  LastName?: string
+  CustomFields?: Record<string, string>
+}
+
+type ElasticCampaignPayload = {
+  Name: string
+  Recipients: {
+    ListNames: string[]
+  }
+  Content: Array<{
+    Body: ElasticEmailBodyPart[]
+    From: string
+    ReplyTo?: string
+    Subject: string
+    TemplateType: 'RawHTML'
+  }>
+  Status: 'Active' | 'Draft'
+}
+
 type SendElasticMarketingEmailArgs = {
   html: string
   replyTo?: string
@@ -32,6 +55,7 @@ export type SendElasticMarketingEmailResult = {
 }
 
 const ELASTIC_EMAIL_TRANSACTIONAL_URL = 'https://api.elasticemail.com/v4/emails/transactional'
+const ELASTIC_EMAIL_API_BASE = 'https://api.elasticemail.com/v4'
 const EMAIL_ADDRESS_PATTERN = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/
 
 function getRequiredEnv(name: string): string {
@@ -51,6 +75,10 @@ function getElasticFromAddress(): string {
   }
 
   return fromName ? `${fromName} <${parsed.address}>` : parsed.address
+}
+
+function getElasticApiKey(): string {
+  return getRequiredEnv('ELASTIC_EMAIL_API_KEY')
 }
 
 async function getElasticErrorMessage(res: Response): Promise<string> {
@@ -95,7 +123,7 @@ export async function sendElasticMarketingEmail({
   text,
   to,
 }: SendElasticMarketingEmailArgs): Promise<SendElasticMarketingEmailResult> {
-  const apiKey = getRequiredEnv('ELASTIC_EMAIL_API_KEY')
+  const apiKey = getElasticApiKey()
   const payload: ElasticEmailPayload = {
     Content: {
       Body: [
@@ -143,5 +171,133 @@ export async function sendElasticMarketingEmail({
   return {
     id,
     message: id ? `Email sent successfully. Elastic Email ID: ${id}` : 'Email sent successfully.',
+  }
+}
+
+async function elasticFetch(path: string, init: { body?: unknown; method?: 'GET' | 'POST' | 'PUT' | 'DELETE' } = {}) {
+  const res = await fetch(`${ELASTIC_EMAIL_API_BASE}${path}`, {
+    body: typeof init.body === 'undefined' ? undefined : JSON.stringify(init.body),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-ElasticEmail-ApiKey': getElasticApiKey(),
+    },
+    method: init.method || 'GET',
+  })
+  const responseText = await res.text()
+
+  if (!res.ok) {
+    throw new Error(await getElasticErrorMessage(new Response(responseText, { status: res.status })))
+  }
+
+  return parseJsonResponse(responseText)
+}
+
+function encodeListName(value: string): string {
+  return encodeURIComponent(value)
+}
+
+export async function upsertElasticList({
+  allowUnsubscribe = true,
+  emails = [],
+  listName,
+}: {
+  allowUnsubscribe?: boolean
+  emails?: string[]
+  listName: string
+}) {
+  try {
+    return await elasticFetch('/lists', {
+      body: {
+        AllowUnsubscribe: allowUnsubscribe,
+        Emails: emails,
+        ListName: listName,
+      },
+      method: 'POST',
+    })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/already exists|409|conflict/i.test(message)) throw error
+
+    return elasticFetch(`/lists/${encodeListName(listName)}`, {
+      body: {
+        AllowUnsubscribe: allowUnsubscribe,
+        ListName: listName,
+      },
+      method: 'PUT',
+    })
+  }
+}
+
+export async function addElasticContactsToList({
+  contacts,
+  listName,
+}: {
+  contacts: ElasticContactPayload[]
+  listName: string
+}) {
+  if (!contacts.length) return null
+
+  return elasticFetch(`/contacts?listnames=${encodeListName(listName)}`, {
+    body: contacts,
+    method: 'POST',
+  })
+}
+
+export async function createElasticCampaign({
+  html,
+  listName,
+  name,
+  replyTo,
+  status = 'Active',
+  subject,
+  text,
+}: {
+  html: string
+  listName: string
+  name: string
+  replyTo?: string
+  status?: 'Active' | 'Draft'
+  subject: string
+  text: string
+}): Promise<SendElasticMarketingEmailResult> {
+  const content: ElasticCampaignPayload['Content'][number] = {
+    Body: [
+      {
+        Charset: 'utf-8',
+        Content: html,
+        ContentType: 'HTML',
+      },
+      {
+        Charset: 'utf-8',
+        Content: text,
+        ContentType: 'PlainText',
+      },
+    ],
+    From: getElasticFromAddress(),
+    Subject: subject,
+    TemplateType: 'RawHTML',
+  }
+
+  if (replyTo) {
+    content.ReplyTo = replyTo
+  }
+
+  const payload: ElasticCampaignPayload = {
+    Content: [content],
+    Name: name,
+    Recipients: {
+      ListNames: [listName],
+    },
+    Status: status,
+  }
+  const response = await elasticFetch('/campaigns', {
+    body: payload,
+    method: 'POST',
+  })
+
+  const id = getElasticSuccessId(response) || name
+  return {
+    id,
+    message: id ? `Elastic Email campaign created: ${id}` : 'Elastic Email campaign created.',
   }
 }

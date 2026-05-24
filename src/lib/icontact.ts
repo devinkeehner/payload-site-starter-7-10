@@ -164,6 +164,43 @@ export const listIContactLists = async (cfg: IContactConfig, accountId: string, 
   return { total: lists.length, lists }
 }
 
+export const listIContactContacts = async (
+  cfg: IContactConfig,
+  accountId: string,
+  clientFolderId: string,
+  listId?: string,
+) => {
+  const limit = 500
+  let offset = 0
+  let total: number | null = null
+  const contacts: any[] = []
+  const listQuery = sanitize(listId) ? `&listId=${encodeURIComponent(sanitize(listId))}` : ''
+
+  while (true) {
+    const res = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/contacts?offset=${offset}&limit=${limit}${listQuery}`)
+    if (!res.ok) {
+      const message = typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data || '')
+      throw new Error(`Failed to list iContact contacts for folder ${clientFolderId} (${res.status}): ${message}`)
+    }
+
+    const payload = (res.data && typeof res.data === 'object' ? res.data : {}) as JsonRecord
+    const batch = Array.isArray(payload.contacts) ? (payload.contacts as any[]) : []
+    const batchTotal = typeof payload.total === 'number' ? payload.total : null
+    if (total === null && batchTotal !== null) total = batchTotal
+
+    contacts.push(...batch)
+    if (batch.length === 0) break
+    if (total !== null && contacts.length >= total) break
+    if (batch.length < limit) break
+    offset += limit
+  }
+
+  return {
+    contacts,
+    total: total ?? contacts.length,
+  }
+}
+
 const toSubmissionMap = (submissionData: unknown) => {
   const map = new Map<string, string>()
   const rows = Array.isArray(submissionData) ? (submissionData as any[]) : []

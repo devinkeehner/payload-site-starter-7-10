@@ -1,6 +1,35 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionBeforeValidateHook, CollectionConfig } from 'payload'
 
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
+import {
+  normalizeEmailAddress,
+  normalizePhoneNumber,
+  normalizePostalCode,
+} from '@/lib/email/contactNormalization'
+
+const normalizeContact: CollectionBeforeValidateHook = ({ data }) => {
+  if (!data) return data
+
+  const email = normalizeEmailAddress(data.email)
+  const tenantId = (() => {
+    const tenant = data.tenant
+    if (typeof tenant === 'string' || typeof tenant === 'number') return String(tenant)
+    if (tenant && typeof tenant === 'object' && !Array.isArray(tenant)) {
+      const id = (tenant as Record<string, unknown>).id ?? (tenant as Record<string, unknown>).value
+      if (typeof id === 'string' || typeof id === 'number') return String(id)
+    }
+    return ''
+  })()
+
+  return {
+    ...data,
+    email,
+    normalizedEmail: email,
+    phone: normalizePhoneNumber(data.phone),
+    postalCode: normalizePostalCode(data.postalCode),
+    tenantScopedKey: tenantId && email ? `${tenantId}:${email}` : undefined,
+  }
+}
 
 export const Contacts: CollectionConfig = {
   slug: 'contacts',
@@ -20,11 +49,33 @@ export const Contacts: CollectionConfig = {
     singular: 'Contact',
     plural: 'Contacts',
   },
+  hooks: {
+    beforeValidate: [normalizeContact],
+  },
   fields: [
     {
       name: 'email',
       type: 'email',
       required: true,
+    },
+    {
+      name: 'normalizedEmail',
+      type: 'text',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+      index: true,
+      required: true,
+    },
+    {
+      name: 'tenantScopedKey',
+      type: 'text',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+      index: true,
     },
     {
       type: 'row',
@@ -43,6 +94,11 @@ export const Contacts: CollectionConfig = {
     },
     {
       name: 'phone',
+      type: 'text',
+    },
+    {
+      name: 'postalCode',
+      label: 'ZIP / Postal code',
       type: 'text',
     },
     {
@@ -90,6 +146,62 @@ export const Contacts: CollectionConfig = {
           required: true,
         },
       ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'consentSource',
+          label: 'Consent source',
+          type: 'select',
+          options: [
+            { label: 'Form submission', value: 'form' },
+            { label: 'Manual entry', value: 'manual' },
+            { label: 'iContact migration', value: 'icontact' },
+            { label: 'Elastic Email', value: 'elastic' },
+            { label: 'Unknown', value: 'unknown' },
+          ],
+        },
+        {
+          name: 'consentAt',
+          label: 'Consent date',
+          type: 'date',
+          admin: {
+            date: {
+              pickerAppearance: 'dayAndTime',
+            },
+          },
+        },
+      ],
+    },
+    {
+      name: 'sourceDetails',
+      label: 'Source details',
+      type: 'textarea',
+    },
+    {
+      name: 'elasticContactId',
+      label: 'Elastic contact ID',
+      type: 'text',
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'iContactContactId',
+      label: 'iContact contact ID',
+      type: 'text',
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'lastSyncedToElasticAt',
+      label: 'Last synced to Elastic',
+      type: 'date',
+      admin: {
+        readOnly: true,
+      },
     },
     {
       name: 'notes',

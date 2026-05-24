@@ -105,6 +105,30 @@ export const Emails: CollectionConfig<'emails'> = {
               type: 'email',
               label: 'Reply-to email',
             },
+            {
+              name: 'status',
+              type: 'select',
+              defaultValue: 'draft',
+              options: [
+                { label: 'Draft', value: 'draft' },
+                { label: 'Approved', value: 'approved' },
+                { label: 'Scheduled', value: 'scheduled' },
+                { label: 'Sending', value: 'sending' },
+                { label: 'Sent', value: 'sent' },
+                { label: 'Failed', value: 'failed' },
+              ],
+              required: true,
+            },
+            {
+              name: 'scheduledAt',
+              label: 'Scheduled send time',
+              type: 'date',
+              admin: {
+                date: {
+                  pickerAppearance: 'dayAndTime',
+                },
+              },
+            },
           ],
         },
         {
@@ -125,6 +149,47 @@ export const Emails: CollectionConfig<'emails'> = {
         {
           label: 'Status',
           fields: [
+            {
+              name: 'sendSummary',
+              label: 'Production send',
+              type: 'group',
+              admin: {
+                readOnly: true,
+              },
+              fields: [
+                {
+                  name: 'elasticCampaignId',
+                  label: 'Elastic campaign ID',
+                  type: 'text',
+                },
+                {
+                  name: 'recipientCount',
+                  label: 'Recipient count',
+                  type: 'number',
+                },
+                {
+                  name: 'approvedAt',
+                  label: 'Approved at',
+                  type: 'date',
+                },
+                {
+                  name: 'approvedBy',
+                  label: 'Approved by',
+                  type: 'relationship',
+                  relationTo: 'users',
+                },
+                {
+                  name: 'sentAt',
+                  label: 'Sent at',
+                  type: 'date',
+                },
+                {
+                  name: 'sendError',
+                  label: 'Send error',
+                  type: 'textarea',
+                },
+              ],
+            },
             {
               name: 'lastSend',
               type: 'group',

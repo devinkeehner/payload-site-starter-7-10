@@ -6,7 +6,7 @@ import { Button, useDocumentInfo, useFormModified } from '@payloadcms/ui'
 export function EmailSendControl() {
   const { id } = useDocumentInfo()
   const isModified = useFormModified()
-  const [status, setStatus] = useState<'idle' | 'creatingPost' | 'sending' | 'sent' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'creatingPost' | 'sending' | 'sendingProduction' | 'sent' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
 
   if (!id) return null
@@ -57,12 +57,36 @@ export function EmailSendControl() {
     }
   }
 
+  async function sendProductionEmail() {
+    if (!id || isModified) return
+    if (!window.confirm('Send this email to the selected audience list? This creates a production Elastic Email campaign.')) return
+
+    setStatus('sendingProduction')
+    setMessage(null)
+
+    try {
+      const res = await fetch(`/api/emails/${id}/send`, {
+        method: 'POST',
+      })
+
+      if (!res.ok) throw new Error(await res.text())
+      const payload = (await res.json()) as { message?: string; recipientCount?: number }
+      setStatus('sent')
+      setMessage(payload.message || `Production email sent to ${payload.recipientCount || 0} recipients.`)
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to send production email')
+    }
+  }
+
+  const busy = status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'
+
   return (
     <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <Button
           buttonStyle="primary"
-          disabled={isModified || status === 'sending' || status === 'creatingPost'}
+          disabled={isModified || busy}
           onClick={() => void sendTestEmail()}
           size="small"
           type="button"
@@ -71,12 +95,21 @@ export function EmailSendControl() {
         </Button>
         <Button
           buttonStyle="secondary"
-          disabled={isModified || status === 'sending' || status === 'creatingPost'}
+          disabled={isModified || busy}
           onClick={() => void createPost()}
           size="small"
           type="button"
         >
           {status === 'creatingPost' ? 'Creating...' : 'Create Post Draft'}
+        </Button>
+        <Button
+          buttonStyle="secondary"
+          disabled={isModified || busy}
+          onClick={() => void sendProductionEmail()}
+          size="small"
+          type="button"
+        >
+          {status === 'sendingProduction' ? 'Sending Campaign...' : 'Send Campaign'}
         </Button>
       </div>
       <div style={{ color: status === 'error' ? 'var(--theme-error-500)' : 'var(--theme-elevation-600)', fontSize: 12 }}>
