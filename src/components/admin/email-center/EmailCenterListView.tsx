@@ -2,7 +2,7 @@
 
 import type { ListViewClientProps } from 'payload'
 
-import { DefaultListView, Link, useConfig, useListQuery } from '@payloadcms/ui'
+import { Button, DefaultListView, Gutter, Pill, useConfig, useListQuery } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import React, { useMemo } from 'react'
 
@@ -40,100 +40,67 @@ function getListName(value: EmailDoc['emailList']) {
   return 'No audience'
 }
 
-function EmailCenterTable() {
-  const {
-    config: {
-      routes: { admin: adminRoute },
-    },
-  } = useConfig()
+function EmailCenterSummary() {
   const { data } = useListQuery()
   const docs = useMemo(() => (data?.docs || []) as EmailDoc[], [data?.docs])
-
-  if (!docs.length) {
-    return (
-      <div className="email-center__card">
-        <strong>No emails yet</strong>
-        <span className="email-center__meta">Create an email to start the campaign workflow.</span>
-      </div>
-    )
-  }
+  const drafts = docs.filter((doc) => (doc.status || 'draft') !== 'sent').length
+  const sent = docs.filter((doc) => doc.status === 'sent').length
 
   return (
-    <div className="email-center__grid">
-      {docs.map((doc) => {
-        const id = doc.id != null ? String(doc.id) : ''
-        const title = doc.subject || doc.title || 'Untitled email'
-        const editURL = formatAdminURL({ adminRoute, path: `/collections/emails/${encodeURIComponent(id)}` })
-        const workflowURL = `${editURL}/workflow`
-        const builderURL = `${editURL}/visual`
-        const status = doc.status || 'draft'
-
-        return (
-          <article className="email-center__card" key={id || title}>
-            <div className="email-center__card-main">
-              <span className="email-center__pill" data-status={status}>{status}</span>
-              <Link className="email-center__card-title" href={workflowURL}>
-                {title}
-              </Link>
-              {doc.preheader ? <span className="email-center__meta">{doc.preheader}</span> : null}
-              <div className="email-center__stats">
-                <span>Audience: {getListName(doc.emailList)}</span>
-                <span>Recipients: {doc.sendSummary?.recipientCount ?? 'Pending'}</span>
-                <span>Last test: {doc.lastSend?.status || 'Not sent'}</span>
-                <span>Last updated: {formatDate(doc.updatedAt)}</span>
-              </div>
-            </div>
-            <div className="email-center__card-actions">
-              <Link className="email-center__button email-center__button--dark" href={workflowURL}>Workflow</Link>
-              <Link className="email-center__button" href={builderURL}>Builder</Link>
-              <Link className="email-center__button" href={editURL}>Advanced</Link>
-            </div>
-          </article>
-        )
-      })}
+    <div className="email-flow__summary">
+      <Pill pillStyle="light-gray">{docs.length} total</Pill>
+      <Pill pillStyle={drafts ? 'warning' : 'light-gray'}>{drafts} in progress</Pill>
+      <Pill pillStyle={sent ? 'success' : 'light-gray'}>{sent} sent</Pill>
+      {docs[0] ? <span>Last updated: {formatDate(docs[0].updatedAt)}</span> : <span>No emails yet</span>}
+      {docs[0] ? <span>Latest audience: {getListName(docs[0].emailList)}</span> : null}
     </div>
   )
 }
 
-function EmailCenterHero() {
+function EmailCenterHero({ createURL, listsURL }: { createURL: string; listsURL: string }) {
+  return (
+    <Gutter className="email-flow email-flow--list">
+      <div className="email-flow__header">
+        <p className="email-flow__eyebrow">Email Marketing</p>
+        <h1>Emails</h1>
+        <p>Start with a campaign name, build the email, choose the audience, then review and send.</p>
+      </div>
+      <div className="email-flow__toolbar">
+        <Button buttonStyle="primary" el="link" to={createURL} type="button">
+          Create Email
+        </Button>
+        <Button buttonStyle="secondary" el="link" to={listsURL} type="button">
+          Audiences
+        </Button>
+      </div>
+      <EmailCenterSummary />
+    </Gutter>
+  )
+}
+
+export default function EmailCenterListView(props: ListViewClientProps) {
   const {
     config: {
       routes: { admin: adminRoute },
     },
   } = useConfig()
-  const createURL = formatAdminURL({ adminRoute, path: '/collections/emails/create' })
+  const createURL = formatAdminURL({ adminRoute, path: '/email-campaigns/start' })
   const listsURL = formatAdminURL({ adminRoute, path: '/collections/email-lists' })
-
-  return (
-    <section className="email-center__hero">
-      <div>
-        <h2>Email Center</h2>
-        <p>Build campaign emails, check readiness, create matching post drafts, and send Elastic Email campaigns from one workflow.</p>
-      </div>
-      <div className="email-center__actions">
-        <Link className="email-center__button" href={createURL}>Create Email</Link>
-        <Link className="email-center__button" href={listsURL}>Audiences</Link>
-      </div>
-    </section>
-  )
-}
-
-export default function EmailCenterListView(props: ListViewClientProps) {
   const BeforeList = useMemo(
     () => (
       <>
-        <EmailCenterHero />
+        <EmailCenterHero createURL={createURL} listsURL={listsURL} />
         {props.BeforeList}
       </>
     ),
-    [props.BeforeList],
+    [createURL, listsURL, props.BeforeList],
   )
 
   return (
     <DefaultListView
       {...props}
       BeforeList={BeforeList}
-      Table={<EmailCenterTable />}
+      newDocumentURL={createURL}
     />
   )
 }

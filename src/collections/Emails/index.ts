@@ -30,30 +30,55 @@ export const Emails: CollectionConfig<'emails'> = {
     hidden: isCollectionHiddenForRole('emails'),
     useAsTitle: 'title',
     components: {
-      edit: {
-        beforeDocumentControls: ['@/components/admin/email/EmailSendControl#EmailSendControl'],
-      },
       views: {
         list: {
           Component: '@/components/admin/email-center/EmailCenterListView#default',
         },
         edit: {
+          default: {
+            tab: {
+              label: 'Advanced',
+              order: 400,
+            },
+          },
+          campaign: {
+            path: '/campaign',
+            Component: '@/components/admin/email-campaign/EmailCampaignView#default',
+            tab: {
+              href: '/campaign',
+              label: 'Campaign',
+              order: 100,
+            },
+          },
           workflow: {
             path: '/workflow',
-            Component: '@/components/admin/email-center/EmailWorkflowView#default',
-            tab: {
-              href: '/workflow',
-              label: 'Workflow',
-              order: 60,
-            },
+            Component: '@/components/admin/email-campaign/EmailWorkflowRedirectView#default',
           },
           visual: {
             path: '/visual',
             Component: '@/components/admin/email/PuckEmailBuilderView',
             tab: {
               href: '/visual',
-              label: 'Email Builder',
-              order: 75,
+              label: 'Builder',
+              order: 200,
+            },
+          },
+          audience: {
+            path: '/audience',
+            Component: '@/components/admin/email-audience/EmailAudienceView#default',
+            tab: {
+              href: '/audience',
+              label: 'Audience',
+              order: 300,
+            },
+          },
+          review: {
+            path: '/review',
+            Component: '@/components/admin/email-center/EmailWorkflowView#default',
+            tab: {
+              href: '/review',
+              label: 'Review & Send',
+              order: 350,
             },
           },
         },
@@ -85,7 +110,6 @@ export const Emails: CollectionConfig<'emails'> = {
             {
               name: 'subject',
               type: 'text',
-              required: true,
             },
             {
               name: 'preheader',
@@ -101,7 +125,6 @@ export const Emails: CollectionConfig<'emails'> = {
               admin: {
                 description: 'Send Test Email sends only to this address, never to the audience list.',
               },
-              required: true,
             },
             {
               name: 'emailList',

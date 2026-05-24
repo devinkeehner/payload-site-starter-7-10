@@ -2945,7 +2945,7 @@ export interface Email {
    * Internal title shown in the admin.
    */
   title: string;
-  subject: string;
+  subject?: string | null;
   /**
    * Short preview text shown by many email clients.
    */
@@ -2953,7 +2953,7 @@ export interface Email {
   /**
    * Send Test Email sends only to this address, never to the audience list.
    */
-  recipientEmail: string;
+  recipientEmail?: string | null;
   /**
    * Intended audience for future campaign sends. Test sends do not use this list.
    */

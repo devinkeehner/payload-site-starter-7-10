@@ -1,6 +1,6 @@
 import type { CollectionConfig, CollectionSlug } from 'payload'
 
-import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
+import { roleRestrictedAccess } from '@/lib/access/roles'
 
 const CONTACTS_COLLECTION = 'contacts' as CollectionSlug
 const EMAIL_LISTS_COLLECTION = 'email-lists' as CollectionSlug

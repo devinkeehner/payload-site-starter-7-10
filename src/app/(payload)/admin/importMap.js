@@ -46,9 +46,11 @@ import { FormIContactBackfillField as FormIContactBackfillField_d9538333f17a5dd3
 import { default as default_f947c8c711b9789ffe849c3dce394ff8 } from '@/components/admin/FormResultsDashboard'
 import { FormSubmissionCooldownNotice as FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472 } from '@/components/admin/FormSubmissionCooldownNotice'
 import { WatchTenantCollection as WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
-import { EmailSendControl as EmailSendControl_d65e4a99c6859c500904bf0380d0cc0b } from '@/components/admin/email/EmailSendControl'
-import { default as default_72de4d3084d953a792e9d63a0b6b8d64 } from '@/components/admin/email-center/EmailWorkflowView'
+import { default as default_b18c0b724d0dce8da9c53137701d03b3 } from '@/components/admin/email-campaign/EmailCampaignView'
+import { default as default_cf0eff6def9d4b9008d87c30c920528f } from '@/components/admin/email-campaign/EmailWorkflowRedirectView'
 import { default as default_2c6c4dbbe998d6eebbc446155e65ba4b } from '@/components/admin/email/PuckEmailBuilderView'
+import { default as default_a0e436fe38b7e307ce9fcc9be2ba7933 } from '@/components/admin/email-audience/EmailAudienceView'
+import { default as default_72de4d3084d953a792e9d63a0b6b8d64 } from '@/components/admin/email-center/EmailWorkflowView'
 import { default as default_7df001b233165cf0fc71cbd5e6837a9a } from '@/components/admin/email-center/EmailCenterListView'
 import { default as default_2581c95fe82b5364a75dc1a485d10390 } from '@/components/admin/email-list-profile/EmailListProfileView'
 import { LinkToDoc as LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloadcms/plugin-search/client'
@@ -66,6 +68,7 @@ import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/component
 import { default as default_03d18d5b1bbb31219221c8c0e6fd3737 } from '@/components/admin/TenantHeaderIndicator'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
+import { default as default_1a60547ff0383fa586cb898a7f7ad4a3 } from '@/components/admin/email-start/EmailStartView'
 import { QuickTasksWidget as QuickTasksWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
 import { IconCollectionLauncherWidget as IconCollectionLauncherWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
@@ -119,9 +122,11 @@ export const importMap = {
   "@/components/admin/FormResultsDashboard#default": default_f947c8c711b9789ffe849c3dce394ff8,
   "@/components/admin/FormSubmissionCooldownNotice#FormSubmissionCooldownNotice": FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472,
   "@payloadcms/plugin-multi-tenant/client#WatchTenantCollection": WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a,
-  "@/components/admin/email/EmailSendControl#EmailSendControl": EmailSendControl_d65e4a99c6859c500904bf0380d0cc0b,
-  "@/components/admin/email-center/EmailWorkflowView#default": default_72de4d3084d953a792e9d63a0b6b8d64,
+  "@/components/admin/email-campaign/EmailCampaignView#default": default_b18c0b724d0dce8da9c53137701d03b3,
+  "@/components/admin/email-campaign/EmailWorkflowRedirectView#default": default_cf0eff6def9d4b9008d87c30c920528f,
   "@/components/admin/email/PuckEmailBuilderView#default": default_2c6c4dbbe998d6eebbc446155e65ba4b,
+  "@/components/admin/email-audience/EmailAudienceView#default": default_a0e436fe38b7e307ce9fcc9be2ba7933,
+  "@/components/admin/email-center/EmailWorkflowView#default": default_72de4d3084d953a792e9d63a0b6b8d64,
   "@/components/admin/email-center/EmailCenterListView#default": default_7df001b233165cf0fc71cbd5e6837a9a,
   "@/components/admin/email-list-profile/EmailListProfileView#default": default_2581c95fe82b5364a75dc1a485d10390,
   "@payloadcms/plugin-search/client#LinkToDoc": LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634,
@@ -139,6 +144,7 @@ export const importMap = {
   "@/components/admin/TenantHeaderIndicator#default": default_03d18d5b1bbb31219221c8c0e6fd3737,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
+  "@/components/admin/email-start/EmailStartView#default": default_1a60547ff0383fa586cb898a7f7ad4a3,
   "@/components/admin/dashboard/DashboardWidgets#QuickTasksWidget": QuickTasksWidget_3d6cbd98ae16a4b532b4ea54743c8203,
   "@/components/admin/dashboard/DashboardWidgets#IconCollectionLauncherWidget": IconCollectionLauncherWidget_3d6cbd98ae16a4b532b4ea54743c8203,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a

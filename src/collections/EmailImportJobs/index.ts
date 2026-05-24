@@ -1,6 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
+import { roleRestrictedAccess } from '@/lib/access/roles'
 
 export const EmailImportJobs: CollectionConfig = {
   slug: 'email-import-jobs',

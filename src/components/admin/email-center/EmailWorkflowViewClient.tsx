@@ -1,8 +1,8 @@
 'use client'
 
-import { Link, useConfig } from '@payloadcms/ui'
+import { Banner, Button, Gutter, Pill, useConfig } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import './email-center.scss'
 
@@ -58,8 +58,9 @@ export function EmailWorkflowViewClient({
   const [message, setMessage] = useState<string | null>(null)
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
   const builderURL = `${editURL}/visual`
+  const audienceURL = `${editURL}/audience`
 
-  async function loadWorkflow() {
+  const loadWorkflow = useCallback(async () => {
     setStatus('loading')
     setMessage(null)
     try {
@@ -78,13 +79,13 @@ export function EmailWorkflowViewClient({
       setStatus('idle')
     } catch (error) {
       setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Unable to load workflow')
+      setMessage(error instanceof Error ? error.message : 'Unable to load review')
     }
-  }
+  }, [emailId])
 
   useEffect(() => {
     void loadWorkflow()
-  }, [emailId])
+  }, [loadWorkflow])
 
   async function createPostDraft() {
     setStatus('creatingPost')
@@ -128,33 +129,43 @@ export function EmailWorkflowViewClient({
   }
 
   return (
-    <main className="email-workflow">
-      <section className="email-workflow__hero">
-        <div>
-          <h2>{title}</h2>
-          <p>Move this campaign through setup, builder, preview, post conversion, and final send from one place.</p>
-        </div>
-        <div className="email-workflow__actions">
-          <Link className="email-workflow__button" href={builderURL}>Open Builder</Link>
-          <Link className="email-workflow__button" href={editURL}>Advanced Fields</Link>
-          <button className="email-workflow__button" type="button" onClick={() => void loadWorkflow()}>Refresh</button>
-        </div>
+    <Gutter className="email-flow">
+      <div className="email-flow__header">
+        <p className="email-flow__eyebrow">Review & Send</p>
+        <h1>{title}</h1>
+        <p>Check readiness, preview the email, create the matching post draft, then send the campaign.</p>
+      </div>
+
+      {message ? <Banner type={status === 'error' ? 'error' : 'info'}>{message}</Banner> : null}
+
+      <section className="email-flow__toolbar">
+        <Button buttonStyle="secondary" el="link" to={builderURL} type="button">
+          Builder
+        </Button>
+        <Button buttonStyle="secondary" el="link" to={audienceURL} type="button">
+          Audience
+        </Button>
+        <Button buttonStyle="secondary" onClick={() => void loadWorkflow()} type="button">
+          Refresh
+        </Button>
       </section>
 
-      <section className="email-workflow__layout">
-        <aside className="email-workflow__panel">
-          <h3>Readiness</h3>
+      <section className="email-flow__review-grid">
+        <aside className="email-flow__panel">
+          <h2>Readiness</h2>
           {readiness ? (
             <>
-              <div className="email-workflow__meta">
+              <div className="email-flow__meta">
                 <span>{readiness.failures} failures</span>
                 <span>{readiness.warnings} warnings</span>
                 <span>{readiness.audience?.active || 0} recipients</span>
               </div>
-              <div className="email-workflow__checklist">
+              <div className="email-flow__checklist">
                 {readiness.items.map((item) => (
-                  <div className="email-workflow__check" key={item.key}>
-                    <span className="email-workflow__pill" data-status={item.status}>{item.status}</span>
+                  <div className="email-flow__check" key={item.key}>
+                    <Pill pillStyle={item.status === 'pass' ? 'success' : item.status === 'warn' ? 'warning' : 'error'} size="small">
+                      {item.status}
+                    </Pill>
                     <strong>{item.label}</strong>
                     <span>{item.message}</span>
                   </div>
@@ -164,35 +175,34 @@ export function EmailWorkflowViewClient({
           ) : (
             <p>{status === 'loading' ? 'Loading readiness...' : 'No readiness data.'}</p>
           )}
-          <div className="email-workflow__panel-actions">
-            <button className="email-workflow__button" type="button" onClick={() => void createPostDraft()}>
+          <div className="email-flow__actions">
+            <Button buttonStyle="secondary" disabled={status === 'creatingPost'} onClick={() => void createPostDraft()} type="button">
               {status === 'creatingPost' ? 'Creating...' : 'Create Post Draft'}
-            </button>
-            <button className="email-workflow__button email-workflow__button--dark" disabled={!readiness?.canSend || status === 'sending'} type="button" onClick={() => void sendCampaign()}>
+            </Button>
+            <Button buttonStyle="primary" disabled={!readiness?.canSend || status === 'sending'} onClick={() => void sendCampaign()} type="button">
               {status === 'sending' ? 'Sending...' : 'Send Campaign'}
-            </button>
+            </Button>
           </div>
-          {message ? <p className="email-workflow__meta">{message}</p> : null}
         </aside>
 
-        <section className="email-workflow__panel">
-          <h3>Email Preview</h3>
-          <div className="email-workflow__preview">
+        <section className="email-flow__panel">
+          <h2>Email Preview</h2>
+          <div className="email-flow__preview">
             {emailPreview?.html ? <iframe title="Email preview" srcDoc={emailPreview.html} /> : null}
           </div>
         </section>
       </section>
 
-      <section className="email-workflow__panel">
-        <h3>Post Conversion Preview</h3>
-        <div className="email-workflow__meta">
+      <section className="email-flow__panel">
+        <h2>Post Conversion</h2>
+        <div className="email-flow__meta">
           <span>Title: {postPreview?.title || title}</span>
           <span>Blocks: {postPreview?.layout?.length ?? 0}</span>
         </div>
-        <p className="email-workflow__meta">
+        <p className="email-flow__muted">
           This preview checks conversion structure before creating the draft. The post editor remains the final visual review surface.
         </p>
       </section>
-    </main>
+    </Gutter>
   )
 }

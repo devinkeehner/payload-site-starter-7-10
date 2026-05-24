@@ -273,72 +273,11 @@ export function PuckEmailBuilderEditor({
     return save(data)
   }
 
-  async function sendTestEmail() {
+  async function continueToAudience() {
     const saved = await saveLatestData()
     if (!saved) return
 
-    setStatus('sending')
-    setMessage(null)
-    try {
-      const res = await fetch(`/api/emails/${emailId}/send-test`, {
-        method: 'POST',
-      })
-
-      if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { message?: string }
-      setStatus('sent')
-      setMessage(payload.message || 'Test email sent successfully.')
-    } catch (error) {
-      setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Unable to send test email')
-    }
-  }
-
-  async function createPostDraft() {
-    const saved = await saveLatestData()
-    if (!saved) return
-
-    setStatus('creatingPost')
-    setMessage(null)
-    try {
-      const res = await fetch(`/api/emails/${emailId}/create-post`, {
-        method: 'POST',
-      })
-
-      if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { adminUrl?: string }
-      if (payload.adminUrl) {
-        window.location.href = payload.adminUrl
-        return
-      }
-      setStatus('idle')
-      setMessage('Post draft created.')
-    } catch (error) {
-      setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Unable to create post')
-    }
-  }
-
-  async function sendProductionEmail() {
-    const saved = await saveLatestData()
-    if (!saved) return
-    if (!window.confirm('Send this email to the selected audience list? This creates a production Elastic Email campaign.')) return
-
-    setStatus('sendingProduction')
-    setMessage(null)
-    try {
-      const res = await fetch(`/api/emails/${emailId}/send`, {
-        method: 'POST',
-      })
-
-      if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { message?: string; recipientCount?: number }
-      setStatus('sent')
-      setMessage(payload.message || `Production email sent to ${payload.recipientCount || 0} recipients.`)
-    } catch (error) {
-      setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Unable to send production email')
-    }
+    window.location.href = `/admin/collections/emails/${emailId}/audience`
   }
 
   if (!data) {
@@ -376,27 +315,19 @@ export function PuckEmailBuilderEditor({
           <>
             <button
               className={styles.saveButton}
-              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'}
+              disabled={status === 'saving'}
               type="button"
-              onClick={() => void sendTestEmail()}
+              onClick={() => data && void save(data)}
             >
-              {status === 'sending' ? 'Sending...' : 'Send Test Email'}
+              {status === 'saving' ? 'Saving...' : 'Save'}
             </button>
             <button
               className={styles.saveButton}
-              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'}
+              disabled={status === 'saving'}
               type="button"
-              onClick={() => void createPostDraft()}
+              onClick={() => void continueToAudience()}
             >
-              {status === 'creatingPost' ? 'Creating...' : 'Create Post Draft'}
-            </button>
-            <button
-              className={styles.saveButton}
-              disabled={status === 'saving' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'}
-              type="button"
-              onClick={() => void sendProductionEmail()}
-            >
-              {status === 'sendingProduction' ? 'Sending Campaign...' : 'Send Campaign'}
+              Continue to Audience
             </button>
           </>
         )}

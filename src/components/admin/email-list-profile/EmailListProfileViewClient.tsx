@@ -2,7 +2,7 @@
 
 import { Link, useConfig } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
 import '@/components/admin/email-center/email-center.scss'
 
@@ -34,7 +34,7 @@ export function EmailListProfileViewClient({
   const contactsURL = useMemo(() => formatAdminURL({ adminRoute, path: '/collections/contacts' }), [adminRoute])
   const membershipsURL = useMemo(() => formatAdminURL({ adminRoute, path: '/collections/email-list-memberships' }), [adminRoute])
 
-  async function loadSummary() {
+  const loadSummary = useCallback(async () => {
     setMessage(null)
     try {
       const res = await fetch(`/api/email-lists/${listId}/summary`, { cache: 'no-store' })
@@ -43,11 +43,11 @@ export function EmailListProfileViewClient({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load audience summary')
     }
-  }
+  }, [listId])
 
   useEffect(() => {
     void loadSummary()
-  }, [listId])
+  }, [loadSummary])
 
   return (
     <main className="email-list-profile">

@@ -4933,6 +4933,12 @@ export default buildConfig({
         Icon: '@/components/admin/brand/Icon#default',
         Logo: '@/components/admin/brand/Logo#default',
       },
+      views: {
+        emailCampaignStart: {
+          path: '/email-campaigns/start',
+          Component: '@/components/admin/email-start/EmailStartView#default',
+        },
+      },
     },
     importMap: {
       baseDir: path.resolve(dirname),
