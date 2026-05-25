@@ -38,6 +38,16 @@ type ImportResult = {
   importedContacts: number
   jobId: string
   listName: string
+  statusDebug?: {
+    sampleSize?: number
+    samples?: Array<{
+      email?: string
+      keys?: string
+      mappedStatus?: string
+      statusValues?: Record<string, unknown>
+    }>
+    unknownStatusCount?: number
+  }
   statusCounts?: {
     bounced?: number
     doNotContact?: number
@@ -217,6 +227,19 @@ export function IContactImportViewClient() {
               <div><strong>{result.statusCounts.bounced || 0}</strong><span>Bounced</span></div>
               <div><strong>{result.statusCounts.doNotContact || 0}</strong><span>Do not contact</span></div>
             </div>
+          ) : null}
+          {result.statusDebug?.samples?.length ? (
+            <details className="email-flow__details">
+              <summary>Status debug samples ({result.statusDebug.sampleSize || result.statusDebug.samples.length}, unknown fields: {result.statusDebug.unknownStatusCount || 0})</summary>
+              <ul>
+                {result.statusDebug.samples.slice(0, 20).map((sample, index) => (
+                  <li key={`${sample.email || 'sample'}-${index}`}>
+                    <strong>{sample.email || 'No email'}</strong>: {sample.mappedStatus || 'unknown'}
+                    <pre>{JSON.stringify({ keys: sample.keys, statusValues: sample.statusValues }, null, 2)}</pre>
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
           {result.emailListId ? (
             <Button buttonStyle="secondary" el="link" to={importedListURL} type="button">

@@ -21,6 +21,12 @@ type CustomFieldRow = {
   value: string
 }
 type StatusCounts = Record<ContactStatus, number>
+type StatusDebugSample = {
+  email: string
+  keys: string
+  mappedStatus: ContactStatus
+  statusValues: Record<string, unknown>
+}
 
 type ImportIContactListArgs = {
   clientFolderId: string
@@ -61,6 +67,21 @@ const createStatusCounts = (): StatusCounts => ({
   subscribed: 0,
   unsubscribed: 0,
 })
+
+const STATUS_DEBUG_KEYS = [
+  'status',
+  'contactStatus',
+  'contactStatusName',
+  'subscriptionStatus',
+  'subscriptionStatusName',
+  'listStatus',
+  'listStatusName',
+  'subscription',
+  'subscriptions',
+  'listSubscriptions',
+  'memberships',
+  'lists',
+]
 
 const STANDARD_ICONTACT_KEYS = new Set([
   'business',
@@ -168,6 +189,45 @@ function getIContactListStatus(contact: UnknownRecord, listId: string): ContactS
 function getIContactSubscriptionId(contact: UnknownRecord, listId: string): string {
   const subscription = findSubscriptionRecord(contact, listId)
   return getString(subscription ? getValueByKey(subscription, ['subscriptionId', 'id']) : undefined) || getString(contact.subscriptionId)
+}
+
+function summarizeValue(value: unknown): unknown {
+  if (value == null) return null
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value
+  if (Array.isArray(value)) {
+    return value.slice(0, 3).map((item) => summarizeValue(item))
+  }
+  if (typeof value === 'object') {
+    const record = value as UnknownRecord
+    return Object.fromEntries(
+      Object.entries(record)
+        .slice(0, 12)
+        .map(([key, item]) => [key, summarizeValue(item)]),
+    )
+  }
+  return String(value)
+}
+
+function getStatusDebugValues(contact: UnknownRecord): Record<string, unknown> {
+  const values: Record<string, unknown> = {}
+
+  for (const key of STATUS_DEBUG_KEYS) {
+    const value = getValueByKey(contact, [key])
+    if (typeof value !== 'undefined') {
+      values[key] = summarizeValue(value)
+    }
+  }
+
+  return values
+}
+
+function createStatusDebugSample(contact: UnknownRecord, mappedStatus: ContactStatus): StatusDebugSample {
+  return {
+    email: normalizeEmailAddress(contact.email),
+    keys: Object.keys(contact).sort().join(', '),
+    mappedStatus,
+    statusValues: getStatusDebugValues(contact),
+  }
 }
 
 function stringifyCustomValue(value: unknown): string {
@@ -445,11 +505,21 @@ export async function importIContactList({
   let failedContacts = 0
   const errors: Array<{ email?: string; message: string }> = []
   const statusCounts = createStatusCounts()
+  const statusDebugSamples: StatusDebugSample[] = []
+  let unknownStatusCount = 0
 
   for (const contact of contactsPayload.contacts.filter((item: unknown): item is UnknownRecord => Boolean(item && typeof item === 'object' && !Array.isArray(item)))) {
     try {
       const listStatus = getIContactListStatus(contact, listId)
       statusCounts[listStatus] += 1
+      const hasExplicitStatusFields = Object.keys(getStatusDebugValues(contact)).length > 0
+      if (!hasExplicitStatusFields) unknownStatusCount += 1
+      if (
+        statusDebugSamples.length < 20 &&
+        (!hasExplicitStatusFields || listStatus === 'subscribed' || listStatus === 'unsubscribed')
+      ) {
+        statusDebugSamples.push(createStatusDebugSample(contact, listStatus))
+      }
       const result = await upsertContact({
         contact,
         dryRun,
@@ -494,6 +564,11 @@ export async function importIContactList({
     failedContacts,
     importedContacts,
     listName: getString(list?.name) || `iContact List ${listId}`,
+    statusDebug: {
+      sampleSize: statusDebugSamples.length,
+      samples: statusDebugSamples,
+      unknownStatusCount,
+    },
     statusCounts,
     totalContacts: contactsPayload.total,
     updatedContacts,

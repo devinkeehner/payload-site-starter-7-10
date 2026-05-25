@@ -35,7 +35,15 @@ async function getAuthenticatedPayloadRequest(req: Request) {
   return { payload: payloadReq.payload, req: payloadReq, user: payloadReq.user }
 }
 
-async function getEmailLists(payload: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['payload'], payloadReq: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['req']) {
+async function getEmailLists({
+  payload,
+  payloadReq,
+  tenantId,
+}: {
+  payload: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['payload']
+  payloadReq: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['req']
+  tenantId?: string | number | null
+}) {
   const lists = await payload.find({
     collection: 'email-lists',
     depth: 0,
@@ -44,9 +52,14 @@ async function getEmailLists(payload: Awaited<ReturnType<typeof getAuthenticated
     req: payloadReq,
     sort: 'name',
     where: {
-      status: {
-        equals: 'active',
-      },
+      and: [
+        {
+          status: {
+            equals: 'active',
+          },
+        },
+        ...(tenantId ? [{ tenant: { equals: tenantId } }] : []),
+      ],
     },
   })
 
@@ -65,17 +78,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   try {
-    const [email, lists] = await Promise.all([
-      payload.findByID({
-        collection: 'emails',
-        depth: 2,
-        draft: true,
-        id,
-        overrideAccess: false,
-        req: payloadReq,
-      }),
-      getEmailLists(payload, payloadReq),
-    ])
+    const email = await payload.findByID({
+      collection: 'emails',
+      depth: 2,
+      draft: true,
+      id,
+      overrideAccess: false,
+      req: payloadReq,
+    })
+    const tenantId = getRelationshipId(email.tenant)
+    const lists = await getEmailLists({ payload, payloadReq, tenantId })
 
     return Response.json({
       email: {
@@ -108,6 +120,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const body = (await req.json()) as EmailSettingsBody
     const emailList = getString(body.emailList)
     const scheduledAt = getString(body.scheduledAt)
+    const currentEmail = await payload.findByID({
+      collection: 'emails',
+      depth: 0,
+      draft: true,
+      id,
+      overrideAccess: false,
+      req: payloadReq,
+    })
+    const tenantId = getRelationshipId(currentEmail.tenant)
+
+    if (emailList) {
+      const list = await payload.findByID({
+        collection: 'email-lists',
+        depth: 0,
+        id: emailList,
+        overrideAccess: false,
+        req: payloadReq,
+      })
+      const listTenantId = getRelationshipId(list.tenant)
+      if (tenantId && listTenantId && String(tenantId) !== String(listTenantId)) {
+        return new Response('Audience list must belong to the same site as this email.', { status: 400 })
+      }
+    }
 
     const email = await payload.update({
       collection: 'emails',

@@ -131,6 +131,46 @@ export const EmailImportJobs: CollectionConfig = {
       ],
     },
     {
+      name: 'statusDebug',
+      label: 'iContact status debug',
+      type: 'group',
+      admin: {
+        description: 'Samples of raw iContact status fields captured during import troubleshooting.',
+      },
+      fields: [
+        {
+          name: 'sampleSize',
+          type: 'number',
+        },
+        {
+          name: 'unknownStatusCount',
+          type: 'number',
+        },
+        {
+          name: 'samples',
+          type: 'array',
+          fields: [
+            {
+              name: 'email',
+              type: 'text',
+            },
+            {
+              name: 'mappedStatus',
+              type: 'text',
+            },
+            {
+              name: 'keys',
+              type: 'text',
+            },
+            {
+              name: 'statusValues',
+              type: 'json',
+            },
+          ],
+        },
+      ],
+    },
+    {
       name: 'errors',
       type: 'array',
       fields: [

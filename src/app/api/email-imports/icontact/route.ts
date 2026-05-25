@@ -74,6 +74,7 @@ export async function POST(req: Request) {
           message: dryRun ? 'Dry run completed.' : 'Import completed.',
           status: 'completed',
           statusCounts: result.statusCounts,
+          statusDebug: result.statusDebug,
           totalContacts: result.totalContacts,
           updatedContacts: result.updatedContacts,
         },

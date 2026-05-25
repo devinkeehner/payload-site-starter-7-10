@@ -1,4 +1,4 @@
-import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug } from 'payload'
+import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug, Where } from 'payload'
 
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
@@ -131,6 +131,27 @@ export const Emails: CollectionConfig<'emails'> = {
               type: 'relationship',
               admin: {
                 description: 'Intended audience for future campaign sends. Test sends do not use this list.',
+              },
+              filterOptions: ({ data, req }) => {
+                const tenantValue = data?.tenant || (req as { tenant?: unknown })?.tenant
+                const tenantId = typeof tenantValue === 'string' || typeof tenantValue === 'number'
+                  ? tenantValue
+                  : tenantValue && typeof tenantValue === 'object' && 'id' in tenantValue
+                    ? (tenantValue as { id?: string | number }).id
+                    : null
+
+                if (!tenantId) {
+                  const activeWhere: Where = { status: { equals: 'active' } }
+                  return activeWhere
+                }
+
+                const tenantWhere: Where = {
+                  and: [
+                    { tenant: { equals: tenantId } },
+                    { status: { equals: 'active' } },
+                  ],
+                }
+                return tenantWhere
               },
               label: 'Audience list',
               relationTo: EMAIL_LISTS_COLLECTION,

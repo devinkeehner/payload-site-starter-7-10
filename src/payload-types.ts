@@ -3516,6 +3516,30 @@ export interface EmailImportJob {
     bounced?: number | null;
     doNotContact?: number | null;
   };
+  /**
+   * Samples of raw iContact status fields captured during import troubleshooting.
+   */
+  statusDebug?: {
+    sampleSize?: number | null;
+    unknownStatusCount?: number | null;
+    samples?:
+      | {
+          email?: string | null;
+          mappedStatus?: string | null;
+          keys?: string | null;
+          statusValues?:
+            | {
+                [k: string]: unknown;
+              }
+            | unknown[]
+            | string
+            | number
+            | boolean
+            | null;
+          id?: string | null;
+        }[]
+      | null;
+  };
   errors?:
     | {
         email?: string | null;
@@ -6711,6 +6735,21 @@ export interface EmailImportJobsSelect<T extends boolean = true> {
         inactive?: T;
         bounced?: T;
         doNotContact?: T;
+      };
+  statusDebug?:
+    | T
+    | {
+        sampleSize?: T;
+        unknownStatusCount?: T;
+        samples?:
+          | T
+          | {
+              email?: T;
+              mappedStatus?: T;
+              keys?: T;
+              statusValues?: T;
+              id?: T;
+            };
       };
   errors?:
     | T
