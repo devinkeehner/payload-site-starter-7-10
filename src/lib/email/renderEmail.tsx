@@ -18,7 +18,7 @@ import {
 import { Markdown } from '@react-email/markdown'
 import { render } from '@react-email/render'
 
-import { normalizeMediaResource } from '@/lib/utilities/image'
+import { normalizeMediaResource, type NormalizedMedia } from '@/lib/utilities/image'
 
 type EmailBlock = Record<string, unknown> & {
   blockType?: string
@@ -47,6 +47,7 @@ export type RenderEmailInput = {
   origin?: string | null
   preheader?: string | null
   subject?: string | null
+  webVersionUrl?: string | null
 }
 
 const COLORS = {
@@ -172,32 +173,120 @@ function absolutizeRelativeMediaURLs(value: unknown, origin: string | null): unk
   )
 }
 
-function getSocialLabel(value: unknown): string {
+type SocialIconMeta = {
+  backgroundColor: string
+  borderColor: string
+  label: string
+  width?: number
+}
+
+function getSocialIconMeta(value: unknown): SocialIconMeta {
   switch (value) {
     case 'facebook':
-      return 'f'
+      return { backgroundColor: '#1877f2', borderColor: '#1877f2', label: 'f' }
     case 'instagram':
-      return 'ig'
+      return { backgroundColor: '#e4405f', borderColor: '#e4405f', label: 'ig' }
     case 'linkedin':
-      return 'in'
+      return { backgroundColor: '#0a66c2', borderColor: '#0a66c2', label: 'in' }
     case 'x':
-      return 'x'
+      return { backgroundColor: '#111111', borderColor: '#111111', label: 'X' }
     case 'youtube':
-      return 'yt'
+      return { backgroundColor: '#ff0000', borderColor: '#ff0000', label: '▶' }
     case 'flickr':
-      return 'fl'
+      return { backgroundColor: '#ff0084', borderColor: '#0063dc', label: '••' }
     case 'website':
-      return 'www'
+      return { backgroundColor: COLORS.accent, borderColor: COLORS.accent, label: 'www', width: 42 }
     default:
-      return 'link'
+      return { backgroundColor: COLORS.accent, borderColor: COLORS.accent, label: 'link', width: 42 }
   }
 }
 
-function getMediaSource(value: unknown): { alt: string; src: string } | null {
+function getSocialIconStyle(item: Record<string, unknown>, margin: string | number): React.CSSProperties {
+  const meta = getSocialIconMeta(item.platform)
+
+  return {
+    backgroundColor: meta.backgroundColor,
+    border: `1px solid ${meta.borderColor}`,
+    borderRadius: 999,
+    color: COLORS.white,
+    display: 'inline-block',
+    fontSize: meta.label.length > 2 ? 10 : 12,
+    fontWeight: 800,
+    lineHeight: '30px',
+    margin,
+    textAlign: 'center',
+    textDecoration: 'none',
+    width: meta.width || 30,
+  }
+}
+
+type EmailMediaSource = {
+  alt: string
+  height?: number | null
+  src: string
+  width?: number | null
+}
+
+function getMediaSource(value: unknown): EmailMediaSource | null {
   const media = normalizeMediaResource(value)
   const src = media?.url || ''
   if (!src) return null
-  return { alt: media?.alt || '', src }
+  return { alt: media?.alt || '', height: media?.height || null, src, width: media?.width || null }
+}
+
+function getEmailImageSize(
+  media: Pick<NormalizedMedia, 'height' | 'width'> | EmailMediaSource,
+  width: number,
+): { height?: number; width: number } {
+  const renderWidth = Math.max(1, Math.round(width))
+  const naturalWidth = typeof media.width === 'number' && media.width > 0 ? media.width : null
+  const naturalHeight = typeof media.height === 'number' && media.height > 0 ? media.height : null
+
+  if (!naturalWidth || !naturalHeight) return { width: renderWidth }
+
+  return {
+    height: Math.max(1, Math.round((renderWidth / naturalWidth) * naturalHeight)),
+    width: renderWidth,
+  }
+}
+
+function getEmailImageStyle(style?: React.CSSProperties): React.CSSProperties {
+  return {
+    ...imageFrameStyle,
+    display: 'block',
+    height: 'auto',
+    maxWidth: '100%',
+    ...style,
+  }
+}
+
+function EmailSafeImage({
+  alt,
+  fallbackWidth,
+  href,
+  media,
+  style,
+  width,
+}: {
+  alt?: string
+  fallbackWidth: number
+  href?: string
+  media: EmailMediaSource
+  style?: React.CSSProperties
+  width?: number
+}) {
+  const size = getEmailImageSize(media, width || fallbackWidth)
+  const image = (
+    <Img
+      alt={alt || media.alt || ''}
+      height={size.height}
+      src={media.src}
+      width={size.width}
+      style={getEmailImageStyle(style)}
+    />
+  )
+
+  return href ? <Link href={href}>{image}</Link> : image
 }
 
 function isLexicalState(value: unknown): value is LexicalState {
@@ -405,28 +494,15 @@ function EmailHeaderSocial({ block }: { block: EmailBlock }) {
           {socialLinks.map((item, index) => {
             const url = normalizeText(item.url)
             if (!url) return null
+            const icon = getSocialIconMeta(item.platform)
 
             return (
               <Link
                 key={`${url}-${index}`}
                 href={url}
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.12)',
-                  border: '1px solid rgba(255,255,255,0.22)',
-                  borderRadius: 999,
-                  color: COLORS.white,
-                  display: 'inline-block',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  lineHeight: '28px',
-                  marginLeft: 6,
-                  textAlign: 'center',
-                  textDecoration: 'none',
-                  textTransform: 'uppercase',
-                  width: 28,
-                }}
+                style={getSocialIconStyle(item, '0 0 0 6px')}
               >
-                {getSocialLabel(item.platform)}
+                {icon.label}
               </Link>
             )
           })}
@@ -570,11 +646,12 @@ function EmailList({ block }: { block: EmailBlock }) {
             <Row key={index} style={{ ...softCardStyle, marginBottom: 10 }}>
               <Column style={{ padding: '14px 12px 14px 14px', verticalAlign: 'top', width: 72 }}>
                 {media ? (
-                  <Img
+                  <EmailSafeImage
                     alt={alt}
-                    src={media.src}
+                    fallbackWidth={56}
+                    media={media}
                     width={56}
-                    style={{ ...imageFrameStyle, borderRadius: 10, width: 56 }}
+                    style={{ borderRadius: 10, width: 56 }}
                   />
                 ) : (
                   <Text
@@ -654,31 +731,25 @@ function EmailMarkdown({ block }: { block: EmailBlock }) {
 }
 
 function EmailImage({ block }: { block: EmailBlock }) {
-  const media = normalizeMediaResource(block.media)
-  const src = media?.url || ''
-  if (!src) return null
+  const media = getMediaSource(block.media)
+  if (!media) return null
 
   const alt = normalizeText(block.alt) || media?.alt || ''
   const width = getNumber(block.width, 560, 120, 640)
-  const image = (
-    <Img
+  return (
+    <EmailSafeImage
       alt={alt}
-      src={src}
+      fallbackWidth={560}
+      href={normalizeText(block.href)}
+      media={media}
       width={width}
       style={{
-        ...imageFrameStyle,
         borderRadius: 14,
-        display: 'block',
-        height: 'auto',
         margin: '0 auto 24px',
-        maxWidth: '100%',
         width: '100%',
       }}
     />
   )
-
-  const href = normalizeText(block.href)
-  return href ? <Link href={href}>{image}</Link> : image
 }
 
 function EmailArticleImageRight({ block }: { block: EmailBlock }) {
@@ -713,10 +784,12 @@ function EmailArticleImageRight({ block }: { block: EmailBlock }) {
         </Column>
         <Column style={{ verticalAlign: 'top', width: '42%' }}>
           {media ? (
-            <Img
+            <EmailSafeImage
               alt={alt}
-              src={media.src}
-              style={{ ...imageFrameStyle, maxWidth: '100%', width: '100%' }}
+              fallbackWidth={220}
+              media={media}
+              width={220}
+              style={{ width: '100%' }}
             />
           ) : null}
         </Column>
@@ -744,10 +817,12 @@ function EmailArticleTwoCards({ block }: { block: EmailBlock }) {
             <Column key={index} style={{ padding: '5px', verticalAlign: 'top', width: '50%' }}>
               <Section style={{ ...cardStyle, padding: 16 }}>
                 {media ? (
-                  <Img
+                  <EmailSafeImage
                     alt={alt}
-                    src={media.src}
-                    style={{ ...imageFrameStyle, marginBottom: 12, maxWidth: '100%', width: '100%' }}
+                    fallbackWidth={260}
+                    media={media}
+                    width={260}
+                    style={{ marginBottom: 12, width: '100%' }}
                   />
                 ) : null}
                 {heading ? (
@@ -777,15 +852,17 @@ function EmailArticleTwoCards({ block }: { block: EmailBlock }) {
 type EmailGalleryItem = {
   alt: string
   caption: string
+  height?: number | null
   href: string
   src: string
+  width?: number | null
 }
 
 function getGalleryItems(value: unknown): EmailGalleryItem[] {
   if (!Array.isArray(value)) return []
 
   return value
-    .map((item) => {
+    .map((item): EmailGalleryItem | null => {
       if (!item || typeof item !== 'object' || Array.isArray(item)) return null
 
       const record = item as Record<string, unknown>
@@ -796,32 +873,29 @@ function getGalleryItems(value: unknown): EmailGalleryItem[] {
       return {
         alt: normalizeText(record.alt) || media?.alt || '',
         caption: normalizeText(record.caption),
+        height: media?.height || null,
         href: normalizeText(record.href),
         src,
+        width: media?.width || null,
       }
     })
     .filter((item): item is EmailGalleryItem => Boolean(item))
 }
 
 function GalleryImage({ item }: { item: EmailGalleryItem }) {
-  const image = (
-    <Img
-      alt={item.alt}
-      src={item.src}
-      style={{
-        ...imageFrameStyle,
-        borderRadius: 12,
-        display: 'block',
-        height: 'auto',
-        maxWidth: '100%',
-        width: '100%',
-      }}
-    />
-  )
-
   return (
     <>
-      {item.href ? <Link href={item.href}>{image}</Link> : image}
+      <EmailSafeImage
+        alt={item.alt}
+        fallbackWidth={260}
+        href={item.href}
+        media={item}
+        width={260}
+        style={{
+          borderRadius: 12,
+          width: '100%',
+        }}
+      />
       {item.caption ? (
         <Text
           style={{
@@ -931,10 +1005,124 @@ function EmailFeatureThreeCentered({ block }: { block: EmailBlock }) {
   )
 }
 
+function EmailBentoCard({
+  item,
+  wide = false,
+}: {
+  item: Record<string, unknown>
+  wide?: boolean
+}) {
+  const media = getMediaSource(item.media)
+  const alt = normalizeText(item.alt) || media?.alt || ''
+  const title = normalizeText(item.title)
+  const body = normalizeText(item.body)
+
+  if (!media && !title && !body) return null
+
+  return (
+    <Section
+      style={{
+        ...(wide ? softCardStyle : cardStyle),
+        borderLeft: wide ? `4px solid ${COLORS.accent}` : undefined,
+        padding: wide ? 18 : 16,
+      }}
+    >
+      {media ? (
+        <EmailSafeImage
+          alt={alt}
+          fallbackWidth={wide ? 560 : 260}
+          media={media}
+          width={wide ? 560 : 260}
+          style={{ marginBottom: wide ? 12 : 10, width: '100%' }}
+        />
+      ) : null}
+      {title ? (
+        <Text
+          style={{
+            color: COLORS.foreground,
+            fontSize: wide ? 17 : 15,
+            fontWeight: 800,
+            lineHeight: wide ? '22px' : '20px',
+            margin: 0,
+          }}
+        >
+          {title}
+        </Text>
+      ) : null}
+      {body ? (
+        <Text
+          style={{
+            color: COLORS.muted,
+            fontSize: wide ? 14 : 13,
+            lineHeight: wide ? '22px' : '20px',
+            margin: '6px 0 0',
+          }}
+        >
+          {body}
+        </Text>
+      ) : null}
+    </Section>
+  )
+}
+
+function EmailBentoNormalRow({
+  items,
+  rowKey,
+}: {
+  items: Array<{ index: number; item: Record<string, unknown> }>
+  rowKey: string
+}) {
+  const single = items.length === 1
+
+  return (
+    <Row key={rowKey}>
+      {items.map(({ index, item }) => (
+        <Column
+          key={index}
+          style={{
+            padding: '0 5px 10px',
+            verticalAlign: 'top',
+            width: single ? '100%' : '50%',
+          }}
+        >
+          <EmailBentoCard item={item} />
+        </Column>
+      ))}
+    </Row>
+  )
+}
+
 function EmailBentoGrid({ block }: { block: EmailBlock }) {
   const heading = normalizeText(block.heading)
   const items = normalizeItems(block.items)
   if (!heading && !items.length) return null
+
+  const rows: React.ReactNode[] = []
+  let normalItems: Array<{ index: number; item: Record<string, unknown> }> = []
+
+  const flushNormalItems = (rowKey: string) => {
+    if (!normalItems.length) return
+    rows.push(<EmailBentoNormalRow key={rowKey} items={normalItems} rowKey={rowKey} />)
+    normalItems = []
+  }
+
+  items.forEach((item, index) => {
+    if (item.size === 'wide') {
+      flushNormalItems(`bento-normal-before-${index}`)
+      rows.push(
+        <Section key={`bento-wide-${index}`} style={{ margin: '0 5px 10px' }}>
+          <EmailBentoCard item={item} wide />
+        </Section>,
+      )
+      return
+    }
+
+    normalItems.push({ index, item })
+    if (normalItems.length === 2) {
+      flushNormalItems(`bento-normal-${index}`)
+    }
+  })
+  flushNormalItems('bento-normal-last')
 
   return (
     <Section style={{ margin: '10px -5px 26px' }}>
@@ -943,37 +1131,7 @@ function EmailBentoGrid({ block }: { block: EmailBlock }) {
           {heading}
         </Heading>
       ) : null}
-      {items.map((item, index) => {
-        const media = getMediaSource(item.media)
-        const alt = normalizeText(item.alt) || media?.alt || ''
-        const title = normalizeText(item.title)
-        const body = normalizeText(item.body)
-        const wide = item.size === 'wide'
-
-        if (wide) {
-          return (
-            <Section key={index} style={{ ...softCardStyle, borderLeft: `4px solid ${COLORS.accent}`, margin: '0 5px 10px', padding: 18 }}>
-              {media ? (
-                <Img alt={alt} src={media.src} style={{ ...imageFrameStyle, marginBottom: 12, maxWidth: '100%', width: '100%' }} />
-              ) : null}
-              {title ? <Text style={{ color: COLORS.foreground, fontSize: 17, fontWeight: 800, lineHeight: '22px', margin: 0 }}>{title}</Text> : null}
-              {body ? <Text style={{ color: COLORS.muted, fontSize: 14, lineHeight: '22px', margin: '6px 0 0' }}>{body}</Text> : null}
-            </Section>
-          )
-        }
-
-        return (
-          <Row key={index}>
-            <Column style={{ padding: '5px', verticalAlign: 'top', width: '50%' }}>
-              <Section style={{ ...cardStyle, padding: 16 }}>
-                {media ? <Img alt={alt} src={media.src} style={{ ...imageFrameStyle, marginBottom: 10, maxWidth: '100%', width: '100%' }} /> : null}
-                {title ? <Text style={{ color: COLORS.foreground, fontSize: 15, fontWeight: 800, lineHeight: '20px', margin: 0 }}>{title}</Text> : null}
-                {body ? <Text style={{ color: COLORS.muted, fontSize: 13, lineHeight: '20px', margin: '6px 0 0' }}>{body}</Text> : null}
-              </Section>
-            </Column>
-          </Row>
-        )
-      })}
+      {rows}
     </Section>
   )
 }
@@ -1123,28 +1281,15 @@ function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
           {socialLinks.map((item, index) => {
             const url = normalizeText(item.url)
             if (!url) return null
+            const icon = getSocialIconMeta(item.platform)
 
             return (
               <Link
                 key={`${url}-${index}`}
                 href={url}
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.12)',
-                  border: '1px solid rgba(255,255,255,0.24)',
-                  borderRadius: 999,
-                  color: COLORS.white,
-                  display: 'inline-block',
-                  fontSize: 11,
-                  fontWeight: 800,
-                  lineHeight: '28px',
-                  margin: '0 3px',
-                  textAlign: 'center',
-                  textDecoration: 'none',
-                  textTransform: 'uppercase',
-                  width: 28,
-                }}
+                style={getSocialIconStyle(item, '0 3px')}
               >
-                {getSocialLabel(item.platform)}
+                {icon.label}
               </Link>
             )
           })}
@@ -1224,7 +1369,23 @@ function renderBlock(block: EmailBlock, index: number) {
   }
 }
 
-export function EmailDocument({ layout, preheader }: RenderEmailInput) {
+function EmailWebVersionLink({ url }: { url?: string | null }) {
+  const href = normalizeText(url)
+  if (!href) return null
+
+  return (
+    <Section style={{ margin: '0 0 18px', textAlign: 'center' }}>
+      <Text style={{ color: COLORS.muted, fontSize: 12, lineHeight: '18px', margin: 0, textAlign: 'center' }}>
+        Trouble viewing this email?{' '}
+        <Link href={href} style={{ color: COLORS.accent, fontWeight: 800, textDecoration: 'underline' }}>
+          View it online.
+        </Link>
+      </Text>
+    </Section>
+  )
+}
+
+export function EmailDocument({ layout, preheader, webVersionUrl }: RenderEmailInput) {
   const blocks = Array.isArray(layout)
     ? layout.filter((block): block is EmailBlock => Boolean(block && typeof block === 'object' && !Array.isArray(block)))
     : []
@@ -1244,6 +1405,7 @@ export function EmailDocument({ layout, preheader }: RenderEmailInput) {
             padding: '30px 30px',
           }}
         >
+          <EmailWebVersionLink url={webVersionUrl} />
           {blocks.map(renderBlock)}
         </Container>
       </Body>

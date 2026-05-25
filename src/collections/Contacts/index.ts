@@ -46,6 +46,9 @@ export const Contacts: CollectionConfig = {
     useAsTitle: 'email',
     components: {
       views: {
+        list: {
+          Component: '@/components/admin/contact-profile/ContactListView#default',
+        },
         edit: {
           profile: {
             path: '/profile',

@@ -4,6 +4,7 @@ import { createPayloadRequest } from 'payload'
 import { sendElasticMarketingEmail } from '@/lib/email/elasticEmail'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import { renderEmail } from '@/lib/email/renderEmail'
+import { getEmailWebVersionUrl } from '@/lib/email/webVersion'
 import type { Email } from '@/payload-types'
 
 async function getAuthenticatedPayloadRequest(req: Request) {
@@ -110,6 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       origin: getRequestOrigin(req),
       preheader,
       subject,
+      webVersionUrl: getEmailWebVersionUrl(String(id), getRequestOrigin(req)),
     })
 
     const result = await sendElasticMarketingEmail({

@@ -1,6 +1,6 @@
 import type { DocumentViewServerProps } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 
 import { EmailListProfileViewClient } from './EmailListProfileViewClient'
 
@@ -13,8 +13,8 @@ export default function EmailListProfileView(props: DocumentViewServerProps) {
   const doc = props.doc as EmailListDoc
   const id = props.id ?? doc?.id
 
-  if (!props.user || !isSuperUser(props.user)) {
-    return <div style={{ padding: 24 }}>Only super admins can use audience profiles.</div>
+  if (!props.user || !canUseEmailFeatures(props.user)) {
+    return <div style={{ padding: 24 }}>Only email-enabled admins can use audience profiles.</div>
   }
 
   if (!id) {

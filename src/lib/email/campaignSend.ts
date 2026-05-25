@@ -4,6 +4,7 @@ import { getElasticSafeListName, isValidEmailAddress, normalizeEmailAddress } fr
 import { addElasticContactsToList, createElasticCampaign, upsertElasticList } from './elasticEmail'
 import { prepareEmailLayoutForRender } from './footerContext'
 import { renderEmail } from './renderEmail'
+import { getEmailWebVersionUrl } from './webVersion'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -242,6 +243,7 @@ export async function sendProductionEmailCampaign({
     origin: getRequestOrigin(request),
     preheader,
     subject,
+    webVersionUrl: getEmailWebVersionUrl(emailId, getRequestOrigin(request)),
   })
 
   await payload.update({

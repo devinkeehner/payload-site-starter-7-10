@@ -31,6 +31,9 @@ export const EmailLists: CollectionConfig = {
     useAsTitle: 'name',
     components: {
       views: {
+        list: {
+          Component: '@/components/admin/email-list-profile/EmailListListView#default',
+        },
         edit: {
           profile: {
             path: '/profile',

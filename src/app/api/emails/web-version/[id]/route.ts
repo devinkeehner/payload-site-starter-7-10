@@ -1,26 +1,24 @@
 import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
-import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import { renderEmail } from '@/lib/email/renderEmail'
-import { getEmailWebVersionUrl } from '@/lib/email/webVersion'
+import { verifyEmailWebVersionToken } from '@/lib/email/webVersion'
 
 type EmailDoc = {
-  emailList?: unknown
   layout?: unknown[] | null
   preheader?: string | null
   subject?: string | null
 }
 
-async function getAuthenticatedPayloadRequest(req: Request) {
+async function getPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
     canSetHeaders: false,
     config: configPromise,
     request: req,
   })
 
-  return { payload: payloadReq.payload, req: payloadReq, user: payloadReq.user }
+  return { payload: payloadReq.payload, req: payloadReq }
 }
 
 function getRequestOrigin(req: Request): string {
@@ -35,37 +33,43 @@ function getRequestOrigin(req: Request): string {
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
+  const token = new URL(req.url).searchParams.get('token') || ''
 
-  if (!user || !canUseEmailFeatures(user)) {
-    return new Response('Unauthorized', { status: 403 })
+  if (!verifyEmailWebVersionToken(id, token)) {
+    return new Response('Not found', { status: 404 })
   }
 
   try {
+    const { payload, req: payloadReq } = await getPayloadRequest(req)
     const email = (await payload.findByID({
       collection: 'emails',
       depth: 2,
       draft: true,
       id,
-      overrideAccess: false,
+      overrideAccess: true,
       req: payloadReq,
     })) as EmailDoc
+
     const prepared = await prepareEmailLayoutForRender({
       email: email as Record<string, unknown>,
+      overrideAccess: true,
       payload,
       req: payloadReq,
     })
-    const rendered = await renderEmail({
+    const { html } = await renderEmail({
       layout: prepared.layout,
       origin: getRequestOrigin(req),
       preheader: email.preheader || '',
-      subject: email.subject || 'Email preview',
-      webVersionUrl: getEmailWebVersionUrl(String(id), getRequestOrigin(req)),
+      subject: email.subject || 'Email update',
     })
 
-    return Response.json(rendered)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to render email preview'
-    return new Response(message, { status: 500 })
+    return new Response(html, {
+      headers: {
+        'Cache-Control': 'public, max-age=300',
+        'Content-Type': 'text/html; charset=utf-8',
+      },
+    })
+  } catch {
+    return new Response('Not found', { status: 404 })
   }
 }
