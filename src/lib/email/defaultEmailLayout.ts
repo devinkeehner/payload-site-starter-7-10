@@ -119,6 +119,19 @@ function buildTownLinks(repInfo: UnknownRecord | null): UnknownRecord[] {
     .filter((town) => town.town)
 }
 
+function buildMailingAddress(repInfo: UnknownRecord | null): string {
+  const explicit = getString(repInfo?.mailingAddress)
+  if (explicit) return explicit
+
+  return [
+    getString(repInfo?.mailingAddressLine1),
+    getString(repInfo?.mailingAddressLine2),
+    [getString(repInfo?.mailingAddressCity), getString(repInfo?.mailingAddressState), getString(repInfo?.mailingAddressPostalCode)]
+      .filter(Boolean)
+      .join(' '),
+  ].filter(Boolean).join('\n')
+}
+
 function richTextDefault(text: string): UnknownRecord {
   return {
     root: {
@@ -187,6 +200,12 @@ export async function buildDefaultEmailLayout(data: UnknownRecord, req: PayloadR
           facebook: true,
           flickrURL: true,
           instagram: true,
+          mailingAddress: true,
+          mailingAddressCity: true,
+          mailingAddressLine1: true,
+          mailingAddressLine2: true,
+          mailingAddressPostalCode: true,
+          mailingAddressState: true,
           name: true,
           towns: true,
           x: true,
@@ -228,7 +247,7 @@ export async function buildDefaultEmailLayout(data: UnknownRecord, req: PayloadR
   })
 
   layout.push({
-    address: '',
+    address: buildMailingAddress(repInfo),
     blockType: 'emailFooterOneColumn',
     body: footerBody,
     copyright: `Copyright ${new Date().getFullYear()}`,

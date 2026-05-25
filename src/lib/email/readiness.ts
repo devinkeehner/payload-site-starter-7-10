@@ -1,6 +1,9 @@
 import type { Payload, PayloadRequest } from 'payload'
 
 import { getEmailAudienceSummary } from './audienceSummary'
+import { prepareEmailLayoutForRender } from './footerContext'
+import { inspectEmailQuality, type EmailQualityResult } from './quality'
+import { renderEmail } from './renderEmail'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -16,6 +19,7 @@ export type EmailReadiness = {
   canSend: boolean
   failures: number
   items: EmailReadinessItem[]
+  quality?: EmailQualityResult
   warnings: number
 }
 
@@ -78,9 +82,45 @@ export async function getEmailReadiness({
   const footer = blocks.some((block) => block.blockType === 'emailFooterOneColumn')
   const hasLayout = blocks.length > 0
   const lastTest = isRecord(email.lastSend) ? email.lastSend : null
+  const status = getString(email.status) || 'draft'
   const elasticConfigured = Boolean(process.env.ELASTIC_EMAIL_API_KEY?.trim() && process.env.ELASTIC_EMAIL_FROM_EMAIL?.trim())
   const audience = emailListId
     ? await getEmailAudienceSummary({ listId: emailListId, payload, req }).catch(() => undefined)
+    : undefined
+  const emailList = emailListId
+    ? await payload.findByID({
+        collection: 'email-lists',
+        depth: 1,
+        id: emailListId,
+        overrideAccess: false,
+        req,
+      }).catch(() => null)
+    : null
+  const prepared = await prepareEmailLayoutForRender({
+    email,
+    emailList: isRecord(emailList) ? emailList : null,
+    payload,
+    req,
+  })
+  const rendered = hasLayout
+    ? await renderEmail({
+        layout: prepared.layout,
+        preheader,
+        subject,
+      }).catch(() => null)
+    : null
+  const hasUnsubscribeLink = prepared.layout.some((block) => {
+    if (!isRecord(block) || block.blockType !== 'emailFooterOneColumn' || !Array.isArray(block.links)) return false
+    return block.links.some((link) => isRecord(link) && /preferences|unsubscribe/i.test(getString(link.label)) && getString(link.url))
+  })
+  const quality = rendered
+    ? inspectEmailQuality({
+        hasAddress: prepared.footerContext.hasAddress,
+        hasUnsubscribeLink,
+        html: rendered.html,
+        subject,
+        text: rendered.text,
+      })
     : undefined
 
   addItem(items, {
@@ -106,6 +146,28 @@ export async function getEmailReadiness({
     label: 'Footer',
     message: footer ? 'Footer is present.' : 'Add the standard footer before sending.',
     status: footer ? 'pass' : 'fail',
+  })
+  addItem(items, {
+    key: 'compliance-address',
+    label: 'Mailing address',
+    message: prepared.footerContext.hasAddress
+      ? 'Footer mailing address is available from Rep & District Settings.'
+      : 'Add a physical mailing address in Rep & District Settings.',
+    status: prepared.footerContext.hasAddress ? 'pass' : 'fail',
+  })
+  addItem(items, {
+    key: 'unsubscribe',
+    label: 'Email preferences',
+    message: hasUnsubscribeLink ? 'Email preferences link will be included in the footer.' : 'Add an email preferences link.',
+    status: hasUnsubscribeLink ? 'pass' : 'fail',
+  })
+  addItem(items, {
+    key: 'send-status',
+    label: 'Send status',
+    message: status === 'sent' || status === 'sending'
+      ? `This email is already ${status}. Duplicate it before sending again.`
+      : 'This email has not been sent.',
+    status: status === 'sent' || status === 'sending' ? 'fail' : 'pass',
   })
   addItem(items, {
     key: 'test-recipient',
@@ -142,6 +204,7 @@ export async function getEmailReadiness({
     canSend: failures === 0,
     failures,
     items,
+    quality,
     warnings,
   }
 }

@@ -44,6 +44,21 @@ export const Contacts: CollectionConfig = {
     group: 'Email Marketing',
     hidden: isCollectionHiddenForRole('contacts'),
     useAsTitle: 'email',
+    components: {
+      views: {
+        edit: {
+          profile: {
+            path: '/profile',
+            Component: '@/components/admin/contact-profile/ContactProfileView#default',
+            tab: {
+              href: '/profile',
+              label: 'Profile',
+              order: 50,
+            },
+          },
+        },
+      },
+    },
   },
   labels: {
     singular: 'Contact',

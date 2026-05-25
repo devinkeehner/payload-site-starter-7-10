@@ -2,6 +2,7 @@ import type { Payload, PayloadRequest, Where } from 'payload'
 
 import { getElasticSafeListName, isValidEmailAddress, normalizeEmailAddress } from './contactNormalization'
 import { addElasticContactsToList, createElasticCampaign, upsertElasticList } from './elasticEmail'
+import { prepareEmailLayoutForRender } from './footerContext'
 import { renderEmail } from './renderEmail'
 
 type UnknownRecord = Record<string, unknown>
@@ -69,6 +70,7 @@ async function findAll({
   collection,
   depth = 0,
   limit = 100,
+  overrideAccess = false,
   payload,
   req,
   where,
@@ -76,6 +78,7 @@ async function findAll({
   collection: string
   depth?: number
   limit?: number
+  overrideAccess?: boolean
   payload: Payload
   req: PayloadRequest
   where: UnknownRecord
@@ -88,7 +91,7 @@ async function findAll({
       collection: collection as never,
       depth,
       limit,
-      overrideAccess: false,
+      overrideAccess,
       page,
       req,
       where: where as Where,
@@ -104,10 +107,12 @@ async function findAll({
 
 async function getListRecipients({
   emailList,
+  overrideAccess = false,
   payload,
   req,
 }: {
   emailList: UnknownRecord
+  overrideAccess?: boolean
   payload: Payload
   req: PayloadRequest
 }): Promise<CampaignRecipient[]> {
@@ -123,6 +128,7 @@ async function getListRecipients({
     const memberships = await findAll({
       collection: 'email-list-memberships',
       depth: 2,
+      overrideAccess,
       payload,
       req,
       where: {
@@ -166,13 +172,17 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 export async function sendProductionEmailCampaign({
+  allowSendingStatus = false,
   emailId,
+  overrideAccess = false,
   payload,
   request,
   req,
   userId,
 }: {
+  allowSendingStatus?: boolean
   emailId: string
+  overrideAccess?: boolean
   payload: Payload
   request: Request
   req: PayloadRequest
@@ -183,11 +193,15 @@ export async function sendProductionEmailCampaign({
     depth: 2,
     draft: true,
     id: emailId,
-    overrideAccess: false,
+    overrideAccess,
     req,
   })) as unknown as UnknownRecord
 
   const subject = getRequiredString(email.subject, 'Subject')
+  const currentStatus = getString(email.status) || 'draft'
+  if (currentStatus === 'sent' || (currentStatus === 'sending' && !allowSendingStatus)) {
+    throw new Error(`This email is already ${currentStatus}. Duplicate it before sending again.`)
+  }
   const emailListId = getId(email.emailList)
   if (!emailListId) throw new Error('Audience list is required before sending.')
 
@@ -199,7 +213,7 @@ export async function sendProductionEmailCampaign({
     collection: 'email-lists',
     depth: 2,
     id: emailListId,
-    overrideAccess: false,
+    overrideAccess,
     req,
   })) as unknown as UnknownRecord
   const listStatus = getString(emailList.status)
@@ -207,7 +221,7 @@ export async function sendProductionEmailCampaign({
     throw new Error('Audience list must be active before sending.')
   }
 
-  const recipients = await getListRecipients({ emailList, payload, req })
+  const recipients = await getListRecipients({ emailList, overrideAccess, payload, req })
   if (!recipients.length) throw new Error('Audience list has no subscribed recipients.')
 
   const tenantSlug = getTenantSlug(email.tenant) || getTenantSlug(emailList.tenant)
@@ -216,8 +230,15 @@ export async function sendProductionEmailCampaign({
   const preheader = getString(email.preheader)
   const replyTo = getString(email.replyTo) || undefined
 
+  const prepared = await prepareEmailLayoutForRender({
+    email,
+    emailList,
+    overrideAccess,
+    payload,
+    req,
+  })
   const { html, text } = await renderEmail({
-    layout: email.layout as unknown[],
+    layout: prepared.layout,
     origin: getRequestOrigin(request),
     preheader,
     subject,
@@ -235,7 +256,7 @@ export async function sendProductionEmailCampaign({
     },
     draft: true,
     id: emailId,
-    overrideAccess: false,
+    overrideAccess,
     overrideLock: false,
     req,
   })
@@ -282,7 +303,7 @@ export async function sendProductionEmailCampaign({
       lastSyncedToElasticAt: sentAt,
     },
     id: emailListId,
-    overrideAccess: false,
+    overrideAccess,
     overrideLock: false,
     req,
   })
@@ -302,7 +323,7 @@ export async function sendProductionEmailCampaign({
     },
     draft: true,
     id: emailId,
-    overrideAccess: false,
+    overrideAccess,
     overrideLock: false,
     req,
   })

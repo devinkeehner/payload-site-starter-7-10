@@ -96,6 +96,33 @@ export async function POST(req: Request) {
     })
 
     if (contact?.id && ['bounced', 'complaint', 'unsubscribed'].includes(eventType)) {
+      const emailListId = getId((email as Record<string, unknown> | undefined)?.emailList)
+      if (emailListId) {
+        const membershipResult = await payload.find({
+          collection: 'email-list-memberships',
+          depth: 0,
+          limit: 20,
+          overrideAccess: true,
+          where: {
+            and: [
+              { contact: { equals: contact.id } },
+              { emailList: { equals: emailListId } },
+              ...(tenantId ? [{ tenant: { equals: tenantId } }] : []),
+            ],
+          },
+        })
+        for (const membership of membershipResult.docs) {
+          await payload.update({
+            collection: 'email-list-memberships',
+            data: {
+              status: eventType === 'unsubscribed' ? 'unsubscribed' : eventType === 'bounced' ? 'bounced' : 'doNotContact',
+              unsubscribedAt: eventType === 'unsubscribed' ? new Date().toISOString() : undefined,
+            },
+            id: membership.id,
+            overrideAccess: true,
+          })
+        }
+      }
       await payload.update({
         collection: 'contacts',
         data: {

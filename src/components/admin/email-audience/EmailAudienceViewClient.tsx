@@ -17,8 +17,13 @@ type EmailSettings = {
 }
 
 type EmailListOption = {
+  active?: number
+  bounced?: number
+  doNotContact?: number
   id: string
   name: string
+  total?: number
+  unsubscribed?: number
 }
 
 function toDateTimeLocal(value: string) {
@@ -54,6 +59,10 @@ export function EmailAudienceViewClient({
   const [message, setMessage] = useState<string | null>(null)
   const baseURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
   const reviewURL = `${baseURL}/review`
+  const selectedList = useMemo(
+    () => lists.find((list) => String(list.id) === String(settings?.emailList || '')),
+    [lists, settings?.emailList],
+  )
 
   const loadSettings = useCallback(async () => {
     setStatus('loading')
@@ -184,11 +193,24 @@ export function EmailAudienceViewClient({
                 <option value="">Select an audience</option>
                 {lists.map((list) => (
                   <option key={list.id} value={list.id}>
-                    {list.name}
+                    {list.name} ({list.active || 0} subscribed)
                   </option>
                 ))}
               </select>
             </label>
+            {selectedList ? (
+              <div className="email-flow__field email-flow__field--wide email-flow__audience-card">
+                <strong>{selectedList.name}</strong>
+                <div className="email-flow__meta">
+                  <span>{selectedList.active || 0} subscribed</span>
+                  <span>{selectedList.unsubscribed || 0} unsubscribed</span>
+                  <span>{selectedList.bounced || 0} bounced</span>
+                  <span>{selectedList.doNotContact || 0} do not contact</span>
+                  <span>{selectedList.total || 0} total</span>
+                </div>
+                {selectedList.active ? null : <p>No subscribed recipients are currently eligible for this list.</p>}
+              </div>
+            ) : null}
             <label className="email-flow__field">
               <span>Scheduled send time</span>
               <input

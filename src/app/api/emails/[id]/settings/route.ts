@@ -2,6 +2,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
+import { getEmailAudienceSummary } from '@/lib/email/audienceSummary'
 
 type EmailSettingsBody = {
   emailList?: unknown
@@ -63,9 +64,17 @@ async function getEmailLists({
     },
   })
 
-  return lists.docs.map((list) => ({
-    id: String(list.id),
-    name: typeof list.name === 'string' ? list.name : 'Untitled audience',
+  return Promise.all(lists.docs.map(async (list) => {
+    const summary = await getEmailAudienceSummary({ listId: String(list.id), payload, req: payloadReq }).catch(() => null)
+    return {
+      active: summary?.active || 0,
+      bounced: summary?.bounced || 0,
+      doNotContact: summary?.doNotContact || 0,
+      id: String(list.id),
+      name: typeof list.name === 'string' ? list.name : 'Untitled audience',
+      total: summary?.total || 0,
+      unsubscribed: summary?.unsubscribed || 0,
+    }
   }))
 }
 
@@ -152,6 +161,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         recipientEmail: getString(body.recipientEmail),
         replyTo: getString(body.replyTo),
         scheduledAt: scheduledAt || null,
+        status: scheduledAt
+          ? 'scheduled'
+          : currentEmail.status === 'scheduled'
+            ? 'draft'
+            : currentEmail.status,
         subject: getString(body.subject),
       },
       depth: 2,

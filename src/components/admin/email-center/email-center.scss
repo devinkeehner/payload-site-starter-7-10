@@ -153,6 +153,71 @@
   gap: 8px 14px;
 }
 
+.email-flow__audience-card {
+  background: var(--theme-elevation-50);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  padding: calc(var(--base) / 2);
+}
+
+.email-flow__bullets {
+  color: var(--theme-elevation-700);
+  margin: 0;
+  padding-left: var(--base);
+}
+
+.email-flow__table {
+  display: grid;
+  gap: 6px;
+}
+
+.email-flow__row {
+  align-items: center;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(80px, 160px) minmax(140px, 1fr) minmax(80px, 1fr);
+  padding: calc(var(--base) / 2);
+}
+
+.email-flow__row strong,
+.email-flow__row a {
+  overflow-wrap: anywhere;
+}
+
+.email-flow__row span {
+  color: var(--theme-elevation-650);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.email-flow__stats {
+  display: grid;
+  gap: calc(var(--base) / 2);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.email-flow__stats div {
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  padding: calc(var(--base) / 2);
+}
+
+.email-flow__stats strong {
+  color: var(--theme-elevation-900);
+  display: block;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.email-flow__stats span {
+  color: var(--theme-elevation-650);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
 .email-flow__checklist {
   display: grid;
   gap: calc(var(--base) / 2);
@@ -322,10 +387,36 @@
   margin-bottom: 0;
 }
 
+.email-flow__list-results {
+  display: grid;
+  gap: calc(var(--base) / 2);
+  margin-top: calc(var(--base) / 2);
+}
+
+.email-flow__list-results div {
+  align-items: center;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: calc(var(--base) / 2);
+}
+
+.email-flow__list-results strong {
+  color: var(--theme-elevation-900);
+}
+
+.email-flow__list-results span {
+  color: var(--theme-elevation-650);
+  font-size: 12px;
+}
+
 @media (max-width: 1024px) {
   .email-flow__steps,
   .email-flow__review-grid,
   .email-list-profile__cards,
+  .email-flow__stats,
   .email-flow__import-metrics {
     grid-template-columns: 1fr;
   }
@@ -333,6 +424,10 @@
 
 @media (max-width: 700px) {
   .email-flow__form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .email-flow__row {
     grid-template-columns: 1fr;
   }
 }

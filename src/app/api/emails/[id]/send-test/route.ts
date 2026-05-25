@@ -2,6 +2,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { sendElasticMarketingEmail } from '@/lib/email/elasticEmail'
+import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import { renderEmail } from '@/lib/email/renderEmail'
 import type { Email } from '@/payload-types'
 
@@ -99,8 +100,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       throw new Error('Email content is required before sending a test.')
     }
 
+    const prepared = await prepareEmailLayoutForRender({
+      email: email as unknown as Record<string, unknown>,
+      payload,
+      req: payloadReq,
+    })
     const { html, text } = await renderEmail({
-      layout: email.layout,
+      layout: prepared.layout,
       origin: getRequestOrigin(req),
       preheader,
       subject,

@@ -26,6 +26,12 @@ type Readiness = {
   canSend: boolean
   failures: number
   items: ReadinessItem[]
+  quality?: {
+    label: string
+    links: Array<{ href: string; label: string; status: 'invalid' | 'merge' | 'ok' | 'warning' }>
+    score: number
+    warnings: string[]
+  }
   warnings: number
 }
 
@@ -37,6 +43,12 @@ type EmailPreview = {
 type PostPreview = {
   layout: unknown[]
   title: string
+}
+
+type Report = {
+  counts: Record<string, number>
+  recipientCount: number
+  topLinks: Array<{ count: number; url: string }>
 }
 
 export function EmailWorkflowViewClient({
@@ -54,6 +66,7 @@ export function EmailWorkflowViewClient({
   const [readiness, setReadiness] = useState<Readiness | null>(null)
   const [emailPreview, setEmailPreview] = useState<EmailPreview | null>(null)
   const [postPreview, setPostPreview] = useState<PostPreview | null>(null)
+  const [report, setReport] = useState<Report | null>(null)
   const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'sending' | 'sent'>('loading')
   const [message, setMessage] = useState<string | null>(null)
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
@@ -64,10 +77,11 @@ export function EmailWorkflowViewClient({
     setStatus('loading')
     setMessage(null)
     try {
-      const [readinessRes, previewRes, postRes] = await Promise.all([
+      const [readinessRes, previewRes, postRes, reportRes] = await Promise.all([
         fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' }),
         fetch(`/api/emails/${emailId}/preview`, { cache: 'no-store' }),
         fetch(`/api/emails/${emailId}/post-preview`, { cache: 'no-store' }),
+        fetch(`/api/emails/${emailId}/report`, { cache: 'no-store' }),
       ])
       if (!readinessRes.ok) throw new Error(await readinessRes.text())
       if (!previewRes.ok) throw new Error(await previewRes.text())
@@ -76,6 +90,7 @@ export function EmailWorkflowViewClient({
       setReadiness((await readinessRes.json()) as Readiness)
       setEmailPreview((await previewRes.json()) as EmailPreview)
       setPostPreview((await postRes.json()) as PostPreview)
+      setReport(reportRes.ok ? ((await reportRes.json()) as Report) : null)
       setStatus('idle')
     } catch (error) {
       setStatus('error')
@@ -192,6 +207,54 @@ export function EmailWorkflowViewClient({
           </div>
         </section>
       </section>
+
+      <section className="email-flow__panel">
+        <h2>Quality Check</h2>
+        {readiness?.quality ? (
+          <>
+            <div className="email-flow__meta">
+              <span>Spam risk: {readiness.quality.label}</span>
+              <span>Score: {readiness.quality.score}/100</span>
+              <span>{readiness.quality.links.length} links</span>
+            </div>
+            {readiness.quality.warnings.length ? (
+              <ul className="email-flow__bullets">
+                {readiness.quality.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              </ul>
+            ) : <p className="email-flow__muted">No major quality warnings found.</p>}
+            <h3>Link Checker</h3>
+            <div className="email-flow__table">
+              {readiness.quality.links.map((link, index) => (
+                <div className="email-flow__row" key={`${link.href}-${index}`}>
+                  <Pill pillStyle={link.status === 'ok' || link.status === 'merge' ? 'success' : link.status === 'warning' ? 'warning' : 'error'} size="small">
+                    {link.status}
+                  </Pill>
+                  <strong>{link.label || 'Link'}</strong>
+                  {link.status === 'invalid' ? (
+                    <span>{link.href}</span>
+                  ) : (
+                    <a href={link.href} rel="noreferrer" target="_blank">{link.href}</a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : <p className="email-flow__muted">Quality check will run after the email can render.</p>}
+      </section>
+
+      {report ? (
+        <section className="email-flow__panel">
+          <h2>Campaign Report</h2>
+          <div className="email-flow__stats">
+            <div><strong>{report.recipientCount}</strong><span>Recipients</span></div>
+            <div><strong>{report.counts.delivered || 0}</strong><span>Delivered</span></div>
+            <div><strong>{report.counts.opened || 0}</strong><span>Opened</span></div>
+            <div><strong>{report.counts.clicked || 0}</strong><span>Clicked</span></div>
+            <div><strong>{report.counts.bounced || 0}</strong><span>Bounced</span></div>
+            <div><strong>{report.counts.unsubscribed || 0}</strong><span>Unsubscribed</span></div>
+          </div>
+        </section>
+      ) : null}
 
       <section className="email-flow__panel">
         <h2>Post Conversion</h2>

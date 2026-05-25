@@ -138,6 +138,49 @@ export const RepInfo: CollectionConfig = {
       required: false,
     },
     {
+      name: 'mailingAddress',
+      label: 'Email footer mailing address',
+      type: 'textarea',
+      admin: {
+        description: 'Physical mailing address used in campaign email footers for compliance.',
+      },
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'mailingAddressLine1',
+          label: 'Address line 1',
+          type: 'text',
+        },
+        {
+          name: 'mailingAddressLine2',
+          label: 'Address line 2',
+          type: 'text',
+        },
+      ],
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'mailingAddressCity',
+          label: 'City',
+          type: 'text',
+        },
+        {
+          name: 'mailingAddressState',
+          label: 'State',
+          type: 'text',
+        },
+        {
+          name: 'mailingAddressPostalCode',
+          label: 'ZIP',
+          type: 'text',
+        },
+      ],
+    },
+    {
       name: 'facebook',
       label: 'Facebook',
       type: 'text',

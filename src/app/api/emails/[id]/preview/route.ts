@@ -2,9 +2,11 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
+import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import { renderEmail } from '@/lib/email/renderEmail'
 
 type EmailDoc = {
+  emailList?: unknown
   layout?: unknown[] | null
   preheader?: string | null
   subject?: string | null
@@ -47,8 +49,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       overrideAccess: false,
       req: payloadReq,
     })) as EmailDoc
+    const prepared = await prepareEmailLayoutForRender({
+      email: email as Record<string, unknown>,
+      payload,
+      req: payloadReq,
+    })
     const rendered = await renderEmail({
-      layout: email.layout || [],
+      layout: prepared.layout,
       origin: getRequestOrigin(req),
       preheader: email.preheader || '',
       subject: email.subject || 'Email preview',

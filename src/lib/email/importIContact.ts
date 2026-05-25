@@ -1,6 +1,7 @@
 import type { Payload, PayloadRequest, Where } from 'payload'
 
 import {
+  type IContactConfig,
   getIContactConfigFromEnv,
   listIContactContacts,
   listIContactLists,
@@ -27,6 +28,30 @@ type StatusDebugSample = {
   keys: string
   mappedStatus: ContactStatus
   statusValues: Record<string, unknown>
+}
+type StatusDebugSummary = {
+  sampleSize: number
+  samples: StatusDebugSample[]
+  subscriptionFetchError: string
+  subscriptionRecords: number
+  unknownStatusCount: number
+}
+export type ImportIContactListResult = {
+  dryRun: boolean
+  emailListId: string | null
+  errors: Array<{ email?: string; message: string }>
+  failedContacts: number
+  importedContacts: number
+  listName: string
+  statusCounts: StatusCounts
+  statusDebug: StatusDebugSummary
+  totalContacts: number
+  updatedContacts: number
+}
+export type ImportIContactFolderResult = ImportIContactListResult & {
+  failedLists: number
+  listResults: Array<ImportIContactListResult & { listId: string; status: 'completed' | 'failed' }>
+  listCount: number
 }
 
 type ImportIContactListArgs = {
@@ -76,6 +101,29 @@ const createStatusCounts = (): StatusCounts => ({
   subscribed: 0,
   unsubscribed: 0,
 })
+
+function addStatusCounts(target: StatusCounts, source: StatusCounts) {
+  target.bounced += source.bounced
+  target.doNotContact += source.doNotContact
+  target.inactive += source.inactive
+  target.subscribed += source.subscribed
+  target.unsubscribed += source.unsubscribed
+}
+
+function appendStatusDebug(target: StatusDebugSummary, source: StatusDebugSummary) {
+  target.subscriptionRecords += source.subscriptionRecords
+  target.unknownStatusCount += source.unknownStatusCount
+  if (source.subscriptionFetchError) {
+    target.subscriptionFetchError = [target.subscriptionFetchError, source.subscriptionFetchError]
+      .filter(Boolean)
+      .join('\n')
+  }
+  for (const sample of source.samples) {
+    if (target.samples.length >= 20) break
+    target.samples.push(sample)
+  }
+  target.sampleSize = target.samples.length
+}
 
 const STATUS_DEBUG_KEYS = [
   'status',
@@ -542,21 +590,21 @@ async function upsertMembership({
   })
 }
 
-export async function importIContactList({
+async function importIContactListWithContext({
+  accountId,
   clientFolderId,
+  cfg,
   dryRun = true,
+  list,
   listId,
   payload,
   req,
   tenantId,
-}: ImportIContactListArgs) {
-  const cfg = getIContactConfigFromEnv()
-  if (!cfg) throw new Error('Missing iContact env credentials.')
-  if (!tenantId) throw new Error('A tenant ID is required for iContact imports.')
-
-  const accountId = await resolveIContactAccountId(cfg)
-  const listsPayload = await listIContactLists(cfg, accountId, clientFolderId)
-  const list = (listsPayload.lists || []).find((item: UnknownRecord) => getString(item.listId) === listId) || null
+}: ImportIContactListArgs & {
+  accountId: string
+  cfg: IContactConfig
+  list: UnknownRecord | null
+}): Promise<ImportIContactListResult> {
   const contactsPayload = await listIContactContacts(cfg, accountId, clientFolderId, listId)
   let subscriptionFetchError = ''
   const subscriptionsPayload = await listIContactSubscriptions(cfg, accountId, clientFolderId, listId).catch((error) => {
@@ -651,4 +699,135 @@ export async function importIContactList({
     totalContacts: contactsPayload.total,
     updatedContacts,
   }
+}
+
+export async function importIContactList({
+  clientFolderId,
+  dryRun = true,
+  listId,
+  payload,
+  req,
+  tenantId,
+}: ImportIContactListArgs): Promise<ImportIContactListResult> {
+  const cfg = getIContactConfigFromEnv()
+  if (!cfg) throw new Error('Missing iContact env credentials.')
+  if (!tenantId) throw new Error('A tenant ID is required for iContact imports.')
+
+  const accountId = await resolveIContactAccountId(cfg)
+  const listsPayload = await listIContactLists(cfg, accountId, clientFolderId)
+  const list = (listsPayload.lists || []).find((item: UnknownRecord) => getString(item.listId) === listId) || null
+
+  return importIContactListWithContext({
+    accountId,
+    cfg,
+    clientFolderId,
+    dryRun,
+    list,
+    listId,
+    payload,
+    req,
+    tenantId,
+  })
+}
+
+export async function importIContactFolder({
+  clientFolderId,
+  dryRun = true,
+  payload,
+  req,
+  tenantId,
+}: Omit<ImportIContactListArgs, 'listId'>): Promise<ImportIContactFolderResult> {
+  const cfg = getIContactConfigFromEnv()
+  if (!cfg) throw new Error('Missing iContact env credentials.')
+  if (!tenantId) throw new Error('A tenant ID is required for iContact imports.')
+
+  const accountId = await resolveIContactAccountId(cfg)
+  const listsPayload = await listIContactLists(cfg, accountId, clientFolderId)
+  const lists = (listsPayload.lists || []).filter(
+    (item: unknown): item is UnknownRecord => Boolean(item && typeof item === 'object' && !Array.isArray(item) && getString((item as UnknownRecord).listId)),
+  )
+  if (!lists.length) throw new Error('No iContact lists were found in this folder.')
+
+  const result: ImportIContactFolderResult = {
+    dryRun,
+    emailListId: null,
+    errors: [],
+    failedContacts: 0,
+    failedLists: 0,
+    importedContacts: 0,
+    listCount: lists.length,
+    listName: `All lists in folder ${clientFolderId}`,
+    listResults: [],
+    statusCounts: createStatusCounts(),
+    statusDebug: {
+      sampleSize: 0,
+      samples: [],
+      subscriptionFetchError: '',
+      subscriptionRecords: 0,
+      unknownStatusCount: 0,
+    },
+    totalContacts: 0,
+    updatedContacts: 0,
+  }
+
+  for (const list of lists) {
+    const listId = getString(list.listId)
+    const listName = getString(list.name) || `iContact List ${listId}`
+
+    try {
+      const listResult = await importIContactListWithContext({
+        accountId,
+        cfg,
+        clientFolderId,
+        dryRun,
+        list,
+        listId,
+        payload,
+        req,
+        tenantId,
+      })
+
+      result.failedContacts += listResult.failedContacts
+      result.importedContacts += listResult.importedContacts
+      result.totalContacts += listResult.totalContacts
+      result.updatedContacts += listResult.updatedContacts
+      addStatusCounts(result.statusCounts, listResult.statusCounts)
+      appendStatusDebug(result.statusDebug, listResult.statusDebug)
+      result.errors.push(...listResult.errors.map((error) => ({
+        email: error.email,
+        message: `${listName}: ${error.message}`,
+      })))
+      result.listResults.push({
+        ...listResult,
+        listId,
+        status: 'completed',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      result.failedLists += 1
+      result.errors.push({ message: `${listName}: ${message}` })
+      result.listResults.push({
+        dryRun,
+        emailListId: null,
+        errors: [{ message }],
+        failedContacts: 0,
+        importedContacts: 0,
+        listId,
+        listName,
+        status: 'failed',
+        statusCounts: createStatusCounts(),
+        statusDebug: {
+          sampleSize: 0,
+          samples: [],
+          subscriptionFetchError: '',
+          subscriptionRecords: 0,
+          unknownStatusCount: 0,
+        },
+        totalContacts: 0,
+        updatedContacts: 0,
+      })
+    }
+  }
+
+  return result
 }

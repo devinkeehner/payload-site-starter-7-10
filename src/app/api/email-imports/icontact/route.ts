@@ -2,7 +2,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest, type PayloadRequest } from 'payload'
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
-import { importIContactList } from '@/lib/email/importIContact'
+import { importIContactFolder, importIContactList } from '@/lib/email/importIContact'
 
 async function getAuthenticatedPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
@@ -37,10 +37,11 @@ export async function POST(req: Request) {
     const clientFolderId = getString(body.clientFolderId)
     const listId = getString(body.listId)
     const dryRun = body.dryRun !== false
+    const scope = getString(body.scope) === 'folder' ? 'folder' : 'list'
 
     if (!tenantId) return new Response('tenantId is required', { status: 400 })
     if (!clientFolderId) return new Response('clientFolderId is required', { status: 400 })
-    if (!listId) return new Response('listId is required', { status: 400 })
+    if (scope === 'list' && !listId) return new Response('listId is required', { status: 400 })
 
     const scopedReq = getBatchReq(payloadReq, tenantId)
     const startedAt = new Date().toISOString()
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
       data: {
         dryRun,
         iContactClientFolderId: clientFolderId,
-        iContactListId: listId,
+        iContactListId: scope === 'folder' ? 'all' : listId,
         source: 'icontact',
         startedAt,
         status: 'running',
@@ -61,14 +62,23 @@ export async function POST(req: Request) {
     })
 
     try {
-      const result = await importIContactList({
-        clientFolderId,
-        dryRun,
-        listId,
-        payload,
-        req: scopedReq,
-        tenantId,
-      })
+      const result =
+        scope === 'folder'
+          ? await importIContactFolder({
+              clientFolderId,
+              dryRun,
+              payload,
+              req: scopedReq,
+              tenantId,
+            })
+          : await importIContactList({
+              clientFolderId,
+              dryRun,
+              listId,
+              payload,
+              req: scopedReq,
+              tenantId,
+            })
 
       const completedAt = new Date().toISOString()
       await payload.update({
@@ -78,7 +88,13 @@ export async function POST(req: Request) {
           errors: result.errors,
           failedContacts: result.failedContacts,
           importedContacts: result.importedContacts,
-          message: dryRun ? 'Dry run completed.' : 'Import completed.',
+          message: dryRun
+            ? scope === 'folder'
+              ? 'Folder dry run completed.'
+              : 'Dry run completed.'
+            : scope === 'folder'
+              ? 'Folder import completed.'
+              : 'Import completed.',
           status: 'completed',
           statusCounts: result.statusCounts,
           statusDebug: result.statusDebug,

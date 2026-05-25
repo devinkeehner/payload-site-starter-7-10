@@ -2690,6 +2690,15 @@ export interface RepInfo {
       }[]
     | null;
   form?: (string | null) | Form;
+  /**
+   * Physical mailing address used in campaign email footers for compliance.
+   */
+  mailingAddress?: string | null;
+  mailingAddressLine1?: string | null;
+  mailingAddressLine2?: string | null;
+  mailingAddressCity?: string | null;
+  mailingAddressState?: string | null;
+  mailingAddressPostalCode?: string | null;
   facebook?: string | null;
   youtube?: string | null;
   instagram?: string | null;
@@ -5775,6 +5784,12 @@ export interface RepInfoSelect<T extends boolean = true> {
         id?: T;
       };
   form?: T;
+  mailingAddress?: T;
+  mailingAddressLine1?: T;
+  mailingAddressLine2?: T;
+  mailingAddressCity?: T;
+  mailingAddressState?: T;
+  mailingAddressPostalCode?: T;
   facebook?: T;
   youtube?: T;
   instagram?: T;
