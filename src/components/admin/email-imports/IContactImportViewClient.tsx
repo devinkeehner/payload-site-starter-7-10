@@ -38,6 +38,13 @@ type ImportResult = {
   importedContacts: number
   jobId: string
   listName: string
+  statusCounts?: {
+    bounced?: number
+    doNotContact?: number
+    inactive?: number
+    subscribed?: number
+    unsubscribed?: number
+  }
   totalContacts: number
   updatedContacts: number
 }
@@ -203,6 +210,14 @@ export function IContactImportViewClient() {
             <div><strong>{result.updatedContacts}</strong><span>Updated</span></div>
             <div><strong>{result.failedContacts}</strong><span>Skipped/failed</span></div>
           </div>
+          {result.statusCounts ? (
+            <div className="email-flow__import-metrics">
+              <div><strong>{result.statusCounts.subscribed || 0}</strong><span>Subscribed</span></div>
+              <div><strong>{result.statusCounts.unsubscribed || 0}</strong><span>Unsubscribed</span></div>
+              <div><strong>{result.statusCounts.bounced || 0}</strong><span>Bounced</span></div>
+              <div><strong>{result.statusCounts.doNotContact || 0}</strong><span>Do not contact</span></div>
+            </div>
+          ) : null}
           {result.emailListId ? (
             <Button buttonStyle="secondary" el="link" to={importedListURL} type="button">
               Open audience profile

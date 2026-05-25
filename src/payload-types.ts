@@ -3509,6 +3509,13 @@ export interface EmailImportJob {
   startedAt?: string | null;
   completedAt?: string | null;
   message?: string | null;
+  statusCounts?: {
+    subscribed?: number | null;
+    unsubscribed?: number | null;
+    inactive?: number | null;
+    bounced?: number | null;
+    doNotContact?: number | null;
+  };
   errors?:
     | {
         email?: string | null;
@@ -6696,6 +6703,15 @@ export interface EmailImportJobsSelect<T extends boolean = true> {
   startedAt?: T;
   completedAt?: T;
   message?: T;
+  statusCounts?:
+    | T
+    | {
+        subscribed?: T;
+        unsubscribed?: T;
+        inactive?: T;
+        bounced?: T;
+        doNotContact?: T;
+      };
   errors?:
     | T
     | {

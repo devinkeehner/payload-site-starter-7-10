@@ -73,6 +73,7 @@ export async function POST(req: Request) {
           importedContacts: result.importedContacts,
           message: dryRun ? 'Dry run completed.' : 'Import completed.',
           status: 'completed',
+          statusCounts: result.statusCounts,
           totalContacts: result.totalContacts,
           updatedContacts: result.updatedContacts,
         },

@@ -103,12 +103,40 @@ export const EmailImportJobs: CollectionConfig = {
       type: 'textarea',
     },
     {
+      name: 'statusCounts',
+      label: 'Imported status counts',
+      type: 'group',
+      fields: [
+        {
+          name: 'subscribed',
+          type: 'number',
+        },
+        {
+          name: 'unsubscribed',
+          type: 'number',
+        },
+        {
+          name: 'inactive',
+          type: 'number',
+        },
+        {
+          name: 'bounced',
+          type: 'number',
+        },
+        {
+          name: 'doNotContact',
+          label: 'Do not contact',
+          type: 'number',
+        },
+      ],
+    },
+    {
       name: 'errors',
       type: 'array',
       fields: [
         {
           name: 'email',
-          type: 'email',
+          type: 'text',
         },
         {
           name: 'message',

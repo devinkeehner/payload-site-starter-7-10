@@ -20,6 +20,7 @@ type CustomFieldRow = {
   source: 'icontact'
   value: string
 }
+type StatusCounts = Record<ContactStatus, number>
 
 type ImportIContactListArgs = {
   clientFolderId: string
@@ -53,6 +54,14 @@ function mapIContactStatus(value: unknown): 'bounced' | 'doNotContact' | 'inacti
 
 type ContactStatus = ReturnType<typeof mapIContactStatus>
 
+const createStatusCounts = (): StatusCounts => ({
+  bounced: 0,
+  doNotContact: 0,
+  inactive: 0,
+  subscribed: 0,
+  unsubscribed: 0,
+})
+
 const STANDARD_ICONTACT_KEYS = new Set([
   'business',
   'contactid',
@@ -63,14 +72,103 @@ const STANDARD_ICONTACT_KEYS = new Set([
   'firstname',
   'lastmessageid',
   'lastname',
+  'listid',
+  'lists',
+  'liststatus',
+  'liststatusid',
+  'liststatusname',
+  'listsubscriptions',
+  'memberships',
   'phone',
   'postalcode',
   'prefix',
   'street',
   'status',
   'suffix',
+  'subscription',
   'subscriptionid',
+  'subscriptions',
+  'subscriptionstatus',
+  'subscriptionstatusid',
+  'subscriptionstatusname',
 ])
+
+function getValueByKey(value: UnknownRecord, keys: string[]): unknown {
+  const wanted = new Set(keys.map((key) => key.toLowerCase()))
+  for (const [key, item] of Object.entries(value)) {
+    if (wanted.has(key.toLowerCase())) return item
+  }
+  return undefined
+}
+
+function getListIdFromSubscription(value: UnknownRecord): string {
+  return getString(getValueByKey(value, ['listId', 'listID', 'list_id', 'list']))
+}
+
+function getStatusFromSubscription(value: UnknownRecord): unknown {
+  return getValueByKey(value, [
+    'status',
+    'subscriptionStatus',
+    'subscriptionStatusName',
+    'listStatus',
+    'listStatusName',
+  ])
+}
+
+function findSubscriptionRecord(contact: UnknownRecord, listId: string): UnknownRecord | null {
+  const candidates = [
+    getValueByKey(contact, ['subscription']),
+    getValueByKey(contact, ['subscriptions']),
+    getValueByKey(contact, ['listSubscriptions']),
+    getValueByKey(contact, ['memberships']),
+    getValueByKey(contact, ['lists']),
+  ]
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+      const record = candidate as UnknownRecord
+      if (!listId || getListIdFromSubscription(record) === listId) return record
+    }
+
+    if (Array.isArray(candidate)) {
+      for (const item of candidate) {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) continue
+        const record = item as UnknownRecord
+        if (!listId || getListIdFromSubscription(record) === listId) return record
+      }
+    }
+  }
+
+  return null
+}
+
+function getIContactContactStatus(contact: UnknownRecord): ContactStatus {
+  const globalStatus = getValueByKey(contact, ['status', 'contactStatus', 'contactStatusName'])
+  return mapIContactStatus(globalStatus)
+}
+
+function getIContactListStatus(contact: UnknownRecord, listId: string): ContactStatus {
+  const globalStatus = getIContactContactStatus(contact)
+  if (globalStatus === 'bounced' || globalStatus === 'doNotContact' || globalStatus === 'inactive') {
+    return globalStatus
+  }
+
+  const subscription = findSubscriptionRecord(contact, listId)
+  const subscriptionStatus = subscription ? getStatusFromSubscription(subscription) : undefined
+  const directListStatus = getValueByKey(contact, [
+    'subscriptionStatus',
+    'subscriptionStatusName',
+    'listStatus',
+    'listStatusName',
+  ])
+
+  return mapIContactStatus(subscriptionStatus || directListStatus || globalStatus)
+}
+
+function getIContactSubscriptionId(contact: UnknownRecord, listId: string): string {
+  const subscription = findSubscriptionRecord(contact, listId)
+  return getString(subscription ? getValueByKey(subscription, ['subscriptionId', 'id']) : undefined) || getString(contact.subscriptionId)
+}
 
 function stringifyCustomValue(value: unknown): string {
   if (value == null) return ''
@@ -189,12 +287,14 @@ async function upsertContact({
   dryRun,
   payload,
   req,
+  status,
   tenantId,
 }: {
   contact: UnknownRecord
   dryRun: boolean
   payload: Payload
   req: PayloadRequest
+  status: ContactStatus
   tenantId: string
 }): Promise<{ contactId: string | null; created: boolean; skipped?: string; updated: boolean }> {
   const email = normalizeEmailAddress(contact.email)
@@ -226,7 +326,7 @@ async function upsertContact({
     postalCode: normalizePostalCode(contact.postalCode),
     source: 'import' as const,
     sourceDetails: 'Imported from iContact API.',
-    status: mapIContactStatus(contact.status),
+    status,
     tenant: tenantId,
   }
 
@@ -282,19 +382,34 @@ async function upsertMembership({
       ],
     },
   })
-  if (dryRun || existing) return
+  if (dryRun) return
+
+  const membershipData = {
+    contact: contactId,
+    emailList: emailListId,
+    iContactSubscriptionId,
+    source: 'icontact' as const,
+    status,
+    subscribedAt: status === 'subscribed' ? new Date().toISOString() : undefined,
+    tenant: tenantId,
+    unsubscribedAt: status === 'unsubscribed' ? new Date().toISOString() : undefined,
+  }
+
+  if (existing) {
+    await payload.update({
+      collection: 'email-list-memberships',
+      data: membershipData,
+      id: getId(existing) || '',
+      overrideAccess: true,
+      overrideLock: false,
+      req,
+    })
+    return
+  }
 
   await payload.create({
     collection: 'email-list-memberships',
-    data: {
-      contact: contactId,
-      emailList: emailListId,
-      iContactSubscriptionId,
-      source: 'icontact',
-      status,
-      subscribedAt: new Date().toISOString(),
-      tenant: tenantId,
-    },
+    data: membershipData,
     overrideAccess: true,
     req,
   })
@@ -329,14 +444,18 @@ export async function importIContactList({
   let updatedContacts = 0
   let failedContacts = 0
   const errors: Array<{ email?: string; message: string }> = []
+  const statusCounts = createStatusCounts()
 
   for (const contact of contactsPayload.contacts.filter((item: unknown): item is UnknownRecord => Boolean(item && typeof item === 'object' && !Array.isArray(item)))) {
     try {
+      const listStatus = getIContactListStatus(contact, listId)
+      statusCounts[listStatus] += 1
       const result = await upsertContact({
         contact,
         dryRun,
         payload,
         req,
+        status: listStatus,
         tenantId,
       })
       if (result.skipped) {
@@ -352,10 +471,10 @@ export async function importIContactList({
           contactId: result.contactId,
           dryRun,
           emailListId,
-          iContactSubscriptionId: getString(contact.subscriptionId),
+          iContactSubscriptionId: getIContactSubscriptionId(contact, listId),
           payload,
           req,
-          status: mapIContactStatus(contact.status),
+          status: listStatus,
           tenantId,
         })
       }
@@ -375,6 +494,7 @@ export async function importIContactList({
     failedContacts,
     importedContacts,
     listName: getString(list?.name) || `iContact List ${listId}`,
+    statusCounts,
     totalContacts: contactsPayload.total,
     updatedContacts,
   }
