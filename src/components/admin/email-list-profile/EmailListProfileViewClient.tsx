@@ -95,7 +95,7 @@ export function EmailListProfileViewClient({
         <h3>Audience tools</h3>
         <div className="email-center__meta">
           <span>Contacts stores people and profile fields.</span>
-          <span>Memberships stores this list's subscription status.</span>
+          <span>Memberships stores subscription status for this list.</span>
           <span>Advanced Fields is for list settings and import IDs.</span>
         </div>
         {message ? <p className="email-center__meta">{message}</p> : null}
