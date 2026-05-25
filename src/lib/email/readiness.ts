@@ -2,7 +2,7 @@ import type { Payload, PayloadRequest } from 'payload'
 
 import { getEmailAudienceSummary } from './audienceSummary'
 import { prepareEmailLayoutForRender } from './footerContext'
-import { inspectEmailQuality, type EmailQualityResult } from './quality'
+import { checkRemoteEmailLinks, inspectEmailQuality, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
 
 type UnknownRecord = Record<string, unknown>
@@ -114,13 +114,13 @@ export async function getEmailReadiness({
     return block.links.some((link) => isRecord(link) && /preferences|unsubscribe/i.test(getString(link.label)) && getString(link.url))
   })
   const quality = rendered
-    ? inspectEmailQuality({
+    ? await checkRemoteEmailLinks(inspectEmailQuality({
         hasAddress: prepared.footerContext.hasAddress,
         hasUnsubscribeLink,
         html: rendered.html,
         subject,
         text: rendered.text,
-      })
+      }))
     : undefined
 
   addItem(items, {

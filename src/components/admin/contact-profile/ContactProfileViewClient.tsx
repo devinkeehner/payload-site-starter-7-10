@@ -1,6 +1,6 @@
 'use client'
 
-import { Banner, Button, Gutter, Pill, useConfig } from '@payloadcms/ui'
+import { Banner, Button, Gutter, useConfig } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 
@@ -16,8 +16,16 @@ type Profile = {
     status?: string
   }
   events: Array<{ eventType?: string; occurredAt?: string; recipientEmail?: string; url?: string }>
-  memberships: Array<{ emailList?: { name?: string } | string; status?: string; updatedAt?: string }>
+  memberships: Array<{ emailList?: { name?: string } | string; id: string; status?: string; updatedAt?: string }>
 }
+
+const MEMBERSHIP_STATUS_OPTIONS = [
+  { label: 'Subscribed', value: 'subscribed' },
+  { label: 'Unsubscribed', value: 'unsubscribed' },
+  { label: 'Inactive', value: 'inactive' },
+  { label: 'Bounced', value: 'bounced' },
+  { label: 'Do not contact', value: 'doNotContact' },
+]
 
 export function ContactProfileViewClient({ contactId, title }: { contactId: string; title: string }) {
   const {
@@ -27,6 +35,8 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
   } = useConfig()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [savingMembership, setSavingMembership] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/contacts/${contactId}` }), [adminRoute, contactId])
 
   const load = useCallback(async () => {
@@ -44,6 +54,34 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
     void load()
   }, [load])
 
+  async function updateMembership(membershipId: string, status: string) {
+    setSavingMembership(membershipId)
+    setError(null)
+    setNotice(null)
+
+    try {
+      const res = await fetch(`/api/contacts/${contactId}/profile`, {
+        body: JSON.stringify({ membershipId, status }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        method: 'PATCH',
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setProfile((current) => current
+        ? {
+            ...current,
+            memberships: current.memberships.map((membership) => membership.id === membershipId ? { ...membership, status } : membership),
+          }
+        : current)
+      setNotice('Membership updated.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to update membership')
+    } finally {
+      setSavingMembership(null)
+    }
+  }
+
   return (
     <Gutter className="email-flow">
       <div className="email-flow__header">
@@ -53,6 +91,7 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
       </div>
 
       {error ? <Banner type="error">{error}</Banner> : null}
+      {notice ? <Banner type="success">{notice}</Banner> : null}
 
       <section className="email-flow__toolbar">
         <Button buttonStyle="secondary" el="link" to={editURL} type="button">Advanced Fields</Button>
@@ -76,9 +115,20 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
             <h2>List Memberships</h2>
             <div className="email-flow__table">
               {profile.memberships.map((membership, index) => (
-                <div className="email-flow__row" key={index}>
+                <div className="email-flow__row email-flow__row--actions" key={membership.id || index}>
                   <strong>{typeof membership.emailList === 'object' ? membership.emailList?.name : membership.emailList}</strong>
-                  <Pill pillStyle={membership.status === 'subscribed' ? 'success' : 'warning'} size="small">{membership.status || 'unknown'}</Pill>
+                  <label className="email-flow__inline-field">
+                    <span>Status</span>
+                    <select
+                      disabled={savingMembership === membership.id}
+                      onChange={(event) => void updateMembership(membership.id, event.target.value)}
+                      value={membership.status || 'subscribed'}
+                    >
+                      {MEMBERSHIP_STATUS_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </label>
                   <span>{membership.updatedAt ? new Date(membership.updatedAt).toLocaleString() : ''}</span>
                 </div>
               ))}

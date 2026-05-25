@@ -12,6 +12,15 @@ export type EmailFooterContext = {
   unsubscribeUrl: string
 }
 
+export const DEFAULT_EMAIL_FOOTER_ADDRESS = [
+  'Legislative Office Building, Room 4200',
+  '300 Capitol Avenue',
+  'Hartford, CT 06106',
+  '',
+  '860-240-8700',
+  '800-842-1423',
+].join('\n')
+
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
@@ -58,7 +67,7 @@ function formatAddress(repInfo: UnknownRecord | null) {
       .join(' '),
   ].filter(Boolean)
 
-  return parts.join('\n')
+  return parts.join('\n') || DEFAULT_EMAIL_FOOTER_ADDRESS
 }
 
 function buildSocialLinks(repInfo: UnknownRecord | null): UnknownRecord[] {

@@ -1,6 +1,9 @@
 export type EmailLinkCheck = {
+  checkedAt?: string
   href: string
   label: string
+  reason?: string
+  remoteStatus?: number
   status: 'invalid' | 'merge' | 'ok' | 'warning'
 }
 
@@ -40,6 +43,88 @@ function classifyLink(href: string, seen: Set<string>): EmailLinkCheck['status']
     return 'ok'
   } catch {
     return 'invalid'
+  }
+}
+
+function isPrivateHostname(hostname: string) {
+  const normalized = hostname.toLowerCase()
+  if (['localhost', '0.0.0.0'].includes(normalized) || normalized.endsWith('.local')) return true
+  if (normalized === '::1') return true
+  if (/^127\./.test(normalized)) return true
+  if (/^10\./.test(normalized)) return true
+  if (/^192\.168\./.test(normalized)) return true
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)) return true
+  return false
+}
+
+async function fetchWithTimeout(url: string, method: 'GET' | 'HEAD') {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
+
+  try {
+    return await fetch(url, {
+      method,
+      redirect: 'follow',
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+async function checkRemoteLink(link: EmailLinkCheck): Promise<EmailLinkCheck> {
+  if (link.status === 'invalid' || link.status === 'merge' || /^(mailto|tel):/i.test(link.href)) return link
+
+  try {
+    const url = new URL(link.href)
+    if (!['http:', 'https:'].includes(url.protocol)) return { ...link, reason: 'Unsupported protocol', status: 'invalid' }
+    if (isPrivateHostname(url.hostname)) return { ...link, reason: 'Private/internal host skipped', status: 'warning' }
+
+    let res = await fetchWithTimeout(url.toString(), 'HEAD')
+    if (res.status === 405 || res.status === 403) {
+      res = await fetchWithTimeout(url.toString(), 'GET')
+    }
+
+    const remoteStatus = res.status
+    return {
+      ...link,
+      checkedAt: new Date().toISOString(),
+      reason: remoteStatus >= 200 && remoteStatus < 400 ? undefined : `Remote check returned ${remoteStatus}`,
+      remoteStatus,
+      status: remoteStatus >= 200 && remoteStatus < 400 ? link.status : 'warning',
+    }
+  } catch (error) {
+    return {
+      ...link,
+      checkedAt: new Date().toISOString(),
+      reason: error instanceof Error ? error.message : 'Remote check failed',
+      status: 'warning',
+    }
+  }
+}
+
+export async function checkRemoteEmailLinks(quality: EmailQualityResult): Promise<EmailQualityResult> {
+  const uniqueChecks = new Map<string, Promise<EmailLinkCheck>>()
+  const checkedLinks = await Promise.all(quality.links.map(async (link) => {
+    if (!link.href || link.status === 'invalid' || link.status === 'merge' || /^(mailto|tel):/i.test(link.href)) return link
+    if (!uniqueChecks.has(link.href)) uniqueChecks.set(link.href, checkRemoteLink(link))
+    const checked = await uniqueChecks.get(link.href)
+    return checked ? { ...link, ...checked } : link
+  }))
+  const remoteWarnings = checkedLinks.filter((link) => link.reason && link.status === 'warning').length
+  const warnings = [...quality.warnings]
+
+  if (remoteWarnings) {
+    warnings.push(`${remoteWarnings} link${remoteWarnings === 1 ? '' : 's'} need remote review.`)
+  }
+
+  const score = Math.max(0, quality.score - remoteWarnings * 5)
+  return {
+    ...quality,
+    label: score >= 80 ? 'Good' : score >= 60 ? 'Needs review' : 'Risky',
+    links: checkedLinks,
+    score,
+    warnings,
   }
 }
 

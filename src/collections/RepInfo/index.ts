@@ -141,6 +141,14 @@ export const RepInfo: CollectionConfig = {
       name: 'mailingAddress',
       label: 'Email footer mailing address',
       type: 'textarea',
+      defaultValue: [
+        'Legislative Office Building, Room 4200',
+        '300 Capitol Avenue',
+        'Hartford, CT 06106',
+        '',
+        '860-240-8700',
+        '800-842-1423',
+      ].join('\n'),
       admin: {
         description: 'Physical mailing address used in campaign email footers for compliance.',
       },

@@ -58,11 +58,26 @@
 }
 
 .email-flow__toolbar,
-.email-flow__actions {
+.email-flow__actions,
+.email-flow__section-header {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: calc(var(--base) / 2);
+}
+
+.email-flow__section-header {
+  justify-content: space-between;
+}
+
+.email-flow__link-button {
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 4px;
+  color: var(--theme-elevation-900);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  text-decoration: none;
 }
 
 .email-flow__summary {
@@ -123,7 +138,8 @@
 
 .email-flow__field input,
 .email-flow__field select,
-.email-flow__field textarea {
+.email-flow__field textarea,
+.email-flow__inline-field select {
   background: var(--theme-input-bg);
   border: 1px solid var(--theme-elevation-150);
   border-radius: 4px;
@@ -132,6 +148,18 @@
   min-height: 40px;
   padding: 8px 12px;
   width: 100%;
+}
+
+.email-flow__inline-field {
+  display: grid;
+  gap: 4px;
+}
+
+.email-flow__inline-field span {
+  color: var(--theme-elevation-650);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .email-flow__field textarea {
@@ -181,6 +209,10 @@
   padding: calc(var(--base) / 2);
 }
 
+.email-flow__row--actions {
+  grid-template-columns: minmax(160px, 1fr) minmax(180px, 220px) minmax(120px, 1fr);
+}
+
 .email-flow__row strong,
 .email-flow__row a {
   overflow-wrap: anywhere;
@@ -216,6 +248,52 @@
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.email-flow__report-grid {
+  display: grid;
+  gap: var(--base);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
+}
+
+.email-flow__report-grid h3,
+.email-flow__panel h3 {
+  color: var(--theme-elevation-900);
+  font-size: 15px;
+  line-height: 1.3;
+  margin: 0;
+}
+
+.email-flow__bars {
+  display: grid;
+  gap: 10px;
+}
+
+.email-flow__bar {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 110px minmax(120px, 1fr) 52px;
+}
+
+.email-flow__bar > span,
+.email-flow__bar > strong {
+  color: var(--theme-elevation-700);
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.email-flow__bar > div {
+  background: var(--theme-elevation-100);
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.email-flow__bar i {
+  background: var(--theme-success-500);
+  display: block;
+  height: 100%;
 }
 
 .email-flow__checklist {
@@ -415,6 +493,7 @@
 @media (max-width: 1024px) {
   .email-flow__steps,
   .email-flow__review-grid,
+  .email-flow__report-grid,
   .email-list-profile__cards,
   .email-flow__stats,
   .email-flow__import-metrics {

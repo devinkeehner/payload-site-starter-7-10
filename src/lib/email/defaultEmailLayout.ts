@@ -1,5 +1,7 @@
 import type { PayloadRequest } from 'payload'
 
+import { DEFAULT_EMAIL_FOOTER_ADDRESS } from './footerContext'
+
 type UnknownRecord = Record<string, unknown>
 
 function isRecord(value: unknown): value is UnknownRecord {
@@ -129,7 +131,7 @@ function buildMailingAddress(repInfo: UnknownRecord | null): string {
     [getString(repInfo?.mailingAddressCity), getString(repInfo?.mailingAddressState), getString(repInfo?.mailingAddressPostalCode)]
       .filter(Boolean)
       .join(' '),
-  ].filter(Boolean).join('\n')
+  ].filter(Boolean).join('\n') || DEFAULT_EMAIL_FOOTER_ADDRESS
 }
 
 function richTextDefault(text: string): UnknownRecord {

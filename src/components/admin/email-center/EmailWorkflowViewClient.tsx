@@ -28,7 +28,7 @@ type Readiness = {
   items: ReadinessItem[]
   quality?: {
     label: string
-    links: Array<{ href: string; label: string; status: 'invalid' | 'merge' | 'ok' | 'warning' }>
+    links: Array<{ href: string; label: string; reason?: string; remoteStatus?: number; status: 'invalid' | 'merge' | 'ok' | 'warning' }>
     score: number
     warnings: string[]
   }
@@ -47,7 +47,13 @@ type PostPreview = {
 
 type Report = {
   counts: Record<string, number>
+  previousCampaigns?: Array<{ id: string; recipientCount: number; sentAt?: string; title?: string }>
+  rates?: Record<string, number>
   recipientCount: number
+  reconciliation?: {
+    terminalRecipients: number
+    unaccountedRecipients: number
+  }
   topLinks: Array<{ count: number; url: string }>
 }
 
@@ -235,6 +241,7 @@ export function EmailWorkflowViewClient({
                   ) : (
                     <a href={link.href} rel="noreferrer" target="_blank">{link.href}</a>
                   )}
+                  <span>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || ''}</span>
                 </div>
               ))}
             </div>
@@ -244,7 +251,10 @@ export function EmailWorkflowViewClient({
 
       {report ? (
         <section className="email-flow__panel">
-          <h2>Campaign Report</h2>
+          <div className="email-flow__section-header">
+            <h2>Campaign Report</h2>
+            <a className="email-flow__link-button" href={`/api/emails/${emailId}/report?format=csv`}>Export events CSV</a>
+          </div>
           <div className="email-flow__stats">
             <div><strong>{report.recipientCount}</strong><span>Recipients</span></div>
             <div><strong>{report.counts.delivered || 0}</strong><span>Delivered</span></div>
@@ -253,6 +263,54 @@ export function EmailWorkflowViewClient({
             <div><strong>{report.counts.bounced || 0}</strong><span>Bounced</span></div>
             <div><strong>{report.counts.unsubscribed || 0}</strong><span>Unsubscribed</span></div>
           </div>
+          <div className="email-flow__report-grid">
+            <div>
+              <h3>Rates</h3>
+              <div className="email-flow__bars">
+                {Object.entries(report.rates || {}).map(([label, value]) => (
+                  <div className="email-flow__bar" key={label}>
+                    <span>{label}</span>
+                    <div><i style={{ width: `${Math.min(100, value)}%` }} /></div>
+                    <strong>{value}%</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h3>Delivery Reconciliation</h3>
+              <p className="email-flow__muted">
+                {report.reconciliation?.terminalRecipients || 0} recipients have a terminal Elastic event. {report.reconciliation?.unaccountedRecipients || 0} are still unaccounted for.
+              </p>
+            </div>
+          </div>
+          {report.topLinks.length ? (
+            <div>
+              <h3>Top Clicked Links</h3>
+              <div className="email-flow__table">
+                {report.topLinks.map((link) => (
+                  <div className="email-flow__row" key={link.url}>
+                    <strong>{link.count} clicks</strong>
+                    <a href={link.url} rel="noreferrer" target="_blank">{link.url}</a>
+                    <span />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {report.previousCampaigns?.length ? (
+            <div>
+              <h3>Recent Sent Campaigns</h3>
+              <div className="email-flow__table">
+                {report.previousCampaigns.map((campaign) => (
+                  <div className="email-flow__row" key={campaign.id}>
+                    <strong>{campaign.title}</strong>
+                    <span>{campaign.recipientCount} recipients</span>
+                    <span>{campaign.sentAt ? new Date(campaign.sentAt).toLocaleString() : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
 
