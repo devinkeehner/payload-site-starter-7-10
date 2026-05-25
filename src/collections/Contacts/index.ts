@@ -47,6 +47,9 @@ export const Contacts: CollectionConfig = {
     components: {
       views: {
         edit: {
+          default: {
+            Component: '@/components/admin/ProfileRedirectView#ContactProfileRedirectView',
+          },
           profile: {
             path: '/profile',
             Component: '@/components/admin/contact-profile/ContactProfileView#default',

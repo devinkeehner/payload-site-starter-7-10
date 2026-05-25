@@ -32,6 +32,9 @@ export const EmailLists: CollectionConfig = {
     components: {
       views: {
         edit: {
+          default: {
+            Component: '@/components/admin/ProfileRedirectView#EmailListProfileRedirectView',
+          },
           profile: {
             path: '/profile',
             Component: '@/components/admin/email-list-profile/EmailListProfileView#default',
