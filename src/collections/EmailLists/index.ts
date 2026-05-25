@@ -32,16 +32,19 @@ export const EmailLists: CollectionConfig = {
     components: {
       views: {
         edit: {
-          default: {
-            Component: '@/components/admin/ProfileRedirectView#EmailListProfileRedirectView',
-          },
           profile: {
             path: '/profile',
             Component: '@/components/admin/email-list-profile/EmailListProfileView#default',
             tab: {
               href: '/profile',
               label: 'Profile',
-              order: 50,
+              order: 1,
+            },
+          },
+          default: {
+            tab: {
+              label: 'Advanced Fields',
+              order: 500,
             },
           },
         },

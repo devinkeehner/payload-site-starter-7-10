@@ -1,7 +1,7 @@
 import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 
 async function getAuthenticatedPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
@@ -16,7 +16,7 @@ async function getAuthenticatedPayloadRequest(req: Request) {
 export async function POST(req: Request) {
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseEmailFeatures(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 

@@ -2,7 +2,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { convertEmailToPost } from '@/lib/email/convertEmailToPost'
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 
 type EmailDoc = Record<string, unknown> & {
   id?: string | number
@@ -36,7 +36,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseEmailFeatures(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 

@@ -36,6 +36,10 @@ export const Users: CollectionConfig = {
           label: 'Super Admin',
           value: 'super',
         },
+        {
+          label: 'Alpha Tester',
+          value: 'alphaTester',
+        },
       ],
       defaultValue: [],
       admin: { position: 'sidebar' },

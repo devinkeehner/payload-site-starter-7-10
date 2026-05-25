@@ -1,7 +1,7 @@
 import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 
 const EVENT_TYPES = ['queued', 'sent', 'delivered', 'opened', 'clicked', 'bounced', 'complaint', 'unsubscribed', 'failed'] as const
 
@@ -57,7 +57,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const url = new URL(req.url)
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseEmailFeatures(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 

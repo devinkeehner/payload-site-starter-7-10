@@ -1,6 +1,6 @@
 import type { Access } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures, isSuperUser } from '@/lib/access/isSuperUser'
 
 type UserLike = unknown
 
@@ -60,8 +60,18 @@ const SUPER_ONLY_COLLECTIONS = new Set([
   'chatgpt-oauth-tokens',
 ])
 
+const EMAIL_FEATURE_COLLECTIONS = new Set([
+  'emails',
+  'email-lists',
+  'email-list-memberships',
+  'email-send-events',
+  'email-import-jobs',
+  'contacts',
+])
+
 export function canAccessCollection(user: UserLike, collection: string): boolean {
   if (!user) return false
+  if (EMAIL_FEATURE_COLLECTIONS.has(collection)) return canUseEmailFeatures(user)
   if (SUPER_ONLY_COLLECTIONS.has(collection)) return isSuperUser(user)
   return true
 }

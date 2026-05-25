@@ -52,9 +52,7 @@ import { default as default_2c6c4dbbe998d6eebbc446155e65ba4b } from '@/component
 import { default as default_a0e436fe38b7e307ce9fcc9be2ba7933 } from '@/components/admin/email-audience/EmailAudienceView'
 import { default as default_72de4d3084d953a792e9d63a0b6b8d64 } from '@/components/admin/email-center/EmailWorkflowView'
 import { default as default_7df001b233165cf0fc71cbd5e6837a9a } from '@/components/admin/email-center/EmailCenterListView'
-import { EmailListProfileRedirectView as EmailListProfileRedirectView_ef3360a6672755543aad38028b679120 } from '@/components/admin/ProfileRedirectView'
 import { default as default_2581c95fe82b5364a75dc1a485d10390 } from '@/components/admin/email-list-profile/EmailListProfileView'
-import { ContactProfileRedirectView as ContactProfileRedirectView_ef3360a6672755543aad38028b679120 } from '@/components/admin/ProfileRedirectView'
 import { default as default_b8a14a71c979f5541a8ea779a878327f } from '@/components/admin/contact-profile/ContactProfileView'
 import { LinkToDoc as LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloadcms/plugin-search/client'
 import { ReindexButton as ReindexButton_aead06e4cbf6b2620c5c51c9ab283634 } from '@payloadcms/plugin-search/client'
@@ -132,9 +130,7 @@ export const importMap = {
   "@/components/admin/email-audience/EmailAudienceView#default": default_a0e436fe38b7e307ce9fcc9be2ba7933,
   "@/components/admin/email-center/EmailWorkflowView#default": default_72de4d3084d953a792e9d63a0b6b8d64,
   "@/components/admin/email-center/EmailCenterListView#default": default_7df001b233165cf0fc71cbd5e6837a9a,
-  "@/components/admin/ProfileRedirectView#EmailListProfileRedirectView": EmailListProfileRedirectView_ef3360a6672755543aad38028b679120,
   "@/components/admin/email-list-profile/EmailListProfileView#default": default_2581c95fe82b5364a75dc1a485d10390,
-  "@/components/admin/ProfileRedirectView#ContactProfileRedirectView": ContactProfileRedirectView_ef3360a6672755543aad38028b679120,
   "@/components/admin/contact-profile/ContactProfileView#default": default_b8a14a71c979f5541a8ea779a878327f,
   "@payloadcms/plugin-search/client#LinkToDoc": LinkToDoc_aead06e4cbf6b2620c5c51c9ab283634,
   "@payloadcms/plugin-search/client#ReindexButton": ReindexButton_aead06e4cbf6b2620c5c51c9ab283634,

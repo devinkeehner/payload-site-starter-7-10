@@ -2738,7 +2738,7 @@ export interface RepInfo {
 export interface User {
   id: string;
   name?: string | null;
-  roles?: 'super'[] | null;
+  roles?: ('super' | 'alphaTester')[] | null;
   tenants?:
     | {
         tenant: string | Tenant;

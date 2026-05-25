@@ -1,6 +1,6 @@
 import type { DocumentViewServerProps } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 
 import { EmailWorkflowViewClient } from './EmailWorkflowViewClient'
 
@@ -14,8 +14,8 @@ export default function EmailWorkflowView(props: DocumentViewServerProps) {
   const doc = props.doc as EmailDoc
   const id = props.id ?? doc?.id
 
-  if (!props.user || !isSuperUser(props.user)) {
-    return <div style={{ padding: 24 }}>Only super admins can review and send email campaigns.</div>
+  if (!props.user || !canUseEmailFeatures(props.user)) {
+    return <div style={{ padding: 24 }}>Only alpha testers and super admins can review and send email campaigns.</div>
   }
 
   if (!id) {

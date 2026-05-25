@@ -2421,7 +2421,7 @@ const updateUsersTool = {
     id: z.union([z.string(), z.number()]).optional().describe('Target user ID.'),
     email: z.string().optional().describe('Target user email. Used when `id` is not provided.'),
     name: z.string().optional().describe('Optional replacement display name.'),
-    roles: z.array(z.enum(['super'])).optional().describe('Optional replacement role list.'),
+    roles: z.array(z.enum(['super', 'alphaTester'])).optional().describe('Optional replacement role list.'),
     addTenantIDs: z.array(z.union([z.string(), z.number()])).optional().describe('Tenant IDs to add to the user.'),
     addTenantSlugs: z.array(z.string()).optional().describe('Tenant slugs to add to the user.'),
     removeTenantIDs: z.array(z.union([z.string(), z.number()])).optional().describe('Tenant IDs to remove from the user.'),
@@ -2479,7 +2479,7 @@ const updateUsersTool = {
       const patch: Record<string, unknown> = {};
       if (typeof args.name === 'string') patch.name = args.name;
       if (Array.isArray(args.roles)) {
-        patch.roles = args.roles.filter((role): role is 'super' => role === 'super');
+        patch.roles = args.roles.filter((role): role is 'super' | 'alphaTester' => role === 'super' || role === 'alphaTester');
       }
 
       const currentTenantIDs = new Set<string>(getUserTenantIDs(existing));

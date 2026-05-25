@@ -1,7 +1,7 @@
 import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 
 const MEMBERSHIP_STATUSES = new Set(['subscribed', 'unsubscribed', 'inactive', 'bounced', 'doNotContact'])
 type MembershipStatus = 'bounced' | 'doNotContact' | 'inactive' | 'subscribed' | 'unsubscribed'
@@ -24,7 +24,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseEmailFeatures(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 
@@ -75,7 +75,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseEmailFeatures(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 

@@ -47,16 +47,19 @@ export const Contacts: CollectionConfig = {
     components: {
       views: {
         edit: {
-          default: {
-            Component: '@/components/admin/ProfileRedirectView#ContactProfileRedirectView',
-          },
           profile: {
             path: '/profile',
             Component: '@/components/admin/contact-profile/ContactProfileView#default',
             tab: {
               href: '/profile',
               label: 'Profile',
-              order: 50,
+              order: 1,
+            },
+          },
+          default: {
+            tab: {
+              label: 'Advanced Fields',
+              order: 500,
             },
           },
         },
