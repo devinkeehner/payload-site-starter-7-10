@@ -148,6 +148,37 @@ export const Contacts: CollectionConfig = {
       ],
     },
     {
+      name: 'customFields',
+      label: 'Custom fields',
+      type: 'array',
+      admin: {
+        description: 'Imported key/value fields from iContact or other email platforms.',
+      },
+      fields: [
+        {
+          name: 'key',
+          type: 'text',
+          required: true,
+        },
+        {
+          name: 'value',
+          type: 'text',
+        },
+        {
+          name: 'source',
+          type: 'select',
+          defaultValue: 'icontact',
+          options: [
+            { label: 'iContact', value: 'icontact' },
+            { label: 'Elastic Email', value: 'elastic' },
+            { label: 'Manual', value: 'manual' },
+            { label: 'Other', value: 'other' },
+          ],
+          required: true,
+        },
+      ],
+    },
+    {
       type: 'row',
       fields: [
         {

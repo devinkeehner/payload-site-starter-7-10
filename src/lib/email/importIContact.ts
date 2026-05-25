@@ -15,6 +15,11 @@ import {
 } from './contactNormalization'
 
 type UnknownRecord = Record<string, unknown>
+type CustomFieldRow = {
+  key: string
+  source: 'icontact'
+  value: string
+}
 
 type ImportIContactListArgs = {
   clientFolderId: string
@@ -47,6 +52,64 @@ function mapIContactStatus(value: unknown): 'bounced' | 'doNotContact' | 'inacti
 }
 
 type ContactStatus = ReturnType<typeof mapIContactStatus>
+
+const STANDARD_ICONTACT_KEYS = new Set([
+  'business',
+  'contactid',
+  'createby',
+  'createdate',
+  'email',
+  'fax',
+  'firstname',
+  'lastmessageid',
+  'lastname',
+  'phone',
+  'postalcode',
+  'prefix',
+  'street',
+  'status',
+  'suffix',
+  'subscriptionid',
+])
+
+function stringifyCustomValue(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function addCustomField(fields: Map<string, CustomFieldRow>, key: string, value: unknown) {
+  const cleanKey = key.trim()
+  const cleanValue = stringifyCustomValue(value)
+  if (!cleanKey || !cleanValue) return
+  fields.set(cleanKey.toLowerCase(), {
+    key: cleanKey,
+    source: 'icontact',
+    value: cleanValue,
+  })
+}
+
+function extractCustomFields(contact: UnknownRecord): CustomFieldRow[] {
+  const fields = new Map<string, CustomFieldRow>()
+
+  for (const [key, value] of Object.entries(contact)) {
+    if (STANDARD_ICONTACT_KEYS.has(key.toLowerCase())) continue
+    if (key.toLowerCase() === 'customfields' && value && typeof value === 'object' && !Array.isArray(value)) {
+      for (const [customKey, customValue] of Object.entries(value as UnknownRecord)) {
+        addCustomField(fields, customKey, customValue)
+      }
+      continue
+    }
+    addCustomField(fields, key, value)
+  }
+
+  return Array.from(fields.values()).sort((a, b) => a.key.localeCompare(b.key))
+}
 
 async function findFirst({
   collection,
@@ -154,6 +217,7 @@ async function upsertContact({
 
   const data = {
     consentSource: 'icontact' as const,
+    customFields: extractCustomFields(contact),
     email,
     firstName: getString(contact.firstName),
     iContactContactId: getString(contact.contactId),
@@ -231,7 +295,7 @@ async function upsertMembership({
       subscribedAt: new Date().toISOString(),
       tenant: tenantId,
     },
-    overrideAccess: false,
+    overrideAccess: true,
     req,
   })
 }

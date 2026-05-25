@@ -3058,6 +3058,17 @@ export interface Contact {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Imported key/value fields from iContact or other email platforms.
+   */
+  customFields?:
+    | {
+        key: string;
+        value?: string | null;
+        source: 'icontact' | 'elastic' | 'manual' | 'other';
+        id?: string | null;
+      }[]
+    | null;
   consentSource?: ('form' | 'manual' | 'icontact' | 'elastic' | 'unknown') | null;
   consentAt?: string | null;
   sourceDetails?: string | null;
@@ -6714,6 +6725,14 @@ export interface ContactsSelect<T extends boolean = true> {
     | T
     | {
         tag?: T;
+        id?: T;
+      };
+  customFields?:
+    | T
+    | {
+        key?: T;
+        value?: T;
+        source?: T;
         id?: T;
       };
   consentSource?: T;

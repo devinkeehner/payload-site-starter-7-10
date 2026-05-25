@@ -1,5 +1,5 @@
 import configPromise from '@payload-config'
-import { createPayloadRequest } from 'payload'
+import { createPayloadRequest, type PayloadRequest } from 'payload'
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { importIContactList } from '@/lib/email/importIContact'
@@ -36,6 +36,7 @@ export async function POST(req: Request) {
     if (!clientFolderId) return new Response('clientFolderId is required', { status: 400 })
     if (!listId) return new Response('listId is required', { status: 400 })
 
+    const scopedReq = { ...payloadReq, tenant: tenantId } as PayloadRequest & { tenant: string }
     const startedAt = new Date().toISOString()
     const job = await payload.create({
       collection: 'email-import-jobs',
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
         tenant: tenantId,
       },
       overrideAccess: false,
-      req: payloadReq,
+      req: scopedReq,
     })
 
     try {
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
         dryRun,
         listId,
         payload,
-        req: payloadReq,
+        req: scopedReq,
         tenantId,
       })
 
@@ -78,7 +79,7 @@ export async function POST(req: Request) {
         id: String(job.id),
         overrideAccess: false,
         overrideLock: false,
-        req: payloadReq,
+        req: scopedReq,
       })
 
       return Response.json({
@@ -98,7 +99,7 @@ export async function POST(req: Request) {
         id: String(job.id),
         overrideAccess: false,
         overrideLock: false,
-        req: payloadReq,
+        req: scopedReq,
       })
       throw error
     }
