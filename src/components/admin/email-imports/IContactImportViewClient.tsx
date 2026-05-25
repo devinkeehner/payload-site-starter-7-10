@@ -46,6 +46,8 @@ type ImportResult = {
       mappedStatus?: string
       statusValues?: Record<string, unknown>
     }>
+    subscriptionFetchError?: string
+    subscriptionRecords?: number
     unknownStatusCount?: number
   }
   statusCounts?: {
@@ -230,7 +232,10 @@ export function IContactImportViewClient() {
           ) : null}
           {result.statusDebug?.samples?.length ? (
             <details className="email-flow__details">
-              <summary>Status debug samples ({result.statusDebug.sampleSize || result.statusDebug.samples.length}, unknown fields: {result.statusDebug.unknownStatusCount || 0})</summary>
+              <summary>Status debug samples ({result.statusDebug.sampleSize || result.statusDebug.samples.length}, subscription records: {result.statusDebug.subscriptionRecords || 0}, unknown fields: {result.statusDebug.unknownStatusCount || 0})</summary>
+              {result.statusDebug.subscriptionFetchError ? (
+                <p>Subscription fetch failed: {result.statusDebug.subscriptionFetchError}</p>
+              ) : null}
               <ul>
                 {result.statusDebug.samples.slice(0, 20).map((sample, index) => (
                   <li key={`${sample.email || 'sample'}-${index}`}>

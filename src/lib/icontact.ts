@@ -175,10 +175,16 @@ export const listIContactContacts = async (
   let total: number | null = null
   const contacts: any[] = []
   const listQuery = sanitize(listId) ? `&listId=${encodeURIComponent(sanitize(listId))}` : ''
+  let includeTotalStatus = Boolean(sanitize(listId))
 
   while (true) {
-    const res = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/contacts?offset=${offset}&limit=${limit}${listQuery}`)
+    const statusQuery = includeTotalStatus ? '&status=total' : ''
+    const res = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/contacts?offset=${offset}&limit=${limit}${listQuery}${statusQuery}`)
     if (!res.ok) {
+      if (includeTotalStatus && offset === 0) {
+        includeTotalStatus = false
+        continue
+      }
       const message = typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data || '')
       throw new Error(`Failed to list iContact contacts for folder ${clientFolderId} (${res.status}): ${message}`)
     }
@@ -198,6 +204,49 @@ export const listIContactContacts = async (
   return {
     contacts,
     total: total ?? contacts.length,
+  }
+}
+
+export const listIContactSubscriptions = async (
+  cfg: IContactConfig,
+  accountId: string,
+  clientFolderId: string,
+  listId?: string,
+) => {
+  const limit = 500
+  let offset = 0
+  let total: number | null = null
+  const subscriptions: any[] = []
+  const listQuery = sanitize(listId) ? `&listId=${encodeURIComponent(sanitize(listId))}` : ''
+  let includeTotalStatus = Boolean(sanitize(listId))
+
+  while (true) {
+    const statusQuery = includeTotalStatus ? '&status=total' : ''
+    const res = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/subscriptions?offset=${offset}&limit=${limit}${listQuery}${statusQuery}`)
+    if (!res.ok) {
+      if (includeTotalStatus && offset === 0) {
+        includeTotalStatus = false
+        continue
+      }
+      const message = typeof res.data === 'object' ? JSON.stringify(res.data) : String(res.data || '')
+      throw new Error(`Failed to list iContact subscriptions for folder ${clientFolderId} (${res.status}): ${message}`)
+    }
+
+    const payload = (res.data && typeof res.data === 'object' ? res.data : {}) as JsonRecord
+    const batch = Array.isArray(payload.subscriptions) ? (payload.subscriptions as any[]) : []
+    const batchTotal = typeof payload.total === 'number' ? payload.total : null
+    if (total === null && batchTotal !== null) total = batchTotal
+
+    subscriptions.push(...batch)
+    if (batch.length === 0) break
+    if (total !== null && subscriptions.length >= total) break
+    if (batch.length < limit) break
+    offset += limit
+  }
+
+  return {
+    subscriptions,
+    total: total ?? subscriptions.length,
   }
 }
 

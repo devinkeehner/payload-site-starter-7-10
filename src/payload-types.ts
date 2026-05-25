@@ -3522,6 +3522,8 @@ export interface EmailImportJob {
   statusDebug?: {
     sampleSize?: number | null;
     unknownStatusCount?: number | null;
+    subscriptionRecords?: number | null;
+    subscriptionFetchError?: string | null;
     samples?:
       | {
           email?: string | null;
@@ -6741,6 +6743,8 @@ export interface EmailImportJobsSelect<T extends boolean = true> {
     | {
         sampleSize?: T;
         unknownStatusCount?: T;
+        subscriptionRecords?: T;
+        subscriptionFetchError?: T;
         samples?:
           | T
           | {

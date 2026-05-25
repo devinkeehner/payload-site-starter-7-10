@@ -147,6 +147,16 @@ export const EmailImportJobs: CollectionConfig = {
           type: 'number',
         },
         {
+          name: 'subscriptionRecords',
+          label: 'Subscription records',
+          type: 'number',
+        },
+        {
+          name: 'subscriptionFetchError',
+          label: 'Subscription fetch error',
+          type: 'textarea',
+        },
+        {
           name: 'samples',
           type: 'array',
           fields: [
