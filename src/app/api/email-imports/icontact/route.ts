@@ -18,6 +18,12 @@ function getString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+function getBatchReq(req: PayloadRequest, tenantId: string): PayloadRequest & { tenant: string } {
+  const batchReq = { ...req, tenant: tenantId } as PayloadRequest & { tenant: string; transactionID?: unknown }
+  delete batchReq.transactionID
+  return batchReq
+}
+
 export async function POST(req: Request) {
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
@@ -36,7 +42,7 @@ export async function POST(req: Request) {
     if (!clientFolderId) return new Response('clientFolderId is required', { status: 400 })
     if (!listId) return new Response('listId is required', { status: 400 })
 
-    const scopedReq = { ...payloadReq, tenant: tenantId } as PayloadRequest & { tenant: string }
+    const scopedReq = getBatchReq(payloadReq, tenantId)
     const startedAt = new Date().toISOString()
     const job = await payload.create({
       collection: 'email-import-jobs',
@@ -49,6 +55,7 @@ export async function POST(req: Request) {
         status: 'running',
         tenant: tenantId,
       },
+      disableTransaction: true,
       overrideAccess: false,
       req: scopedReq,
     })
@@ -78,6 +85,7 @@ export async function POST(req: Request) {
           totalContacts: result.totalContacts,
           updatedContacts: result.updatedContacts,
         },
+        disableTransaction: true,
         id: String(job.id),
         overrideAccess: false,
         overrideLock: false,
@@ -98,6 +106,7 @@ export async function POST(req: Request) {
           message,
           status: 'failed',
         },
+        disableTransaction: true,
         id: String(job.id),
         overrideAccess: false,
         overrideLock: false,

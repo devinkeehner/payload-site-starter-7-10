@@ -244,7 +244,29 @@
 .email-list-profile__cards {
   display: grid;
   gap: var(--base);
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.email-list-profile__metric {
+  border-top: 4px solid var(--theme-elevation-300);
+}
+
+.email-list-profile__metric--total {
+  border-top-color: #2f80b9;
+}
+
+.email-list-profile__metric--subscribed {
+  border-top-color: #2fab2f;
+}
+
+.email-list-profile__metric--unsubscribed,
+.email-list-profile__metric--inactive {
+  border-top-color: #f1a22e;
+}
+
+.email-list-profile__metric--bounced,
+.email-list-profile__metric--blocked {
+  border-top-color: #ee693c;
 }
 
 .email-list-profile__metric strong {

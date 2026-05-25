@@ -32,7 +32,7 @@ export function EmailListProfileViewClient({
   const [message, setMessage] = useState<string | null>(null)
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/email-lists/${listId}` }), [adminRoute, listId])
   const contactsURL = useMemo(() => formatAdminURL({ adminRoute, path: '/collections/contacts' }), [adminRoute])
-  const membershipsURL = useMemo(() => formatAdminURL({ adminRoute, path: '/collections/email-list-memberships' }), [adminRoute])
+  const membershipsURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/email-list-memberships?where[emailList][equals]=${encodeURIComponent(listId)}` }), [adminRoute, listId])
 
   const loadSummary = useCallback(async () => {
     setMessage(null)
@@ -54,7 +54,7 @@ export function EmailListProfileViewClient({
       <section className="email-list-profile__hero">
         <div>
           <h2>{summary?.listName || name}</h2>
-          <p>Review audience health, subscription status, and list membership before using this list for a campaign.</p>
+          <p>Audience health, subscription status, and campaign sendability for this list.</p>
         </div>
         <div className="email-center__actions">
           <button className="email-center__button" type="button" onClick={() => void loadSummary()}>Refresh</button>
@@ -65,34 +65,38 @@ export function EmailListProfileViewClient({
       </section>
 
       <section className="email-list-profile__cards">
-        <div className="email-list-profile__metric">
+        <div className="email-list-profile__metric email-list-profile__metric--total">
+          <strong>{summary?.total ?? '-'}</strong>
+          <span>All contacts</span>
+        </div>
+        <div className="email-list-profile__metric email-list-profile__metric--subscribed">
           <strong>{summary?.active ?? '-'}</strong>
           <span>Subscribed</span>
         </div>
-        <div className="email-list-profile__metric">
+        <div className="email-list-profile__metric email-list-profile__metric--unsubscribed">
           <strong>{summary?.unsubscribed ?? '-'}</strong>
           <span>Unsubscribed</span>
         </div>
-        <div className="email-list-profile__metric">
+        <div className="email-list-profile__metric email-list-profile__metric--bounced">
           <strong>{summary?.bounced ?? '-'}</strong>
           <span>Bounced</span>
         </div>
-        <div className="email-list-profile__metric">
+        <div className="email-list-profile__metric email-list-profile__metric--blocked">
           <strong>{summary?.doNotContact ?? '-'}</strong>
           <span>Do not contact</span>
         </div>
-        <div className="email-list-profile__metric">
-          <strong>{summary?.total ?? '-'}</strong>
-          <span>Total</span>
+        <div className="email-list-profile__metric email-list-profile__metric--inactive">
+          <strong>{summary?.inactive ?? '-'}</strong>
+          <span>Inactive</span>
         </div>
       </section>
 
       <section className="email-list-profile__panel">
-        <h3>Next actions</h3>
+        <h3>Audience tools</h3>
         <div className="email-center__meta">
-          <span>Use iContact dry-run imports before writing contacts.</span>
-          <span>Use Memberships for rich list assignment.</span>
-          <span>The legacy contact picker remains available in Advanced Fields.</span>
+          <span>Contacts stores people and profile fields.</span>
+          <span>Memberships stores this list's subscription status.</span>
+          <span>Advanced Fields is for list settings and import IDs.</span>
         </div>
         {message ? <p className="email-center__meta">{message}</p> : null}
       </section>

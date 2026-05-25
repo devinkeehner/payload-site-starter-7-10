@@ -50,6 +50,12 @@ function getId(value: unknown): string | null {
   return typeof id === 'string' || typeof id === 'number' ? String(id) : null
 }
 
+function getOperationReq(req: PayloadRequest): PayloadRequest {
+  const operationReq = { ...req } as PayloadRequest & { transactionID?: unknown }
+  delete operationReq.transactionID
+  return operationReq
+}
+
 function mapIContactStatus(value: unknown): 'bounced' | 'doNotContact' | 'inactive' | 'subscribed' | 'unsubscribed' {
   const status = getString(value).toLowerCase()
   if (status.includes('unsubscribe')) return 'unsubscribed'
@@ -341,7 +347,7 @@ async function findFirst({
     depth: 0,
     limit: 1,
     overrideAccess: false,
-    req,
+    req: getOperationReq(req),
     where: where as Where,
   })
 
@@ -391,8 +397,9 @@ async function ensureEmailList({
       status: 'active',
       tenant: tenantId,
     },
+    disableTransaction: true,
     overrideAccess: false,
-    req,
+    req: getOperationReq(req),
   })
 
   return getId(created)
@@ -450,10 +457,11 @@ async function upsertContact({
     const updated = await payload.update({
       collection: 'contacts',
       data,
+      disableTransaction: true,
       id: getId(existing) || '',
       overrideAccess: false,
       overrideLock: false,
-      req,
+      req: getOperationReq(req),
     })
     return { contactId: getId(updated), created: false, updated: true }
   }
@@ -461,8 +469,9 @@ async function upsertContact({
   const created = await payload.create({
     collection: 'contacts',
     data,
+    disableTransaction: true,
     overrideAccess: false,
-    req,
+    req: getOperationReq(req),
   } as never)
   return { contactId: getId(created), created: true, updated: false }
 }
@@ -515,10 +524,11 @@ async function upsertMembership({
     await payload.update({
       collection: 'email-list-memberships',
       data: membershipData,
+      disableTransaction: true,
       id: getId(existing) || '',
       overrideAccess: true,
       overrideLock: false,
-      req,
+      req: getOperationReq(req),
     })
     return
   }
@@ -526,8 +536,9 @@ async function upsertMembership({
   await payload.create({
     collection: 'email-list-memberships',
     data: membershipData,
+    disableTransaction: true,
     overrideAccess: true,
-    req,
+    req: getOperationReq(req),
   })
 }
 
