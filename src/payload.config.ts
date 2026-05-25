@@ -4938,6 +4938,10 @@ export default buildConfig({
           path: '/email-campaigns/start',
           Component: '@/components/admin/email-start/EmailStartView#default',
         },
+        iContactImport: {
+          path: '/email-imports/icontact',
+          Component: '@/components/admin/email-imports/IContactImportView#default',
+        },
       },
     },
     importMap: {

@@ -57,7 +57,15 @@ function EmailCenterSummary() {
   )
 }
 
-function EmailCenterHero({ createURL, listsURL }: { createURL: string; listsURL: string }) {
+function EmailCenterHero({
+  createURL,
+  importURL,
+  listsURL,
+}: {
+  createURL: string
+  importURL: string
+  listsURL: string
+}) {
   return (
     <Gutter className="email-flow email-flow--list">
       <div className="email-flow__header">
@@ -72,6 +80,9 @@ function EmailCenterHero({ createURL, listsURL }: { createURL: string; listsURL:
         <Button buttonStyle="secondary" el="link" to={listsURL} type="button">
           Audiences
         </Button>
+        <Button buttonStyle="secondary" el="link" to={importURL} type="button">
+          Import from iContact
+        </Button>
       </div>
       <EmailCenterSummary />
     </Gutter>
@@ -85,15 +96,16 @@ export default function EmailCenterListView(props: ListViewClientProps) {
     },
   } = useConfig()
   const createURL = formatAdminURL({ adminRoute, path: '/email-campaigns/start' })
+  const importURL = formatAdminURL({ adminRoute, path: '/email-imports/icontact' })
   const listsURL = formatAdminURL({ adminRoute, path: '/collections/email-lists' })
   const BeforeList = useMemo(
     () => (
       <>
-        <EmailCenterHero createURL={createURL} listsURL={listsURL} />
+        <EmailCenterHero createURL={createURL} importURL={importURL} listsURL={listsURL} />
         {props.BeforeList}
       </>
     ),
-    [createURL, listsURL, props.BeforeList],
+    [createURL, importURL, listsURL, props.BeforeList],
   )
 
   return (
