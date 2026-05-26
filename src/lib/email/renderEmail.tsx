@@ -24,6 +24,10 @@ type EmailBlock = Record<string, unknown> & {
   blockType?: string
 }
 
+type EmailRenderContext = {
+  assetOrigin: string | null
+}
+
 type LexicalNode = Record<string, unknown> & {
   children?: LexicalNode[]
   fields?: Record<string, unknown>
@@ -68,18 +72,18 @@ const COLORS = {
 const cardStyle: React.CSSProperties = {
   backgroundColor: COLORS.surface,
   border: `1px solid ${COLORS.border}`,
-  borderRadius: 14,
+  borderRadius: 0,
 }
 
 const softCardStyle: React.CSSProperties = {
   backgroundColor: COLORS.surfaceAlt,
   border: `1px solid ${COLORS.border}`,
-  borderRadius: 14,
+  borderRadius: 0,
 }
 
 const imageFrameStyle: React.CSSProperties = {
   border: `1px solid ${COLORS.border}`,
-  borderRadius: 12,
+  borderRadius: 0,
   display: 'block',
   height: 'auto',
 }
@@ -115,7 +119,7 @@ function getButtonStyle(value: unknown): React.CSSProperties {
   return {
     backgroundColor,
     border: `1px solid ${variant === 'outline' ? COLORS.borderStrong : backgroundColor}`,
-    borderRadius: 999,
+    borderRadius: 0,
     color,
     display: 'inline-block',
     fontSize: 14,
@@ -174,50 +178,72 @@ function absolutizeRelativeMediaURLs(value: unknown, origin: string | null): unk
 }
 
 type SocialIconMeta = {
-  backgroundColor: string
-  borderColor: string
-  label: string
-  width?: number
+  alt: string
+  file: string
 }
 
 function getSocialIconMeta(value: unknown): SocialIconMeta {
   switch (value) {
     case 'facebook':
-      return { backgroundColor: '#1877f2', borderColor: '#1877f2', label: 'f' }
+      return { alt: 'Facebook', file: 'facebook.png' }
     case 'instagram':
-      return { backgroundColor: '#e4405f', borderColor: '#e4405f', label: 'ig' }
+      return { alt: 'Instagram', file: 'instagram.png' }
     case 'linkedin':
-      return { backgroundColor: '#0a66c2', borderColor: '#0a66c2', label: 'in' }
+      return { alt: 'LinkedIn', file: 'linkedin.png' }
     case 'x':
-      return { backgroundColor: '#111111', borderColor: '#111111', label: 'X' }
+      return { alt: 'X', file: 'x.png' }
     case 'youtube':
-      return { backgroundColor: '#ff0000', borderColor: '#ff0000', label: '▶' }
+      return { alt: 'YouTube', file: 'youtube.png' }
     case 'flickr':
-      return { backgroundColor: '#ff0084', borderColor: '#0063dc', label: '••' }
+      return { alt: 'Flickr', file: 'flickr.png' }
     case 'website':
-      return { backgroundColor: COLORS.accent, borderColor: COLORS.accent, label: 'www', width: 42 }
+      return { alt: 'Website', file: 'website.png' }
     default:
-      return { backgroundColor: COLORS.accent, borderColor: COLORS.accent, label: 'link', width: 42 }
+      return { alt: 'Website', file: 'website.png' }
   }
 }
 
-function getSocialIconStyle(item: Record<string, unknown>, margin: string | number): React.CSSProperties {
+function getSocialIconUrl(item: Record<string, unknown>, assetOrigin: string | null): string | null {
+  if (!assetOrigin) return null
   const meta = getSocialIconMeta(item.platform)
+  return `${assetOrigin}/email-icons/${meta.file}`
+}
 
+function getSocialIconLinkStyle(margin: string | number): React.CSSProperties {
   return {
-    backgroundColor: meta.backgroundColor,
-    border: `1px solid ${meta.borderColor}`,
-    borderRadius: 999,
-    color: COLORS.white,
     display: 'inline-block',
-    fontSize: meta.label.length > 2 ? 10 : 12,
-    fontWeight: 800,
-    lineHeight: '30px',
     margin,
-    textAlign: 'center',
     textDecoration: 'none',
-    width: meta.width || 30,
   }
+}
+
+function SocialIconImage({
+  assetOrigin,
+  item,
+}: {
+  assetOrigin: string | null
+  item: Record<string, unknown>
+}) {
+  const meta = getSocialIconMeta(item.platform)
+  const iconUrl = getSocialIconUrl(item, assetOrigin)
+
+  if (!iconUrl) {
+    return (
+      <span style={{ color: COLORS.white, fontSize: 11, fontWeight: 800, lineHeight: '30px' }}>
+        {meta.alt}
+      </span>
+    )
+  }
+
+  return (
+    <Img
+      alt={meta.alt}
+      height={30}
+      src={iconUrl}
+      width={30}
+      style={{ border: 0, display: 'block', height: 30, lineHeight: '30px', width: 30 }}
+    />
+  )
 }
 
 type EmailMediaSource = {
@@ -461,13 +487,13 @@ function needsInlineSeparatorAfter(value: string): boolean {
   return Boolean(value && !/^\s|^[.,;:!?]/.test(value))
 }
 
-function EmailHeaderSocial({ block }: { block: EmailBlock }) {
+function EmailHeaderSocial({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
   const logoText = normalizeText(block.logoText)
   const subtitle = normalizeText(block.subtitle)
   const socialLinks = normalizeItems(block.socialLinks)
 
   return (
-    <Section style={{ backgroundColor: COLORS.primary, borderRadius: 16, margin: '0 0 30px', padding: '22px 24px' }}>
+    <Section style={{ backgroundColor: COLORS.primary, borderRadius: 0, margin: '0 0 30px', padding: '22px 24px' }}>
       <Row>
         <Column style={{ verticalAlign: 'middle', width: '62%' }}>
           {logoText ? (
@@ -494,15 +520,14 @@ function EmailHeaderSocial({ block }: { block: EmailBlock }) {
           {socialLinks.map((item, index) => {
             const url = normalizeText(item.url)
             if (!url) return null
-            const icon = getSocialIconMeta(item.platform)
 
             return (
               <Link
                 key={`${url}-${index}`}
                 href={url}
-                style={getSocialIconStyle(item, '0 0 0 6px')}
+                style={getSocialIconLinkStyle('0 0 0 6px')}
               >
-                {icon.label}
+                <SocialIconImage assetOrigin={context.assetOrigin} item={item} />
               </Link>
             )
           })}
@@ -651,13 +676,13 @@ function EmailList({ block }: { block: EmailBlock }) {
                     fallbackWidth={56}
                     media={media}
                     width={56}
-                    style={{ borderRadius: 10, width: 56 }}
+                    style={{ borderRadius: 0, width: 56 }}
                   />
                 ) : (
                   <Text
                     style={{
                       backgroundColor: COLORS.accent,
-                      borderRadius: 999,
+                      borderRadius: 0,
                       color: COLORS.white,
                       fontSize: 13,
                       fontWeight: 800,
@@ -744,7 +769,7 @@ function EmailImage({ block }: { block: EmailBlock }) {
       media={media}
       width={width}
       style={{
-        borderRadius: 14,
+        borderRadius: 0,
         margin: '0 auto 24px',
         width: '100%',
       }}
@@ -892,7 +917,7 @@ function GalleryImage({ item }: { item: EmailGalleryItem }) {
         media={item}
         width={260}
         style={{
-          borderRadius: 12,
+          borderRadius: 0,
           width: '100%',
         }}
       />
@@ -1136,19 +1161,19 @@ function EmailBentoGrid({ block }: { block: EmailBlock }) {
   )
 }
 
-function renderNestedBlocks(value: unknown): React.ReactNode[] {
+function renderNestedBlocks(value: unknown, context: EmailRenderContext): React.ReactNode[] {
   const blocks = Array.isArray(value)
     ? value.filter((block): block is EmailBlock => Boolean(block && typeof block === 'object' && !Array.isArray(block)))
     : []
 
-  return blocks.map(renderBlock)
+  return blocks.map((block, index) => renderBlock(block, index, context))
 }
 
-function EmailGrid({ block }: { block: EmailBlock }) {
+function EmailGrid({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
   const threeColumns = block.layout === 'threeColumns'
-  const leftBlocks = renderNestedBlocks(block.leftBlocks)
-  const centerBlocks = renderNestedBlocks(block.centerBlocks)
-  const rightBlocks = renderNestedBlocks(block.rightBlocks)
+  const leftBlocks = renderNestedBlocks(block.leftBlocks, context)
+  const centerBlocks = renderNestedBlocks(block.centerBlocks, context)
+  const rightBlocks = renderNestedBlocks(block.rightBlocks, context)
   const columnWidth = threeColumns ? '33.333%' : '50%'
 
   return (
@@ -1210,7 +1235,7 @@ function EmailCallout({ block }: { block: EmailBlock }) {
         border: `1px solid ${variant === 'neutral' ? COLORS.border : borderColor}`,
         backgroundColor,
         borderLeft: `4px solid ${borderColor}`,
-        borderRadius: 12,
+        borderRadius: 0,
         margin: '10px 0 24px',
         padding: '18px 20px',
       }}
@@ -1245,7 +1270,7 @@ function EmailCallout({ block }: { block: EmailBlock }) {
   )
 }
 
-function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
+function EmailFooterOneColumn({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
   const heading = normalizeText(block.heading)
   const body = normalizeText(block.body)
   const address = normalizeText(block.address)
@@ -1255,7 +1280,7 @@ function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
   const towns = normalizeItems(block.towns)
 
   return (
-    <Section style={{ backgroundColor: COLORS.primary, borderRadius: 16, margin: '30px 0 0', padding: '24px 28px', textAlign: 'center' }}>
+    <Section style={{ backgroundColor: COLORS.primary, borderRadius: 0, margin: '30px 0 0', padding: '24px 28px', textAlign: 'center' }}>
       {heading ? <Text style={{ color: COLORS.white, fontSize: 17, fontWeight: 800, lineHeight: '23px', margin: 0 }}>{heading}</Text> : null}
       {body ? <Text style={{ color: '#d8e0ee', fontSize: 13, lineHeight: '20px', margin: '7px 0 0', whiteSpace: 'pre-line' }}>{body}</Text> : null}
       {address ? <Text style={{ color: '#bac6d8', fontSize: 12, lineHeight: '18px', margin: '14px 0 0', whiteSpace: 'pre-line' }}>{address}</Text> : null}
@@ -1281,15 +1306,14 @@ function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
           {socialLinks.map((item, index) => {
             const url = normalizeText(item.url)
             if (!url) return null
-            const icon = getSocialIconMeta(item.platform)
 
             return (
               <Link
                 key={`${url}-${index}`}
                 href={url}
-                style={getSocialIconStyle(item, '0 3px')}
+                style={getSocialIconLinkStyle('0 3px')}
               >
-                {icon.label}
+                <SocialIconImage assetOrigin={context.assetOrigin} item={item} />
               </Link>
             )
           })}
@@ -1324,10 +1348,10 @@ function EmailFooterOneColumn({ block }: { block: EmailBlock }) {
   )
 }
 
-function renderBlock(block: EmailBlock, index: number) {
+function renderBlock(block: EmailBlock, index: number, context: EmailRenderContext) {
   switch (block.blockType) {
     case 'emailHeaderSocial':
-      return <EmailHeaderSocial key={index} block={block} />
+      return <EmailHeaderSocial key={index} block={block} context={context} />
     case 'emailHeading':
       return <EmailHeading key={index} block={block} />
     case 'emailText':
@@ -1355,7 +1379,7 @@ function renderBlock(block: EmailBlock, index: number) {
     case 'emailBentoGrid':
       return <EmailBentoGrid key={index} block={block} />
     case 'emailGrid':
-      return <EmailGrid key={index} block={block} />
+      return <EmailGrid key={index} block={block} context={context} />
     case 'emailDivider':
       return <EmailDivider key={index} block={block} />
     case 'emailSpacer':
@@ -1363,7 +1387,7 @@ function renderBlock(block: EmailBlock, index: number) {
     case 'emailCallout':
       return <EmailCallout key={index} block={block} />
     case 'emailFooterOneColumn':
-      return <EmailFooterOneColumn key={index} block={block} />
+      return <EmailFooterOneColumn key={index} block={block} context={context} />
     default:
       return null
   }
@@ -1385,10 +1409,11 @@ function EmailWebVersionLink({ url }: { url?: string | null }) {
   )
 }
 
-export function EmailDocument({ layout, preheader, webVersionUrl }: RenderEmailInput) {
+export function EmailDocument({ layout, origin, preheader, webVersionUrl }: RenderEmailInput) {
   const blocks = Array.isArray(layout)
     ? layout.filter((block): block is EmailBlock => Boolean(block && typeof block === 'object' && !Array.isArray(block)))
     : []
+  const context: EmailRenderContext = { assetOrigin: normalizeOrigin(origin) || normalizeOrigin(webVersionUrl) || null }
 
   return (
     <Html>
@@ -1399,14 +1424,14 @@ export function EmailDocument({ layout, preheader, webVersionUrl }: RenderEmailI
           style={{
             backgroundColor: COLORS.white,
             border: `1px solid ${COLORS.border}`,
-            borderRadius: 18,
+            borderRadius: 0,
             margin: '0 auto',
             maxWidth: 640,
             padding: '30px 30px',
           }}
         >
           <EmailWebVersionLink url={webVersionUrl} />
-          {blocks.map(renderBlock)}
+          {blocks.map((block, index) => renderBlock(block, index, context))}
         </Container>
       </Body>
     </Html>

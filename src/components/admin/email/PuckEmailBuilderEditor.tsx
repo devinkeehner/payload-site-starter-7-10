@@ -40,7 +40,7 @@ function createConfig(blockSchema: PuckBlockSchema[]): Config {
             style={{
               background: '#fff',
               border: '1px solid #d9dee7',
-              borderRadius: 18,
+              borderRadius: 0,
               margin: '0 auto',
               maxWidth: 640,
               minHeight: 240,

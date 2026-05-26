@@ -42,18 +42,18 @@ const COLORS = {
 const cardStyle: React.CSSProperties = {
   background: COLORS.surface,
   border: `1px solid ${COLORS.border}`,
-  borderRadius: 14,
+  borderRadius: 0,
 }
 
 const softCardStyle: React.CSSProperties = {
   background: COLORS.surfaceAlt,
   border: `1px solid ${COLORS.border}`,
-  borderRadius: 14,
+  borderRadius: 0,
 }
 
 const imageFrameStyle: React.CSSProperties = {
   border: `1px solid ${COLORS.border}`,
-  borderRadius: 12,
+  borderRadius: 0,
   display: 'block',
 }
 
@@ -86,7 +86,7 @@ function getButtonStyle(value: unknown): React.CSSProperties {
   return {
     backgroundColor,
     border: `1px solid ${variant === 'outline' ? COLORS.borderStrong : backgroundColor}`,
-    borderRadius: 999,
+    borderRadius: 0,
     color,
     display: 'inline-block',
     fontSize: 14,
@@ -119,25 +119,37 @@ function getItems(value: unknown): Record<string, unknown>[] {
     : []
 }
 
-function getSocialLabel(value: unknown): string {
+type SocialIconMeta = {
+  alt: string
+  file: string
+}
+
+function getSocialIconMeta(value: unknown): SocialIconMeta {
   switch (value) {
     case 'facebook':
-      return 'f'
+      return { alt: 'Facebook', file: 'facebook.png' }
     case 'instagram':
-      return 'ig'
+      return { alt: 'Instagram', file: 'instagram.png' }
     case 'linkedin':
-      return 'in'
+      return { alt: 'LinkedIn', file: 'linkedin.png' }
     case 'x':
-      return 'x'
+      return { alt: 'X', file: 'x.png' }
     case 'youtube':
-      return 'yt'
+      return { alt: 'YouTube', file: 'youtube.png' }
     case 'flickr':
-      return 'fl'
+      return { alt: 'Flickr', file: 'flickr.png' }
     case 'website':
-      return 'www'
+      return { alt: 'Website', file: 'website.png' }
     default:
-      return 'link'
+      return { alt: 'Website', file: 'website.png' }
   }
+}
+
+function PreviewSocialIcon({ platform }: { platform: unknown }) {
+  const icon = getSocialIconMeta(platform)
+
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img alt={icon.alt} src={`/email-icons/${icon.file}`} style={{ display: 'block', height: 30, width: 30 }} />
 }
 
 function getMediaSource(value: unknown): { alt: string; src: string } | null {
@@ -329,7 +341,7 @@ function Placeholder({ label }: { label: string }) {
         alignItems: 'center',
         background: '#eef2f7',
         border: `1px dashed ${COLORS.border}`,
-        borderRadius: 12,
+        borderRadius: 0,
         color: COLORS.muted,
         display: 'flex',
         justifyContent: 'center',
@@ -367,7 +379,7 @@ function EmailHeaderSocialPreview(props: BlockProps) {
       style={{
         alignItems: 'center',
         background: COLORS.primary,
-        borderRadius: 16,
+        borderRadius: 0,
         display: 'flex',
         gap: 16,
         justifyContent: 'space-between',
@@ -390,20 +402,12 @@ function EmailHeaderSocialPreview(props: BlockProps) {
           <span
             key={index}
             style={{
-              background: 'rgba(255,255,255,0.12)',
-              border: '1px solid rgba(255,255,255,0.22)',
-              borderRadius: 999,
-              color: COLORS.white,
               display: 'inline-block',
-              fontSize: 11,
-              fontWeight: 800,
-              lineHeight: '28px',
-              textAlign: 'center',
-              textTransform: 'uppercase',
-              width: 28,
+              height: 30,
+              width: 30,
             }}
           >
-            {getSocialLabel(link.platform)}
+            <PreviewSocialIcon platform={link.platform} />
           </span>
         )) : null}
       </div>
@@ -528,10 +532,10 @@ function EmailListPreview(props: BlockProps) {
                   <PreviewImage
                     alt={getString(item.alt) || media.alt}
                     src={media.src}
-                    style={{ ...imageFrameStyle, borderRadius: 10, height: 56, objectFit: 'cover', width: 56 }}
+                    style={{ ...imageFrameStyle, borderRadius: 0, height: 56, objectFit: 'cover', width: 56 }}
                   />
                 ) : (
-                  <div style={{ background: COLORS.accent, borderRadius: 999, color: COLORS.white, fontSize: 13, fontWeight: 800, lineHeight: '32px', textAlign: 'center', width: 32 }}>
+                  <div style={{ background: COLORS.accent, borderRadius: 0, color: COLORS.white, fontSize: 13, fontWeight: 800, lineHeight: '32px', textAlign: 'center', width: 32 }}>
                     {index + 1}
                   </div>
                 )}
@@ -591,7 +595,7 @@ function EmailImagePreview(props: BlockProps) {
           alignItems: 'center',
           background: '#eef2f7',
           border: `1px dashed ${COLORS.border}`,
-          borderRadius: 12,
+          borderRadius: 0,
           color: COLORS.muted,
           display: 'flex',
           height: 180,
@@ -610,7 +614,7 @@ function EmailImagePreview(props: BlockProps) {
       src={src}
       style={{
         ...imageFrameStyle,
-        borderRadius: 14,
+        borderRadius: 0,
         display: 'block',
         height: 'auto',
         margin: '0 auto 24px',
@@ -702,7 +706,7 @@ function GalleryPlaceholder() {
         alignItems: 'center',
         background: '#eef2f7',
         border: `1px dashed ${COLORS.border}`,
-        borderRadius: 12,
+        borderRadius: 0,
         color: COLORS.muted,
         display: 'flex',
         minHeight: 120,
@@ -752,7 +756,7 @@ function EmailGalleryPreview(props: BlockProps) {
             style={{
               aspectRatio: '4 / 3',
               ...imageFrameStyle,
-              borderRadius: 12,
+              borderRadius: 0,
               display: 'block',
               height: 'auto',
               objectFit: 'cover',
@@ -861,7 +865,7 @@ function EmailCalloutPreview(props: BlockProps) {
         backgroundColor,
         border: `1px solid ${variant === 'neutral' ? COLORS.border : borderColor}`,
         borderLeft: `4px solid ${borderColor}`,
-        borderRadius: 12,
+        borderRadius: 0,
         margin: '10px 0 24px',
         padding: '18px 20px',
       }}
@@ -886,7 +890,7 @@ function EmailFooterOneColumnPreview(props: BlockProps) {
   const towns = getItems(props.towns)
 
   return (
-    <div style={{ background: COLORS.primary, borderRadius: 16, marginTop: 30, padding: '24px 28px', textAlign: 'center' }}>
+    <div style={{ background: COLORS.primary, borderRadius: 0, marginTop: 30, padding: '24px 28px', textAlign: 'center' }}>
       {props.heading ? <div style={{ color: COLORS.white, fontSize: 17, fontWeight: 800, lineHeight: '23px' }}>{getText(props.heading)}</div> : null}
       {props.body ? <div style={{ color: '#d8e0ee', fontSize: 13, lineHeight: '20px', marginTop: 7, whiteSpace: 'pre-line' }}>{getText(props.body)}</div> : null}
       {props.address ? <div style={{ color: '#bac6d8', fontSize: 12, lineHeight: '18px', marginTop: 14, whiteSpace: 'pre-line' }}>{getText(props.address)}</div> : null}
@@ -906,21 +910,12 @@ function EmailFooterOneColumnPreview(props: BlockProps) {
             <span
               key={index}
               style={{
-                alignItems: 'center',
-                background: 'rgba(255,255,255,0.12)',
-                border: '1px solid rgba(255,255,255,0.24)',
-                borderRadius: 999,
-                color: COLORS.white,
-                display: 'inline-flex',
-                fontSize: 11,
-                fontWeight: 800,
-                height: 28,
-                justifyContent: 'center',
-                textTransform: 'uppercase',
-                width: 28,
+                display: 'inline-block',
+                height: 30,
+                width: 30,
               }}
             >
-              {getSocialLabel(item.platform)}
+              <PreviewSocialIcon platform={item.platform} />
             </span>
           ))}
         </div>
