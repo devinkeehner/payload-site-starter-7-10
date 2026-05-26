@@ -73,7 +73,7 @@ export function EmailWorkflowViewClient({
   const [emailPreview, setEmailPreview] = useState<EmailPreview | null>(null)
   const [postPreview, setPostPreview] = useState<PostPreview | null>(null)
   const [report, setReport] = useState<Report | null>(null)
-  const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'sending' | 'sent'>('loading')
+  const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'sending' | 'sendingTest' | 'sent'>('loading')
   const [message, setMessage] = useState<string | null>(null)
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
   const builderURL = `${editURL}/visual`
@@ -124,6 +124,22 @@ export function EmailWorkflowViewClient({
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to create post draft')
+    }
+  }
+
+  async function sendTestEmail() {
+    setStatus('sendingTest')
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/emails/${emailId}/send-test`, { method: 'POST' })
+      if (!res.ok) throw new Error(await res.text())
+      const payload = (await res.json()) as { message?: string }
+      setStatus('sent')
+      setMessage(payload.message || 'Test email sent.')
+      void loadWorkflow()
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to send test email')
     }
   }
 
@@ -197,6 +213,9 @@ export function EmailWorkflowViewClient({
             <p>{status === 'loading' ? 'Loading readiness...' : 'No readiness data.'}</p>
           )}
           <div className="email-flow__actions">
+            <Button buttonStyle="primary" disabled={status === 'sendingTest'} onClick={() => void sendTestEmail()} type="button">
+              {status === 'sendingTest' ? 'Sending Test...' : 'Send Test Email'}
+            </Button>
             <Button buttonStyle="secondary" disabled={status === 'creatingPost'} onClick={() => void createPostDraft()} type="button">
               {status === 'creatingPost' ? 'Creating...' : 'Create Post Draft'}
             </Button>
