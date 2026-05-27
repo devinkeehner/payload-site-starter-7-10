@@ -164,10 +164,12 @@ export async function getEmailReadiness({
   addItem(items, {
     key: 'send-status',
     label: 'Send status',
-    message: status === 'sent' || status === 'sending'
-      ? `This email is already ${status}. Duplicate it before sending again.`
+    message: status === 'queued'
+      ? 'This email is queued for sending.'
+      : status === 'sent' || status === 'sending'
+        ? `This email is already ${status}. Duplicate it before sending again.`
       : 'This email has not been sent.',
-    status: status === 'sent' || status === 'sending' ? 'fail' : 'pass',
+    status: status === 'sent' || status === 'sending' || status === 'queued' ? 'fail' : 'pass',
   })
   addItem(items, {
     key: 'test-recipient',

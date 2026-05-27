@@ -155,9 +155,9 @@ export function EmailWorkflowViewClient({
     try {
       const res = await fetch(`/api/emails/${emailId}/send`, { method: 'POST' })
       if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { message?: string }
+      const payload = (await res.json()) as { message?: string; jobId?: string | null; status?: string }
       setStatus('sent')
-      setMessage(payload.message || 'Campaign sent.')
+      setMessage(payload.message || 'Campaign queued for sending.')
       void loadWorkflow()
     } catch (error) {
       setStatus('error')

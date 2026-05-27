@@ -1,7 +1,7 @@
 import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
-import { sendProductionEmailCampaign } from '@/lib/email/campaignSend'
+import { enqueueEmailSendJob, processEmailSendQueue } from '@/lib/email/sendQueue'
 
 function isAuthorized(req: Request) {
   const secret = process.env.CRON_SECRET?.trim()
@@ -34,28 +34,20 @@ export async function POST(req: Request) {
       ],
     },
   })
-  const results: Array<{ emailId: string; error?: string; sent?: boolean }> = []
+  const enqueued: Array<{ emailId: string; error?: string; jobId?: string | null; queued?: boolean }> = []
 
   for (const email of due.docs) {
     try {
-      await payload.update({
-        collection: 'emails',
-        data: { status: 'sending' },
-        draft: true,
-        id: email.id,
-        overrideAccess: true,
-      })
-      await sendProductionEmailCampaign({
-        allowSendingStatus: true,
+      const result = await enqueueEmailSendJob({
         emailId: String(email.id),
+        kind: 'scheduled',
         overrideAccess: true,
         payload,
         req: payloadReq,
-        request: req,
       })
-      results.push({ emailId: String(email.id), sent: true })
+      enqueued.push({ emailId: String(email.id), jobId: result.jobId, queued: true })
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to send scheduled email'
+      const message = error instanceof Error ? error.message : 'Unable to queue scheduled email'
       await payload.update({
         collection: 'emails',
         data: {
@@ -68,13 +60,21 @@ export async function POST(req: Request) {
         id: email.id,
         overrideAccess: true,
       }).catch(() => undefined)
-      results.push({ emailId: String(email.id), error: message, sent: false })
+      enqueued.push({ emailId: String(email.id), error: message, queued: false })
     }
   }
+  const processLimit = Number(process.env.EMAIL_SEND_QUEUE_PROCESS_LIMIT || 2)
+  const processed = await processEmailSendQueue({
+    limit: Number.isFinite(processLimit) && processLimit > 0 ? processLimit : 2,
+    overrideAccess: true,
+    payload,
+    req: payloadReq,
+    request: req,
+  })
 
   return Response.json({
     checkedAt: now,
-    processed: results.length,
-    results,
+    enqueued,
+    processed,
   })
 }

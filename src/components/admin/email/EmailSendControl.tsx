@@ -72,7 +72,7 @@ export function EmailSendControl() {
       if (!res.ok) throw new Error(await res.text())
       const payload = (await res.json()) as { message?: string; recipientCount?: number }
       setStatus('sent')
-      setMessage(payload.message || `Production email sent to ${payload.recipientCount || 0} recipients.`)
+      setMessage(payload.message || 'Production email queued for sending.')
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to send production email')

@@ -28,6 +28,7 @@ import { Emails } from './collections/Emails';
 import { EmailLists } from './collections/EmailLists';
 import { EmailListMemberships } from './collections/EmailListMemberships';
 import { EmailSendEvents } from './collections/EmailSendEvents';
+import { EmailSendJobs } from './collections/EmailSendJobs';
 import { EmailImportJobs } from './collections/EmailImportJobs';
 import { Contacts } from './collections/Contacts';
 import { ChatgptOAuthClients } from './collections/ChatgptOAuthClients';
@@ -217,6 +218,7 @@ const mcpCollections = {
   'email-lists': { enabled: { find: true, create: true, update: true, delete: true } },
   'email-list-memberships': { enabled: { find: true, create: true, update: true, delete: true } },
   'email-send-events': { enabled: { find: true, create: true, update: true, delete: true } },
+  'email-send-jobs': { enabled: { find: true, create: true, update: true, delete: true } },
   'email-import-jobs': { enabled: { find: true, create: true, update: true, delete: true } },
   contacts: { enabled: { find: true, create: true, update: true, delete: true } },
 } as const;
@@ -5032,6 +5034,7 @@ export default buildConfig({
     EmailLists,
     EmailListMemberships,
     EmailSendEvents,
+    EmailSendJobs,
     EmailImportJobs,
     Contacts,
     ChatgptOAuthClients,

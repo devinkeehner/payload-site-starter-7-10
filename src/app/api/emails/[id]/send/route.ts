@@ -2,7 +2,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
-import { sendProductionEmailCampaign } from '@/lib/email/campaignSend'
+import { enqueueEmailSendJob } from '@/lib/email/sendQueue'
 
 async function getAuthenticatedPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
@@ -23,41 +23,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
-    const result = await sendProductionEmailCampaign({
+    const result = await enqueueEmailSendJob({
       emailId: id,
       payload,
       req: payloadReq,
-      request: req,
       userId: typeof user.id === 'string' || typeof user.id === 'number' ? String(user.id) : undefined,
     })
 
     return Response.json({
       ...result,
-      message: result.message,
-      status: 'sent',
+      status: 'queued',
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to send production email'
-
-    try {
-      await payload.update({
-        collection: 'emails',
-        data: {
-          sendSummary: {
-            sendError: message,
-          },
-          status: 'failed',
-        },
-        draft: true,
-        id,
-        overrideAccess: false,
-        overrideLock: false,
-        req: payloadReq,
-      })
-    } catch {
-      // Preserve the original send error.
-    }
-
     return new Response(message, { status: 500 })
   }
 }

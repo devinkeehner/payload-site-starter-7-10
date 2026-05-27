@@ -169,6 +169,7 @@ export const Emails: CollectionConfig<'emails'> = {
                 { label: 'Draft', value: 'draft' },
                 { label: 'Approved', value: 'approved' },
                 { label: 'Scheduled', value: 'scheduled' },
+                { label: 'Queued', value: 'queued' },
                 { label: 'Sending', value: 'sending' },
                 { label: 'Sent', value: 'sent' },
                 { label: 'Failed', value: 'failed' },

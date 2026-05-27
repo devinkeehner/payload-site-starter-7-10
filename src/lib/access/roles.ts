@@ -28,6 +28,7 @@ export const CONTENT_EDITOR_COLLECTIONS = [
   'email-lists',
   'email-list-memberships',
   'email-send-events',
+  'email-send-jobs',
   'email-import-jobs',
   'contacts',
   'tenants',
@@ -50,6 +51,7 @@ const SUPER_ONLY_COLLECTIONS = new Set([
   'email-lists',
   'email-list-memberships',
   'email-send-events',
+  'email-send-jobs',
   'email-import-jobs',
   'contacts',
   'users',
@@ -65,6 +67,7 @@ const EMAIL_FEATURE_COLLECTIONS = new Set([
   'email-lists',
   'email-list-memberships',
   'email-send-events',
+  'email-send-jobs',
   'email-import-jobs',
   'contacts',
 ])
