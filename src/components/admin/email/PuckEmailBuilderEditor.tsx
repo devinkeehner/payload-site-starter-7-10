@@ -407,7 +407,9 @@ function EmailPaletteDrawer({
             key={slug}
             label={EMAIL_PALETTE_ITEMS[slug]?.label || slug}
             name={slug}
-          />
+          >
+            {EmailDrawerItem}
+          </Drawer.Item>
         ))}
       </Drawer>
     </div>
