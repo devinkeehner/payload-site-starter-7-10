@@ -3,16 +3,16 @@
   padding: 0 var(--gutter-h, 24px) 24px;
 }
 
-:global(body.hro-email-builder-visual .collection-edit--emails .doc-controls),
-:global(body.hro-email-builder-visual .collection-edit--emails .render-title) {
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.doc-controls),
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.render-title) {
   display: none !important;
 }
 
-:global(body.hro-email-builder-visual .collection-edit--emails .collection-edit__main-wrapper),
-:global(body.hro-email-builder-visual .collection-edit--emails .collection-edit__main),
-:global(body.hro-email-builder-visual .collection-edit--emails .document-fields),
-:global(body.hro-email-builder-visual .collection-edit--emails .document-fields__main),
-:global(body.hro-email-builder-visual .collection-edit--emails .render-fields) {
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.collection-edit__main-wrapper),
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.collection-edit__main),
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.document-fields),
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.document-fields__main),
+:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.render-fields) {
   margin: 0 !important;
   padding: 0 !important;
 }
