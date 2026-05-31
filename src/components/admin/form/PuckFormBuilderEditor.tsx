@@ -2,12 +2,11 @@
 
 import '@puckeditor/core/puck.css'
 
-import { createUsePuck, Drawer, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
+import { createUsePuck, Drawer, DropZone, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
 import React, { useEffect, useMemo, useState } from 'react'
 
 import { buildDefaults, buildFields } from '@/components/admin/puck/PuckPageBuilderEditor'
 import styles from '@/components/admin/puck/puck-page-builder.module.css'
-import { formToPuckData } from '@/lib/puck/converters'
 import { hydratePuckMedia } from '@/lib/puck/mediaHydration'
 import type { PuckBlockSchema, PuckFormDoc, PuckPageData } from '@/lib/puck/types'
 
@@ -63,6 +62,22 @@ const FIELD_DESCRIPTIONS: Record<string, string> = {
   textarea: 'Long answer',
 }
 
+const FORM_ROW_DROPZONE_MIN_HEIGHT = 94
+
+const FORM_ROW_PRESETS = [
+  { columns: [1], label: '1 Column', slug: 'formRowOneColumn' },
+  { columns: [1, 1], label: '2 Columns', slug: 'formRowTwoColumns' },
+  { columns: [2, 1], label: 'Left Wide', slug: 'formRowLeftWide' },
+  { columns: [1, 2], label: 'Right Wide', slug: 'formRowRightWide' },
+  { columns: [1, 1, 1], label: '3 Columns', slug: 'formRowThreeColumns' },
+  { columns: [1, 1, 1, 1], label: '4 Columns', slug: 'formRowFourColumns' },
+]
+
+const FORM_ROW_PRESET_MAP = FORM_ROW_PRESETS.reduce<Record<string, typeof FORM_ROW_PRESETS[number]>>((acc, preset) => {
+  acc[preset.slug] = preset
+  return acc
+}, {})
+
 export type PuckFormBuilderProps = {
   blockSchema: PuckBlockSchema[]
   formId: string
@@ -79,6 +94,20 @@ type PuckFormPayload = {
 function getPaletteSlugs(blockSchema: PuckBlockSchema[]) {
   const available = new Set(blockSchema.map((block) => block.slug))
   return FIELD_ORDER.filter((slug) => available.has(slug))
+}
+
+function getRowZoneName(index: number) {
+  return `column${index}`
+}
+
+function RowSkeleton({ columns }: { columns: number[] }) {
+  return (
+    <span className={styles.emailPaletteRowSkeleton}>
+      {columns.map((column, index) => (
+        <span key={index} style={{ flex: column }} />
+      ))}
+    </span>
+  )
 }
 
 function FormBuilderStartClosed() {
@@ -148,6 +177,17 @@ function FieldIcon({ name }: { name: string }) {
 }
 
 function FormDrawerItem({ name }: { children: React.ReactNode; name: string }) {
+  const rowPreset = FORM_ROW_PRESET_MAP[name]
+
+  if (rowPreset) {
+    return (
+      <div className={styles.formPaletteRowItem}>
+        <RowSkeleton columns={rowPreset.columns} />
+        <strong>{rowPreset.label}</strong>
+      </div>
+    )
+  }
+
   return (
     <div className={styles.formPaletteItem}>
       <span aria-hidden="true"><FieldIcon name={name} /></span>
@@ -175,6 +215,24 @@ function FormPaletteDrawer({ items }: { items: string[] }) {
   )
 }
 
+function FormRowsDrawer() {
+  return (
+    <div className={styles.emailPalettePanel} data-palette="rows">
+      <div className={styles.emailPaletteHeader}>
+        <strong>Rows</strong>
+        <span>Drag a row in, then drop fields into its columns.</span>
+      </div>
+      <Drawer>
+        {FORM_ROW_PRESETS.map((preset) => (
+          <Drawer.Item key={preset.slug} label={preset.label} name={preset.slug}>
+            {FormDrawerItem}
+          </Drawer.Item>
+        ))}
+      </Drawer>
+    </div>
+  )
+}
+
 function createPlugins(items: string[]): Plugin[] {
   const propertiesPlugin = fieldsPlugin({ desktopSideBar: 'left' }) as Plugin
 
@@ -183,6 +241,11 @@ function createPlugins(items: string[]): Plugin[] {
       label: 'Fields',
       name: 'fields-palette',
       render: () => <FormPaletteDrawer items={items} />,
+    },
+    {
+      label: 'Rows',
+      name: 'rows',
+      render: () => <FormRowsDrawer />,
     },
     {
       ...propertiesPlugin,
@@ -196,6 +259,56 @@ function createConfig(
   submitButtonLabel: string,
   title: string,
 ): Config {
+  const fieldSlugs = getPaletteSlugs(blockSchema)
+  const components = blockSchema.reduce<Config['components']>((acc, block) => {
+    acc[block.slug] = {
+      label: FIELD_LABELS[block.slug] || block.label,
+      fields: buildFields(block.fields, []),
+      defaultProps: buildDefaults(block.fields),
+      render: (props) => (
+        <PuckFormBlockPreview
+          blockType={block.slug}
+          props={props as Record<string, unknown>}
+        />
+      ),
+    }
+    return acc
+  }, {})
+
+  FORM_ROW_PRESETS.forEach((preset) => {
+    components[preset.slug] = {
+      label: preset.label,
+      defaultProps: {
+        columns: preset.columns,
+      },
+      render: () => {
+        const total = preset.columns.reduce((sum, column) => sum + column, 0)
+
+        return (
+          <section className={styles.formRowPreview}>
+            <div className={styles.formRowPreviewHeader}>
+              <span>{preset.label}</span>
+              <small>
+                {preset.columns.map((column) => `${Math.round((column / total) * 100)}%`).join(' / ')}
+              </small>
+            </div>
+            <div className={styles.formRowPreviewColumns}>
+              {preset.columns.map((column, index) => (
+                <div key={index} className={styles.formRowPreviewColumn} style={{ flex: column }}>
+                  <DropZone
+                    allow={fieldSlugs}
+                    minEmptyHeight={FORM_ROW_DROPZONE_MIN_HEIGHT}
+                    zone={getRowZoneName(index)}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        )
+      },
+    }
+  })
+
   return {
     root: {
       render: (props: { children?: React.ReactNode }) => (
@@ -215,24 +328,15 @@ function createConfig(
     },
     categories: {
       Fields: {
-        components: getPaletteSlugs(blockSchema),
+        components: fieldSlugs,
+        defaultExpanded: true,
+      },
+      Rows: {
+        components: FORM_ROW_PRESETS.map((preset) => preset.slug),
         defaultExpanded: true,
       },
     },
-    components: blockSchema.reduce<Config['components']>((acc, block) => {
-      acc[block.slug] = {
-        label: FIELD_LABELS[block.slug] || block.label,
-        fields: buildFields(block.fields, []),
-        defaultProps: buildDefaults(block.fields),
-        render: (props) => (
-          <PuckFormBlockPreview
-            blockType={block.slug}
-            props={props as Record<string, unknown>}
-          />
-        ),
-      }
-      return acc
-    }, {}),
+    components,
   }
 }
 
@@ -314,8 +418,8 @@ export function PuckFormBuilderEditor({
       })
 
       if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as PuckFormPayload
-      setData(await hydratePuckMedia(formToPuckData(payload.form), blockSchema, []))
+      await res.json() as PuckFormPayload
+      setData(await hydratePuckMedia(nextData as PuckPageData, blockSchema, []))
       setStatus('saved')
       setMessage('Form draft saved.')
     } catch (error) {

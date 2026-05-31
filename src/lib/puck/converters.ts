@@ -51,6 +51,15 @@ const EMAIL_ROW_LAYOUT_TO_COMPONENT = Object.entries(EMAIL_ROW_COMPONENT_TO_LAYO
   }, {})
 const EMAIL_GRID_COMPONENT_TYPES = new Set([EMAIL_GRID_BLOCK_TYPE, ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT)])
 const GRID_BLOCK_TYPES = new Set([EMAIL_GRID_BLOCK_TYPE, 'postGrid', ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT)])
+const FORM_ROW_COMPONENT_TO_COLUMNS: Record<string, number[]> = {
+  formRowFourColumns: [1, 1, 1, 1],
+  formRowLeftWide: [2, 1],
+  formRowOneColumn: [1],
+  formRowRightWide: [1, 2],
+  formRowThreeColumns: [1, 1, 1],
+  formRowTwoColumns: [1, 1],
+}
+const FORM_ROW_COMPONENT_TYPES = new Set(Object.keys(FORM_ROW_COMPONENT_TO_COLUMNS))
 
 function getColumnsZoneId(blockId: string, columnIndex: number): string {
   return `${blockId}:columns.${columnIndex}.blocks`
@@ -531,44 +540,109 @@ function normalizeFormOptions(value: unknown, fallbackBase = 'option') {
   })
 }
 
+function getFormRowZoneId(rowId: string, columnIndex: number) {
+  return `${rowId}:column${columnIndex}`
+}
+
+function normalizeFormFieldWidth(field: Record<string, unknown>) {
+  if (!('width' in field)) return field
+
+  const width = typeof field.width === 'number'
+    ? field.width
+    : typeof field.width === 'string'
+      ? Number(field.width)
+      : null
+
+  if (typeof width === 'number' && Number.isFinite(width)) {
+    return {
+      ...field,
+      width: Math.max(1, Math.min(100, width)),
+    }
+  }
+
+  return field
+}
+
+function componentToFormField(
+  item: ComponentData<Record<string, unknown>> & { id?: string },
+  index: number,
+  usedNames: Set<string>,
+  forcedWidth?: number,
+) {
+  const props: Record<string, unknown> =
+    item.props && typeof item.props === 'object'
+      ? (item.props as Record<string, unknown>)
+      : {}
+  const blockType = String(item.type)
+  const payloadProps = toPayloadValue(props) as Record<string, unknown>
+  const id = props.id ?? item.id ?? undefined
+  let nextField: Record<string, unknown> = {
+    ...payloadProps,
+    id,
+    blockType,
+  }
+
+  if (typeof forcedWidth === 'number' && Number.isFinite(forcedWidth)) {
+    nextField.width = Math.max(1, Math.min(100, Math.round(forcedWidth)))
+  }
+
+  nextField = normalizeFormFieldWidth(nextField)
+
+  if ('options' in nextField) {
+    nextField.options = normalizeFormOptions(nextField.options, blockType)
+  }
+
+  return normalizeFormFieldName(nextField, blockType, index, usedNames)
+}
+
 export function puckDataToFormPatch(data: PuckPageData): {
   fields: Array<Record<string, unknown>>
 } {
   const content = Array.isArray(data.content) ? data.content : []
+  const zones = data.zones && typeof data.zones === 'object'
+    ? (data.zones as Record<string, unknown>)
+    : undefined
   const usedNames = new Set<string>()
-  const fields = content
+  const fields: Array<Record<string, unknown>> = []
+
+  content
     .filter((item): item is ComponentData<Record<string, unknown>> => Boolean(item?.type))
-    .map((item, index) => {
+    .forEach((item) => {
       const itemRecord = item as ComponentData<Record<string, unknown>> & { id?: string }
-      const props: Record<string, unknown> =
-        itemRecord.props && typeof itemRecord.props === 'object'
+      const blockType = String(itemRecord.type)
+
+      if (FORM_ROW_COMPONENT_TYPES.has(blockType)) {
+        const props = itemRecord.props && typeof itemRecord.props === 'object'
           ? (itemRecord.props as Record<string, unknown>)
           : {}
-      const blockType = String(itemRecord.type)
-      const payloadProps = toPayloadValue(props) as Record<string, unknown>
-      const id = props.id ?? itemRecord.id ?? undefined
-      const nextField: Record<string, unknown> = {
-        ...payloadProps,
-        id,
-        blockType,
-      }
+        const rowId = props.id ?? itemRecord.id
+        const columns = FORM_ROW_COMPONENT_TO_COLUMNS[blockType] || [1]
+        const total = columns.reduce((sum, column) => sum + column, 0)
 
-      if ('width' in nextField) {
-        const width = typeof nextField.width === 'number'
-          ? nextField.width
-          : typeof nextField.width === 'string'
-            ? Number(nextField.width)
-            : null
-        if (typeof width === 'number' && Number.isFinite(width)) {
-          nextField.width = Math.max(1, Math.min(100, width))
+        if (typeof rowId === 'string' || typeof rowId === 'number') {
+          columns.forEach((column, columnIndex) => {
+            const zoneContent = zones?.[getFormRowZoneId(String(rowId), columnIndex)]
+            const columnWidth = total > 0 ? (column / total) * 100 : 100
+
+            if (!Array.isArray(zoneContent)) return
+
+            zoneContent
+              .filter((zoneItem): zoneItem is ComponentData<Record<string, unknown>> => Boolean(zoneItem?.type))
+              .forEach((zoneItem) => {
+                fields.push(componentToFormField(
+                  zoneItem as ComponentData<Record<string, unknown>> & { id?: string },
+                  fields.length,
+                  usedNames,
+                  columnWidth,
+                ))
+              })
+          })
         }
+
+        return
       }
 
-      if ('options' in nextField) {
-        nextField.options = normalizeFormOptions(nextField.options, blockType)
-      }
-
-      return normalizeFormFieldName(nextField, blockType, index, usedNames)
+      fields.push(componentToFormField(itemRecord, fields.length, usedNames))
     })
 
   return { fields }

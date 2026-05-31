@@ -844,6 +844,27 @@
   line-height: 1.15;
 }
 
+.formPaletteRowItem {
+  display: grid;
+  min-height: 78px;
+  align-content: center;
+  gap: 8px;
+  border: 1px solid #d7d7d7;
+  border-radius: 4px;
+  padding: 11px 12px 9px;
+  background: #eaeaea;
+  color: #050505;
+  cursor: grab;
+}
+
+.formPaletteRowItem strong {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+
 .emailPaletteRowSkeleton {
   display: flex;
   gap: 12px;
@@ -893,6 +914,51 @@
   height: 18px;
   color: #858585;
   transform: translateY(-8px);
+}
+
+.formRowPreview {
+  display: grid;
+  width: 100%;
+  gap: 10px;
+  border: 1px solid #d7dde8;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f5f7fb;
+}
+
+.formRowPreviewHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.formRowPreviewHeader small {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.formRowPreviewColumns {
+  display: flex;
+  gap: 12px;
+  min-width: 0;
+}
+
+.formRowPreviewColumn {
+  min-width: 0;
+  border: 1px dashed #b7c2d6;
+  border-radius: 7px;
+  padding: 8px;
+  background: #fff;
+}
+
+.formRowPreview .formFieldPreview {
+  flex-basis: 100%;
+  min-width: 0;
 }
 
 .wrapper :global([class*='PuckLayout-nav'] svg) {
