@@ -19,7 +19,11 @@ function stripTags(value: string) {
 }
 
 function getHrefMatches(html: string) {
-  return Array.from(html.matchAll(/<a\b[^>]*href=(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis))
+  return Array.from(html.matchAll(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^>\s]+))[^>]*>(.*?)<\/a>/gis))
+    .map((match) => ({
+      href: match[1] || match[2] || match[3] || '',
+      label: match[4] || '',
+    }))
 }
 
 function decodeEntities(value: string) {
@@ -162,12 +166,12 @@ export function inspectEmailQuality({
   if (/<img\b(?![^>]*\balt=)/i.test(html)) warnings.push('At least one image is missing alt text.')
 
   for (const match of getHrefMatches(html)) {
-    const href = decodeEntities(match[2] || '').trim()
+    const href = decodeEntities(match.href).trim()
     const status = classifyLink(href, seen)
     if (href) seen.add(href)
     links.push({
       href,
-      label: stripTags(match[3] || href).slice(0, 80) || href,
+      label: stripTags(match.label || href).slice(0, 80) || href,
       status,
     })
   }

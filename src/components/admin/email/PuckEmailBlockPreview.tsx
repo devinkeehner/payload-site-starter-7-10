@@ -220,6 +220,10 @@ function getLinkURL(node: LexicalNode): string {
   return url.trim()
 }
 
+function getLinkTarget(node: LexicalNode): string | undefined {
+  return node.fields?.newTab === true ? '_blank' : undefined
+}
+
 function renderInlineNodes(nodes: LexicalNode[], keyPrefix: string): React.ReactNode[] {
   return nodes.map((node, index) => {
     const key = `${keyPrefix}-${index}`
@@ -242,7 +246,9 @@ function renderInlineNodes(nodes: LexicalNode[], keyPrefix: string): React.React
         <a
           key={key}
           href={url || undefined}
+          rel={getLinkTarget(node) ? 'noreferrer' : undefined}
           style={{ color: COLORS.accent, fontWeight: 800, textDecoration: 'underline' }}
+          target={getLinkTarget(node)}
         >
           {children}
         </a>
@@ -961,9 +967,9 @@ function EmailGridPreview({ children, props }: { children?: React.ReactNode; pro
   const columns = childrenArray.slice(0, columnCount)
 
   return (
-    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: columnTemplates[layout] || columnTemplates.twoColumns, margin: '10px 0 26px' }}>
+    <div style={{ display: 'grid', gap: 14, gridTemplateColumns: columnTemplates[layout] || columnTemplates.twoColumns, margin: '10px 0 26px' }}>
       {columns.map((child, index) => (
-        <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 120, padding: 10 }}>
+        <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 176, padding: 14 }}>
           {child}
         </div>
       ))}

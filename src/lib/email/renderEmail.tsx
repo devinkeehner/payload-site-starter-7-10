@@ -367,6 +367,10 @@ function getLinkURL(node: LexicalNode): string {
   return url.trim()
 }
 
+function getLinkTarget(node: LexicalNode): string | undefined {
+  return node.fields?.newTab === true ? '_blank' : undefined
+}
+
 function renderEmailInlineNodes(nodes: LexicalNode[], keyPrefix: string): React.ReactNode[] {
   return nodes.map((node, index) => {
     const key = `${keyPrefix}-${index}`
@@ -387,7 +391,7 @@ function renderEmailInlineNodes(nodes: LexicalNode[], keyPrefix: string): React.
       if (!url) return <React.Fragment key={key}>{children}</React.Fragment>
 
       return (
-        <Link key={key} href={url} style={{ color: COLORS.accent, fontWeight: 800, textDecoration: 'underline' }}>
+        <Link key={key} href={url} target={getLinkTarget(node)} style={{ color: COLORS.accent, fontWeight: 800, textDecoration: 'underline' }}>
           {children}
         </Link>
       )
@@ -1438,7 +1442,7 @@ export function EmailDocument({ layout, origin, preheader, webVersionUrl }: Rend
     <Html>
       <Head />
       {preheader ? <Preview>{preheader}</Preview> : null}
-      <Body style={{ backgroundColor: COLORS.background, margin: 0, padding: '32px 16px' }}>
+      <Body style={{ backgroundColor: COLORS.background, margin: 0, padding: 0 }}>
         <Container
           style={{
             backgroundColor: COLORS.white,
@@ -1446,7 +1450,7 @@ export function EmailDocument({ layout, origin, preheader, webVersionUrl }: Rend
             borderRadius: 0,
             margin: '0 auto',
             maxWidth: 640,
-            padding: '30px 30px',
+            padding: 0,
           }}
         >
           <EmailWebVersionLink url={webVersionUrl} />

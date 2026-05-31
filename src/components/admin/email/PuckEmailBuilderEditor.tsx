@@ -2,7 +2,7 @@
 
 import '@puckeditor/core/puck.css'
 
-import { Drawer, DropZone, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
+import { createUsePuck, Drawer, DropZone, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import { buildDefaults, buildFields } from '@/components/admin/puck/PuckPageBuilderEditor'
@@ -14,6 +14,9 @@ import type { PuckBlockSchema, PuckEmailDoc, PuckPageData } from '@/lib/puck/typ
 import { PuckEmailBlockPreview } from './PuckEmailBlockPreview'
 
 const AUTOSAVE_INTERVAL_MS = 1000
+const EMAIL_ROW_DROPZONE_MIN_HEIGHT = 176
+
+const useEmailBuilderPuck = createUsePuck()
 
 type LinkCheck = {
   checkedAt?: string
@@ -454,6 +457,39 @@ function createEmailBuilderPlugins(contentSlugs: string[], rowSlugs: string[]): 
   ]
 }
 
+function EmailBuilderAutoPropertiesTab() {
+  const dispatch = useEmailBuilderPuck((state) => state.dispatch)
+  const itemSelector = useEmailBuilderPuck((state) => state.appState.ui.itemSelector)
+  const currentPlugin = useEmailBuilderPuck((state) => state.appState.ui.plugin.current)
+  const leftSideBarVisible = useEmailBuilderPuck((state) => state.appState.ui.leftSideBarVisible)
+  const selectorKey = itemSelector ? `${itemSelector.zone}:${itemSelector.index}` : ''
+
+  useEffect(() => {
+    if (!selectorKey) return
+    if (currentPlugin === 'fields' && leftSideBarVisible) return
+
+    dispatch({
+      recordHistory: false,
+      type: 'setUi',
+      ui: {
+        leftSideBarVisible: true,
+        plugin: { current: 'fields' },
+      },
+    })
+  }, [currentPlugin, dispatch, leftSideBarVisible, selectorKey])
+
+  return null
+}
+
+function EmailBuilderPuckShell({ children }: { children?: React.ReactNode }) {
+  return (
+    <>
+      <EmailBuilderAutoPropertiesTab />
+      {children}
+    </>
+  )
+}
+
 function createConfig(blockSchema: PuckBlockSchema[]): Config {
   const nestedBlockSlugs = blockSchema
     .map((block) => block.slug)
@@ -474,7 +510,7 @@ function createConfig(blockSchema: PuckBlockSchema[]): Config {
           return (
             <PuckEmailBlockPreview blockType={block.slug} props={gridProps}>
               {zones.map((zone) => (
-                <DropZone key={zone} zone={zone} allow={nestedBlockSlugs} minEmptyHeight={120} />
+                <DropZone key={zone} zone={zone} allow={nestedBlockSlugs} minEmptyHeight={EMAIL_ROW_DROPZONE_MIN_HEIGHT} />
               ))}
             </PuckEmailBlockPreview>
           )
@@ -513,7 +549,7 @@ function createConfig(blockSchema: PuckBlockSchema[]): Config {
           return (
             <PuckEmailBlockPreview blockType="emailGrid" props={gridProps}>
               {zones.map((zone) => (
-                <DropZone key={zone} zone={zone} allow={nestedBlockSlugs} minEmptyHeight={120} />
+                <DropZone key={zone} zone={zone} allow={nestedBlockSlugs} minEmptyHeight={EMAIL_ROW_DROPZONE_MIN_HEIGHT} />
               ))}
             </PuckEmailBlockPreview>
           )
@@ -529,7 +565,7 @@ function createConfig(blockSchema: PuckBlockSchema[]): Config {
           style={{
             background: '#f6f7f9',
             minHeight: '100%',
-            padding: '32px 16px',
+            padding: 0,
           }}
         >
           <div
@@ -540,7 +576,7 @@ function createConfig(blockSchema: PuckBlockSchema[]): Config {
               margin: '0 auto',
               maxWidth: 640,
               minHeight: 240,
-              padding: '30px 30px',
+              padding: 0,
             }}
           >
             {props.children}
@@ -625,6 +661,7 @@ export function PuckEmailBuilderEditor({
         </div>
       ),
       iframe: PuckPreviewIframe,
+      puck: EmailBuilderPuckShell,
     }),
     [],
   )
