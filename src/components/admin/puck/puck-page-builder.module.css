@@ -424,7 +424,7 @@
 }
 
 .wrapper :global([class*='PuckLayout-inner']) {
-  --puck-side-bar-width: 352px;
+  --puck-side-bar-width: 382px;
   min-height: 0;
 }
 
@@ -471,13 +471,13 @@
 
 .emailPalettePanel :global([data-puck-drawer='true']) {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 10px;
 }
 
 .emailPalettePanel[data-palette='rows'] :global([data-puck-drawer='true']) {
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 12px;
 }
 
 .emailPalettePanel :global([class*='Drawer-draggable']),
@@ -494,14 +494,14 @@
 
 .emailPaletteItem {
   display: flex;
-  min-height: 96px;
+  min-height: 116px;
   min-width: 0;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   border: 1px solid #d9d9d9;
   border-radius: 3px;
-  padding: 12px 8px;
+  padding: 14px 10px 13px;
   background: #fff;
   color: #050505;
   cursor: grab;
@@ -517,35 +517,48 @@
 }
 
 .emailPaletteItem[data-kind='row'] {
-  min-height: 68px;
+  min-height: 78px;
   align-items: stretch;
-  gap: 8px;
+  gap: 7px;
   border-color: #d7d7d7;
-  padding: 10px 12px;
+  padding: 11px 12px 9px;
   background: #eaeaea;
 }
 
 .emailPaletteIcon {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 46px;
+  height: 46px;
   align-items: center;
   justify-content: center;
   color: #050505;
 }
 
+.emailPaletteIcon svg,
+.emailPaletteTabIcon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .emailPaletteLabel {
   overflow-wrap: anywhere;
   color: #050505;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1.12;
 }
 
+.emailPaletteItem[data-kind='row'] .emailPaletteLabel {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .emailPaletteRowSkeleton {
   display: flex;
-  gap: 10px;
-  height: 38px;
+  gap: 12px;
+  height: 44px;
   min-width: 0;
 }
 
@@ -555,6 +568,47 @@
   border-radius: 3px;
   background: #fff;
   box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+
+.emailSavedRowPlaceholder {
+  position: relative;
+  display: grid;
+  gap: 0;
+  border: 1px solid #d7d7d7;
+  border-radius: 4px;
+  padding: 10px 12px;
+  background: #e7e7e7;
+  color: #7c7c7c;
+}
+
+.emailSavedRowPlaceholder .emailPaletteRowSkeleton {
+  height: 46px;
+}
+
+.emailSavedRowPlaceholder > span:last-child {
+  position: absolute;
+  inset: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-top: 12px;
+  color: #848484;
+  font-size: 14px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.emailSavedRowPlaceholder svg {
+  width: 18px;
+  height: 18px;
+  color: #858585;
+  transform: translateY(-8px);
+}
+
+.wrapper :global([class*='PuckLayout-nav'] svg) {
+  width: 20px;
+  height: 20px;
 }
 
 .builderHeaderShell {

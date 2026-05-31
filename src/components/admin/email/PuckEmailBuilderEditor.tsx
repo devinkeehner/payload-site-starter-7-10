@@ -3,24 +3,6 @@
 import '@puckeditor/core/puck.css'
 
 import { Drawer, DropZone, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
-import {
-  AlignJustify,
-  Columns2,
-  Columns4,
-  Heading1,
-  ImageIcon,
-  Link2,
-  List,
-  Megaphone,
-  Minus,
-  MousePointerClick,
-  PanelBottom,
-  PanelTop,
-  Rows3,
-  Space,
-  TableCellsSplit,
-  Type,
-} from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import { buildDefaults, buildFields } from '@/components/admin/puck/PuckPageBuilderEditor'
@@ -48,8 +30,29 @@ type EmailReadiness = {
   }
 }
 
+type EmailPaletteIconName =
+  | 'article'
+  | 'bento'
+  | 'button'
+  | 'buttons'
+  | 'callout'
+  | 'cards'
+  | 'code'
+  | 'divider'
+  | 'feature'
+  | 'footer'
+  | 'gallery'
+  | 'header'
+  | 'heading'
+  | 'image'
+  | 'link'
+  | 'list'
+  | 'rows'
+  | 'spacer'
+  | 'text'
+
 type EmailPaletteItem = {
-  icon?: React.ComponentType<{ size?: number; strokeWidth?: number }>
+  icon?: EmailPaletteIconName
   label: string
   rowColumns?: number[]
   rowLayout?: string
@@ -112,24 +115,24 @@ const EMAIL_CONTENT_ORDER = [
 ]
 
 const EMAIL_PALETTE_ITEMS: Record<string, EmailPaletteItem> = {
-  emailArticleImageRight: { icon: TableCellsSplit, label: 'Article', type: 'content' },
-  emailArticleTwoCards: { icon: Columns2, label: '2 Cards', type: 'content' },
-  emailBentoGrid: { icon: TableCellsSplit, label: 'Highlights', type: 'content' },
-  emailButton: { icon: MousePointerClick, label: 'Button', type: 'content' },
-  emailCallout: { icon: Megaphone, label: 'Callout', type: 'content' },
-  emailDivider: { icon: Minus, label: 'Divider', type: 'content' },
-  emailFeatureThreeCentered: { icon: AlignJustify, label: 'Feature', type: 'content' },
-  emailFooterOneColumn: { icon: PanelBottom, label: 'Footer', type: 'content' },
-  emailGallery: { icon: Columns4, label: 'Gallery', type: 'content' },
-  emailHeaderSocial: { icon: PanelTop, label: 'Header', type: 'content' },
-  emailHeading: { icon: Heading1, label: 'Heading', type: 'content' },
-  emailImage: { icon: ImageIcon, label: 'Image', type: 'content' },
-  emailInlineLink: { icon: Link2, label: 'Link', type: 'content' },
-  emailList: { icon: List, label: 'List', type: 'content' },
-  emailMarkdown: { icon: AlignJustify, label: 'Markdown', type: 'content' },
-  emailSpacer: { icon: Space, label: 'Spacer', type: 'content' },
-  emailText: { icon: Type, label: 'Text', type: 'content' },
-  emailTwoButtons: { icon: Columns2, label: '2 Buttons', type: 'content' },
+  emailArticleImageRight: { icon: 'article', label: 'Article', type: 'content' },
+  emailArticleTwoCards: { icon: 'cards', label: '2 Cards', type: 'content' },
+  emailBentoGrid: { icon: 'bento', label: 'Highlights', type: 'content' },
+  emailButton: { icon: 'button', label: 'Button', type: 'content' },
+  emailCallout: { icon: 'callout', label: 'Callout', type: 'content' },
+  emailDivider: { icon: 'divider', label: 'Divider', type: 'content' },
+  emailFeatureThreeCentered: { icon: 'feature', label: 'Feature', type: 'content' },
+  emailFooterOneColumn: { icon: 'footer', label: 'Footer', type: 'content' },
+  emailGallery: { icon: 'gallery', label: 'Gallery', type: 'content' },
+  emailHeaderSocial: { icon: 'header', label: 'Header', type: 'content' },
+  emailHeading: { icon: 'heading', label: 'Heading', type: 'content' },
+  emailImage: { icon: 'image', label: 'Image', type: 'content' },
+  emailInlineLink: { icon: 'link', label: 'Link', type: 'content' },
+  emailList: { icon: 'list', label: 'List', type: 'content' },
+  emailMarkdown: { icon: 'code', label: 'HTML', type: 'content' },
+  emailSpacer: { icon: 'spacer', label: 'Spacer', type: 'content' },
+  emailText: { icon: 'text', label: 'Text', type: 'content' },
+  emailTwoButtons: { icon: 'buttons', label: '2 Buttons', type: 'content' },
 }
 
 EMAIL_ROW_PRESETS.forEach((preset) => {
@@ -173,9 +176,198 @@ function RowSkeleton({ columns }: { columns: number[] }) {
   )
 }
 
+function EmailPaletteSvgIcon({ icon }: { icon: EmailPaletteIconName }) {
+  const common = {
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    strokeWidth: 2.6,
+  }
+
+  switch (icon) {
+    case 'article':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="26" rx="3" width="34" x="7" y="11" />
+          <path {...common} d="M13 18h14M13 24h10M13 30h12" />
+          <rect fill="currentColor" height="11" rx="1.5" width="9" x="29" y="20" />
+        </svg>
+      )
+    case 'bento':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect fill="currentColor" height="13" rx="2" width="19" x="8" y="9" />
+          <rect {...common} height="13" rx="2" width="10" x="30" y="9" />
+          <rect {...common} height="13" rx="2" width="12" x="8" y="26" />
+          <rect fill="currentColor" height="13" rx="2" width="20" x="23" y="26" />
+        </svg>
+      )
+    case 'button':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="16" rx="4" width="30" x="9" y="16" />
+          <path {...common} d="M18 24h12" />
+        </svg>
+      )
+    case 'buttons':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect fill="currentColor" height="13" rx="3" width="22" x="5" y="12" />
+          <rect {...common} height="13" rx="3" width="22" x="21" y="24" />
+        </svg>
+      )
+    case 'callout':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path fill="currentColor" d="M24 6 43 39H5L24 6Z" />
+          <path d="M24 17v10" stroke="#fff" strokeLinecap="round" strokeWidth="3" />
+          <circle cx="24" cy="33" fill="#fff" r="2" />
+        </svg>
+      )
+    case 'cards':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="27" rx="3" width="17" x="8" y="11" />
+          <rect {...common} height="27" rx="3" width="17" x="25" y="11" />
+          <path {...common} d="M12 27h9M29 27h9M12 32h6M29 32h6" />
+          <path fill="currentColor" d="M12 15h9v7h-9zM29 15h9v7h-9z" />
+        </svg>
+      )
+    case 'code':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path {...common} d="m18 16-8 8 8 8M30 16l8 8-8 8M27 11l-6 26" />
+        </svg>
+      )
+    case 'divider':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path {...common} d="M8 19h32M8 29h32" />
+        </svg>
+      )
+    case 'feature':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path {...common} d="M11 15h26M11 23h26M16 31h16" />
+          <circle cx="8" cy="15" fill="currentColor" r="2" />
+          <circle cx="8" cy="23" fill="currentColor" r="2" />
+          <circle cx="13" cy="31" fill="currentColor" r="2" />
+        </svg>
+      )
+    case 'footer':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="30" rx="3" width="34" x="7" y="9" />
+          <path fill="currentColor" d="M10 30h28v6H10z" />
+          <path {...common} d="M14 16h20M14 22h13" />
+        </svg>
+      )
+    case 'gallery':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect fill="currentColor" height="12" rx="2" width="12" x="10" y="10" />
+          <rect {...common} height="12" rx="2" width="12" x="26" y="10" />
+          <rect {...common} height="12" rx="2" width="12" x="10" y="26" />
+          <rect fill="currentColor" height="12" rx="2" width="12" x="26" y="26" />
+        </svg>
+      )
+    case 'header':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="30" rx="3" width="34" x="7" y="9" />
+          <path fill="currentColor" d="M10 12h28v8H10z" />
+          <circle cx="15" cy="16" fill="#fff" r="2" />
+          <path d="M22 16h11" stroke="#fff" strokeLinecap="round" strokeWidth="2.4" />
+        </svg>
+      )
+    case 'heading':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path d="M9 13h22" stroke="currentColor" strokeLinecap="round" strokeWidth="6" />
+          <path {...common} d="M11 25h25M11 33h17" />
+        </svg>
+      )
+    case 'image':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="28" rx="4" width="32" x="8" y="10" />
+          <circle cx="18" cy="19" fill="currentColor" r="3" />
+          <path fill="currentColor" d="m11 34 9-9 6 6 4-5 8 8H11Z" />
+        </svg>
+      )
+    case 'link':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path {...common} d="M19 17h-3a8 8 0 0 0 0 16h6M29 17h3a8 8 0 0 1 0 16h-6M18 24h12" />
+        </svg>
+      )
+    case 'list':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect fill="currentColor" height="8" rx="1.5" width="8" x="8" y="11" />
+          <rect fill="currentColor" height="8" rx="1.5" width="8" x="8" y="27" />
+          <path {...common} d="M22 15h18M22 31h18M22 23h12M22 39h12" />
+        </svg>
+      )
+    case 'rows':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <rect {...common} height="8" rx="2" width="32" x="8" y="9" />
+          <rect fill="currentColor" height="8" rx="2" width="32" x="8" y="20" />
+          <rect {...common} height="8" rx="2" width="32" x="8" y="31" />
+        </svg>
+      )
+    case 'spacer':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path {...common} d="M24 8v32M18 14l6-6 6 6M18 34l6 6 6-6" />
+          <path {...common} d="M12 24h24" />
+        </svg>
+      )
+    case 'text':
+      return (
+        <svg aria-hidden="true" viewBox="0 0 48 48">
+          <path d="M8 12h24" stroke="currentColor" strokeLinecap="round" strokeWidth="5" />
+          <path {...common} d="M20 12v24M12 36h16M33 22h7M36.5 22v14M32 36h9" />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
+
+function EmailSavedRowPlaceholder() {
+  return (
+    <div className={styles.emailSavedRowPlaceholder} aria-label="Saved rows placeholder">
+      <RowSkeleton columns={[1]} />
+      <span>
+        <svg aria-hidden="true" viewBox="0 0 24 24">
+          <path d="M8 4h8a1 1 0 0 1 1 1v15l-5-3-5 3V5a1 1 0 0 1 1-1Z" fill="currentColor" />
+        </svg>
+        Saved Row
+      </span>
+    </div>
+  )
+}
+
+function EmailPaletteTabIcon({ icon }: { icon: 'content' | 'properties' | 'rows' }) {
+  if (icon === 'properties') {
+    return (
+      <svg aria-hidden="true" viewBox="0 0 24 24">
+        <path d="M5 7h14M5 12h14M5 17h14" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+        <circle cx="9" cy="7" fill="currentColor" r="2" />
+        <circle cx="15" cy="12" fill="currentColor" r="2" />
+        <circle cx="11" cy="17" fill="currentColor" r="2" />
+      </svg>
+    )
+  }
+
+  return <EmailPaletteSvgIcon icon={icon === 'rows' ? 'rows' : 'text'} />
+}
+
 function EmailDrawerItem({ name }: { children: React.ReactNode; name: string }) {
   const item = EMAIL_PALETTE_ITEMS[name] || { label: name, type: 'content' as const }
-  const Icon = item.icon
 
   return (
     <div className={styles.emailPaletteItem} data-kind={item.type} data-row-layout={item.rowLayout}>
@@ -183,7 +375,7 @@ function EmailDrawerItem({ name }: { children: React.ReactNode; name: string }) 
         <RowSkeleton columns={item.rowColumns || [1, 1]} />
       ) : (
         <span className={styles.emailPaletteIcon}>
-          {Icon ? <Icon size={28} strokeWidth={2.25} /> : <Rows3 size={28} strokeWidth={2.25} />}
+          <EmailPaletteSvgIcon icon={item.icon || 'rows'} />
         </span>
       )}
       <span className={styles.emailPaletteLabel}>{item.label}</span>
@@ -208,6 +400,7 @@ function EmailPaletteDrawer({
         <strong>{title}</strong>
         <span>{description}</span>
       </div>
+      {palette === 'rows' ? <EmailSavedRowPlaceholder /> : null}
       <Drawer>
         {items.map((slug) => (
           <Drawer.Item
@@ -226,7 +419,7 @@ function createEmailBuilderPlugins(contentSlugs: string[], rowSlugs: string[]): 
 
   return [
     {
-      icon: <Type size={19} />,
+      icon: <EmailPaletteTabIcon icon="content" />,
       label: 'Content',
       name: 'blocks',
       render: () => (
@@ -239,7 +432,7 @@ function createEmailBuilderPlugins(contentSlugs: string[], rowSlugs: string[]): 
       ),
     },
     {
-      icon: <Rows3 size={19} />,
+      icon: <EmailPaletteTabIcon icon="rows" />,
       label: 'Rows',
       name: 'rows',
       render: () => (
@@ -253,6 +446,7 @@ function createEmailBuilderPlugins(contentSlugs: string[], rowSlugs: string[]): 
     },
     {
       ...propertiesPlugin,
+      icon: <EmailPaletteTabIcon icon="properties" />,
       label: 'Properties',
     },
   ]
