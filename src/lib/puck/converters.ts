@@ -553,8 +553,15 @@ export function puckDataToFormPatch(data: PuckPageData): {
         blockType,
       }
 
-      if ('width' in nextField && typeof nextField.width === 'number') {
-        nextField.width = Math.max(1, Math.min(100, nextField.width))
+      if ('width' in nextField) {
+        const width = typeof nextField.width === 'number'
+          ? nextField.width
+          : typeof nextField.width === 'string'
+            ? Number(nextField.width)
+            : null
+        if (typeof width === 'number' && Number.isFinite(width)) {
+          nextField.width = Math.max(1, Math.min(100, width))
+        }
       }
 
       if ('options' in nextField) {

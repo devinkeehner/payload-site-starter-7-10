@@ -47,6 +47,22 @@ const FIELD_LABELS: Record<string, string> = {
   textarea: 'Textarea',
 }
 
+const FIELD_DESCRIPTIONS: Record<string, string> = {
+  'checkbox-group': 'Multi choice',
+  'image-select': 'Image cards',
+  'video-capture': 'Camera upload',
+  checkbox: 'Single yes/no',
+  country: 'Country menu',
+  email: 'Email input',
+  message: 'Display text',
+  number: 'Number input',
+  radio: 'One choice',
+  select: 'Dropdown',
+  state: 'State menu',
+  text: 'Short answer',
+  textarea: 'Long answer',
+}
+
 export type PuckFormBuilderProps = {
   blockSchema: PuckBlockSchema[]
   formId: string
@@ -90,11 +106,53 @@ function FormBuilderPuckShell({ children }: { children?: React.ReactNode }) {
   )
 }
 
+function FieldIcon({ name }: { name: string }) {
+  const common = {
+    className: styles.formPaletteSvg,
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    strokeWidth: 2,
+    viewBox: '0 0 24 24',
+  }
+
+  switch (name) {
+    case 'textarea':
+      return <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2" /><path d="M7 9h10M7 12h8M7 15h6" /></svg>
+    case 'email':
+      return <svg {...common}><rect x="3.5" y="6" width="17" height="12" rx="2" /><path d="m4.5 8 7.5 5 7.5-5" /></svg>
+    case 'number':
+      return <svg {...common}><path d="M9 4 7 20M17 4l-2 16M5 9h14M4 15h14" /></svg>
+    case 'select':
+      return <svg {...common}><rect x="4" y="6" width="16" height="12" rx="2" /><path d="m8 10 4 4 4-4" /></svg>
+    case 'radio':
+      return <svg {...common}><circle cx="8" cy="8" r="3" /><circle cx="8" cy="16" r="3" /><path d="M13 8h7M13 16h7" /></svg>
+    case 'checkbox':
+      return <svg {...common}><rect x="4" y="5" width="14" height="14" rx="2" /><path d="m8 12 3 3 7-8" /></svg>
+    case 'checkbox-group':
+      return <svg {...common}><rect x="3" y="5" width="5" height="5" rx="1" /><rect x="3" y="14" width="5" height="5" rx="1" /><path d="M11 7.5h10M11 16.5h10" /></svg>
+    case 'message':
+      return <svg {...common}><path d="M5 5h14v10H8l-3 4V5Z" /><path d="M8 9h8M8 12h5" /></svg>
+    case 'image-select':
+      return <svg {...common}><rect x="4" y="5" width="16" height="14" rx="2" /><path d="m7 16 4-4 3 3 2-2 3 3" /><circle cx="9" cy="9" r="1" /></svg>
+    case 'video-capture':
+      return <svg {...common}><rect x="4" y="7" width="12" height="10" rx="2" /><path d="m16 11 4-3v8l-4-3" /></svg>
+    case 'state':
+      return <svg {...common}><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" /><circle cx="12" cy="10" r="2" /></svg>
+    case 'country':
+      return <svg {...common}><circle cx="12" cy="12" r="8" /><path d="M4 12h16M12 4a13 13 0 0 1 0 16M12 4a13 13 0 0 0 0 16" /></svg>
+    default:
+      return <svg {...common}><path d="M5 7h14M12 7v10M8 17h8" /></svg>
+  }
+}
+
 function FormDrawerItem({ name }: { children: React.ReactNode; name: string }) {
   return (
     <div className={styles.formPaletteItem}>
-      <span aria-hidden="true">{FIELD_LABELS[name]?.slice(0, 1) || 'F'}</span>
+      <span aria-hidden="true"><FieldIcon name={name} /></span>
       <strong>{FIELD_LABELS[name] || name}</strong>
+      <em>{FIELD_DESCRIPTIONS[name] || 'Field'}</em>
     </div>
   )
 }
@@ -103,8 +161,8 @@ function FormPaletteDrawer({ items }: { items: string[] }) {
   return (
     <div className={styles.emailPalettePanel} data-palette="content">
       <div className={styles.emailPaletteHeader}>
-        <strong>Form Fields</strong>
-        <span>Drag fields into the form canvas.</span>
+        <strong>Fields</strong>
+        <span>Drag fields into the form.</span>
       </div>
       <Drawer>
         {items.map((slug) => (

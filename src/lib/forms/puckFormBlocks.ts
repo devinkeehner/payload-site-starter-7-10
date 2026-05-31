@@ -17,9 +17,15 @@ const labelField = (defaultValue: string) => ({
 
 const widthField = {
   name: 'width',
-  type: 'number' as const,
-  label: 'Width',
-  defaultValue: 100,
+  type: 'select' as const,
+  label: 'Field Width',
+  defaultValue: '100',
+  options: [
+    { label: 'Full row', value: '100' },
+    { label: 'Half row', value: '50' },
+    { label: 'Third row', value: '33' },
+    { label: 'Quarter row', value: '25' },
+  ],
 }
 
 const requiredField = {

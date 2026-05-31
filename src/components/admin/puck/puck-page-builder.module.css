@@ -481,12 +481,17 @@
   min-width: min(260px, 100%);
 }
 
+.formFieldPreview {
+  display: grid;
+  gap: 7px;
+}
+
 .formFieldPreview label {
   display: grid;
   gap: 7px;
 }
 
-.formFieldPreview label > span {
+.formFieldLabel {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -494,6 +499,10 @@
   color: #1f2937;
   font-size: 13px;
   font-weight: 800;
+}
+
+.formFieldLabel > span {
+  min-width: 0;
 }
 
 .formFieldPreview em {
@@ -510,6 +519,33 @@
   color: #94a3b8;
   font-size: 11px;
   font-weight: 700;
+}
+
+.formFieldMeta {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.formFieldMeta div {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.formFieldMeta dt {
+  color: #475569;
+  font-weight: 900;
+}
+
+.formFieldMeta dd {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .formInputPreview,
@@ -777,8 +813,8 @@
 
 .formPaletteItem span {
   display: inline-flex;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   align-items: center;
   justify-content: center;
   border: 2px solid #050505;
@@ -788,11 +824,24 @@
   font-weight: 900;
 }
 
+.formPaletteSvg {
+  width: 23px;
+  height: 23px;
+}
+
 .formPaletteItem strong {
   color: #050505;
   font-size: 13px;
   font-weight: 800;
   line-height: 1.12;
+}
+
+.formPaletteItem em {
+  color: #6b7280;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.15;
 }
 
 .emailPaletteRowSkeleton {
