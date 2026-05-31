@@ -33,15 +33,6 @@ type EmailReadiness = {
   }
 }
 
-type EmailBuilderSettings = {
-  emailList: string
-  preheader: string
-  recipientEmail: string
-  replyTo: string
-  scheduledAt: string
-  subject: string
-}
-
 type EmailPaletteIconName =
   | 'article'
   | 'bento'
@@ -645,31 +636,6 @@ function serializePuckData(value: PuckPageData | Data | null): string {
   }
 }
 
-function serializeEmailSettings(value: EmailBuilderSettings | null): string {
-  try {
-    return JSON.stringify(value ?? null)
-  } catch {
-    return ''
-  }
-}
-
-function normalizeEmailSettings(value: unknown): EmailBuilderSettings {
-  const record = value && typeof value === 'object' ? value as Record<string, unknown> : {}
-  const getString = (key: keyof EmailBuilderSettings) => {
-    const nextValue = record[key]
-    return typeof nextValue === 'string' || typeof nextValue === 'number' ? String(nextValue) : ''
-  }
-
-  return {
-    emailList: getString('emailList'),
-    preheader: getString('preheader'),
-    recipientEmail: getString('recipientEmail'),
-    replyTo: getString('replyTo'),
-    scheduledAt: getString('scheduledAt'),
-    subject: getString('subject'),
-  }
-}
-
 function getBlockingLinks(links: LinkCheck[] | undefined): LinkCheck[] {
   if (!Array.isArray(links)) return []
 
@@ -684,29 +650,14 @@ export function PuckEmailBuilderEditor({
   blockSchema,
   emailId,
   initialData,
-  title: _title,
+  title,
 }: PuckEmailBuilderProps) {
   const config = useMemo(() => createConfig(blockSchema), [blockSchema])
   const contentPaletteSlugs = useMemo(() => getContentPaletteSlugs(blockSchema), [blockSchema])
   const rowPaletteSlugs = useMemo(() => getRowPaletteSlugs(blockSchema), [blockSchema])
   const [richTextToolbarTarget, setRichTextToolbarTarget] = useState<HTMLDivElement | null>(null)
-  const [data, setData] = useState<PuckPageData | null>(null)
-  const [settings, setSettings] = useState<EmailBuilderSettings | null>(null)
-  const [linkCheck, setLinkCheck] = useState<EmailReadiness | null>(null)
-  const [linkCheckMessage, setLinkCheckMessage] = useState<string | null>(null)
-  const [isDirty, setIsDirty] = useState(false)
-  const [settingsDirty, setSettingsDirty] = useState(false)
-  const [status, setStatus] = useState<'checkingLinks' | 'idle' | 'creatingPost' | 'loading' | 'saving' | 'saved' | 'sending' | 'sendingProduction' | 'sent' | 'error'>('idle')
-  const [message, setMessage] = useState<string | null>(null)
-  const savedDataSnapshotRef = useRef('')
-  const savedSettingsSnapshotRef = useRef('')
-  const latestDataSnapshotRef = useRef('')
-  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isSavingRef = useRef(false)
-  const queuedSaveDataRef = useRef<Data | null>(null)
-  const queuedSaveWaitersRef = useRef<Array<(saved: boolean) => void>>([])
-
-  const overrides = useMemo(() => ({
+  const overrides = useMemo(
+    () => ({
       drawerItem: EmailDrawerItem,
       header: (props: { actions: React.ReactNode; children: React.ReactNode }) => (
         <div className={styles.builderHeaderShell}>
@@ -719,11 +670,26 @@ export function PuckEmailBuilderEditor({
       ),
       iframe: PuckPreviewIframe,
       puck: EmailBuilderPuckShell,
-    }), [])
+    }),
+    [],
+  )
   const plugins = useMemo(
     () => createEmailBuilderPlugins(contentPaletteSlugs, rowPaletteSlugs),
     [contentPaletteSlugs, rowPaletteSlugs],
   )
+  const [data, setData] = useState<PuckPageData | null>(null)
+  const [linkCheck, setLinkCheck] = useState<EmailReadiness | null>(null)
+  const [linkCheckMessage, setLinkCheckMessage] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [status, setStatus] = useState<'checkingLinks' | 'idle' | 'creatingPost' | 'loading' | 'saving' | 'saved' | 'sending' | 'sendingProduction' | 'sent' | 'error'>('idle')
+  const [message, setMessage] = useState<string | null>(null)
+  const savedDataSnapshotRef = useRef('')
+  const latestDataSnapshotRef = useRef('')
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isSavingRef = useRef(false)
+  const queuedSaveDataRef = useRef<Data | null>(null)
+  const queuedSaveWaitersRef = useRef<Array<(saved: boolean) => void>>([])
+
   function clearAutosaveTimer() {
     if (autosaveTimerRef.current) {
       clearTimeout(autosaveTimerRef.current)
@@ -732,40 +698,22 @@ export function PuckEmailBuilderEditor({
   }
 
   useEffect(() => {
-    document.body.classList.add('hro-email-builder-visual')
-
-    return () => {
-      document.body.classList.remove('hro-email-builder-visual')
-    }
-  }, [])
-
-  useEffect(() => {
     let cancelled = false
 
     async function loadLatest() {
       setStatus('loading')
       setMessage(null)
       try {
-        const [res, settingsRes] = await Promise.all([
-          fetch(`/api/puck/emails/${emailId}`, { cache: 'no-store' }),
-          fetch(`/api/emails/${emailId}/settings`, { cache: 'no-store' }),
-        ])
+        const res = await fetch(`/api/puck/emails/${emailId}`, { cache: 'no-store' })
         if (!res.ok) throw new Error(await res.text())
         const payload = (await res.json()) as { data: PuckPageData; email: PuckEmailDoc }
         const nextData = await hydratePuckMedia(payload.data, blockSchema, [])
-        const nextSettings = settingsRes.ok
-          ? normalizeEmailSettings(((await settingsRes.json()) as { email?: unknown }).email)
-          : normalizeEmailSettings(payload.email)
         if (!cancelled) {
           const nextSnapshot = serializePuckData(nextData)
-          const nextSettingsSnapshot = serializeEmailSettings(nextSettings)
           savedDataSnapshotRef.current = nextSnapshot
-          savedSettingsSnapshotRef.current = nextSettingsSnapshot
           latestDataSnapshotRef.current = nextSnapshot
           setData(nextData)
-          setSettings(nextSettings)
           setIsDirty(false)
-          setSettingsDirty(false)
           setStatus('idle')
         }
       } catch (error) {
@@ -775,9 +723,7 @@ export function PuckEmailBuilderEditor({
           savedDataSnapshotRef.current = fallbackSnapshot
           latestDataSnapshotRef.current = fallbackSnapshot
           setData(fallbackData)
-          setSettings(null)
           setIsDirty(false)
-          setSettingsDirty(false)
           setStatus('error')
           setMessage(error instanceof Error ? error.message : 'Unable to load the latest email data')
         }
@@ -794,53 +740,6 @@ export function PuckEmailBuilderEditor({
       }
     }
   }, [blockSchema, emailId, initialData])
-
-  function updateSettingsField(field: keyof EmailBuilderSettings, value: string) {
-    setSettings((current) => {
-      const nextSettings = {
-        ...(current || normalizeEmailSettings(null)),
-        [field]: value,
-      }
-      setSettingsDirty(serializeEmailSettings(nextSettings) !== savedSettingsSnapshotRef.current)
-      return nextSettings
-    })
-  }
-
-  async function saveSettings(): Promise<boolean> {
-    if (!settings) return true
-
-    const settingsSnapshot = serializeEmailSettings(settings)
-    if (settingsSnapshot === savedSettingsSnapshotRef.current && !settingsDirty) {
-      return true
-    }
-
-    setStatus('saving')
-    setMessage(null)
-
-    try {
-      const res = await fetch(`/api/emails/${emailId}/settings`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(settings),
-      })
-
-      if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { email?: unknown }
-      const savedSettings = normalizeEmailSettings(payload.email || settings)
-      savedSettingsSnapshotRef.current = serializeEmailSettings(savedSettings)
-      setSettings(savedSettings)
-      setSettingsDirty(false)
-      setStatus('saved')
-      setMessage('Email settings saved.')
-      return true
-    } catch (error) {
-      setStatus('error')
-      setMessage(error instanceof Error ? error.message : 'Unable to save email settings')
-      return false
-    }
-  }
 
   async function save(nextData: Data): Promise<boolean> {
     if (isSavingRef.current) {
@@ -921,19 +820,11 @@ export function PuckEmailBuilderEditor({
 
     clearAutosaveTimer()
     const currentSnapshot = serializePuckData(data)
-    const dataSaved = currentSnapshot === savedDataSnapshotRef.current && !isDirty
-      ? true
-      : await save(data)
+    if (currentSnapshot === savedDataSnapshotRef.current && !isDirty) {
+      return true
+    }
 
-    if (!dataSaved) return false
-    return saveSettings()
-  }
-
-  async function saveEverything(nextData: Data): Promise<boolean> {
-    clearAutosaveTimer()
-    const dataSaved = await save(nextData)
-    if (!dataSaved) return false
-    return saveSettings()
+    return save(data)
   }
 
   async function continueToAudience() {
@@ -1008,51 +899,12 @@ export function PuckEmailBuilderEditor({
 
   return (
     <div className={styles.wrapper}>
-      {settings ? (
-        <section className={styles.emailBuilderSettingsPanel} aria-label="Email inbox settings">
-          <label>
-            <span>Subject</span>
-            <input
-              onBlur={() => void saveSettings()}
-              onChange={(event) => updateSettingsField('subject', event.target.value)}
-              placeholder="Enter subject line"
-              value={settings.subject}
-            />
-          </label>
-          <label>
-            <span>Preview Text</span>
-            <textarea
-              onBlur={() => void saveSettings()}
-              onChange={(event) => updateSettingsField('preheader', event.target.value)}
-              placeholder="Enter preview text"
-              value={settings.preheader}
-            />
-          </label>
-          <label>
-            <span>Test Recipient</span>
-            <input
-              onBlur={() => void saveSettings()}
-              onChange={(event) => updateSettingsField('recipientEmail', event.target.value)}
-              placeholder="name@example.com"
-              type="email"
-              value={settings.recipientEmail}
-            />
-          </label>
-          <button
-            disabled={!settingsDirty || status === 'saving'}
-            type="button"
-            onClick={() => void saveSettings()}
-          >
-            {settingsDirty ? 'Save Settings' : 'Settings Saved'}
-          </button>
-        </section>
-      ) : null}
       <PuckRichTextToolbarProvider target={richTextToolbarTarget}>
         <Puck
           config={config}
           data={data}
-          headerTitle="Email Builder"
-          height={settings ? 'calc(100vh - 162px)' : 'calc(100vh - 96px)'}
+          headerTitle={`Email Builder: ${title}`}
+          height="calc(100vh - 96px)"
           onChange={(nextData) => {
             const nextPuckData = nextData as PuckPageData
             const nextSnapshot = serializePuckData(nextPuckData)
@@ -1071,7 +923,7 @@ export function PuckEmailBuilderEditor({
               setMessage(null)
             }
           }}
-          onPublish={(nextData) => void saveEverything(nextData)}
+          onPublish={(nextData) => void save(nextData)}
           overrides={overrides}
           plugins={plugins}
           renderHeaderActions={() => (
@@ -1080,7 +932,7 @@ export function PuckEmailBuilderEditor({
                 className={styles.saveButton}
                 disabled={status === 'saving' || status === 'sending' || status === 'checkingLinks'}
                 type="button"
-                onClick={() => data && void saveEverything(data)}
+                onClick={() => data && void save(data)}
               >
                 {status === 'saving' ? 'Saving...' : 'Save'}
               </button>

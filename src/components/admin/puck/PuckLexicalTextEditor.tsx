@@ -1232,43 +1232,6 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
     [editor, restoreToolbarSelection],
   )
 
-  const runStoredLinkUpdate = useCallback(
-    (callback: (selection: RangeSelection | null) => void) => {
-      editor.update(
-        () => {
-          let selection: RangeSelection | null = null
-
-          if (linkSelectionRef.current) {
-            try {
-              selection = linkSelectionRef.current.clone()
-              $setSelection(selection)
-            } catch {
-              linkSelectionRef.current = null
-            }
-          }
-
-          if (!selection) {
-            selection = restoreToolbarSelection()
-          }
-
-          callback(selection)
-
-          const nextSelection = $getSelection()
-          if ($isRangeSelection(nextSelection)) {
-            lastRangeSelectionRef.current = nextSelection.clone()
-          }
-        },
-        {
-          discrete: true,
-          onUpdate: () => {
-            editor.focus(undefined, { defaultSelection: 'rootEnd' })
-          },
-        },
-      )
-    },
-    [editor, restoreToolbarSelection],
-  )
-
   const readSelectedLink = useCallback(() => {
     let details = { newTab: false, url: '' }
 
@@ -1361,7 +1324,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
   }, [readSelectedLink])
 
   const applyLinkDraft = useCallback(() => {
-    runStoredLinkUpdate(() => {
+    runToolbarUpdate(() => {
       const url = linkDraft.url.trim()
       if (!url) {
         applyCustomLink(null)
@@ -1372,16 +1335,16 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
     })
     linkSelectionRef.current = null
     setIsLinkPanelOpen(false)
-  }, [linkDraft.newTab, linkDraft.url, runStoredLinkUpdate])
+  }, [linkDraft.newTab, linkDraft.url, runToolbarUpdate])
 
   const removeLink = useCallback(() => {
-    runStoredLinkUpdate(() => {
+    runToolbarUpdate(() => {
       applyCustomLink(null)
     })
     linkSelectionRef.current = null
     setLinkDraft({ newTab: false, url: '' })
     setIsLinkPanelOpen(false)
-  }, [runStoredLinkUpdate])
+  }, [runToolbarUpdate])
 
   return (
     <>

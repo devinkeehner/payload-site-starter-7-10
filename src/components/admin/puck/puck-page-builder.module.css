@@ -3,25 +3,6 @@
   padding: 0 var(--gutter-h, 24px) 24px;
 }
 
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.doc-controls),
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.render-title) {
-  display: none !important;
-}
-
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.collection-edit__main-wrapper),
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.collection-edit__main),
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.document-fields),
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.document-fields__main),
-:global(body.hro-email-builder-visual .collection-edit--emails):has(.wrapper) :global(.render-fields) {
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-:global(body.hro-email-builder-visual .collection-edit--emails) .wrapper {
-  min-height: calc(100vh - 62px);
-  padding: 0;
-}
-
 .loading {
   align-items: center;
   background: var(--theme-elevation-50);
@@ -872,19 +853,19 @@
 
 .builderHeaderShell {
   position: relative;
-  background: #fff;
 }
 
 .builderHeaderRichTextToolbar {
   position: absolute;
   z-index: 2500;
-  top: 15px;
+  top: 50%;
   right: 218px;
   left: 142px;
   display: flex;
   min-width: 0;
   justify-content: center;
   pointer-events: auto;
+  transform: translateY(-50%);
 }
 
 .builderHeaderRichTextToolbar:empty {
@@ -893,67 +874,6 @@
 
 .builderHeaderRichTextToolbar > * {
   pointer-events: auto;
-}
-
-.emailBuilderSettingsPanel {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(220px, 1.4fr) minmax(190px, 0.8fr) auto;
-  gap: 10px;
-  align-items: end;
-  border-top: 1px solid #e5e7eb;
-  padding: 12px clamp(16px, 2vw, 32px);
-  background: #fff;
-}
-
-.emailBuilderSettingsPanel label {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.emailBuilderSettingsPanel span {
-  color: #374151;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.emailBuilderSettingsPanel input,
-.emailBuilderSettingsPanel textarea {
-  width: 100%;
-  min-height: 36px;
-  border: 1px solid #d1d5db;
-  border-radius: 5px;
-  padding: 7px 9px;
-  background: #fff;
-  color: #111827;
-  font: inherit;
-  font-size: 13px;
-}
-
-.emailBuilderSettingsPanel textarea {
-  min-height: 36px;
-  max-height: 72px;
-  resize: vertical;
-}
-
-.emailBuilderSettingsPanel button {
-  min-height: 36px;
-  border: 1px solid #1f2937;
-  border-radius: 5px;
-  padding: 0 12px;
-  background: #1f2937;
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.emailBuilderSettingsPanel button:disabled {
-  border-color: #d1d5db;
-  background: #f3f4f6;
-  color: #6b7280;
-  cursor: not-allowed;
 }
 
 .wrapper :global([data-puck-dropzone='root']) .emailPaletteItem {
