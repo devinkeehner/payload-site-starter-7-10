@@ -1170,26 +1170,45 @@ function renderNestedBlocks(value: unknown, context: EmailRenderContext): React.
 }
 
 function EmailGrid({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
-  const threeColumns = block.layout === 'threeColumns'
-  const leftBlocks = renderNestedBlocks(block.leftBlocks, context)
-  const centerBlocks = renderNestedBlocks(block.centerBlocks, context)
-  const rightBlocks = renderNestedBlocks(block.rightBlocks, context)
-  const columnWidth = threeColumns ? '33.333%' : '50%'
+  const layout = normalizeText(block.layout) || 'twoColumns'
+  const columns = layout === 'oneColumn'
+    ? [{ blocks: block.leftBlocks, width: '100%' }]
+    : layout === 'threeColumns'
+      ? [
+          { blocks: block.leftBlocks, width: '33.333%' },
+          { blocks: block.centerBlocks, width: '33.333%' },
+          { blocks: block.rightBlocks, width: '33.333%' },
+        ]
+      : layout === 'fourColumns'
+        ? [
+            { blocks: block.leftBlocks, width: '25%' },
+            { blocks: block.centerBlocks, width: '25%' },
+            { blocks: block.rightBlocks, width: '25%' },
+            { blocks: block.fourthBlocks, width: '25%' },
+          ]
+        : layout === 'twoColumnsLeftWide'
+          ? [
+              { blocks: block.leftBlocks, width: '66.667%' },
+              { blocks: block.rightBlocks, width: '33.333%' },
+            ]
+          : layout === 'twoColumnsRightWide'
+            ? [
+                { blocks: block.leftBlocks, width: '33.333%' },
+                { blocks: block.rightBlocks, width: '66.667%' },
+              ]
+            : [
+                { blocks: block.leftBlocks, width: '50%' },
+                { blocks: block.rightBlocks, width: '50%' },
+              ]
 
   return (
     <Section style={{ margin: '10px -6px 26px' }}>
       <Row>
-        <Column style={{ padding: '0 6px', verticalAlign: 'top', width: columnWidth }}>
-          {leftBlocks}
-        </Column>
-        {threeColumns ? (
-          <Column style={{ padding: '0 6px', verticalAlign: 'top', width: columnWidth }}>
-            {centerBlocks}
+        {columns.map((column, index) => (
+          <Column key={index} style={{ padding: '0 6px', verticalAlign: 'top', width: column.width }}>
+            {renderNestedBlocks(column.blocks, context)}
           </Column>
-        ) : null}
-        <Column style={{ padding: '0 6px', verticalAlign: 'top', width: columnWidth }}>
-          {rightBlocks}
-        </Column>
+        ))}
       </Row>
     </Section>
   )

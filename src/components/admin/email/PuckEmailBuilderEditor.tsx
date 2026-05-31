@@ -2,7 +2,25 @@
 
 import '@puckeditor/core/puck.css'
 
-import { DropZone, fieldsPlugin, Puck, type Config, type Data } from '@puckeditor/core'
+import { Drawer, DropZone, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
+import {
+  AlignJustify,
+  Columns2,
+  Columns4,
+  Heading1,
+  ImageIcon,
+  Link2,
+  List,
+  Megaphone,
+  Minus,
+  MousePointerClick,
+  PanelBottom,
+  PanelTop,
+  Rows3,
+  Space,
+  TableCellsSplit,
+  Type,
+} from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import { buildDefaults, buildFields } from '@/components/admin/puck/PuckPageBuilderEditor'
@@ -30,6 +48,99 @@ type EmailReadiness = {
   }
 }
 
+type EmailPaletteItem = {
+  icon?: React.ComponentType<{ size?: number; strokeWidth?: number }>
+  label: string
+  rowColumns?: number[]
+  rowLayout?: string
+  type: 'content' | 'row'
+}
+
+type EmailRowPreset = {
+  label: string
+  layout: string
+  slug: string
+}
+
+const EMAIL_ROW_PRESETS: EmailRowPreset[] = [
+  { label: '1 Column', layout: 'oneColumn', slug: 'emailRowOneColumn' },
+  { label: '2 Columns', layout: 'twoColumns', slug: 'emailRowTwoColumns' },
+  { label: 'Left Wide', layout: 'twoColumnsLeftWide', slug: 'emailRowLeftWide' },
+  { label: 'Right Wide', layout: 'twoColumnsRightWide', slug: 'emailRowRightWide' },
+  { label: '3 Columns', layout: 'threeColumns', slug: 'emailRowThreeColumns' },
+  { label: '4 Columns', layout: 'fourColumns', slug: 'emailRowFourColumns' },
+]
+
+const EMAIL_ROW_LAYOUT_ZONES: Record<string, string[]> = {
+  fourColumns: ['left', 'center', 'right', 'fourth'],
+  oneColumn: ['left'],
+  threeColumns: ['left', 'center', 'right'],
+  twoColumns: ['left', 'right'],
+  twoColumnsLeftWide: ['left', 'right'],
+  twoColumnsRightWide: ['left', 'right'],
+}
+const DEFAULT_EMAIL_ROW_ZONES = ['left', 'right']
+
+const EMAIL_ROW_LAYOUT_COLUMNS: Record<string, number[]> = {
+  fourColumns: [1, 1, 1, 1],
+  oneColumn: [1],
+  threeColumns: [1, 1, 1],
+  twoColumns: [1, 1],
+  twoColumnsLeftWide: [2, 1],
+  twoColumnsRightWide: [1, 2],
+}
+
+const EMAIL_CONTENT_ORDER = [
+  'emailHeading',
+  'emailText',
+  'emailImage',
+  'emailButton',
+  'emailTwoButtons',
+  'emailInlineLink',
+  'emailDivider',
+  'emailSpacer',
+  'emailCallout',
+  'emailList',
+  'emailGallery',
+  'emailArticleImageRight',
+  'emailArticleTwoCards',
+  'emailFeatureThreeCentered',
+  'emailBentoGrid',
+  'emailMarkdown',
+  'emailHeaderSocial',
+  'emailFooterOneColumn',
+]
+
+const EMAIL_PALETTE_ITEMS: Record<string, EmailPaletteItem> = {
+  emailArticleImageRight: { icon: TableCellsSplit, label: 'Article', type: 'content' },
+  emailArticleTwoCards: { icon: Columns2, label: '2 Cards', type: 'content' },
+  emailBentoGrid: { icon: TableCellsSplit, label: 'Highlights', type: 'content' },
+  emailButton: { icon: MousePointerClick, label: 'Button', type: 'content' },
+  emailCallout: { icon: Megaphone, label: 'Callout', type: 'content' },
+  emailDivider: { icon: Minus, label: 'Divider', type: 'content' },
+  emailFeatureThreeCentered: { icon: AlignJustify, label: 'Feature', type: 'content' },
+  emailFooterOneColumn: { icon: PanelBottom, label: 'Footer', type: 'content' },
+  emailGallery: { icon: Columns4, label: 'Gallery', type: 'content' },
+  emailHeaderSocial: { icon: PanelTop, label: 'Header', type: 'content' },
+  emailHeading: { icon: Heading1, label: 'Heading', type: 'content' },
+  emailImage: { icon: ImageIcon, label: 'Image', type: 'content' },
+  emailInlineLink: { icon: Link2, label: 'Link', type: 'content' },
+  emailList: { icon: List, label: 'List', type: 'content' },
+  emailMarkdown: { icon: AlignJustify, label: 'Markdown', type: 'content' },
+  emailSpacer: { icon: Space, label: 'Spacer', type: 'content' },
+  emailText: { icon: Type, label: 'Text', type: 'content' },
+  emailTwoButtons: { icon: Columns2, label: '2 Buttons', type: 'content' },
+}
+
+EMAIL_ROW_PRESETS.forEach((preset) => {
+  EMAIL_PALETTE_ITEMS[preset.slug] = {
+    label: preset.label,
+    rowColumns: EMAIL_ROW_LAYOUT_COLUMNS[preset.layout] || [1, 1],
+    rowLayout: preset.layout,
+    type: 'row',
+  }
+})
+
 export type PuckEmailBuilderProps = {
   blockSchema: PuckBlockSchema[]
   emailId: string
@@ -37,10 +148,183 @@ export type PuckEmailBuilderProps = {
   title: string
 }
 
+function getEmailGridZones(layout: unknown): string[] {
+  return EMAIL_ROW_LAYOUT_ZONES[String(layout)] || DEFAULT_EMAIL_ROW_ZONES
+}
+
+function getContentPaletteSlugs(blockSchema: PuckBlockSchema[]): string[] {
+  const availableSlugs = new Set(blockSchema.map((block) => block.slug))
+  return EMAIL_CONTENT_ORDER.filter((slug) => availableSlugs.has(slug))
+}
+
+function getRowPaletteSlugs(blockSchema: PuckBlockSchema[]): string[] {
+  return blockSchema.some((block) => block.slug === 'emailGrid')
+    ? EMAIL_ROW_PRESETS.map((preset) => preset.slug)
+    : []
+}
+
+function RowSkeleton({ columns }: { columns: number[] }) {
+  return (
+    <span className={styles.emailPaletteRowSkeleton}>
+      {columns.map((column, index) => (
+        <span key={index} style={{ flex: column }} />
+      ))}
+    </span>
+  )
+}
+
+function EmailDrawerItem({ name }: { children: React.ReactNode; name: string }) {
+  const item = EMAIL_PALETTE_ITEMS[name] || { label: name, type: 'content' as const }
+  const Icon = item.icon
+
+  return (
+    <div className={styles.emailPaletteItem} data-kind={item.type} data-row-layout={item.rowLayout}>
+      {item.type === 'row' ? (
+        <RowSkeleton columns={item.rowColumns || [1, 1]} />
+      ) : (
+        <span className={styles.emailPaletteIcon}>
+          {Icon ? <Icon size={28} strokeWidth={2.25} /> : <Rows3 size={28} strokeWidth={2.25} />}
+        </span>
+      )}
+      <span className={styles.emailPaletteLabel}>{item.label}</span>
+    </div>
+  )
+}
+
+function EmailPaletteDrawer({
+  description,
+  items,
+  palette,
+  title,
+}: {
+  description: string
+  items: string[]
+  palette: 'content' | 'rows'
+  title: string
+}) {
+  return (
+    <div className={styles.emailPalettePanel} data-palette={palette}>
+      <div className={styles.emailPaletteHeader}>
+        <strong>{title}</strong>
+        <span>{description}</span>
+      </div>
+      <Drawer>
+        {items.map((slug) => (
+          <Drawer.Item
+            key={slug}
+            label={EMAIL_PALETTE_ITEMS[slug]?.label || slug}
+            name={slug}
+          />
+        ))}
+      </Drawer>
+    </div>
+  )
+}
+
+function createEmailBuilderPlugins(contentSlugs: string[], rowSlugs: string[]): Plugin[] {
+  const propertiesPlugin = fieldsPlugin({ desktopSideBar: 'left' }) as Plugin
+
+  return [
+    {
+      icon: <Type size={19} />,
+      label: 'Content',
+      name: 'blocks',
+      render: () => (
+        <EmailPaletteDrawer
+          description="Drag content blocks into the email canvas."
+          items={contentSlugs}
+          palette="content"
+          title="Content Blocks"
+        />
+      ),
+    },
+    {
+      icon: <Rows3 size={19} />,
+      label: 'Rows',
+      name: 'rows',
+      render: () => (
+        <EmailPaletteDrawer
+          description="Drag row layouts into the email canvas."
+          items={rowSlugs}
+          palette="rows"
+          title="Add Rows"
+        />
+      ),
+    },
+    {
+      ...propertiesPlugin,
+      label: 'Properties',
+    },
+  ]
+}
+
 function createConfig(blockSchema: PuckBlockSchema[]): Config {
   const nestedBlockSlugs = blockSchema
     .map((block) => block.slug)
     .filter((slug) => !['emailGrid', 'emailHeaderSocial', 'emailFooterOneColumn'].includes(slug))
+  const gridBlock = blockSchema.find((block) => block.slug === 'emailGrid')
+  const contentSlugs = getContentPaletteSlugs(blockSchema)
+  const rowSlugs = getRowPaletteSlugs(blockSchema)
+  const components = blockSchema.reduce<Config['components']>((acc, block) => {
+    acc[block.slug] = {
+      label: EMAIL_PALETTE_ITEMS[block.slug]?.label || (block.slug === 'emailGrid' ? 'Custom Row' : block.label),
+      fields: buildFields(block.fields, []),
+      defaultProps: buildDefaults(block.fields),
+      render: (props) => {
+        if (block.slug === 'emailGrid') {
+          const gridProps = props as Record<string, unknown>
+          const zones = getEmailGridZones(gridProps.layout)
+
+          return (
+            <PuckEmailBlockPreview blockType={block.slug} props={gridProps}>
+              {zones.map((zone) => (
+                <DropZone key={zone} zone={zone} allow={nestedBlockSlugs} minEmptyHeight={120} />
+              ))}
+            </PuckEmailBlockPreview>
+          )
+        }
+
+        return (
+          <PuckEmailBlockPreview
+            blockType={block.slug}
+            props={props as Record<string, unknown>}
+          />
+        )
+      },
+    }
+    return acc
+  }, {})
+
+  if (gridBlock) {
+    const gridFields = buildFields(gridBlock.fields, [])
+    const gridDefaults = buildDefaults(gridBlock.fields)
+
+    EMAIL_ROW_PRESETS.forEach((preset) => {
+      components[preset.slug] = {
+        label: preset.label,
+        fields: gridFields,
+        defaultProps: {
+          ...gridDefaults,
+          layout: preset.layout,
+        },
+        render: (props) => {
+          const gridProps = {
+            ...(props as Record<string, unknown>),
+            layout: (props as Record<string, unknown>).layout || preset.layout,
+          }
+          const zones = getEmailGridZones(gridProps.layout)
+
+          return (
+            <PuckEmailBlockPreview blockType="emailGrid" props={gridProps}>
+              {zones.map((zone) => (
+                <DropZone key={zone} zone={zone} allow={nestedBlockSlugs} minEmptyHeight={120} />
+              ))}
+            </PuckEmailBlockPreview>
+          )
+        },
+      }
+    })
+  }
 
   return {
     root: {
@@ -69,39 +353,18 @@ function createConfig(blockSchema: PuckBlockSchema[]): Config {
       ),
     },
     categories: {
-      Email: {
-        components: blockSchema.map((block) => block.slug),
+      Content: {
+        components: contentSlugs,
+        defaultExpanded: true,
+        title: 'Content Blocks',
+      },
+      Rows: {
+        components: rowSlugs,
+        defaultExpanded: true,
+        title: 'Rows',
       },
     },
-    components: blockSchema.reduce<Config['components']>((acc, block) => {
-      acc[block.slug] = {
-        label: block.label,
-        fields: buildFields(block.fields, []),
-        defaultProps: buildDefaults(block.fields),
-        render: (props) => {
-          if (block.slug === 'emailGrid') {
-            const gridProps = props as Record<string, unknown>
-            const threeColumns = gridProps.layout === 'threeColumns'
-
-            return (
-              <PuckEmailBlockPreview blockType={block.slug} props={gridProps}>
-                <DropZone zone="left" allow={nestedBlockSlugs} minEmptyHeight={120} />
-                {threeColumns ? <DropZone zone="center" allow={nestedBlockSlugs} minEmptyHeight={120} /> : null}
-                <DropZone zone="right" allow={nestedBlockSlugs} minEmptyHeight={120} />
-              </PuckEmailBlockPreview>
-            )
-          }
-
-          return (
-            <PuckEmailBlockPreview
-              blockType={block.slug}
-              props={props as Record<string, unknown>}
-            />
-          )
-        },
-      }
-      return acc
-    }, {}),
+    components,
   }
 }
 
@@ -150,9 +413,12 @@ export function PuckEmailBuilderEditor({
   title,
 }: PuckEmailBuilderProps) {
   const config = useMemo(() => createConfig(blockSchema), [blockSchema])
+  const contentPaletteSlugs = useMemo(() => getContentPaletteSlugs(blockSchema), [blockSchema])
+  const rowPaletteSlugs = useMemo(() => getRowPaletteSlugs(blockSchema), [blockSchema])
   const [richTextToolbarTarget, setRichTextToolbarTarget] = useState<HTMLDivElement | null>(null)
   const overrides = useMemo(
     () => ({
+      drawerItem: EmailDrawerItem,
       header: (props: { actions: React.ReactNode; children: React.ReactNode }) => (
         <div className={styles.builderHeaderShell}>
           {props.children}
@@ -166,7 +432,10 @@ export function PuckEmailBuilderEditor({
     }),
     [],
   )
-  const plugins = useMemo(() => [fieldsPlugin({ desktopSideBar: 'left' })], [])
+  const plugins = useMemo(
+    () => createEmailBuilderPlugins(contentPaletteSlugs, rowPaletteSlugs),
+    [contentPaletteSlugs, rowPaletteSlugs],
+  )
   const [data, setData] = useState<PuckPageData | null>(null)
   const [linkCheck, setLinkCheck] = useState<EmailReadiness | null>(null)
   const [linkCheckMessage, setLinkCheckMessage] = useState<string | null>(null)

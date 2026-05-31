@@ -35,7 +35,22 @@ const LINK_APPEARANCES = new Set([
 ])
 
 const COLUMNS_BLOCK_TYPE = 'columnsBlock'
-const GRID_BLOCK_TYPES = new Set(['emailGrid', 'postGrid'])
+const EMAIL_GRID_BLOCK_TYPE = 'emailGrid'
+const EMAIL_ROW_COMPONENT_TO_LAYOUT: Record<string, string> = {
+  emailRowFourColumns: 'fourColumns',
+  emailRowLeftWide: 'twoColumnsLeftWide',
+  emailRowOneColumn: 'oneColumn',
+  emailRowRightWide: 'twoColumnsRightWide',
+  emailRowThreeColumns: 'threeColumns',
+  emailRowTwoColumns: 'twoColumns',
+}
+const EMAIL_ROW_LAYOUT_TO_COMPONENT = Object.entries(EMAIL_ROW_COMPONENT_TO_LAYOUT)
+  .reduce<Record<string, string>>((acc, [componentType, layout]) => {
+    acc[layout] = componentType
+    return acc
+  }, {})
+const EMAIL_GRID_COMPONENT_TYPES = new Set([EMAIL_GRID_BLOCK_TYPE, ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT)])
+const GRID_BLOCK_TYPES = new Set([EMAIL_GRID_BLOCK_TYPE, 'postGrid', ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT)])
 
 function getColumnsZoneId(blockId: string, columnIndex: number): string {
   return `${blockId}:columns.${columnIndex}.blocks`
@@ -65,6 +80,14 @@ function isLexicalEditorState(value: Record<string, unknown>): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function getEmailGridPuckType(layout: unknown): string {
+  return EMAIL_ROW_LAYOUT_TO_COMPONENT[String(layout)] || EMAIL_GRID_BLOCK_TYPE
+}
+
+function normalizePuckBlockType(type: string): string {
+  return EMAIL_GRID_COMPONENT_TYPES.has(type) ? EMAIL_GRID_BLOCK_TYPE : type
 }
 
 function getRelationshipId(value: unknown): string | number | null {
@@ -335,13 +358,17 @@ function layoutToPuckData(layout: unknown[] | null | undefined): PuckPageData {
           zones[`${id}:left`] = emailLayoutToPuckContent(block.leftBlocks)
           zones[`${id}:center`] = emailLayoutToPuckContent(block.centerBlocks)
           zones[`${id}:right`] = emailLayoutToPuckContent(block.rightBlocks)
+          if (blockType === EMAIL_GRID_BLOCK_TYPE) {
+            zones[`${id}:fourth`] = emailLayoutToPuckContent(block.fourthBlocks)
+          }
           delete props.leftBlocks
           delete props.centerBlocks
           delete props.rightBlocks
+          delete props.fourthBlocks
         }
 
         return {
-          type: blockType,
+          type: blockType === EMAIL_GRID_BLOCK_TYPE ? getEmailGridPuckType(props.layout) : blockType,
           props: {
             ...props,
             id,
@@ -398,15 +425,24 @@ function puckContentToEmailLayout(
       const id = typeof props.id === 'string' || typeof props.id === 'number'
         ? String(props.id)
         : undefined
+      const componentType = String(itemRecord.type)
+      const blockType = normalizePuckBlockType(componentType)
       const payloadBlock: Record<string, unknown> = {
         ...(toPayloadValue(props) as Record<string, unknown>),
-        blockType: itemRecord.type,
+        blockType,
       }
 
-      if (GRID_BLOCK_TYPES.has(itemRecord.type) && id) {
+      if (EMAIL_ROW_COMPONENT_TO_LAYOUT[componentType] && !payloadBlock.layout) {
+        payloadBlock.layout = EMAIL_ROW_COMPONENT_TO_LAYOUT[componentType]
+      }
+
+      if (GRID_BLOCK_TYPES.has(componentType) && id) {
         payloadBlock.leftBlocks = puckContentToEmailLayout(zones?.[`${id}:left`], zones)
         payloadBlock.centerBlocks = puckContentToEmailLayout(zones?.[`${id}:center`], zones)
         payloadBlock.rightBlocks = puckContentToEmailLayout(zones?.[`${id}:right`], zones)
+        if (EMAIL_GRID_COMPONENT_TYPES.has(componentType)) {
+          payloadBlock.fourthBlocks = puckContentToEmailLayout(zones?.[`${id}:fourth`], zones)
+        }
       }
 
       return payloadBlock

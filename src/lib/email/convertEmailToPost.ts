@@ -239,15 +239,17 @@ function postGrid(block: EmailBlock): Record<string, unknown> | null {
   const leftBlocks = convertEmailLayout(block.leftBlocks)
   const centerBlocks = convertEmailLayout(block.centerBlocks)
   const rightBlocks = convertEmailLayout(block.rightBlocks)
+  const fourthBlocks = convertEmailLayout(block.fourthBlocks)
+  const postRightBlocks = [...rightBlocks, ...fourthBlocks]
 
-  if (!leftBlocks.length && !centerBlocks.length && !rightBlocks.length) return null
+  if (!leftBlocks.length && !centerBlocks.length && !postRightBlocks.length) return null
 
   return {
     blockType: 'postGrid',
     centerBlocks,
-    layout: block.layout === 'threeColumns' ? 'threeColumns' : 'twoColumns',
+    layout: block.layout === 'threeColumns' || block.layout === 'fourColumns' ? 'threeColumns' : 'twoColumns',
     leftBlocks,
-    rightBlocks,
+    rightBlocks: postRightBlocks,
   }
 }
 

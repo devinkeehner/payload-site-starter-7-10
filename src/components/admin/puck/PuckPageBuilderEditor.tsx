@@ -154,7 +154,7 @@ function createField(field: PuckFieldSchema, blockSchema: PuckBlockSchema[]): Fi
     case 'group':
       return { type: 'object', label: field.label || field.name, objectFields: buildFields(field.fields || [], blockSchema) }
     case 'blocks':
-      if (field.name === 'leftBlocks' || field.name === 'centerBlocks' || field.name === 'rightBlocks') return null
+      if (field.name === 'leftBlocks' || field.name === 'centerBlocks' || field.name === 'rightBlocks' || field.name === 'fourthBlocks') return null
       return {
         type: 'custom',
         label: field.label || field.name,

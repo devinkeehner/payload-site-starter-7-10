@@ -47,6 +47,7 @@ function flattenBlocks(value: unknown): UnknownRecord[] {
       ...flattenBlocks(block.leftBlocks),
       ...flattenBlocks(block.centerBlocks),
       ...flattenBlocks(block.rightBlocks),
+      ...flattenBlocks(block.fourthBlocks),
     ]
     return [block, ...nested]
   })

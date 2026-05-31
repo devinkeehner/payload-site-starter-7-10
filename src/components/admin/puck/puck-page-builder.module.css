@@ -424,12 +424,137 @@
 }
 
 .wrapper :global([class*='PuckLayout-inner']) {
+  --puck-side-bar-width: 352px;
   min-height: 0;
 }
 
 .wrapper :global([class*='PuckLayout-rightSideBar']),
 .wrapper :global([class*='PuckHeader-rightSideBarToggle']) {
   display: none !important;
+}
+
+.wrapper :global([class*='Sidebar--left']) {
+  background: #f6f6f6;
+}
+
+.wrapper :global([class*='PuckPluginTab-body']) {
+  overflow-y: auto;
+}
+
+.emailPalettePanel {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  min-height: 100%;
+  padding: 18px;
+  background: #f6f6f6;
+  color: #111827;
+}
+
+.emailPaletteHeader {
+  display: grid;
+  gap: 5px;
+}
+
+.emailPaletteHeader strong {
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.emailPaletteHeader span {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.emailPalettePanel :global([data-puck-drawer='true']) {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+}
+
+.emailPalettePanel[data-palette='rows'] :global([data-puck-drawer='true']) {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.emailPalettePanel :global([class*='Drawer-draggable']),
+.emailPalettePanel :global([class*='Drawer-draggableBg']) {
+  min-width: 0;
+}
+
+.emailPalettePanel :global([class*='DrawerItem-draggable']) {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.emailPaletteItem {
+  display: flex;
+  min-height: 96px;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid #d9d9d9;
+  border-radius: 3px;
+  padding: 12px 8px;
+  background: #fff;
+  color: #050505;
+  cursor: grab;
+  flex-direction: column;
+  text-align: center;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.emailPaletteItem:hover {
+  border-color: #b9b9b9;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+.emailPaletteItem[data-kind='row'] {
+  min-height: 68px;
+  align-items: stretch;
+  gap: 8px;
+  border-color: #d7d7d7;
+  padding: 10px 12px;
+  background: #eaeaea;
+}
+
+.emailPaletteIcon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  color: #050505;
+}
+
+.emailPaletteLabel {
+  overflow-wrap: anywhere;
+  color: #050505;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.12;
+}
+
+.emailPaletteRowSkeleton {
+  display: flex;
+  gap: 10px;
+  height: 38px;
+  min-width: 0;
+}
+
+.emailPaletteRowSkeleton span {
+  min-width: 0;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  background: #fff;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .builderHeaderShell {

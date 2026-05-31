@@ -932,8 +932,12 @@ export const EmailGridBlock: Block = {
       type: 'select',
       defaultValue: 'twoColumns',
       options: [
+        { label: 'One column', value: 'oneColumn' },
         { label: 'One row, two columns', value: 'twoColumns' },
+        { label: 'One row, left column wide', value: 'twoColumnsLeftWide' },
+        { label: 'One row, right column wide', value: 'twoColumnsRightWide' },
         { label: 'One row, three columns', value: 'threeColumns' },
+        { label: 'One row, four columns', value: 'fourColumns' },
       ],
       required: true,
     },
@@ -961,11 +965,19 @@ export const EmailGridBlock: Block = {
         initCollapsed: true,
       },
     },
+    {
+      name: 'fourthBlocks',
+      type: 'blocks',
+      blocks: EMAIL_NESTED_LAYOUT_BLOCKS,
+      admin: {
+        initCollapsed: true,
+      },
+    },
   ],
   interfaceName: 'EmailGridBlock',
   labels: {
-    plural: 'Email Grids',
-    singular: 'Email Grid',
+    plural: 'Email Rows',
+    singular: 'Email Row',
   },
 }
 

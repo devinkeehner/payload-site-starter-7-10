@@ -942,11 +942,26 @@ function EmailBentoGridPreview(props: BlockProps) {
 
 function EmailGridPreview({ children, props }: { children?: React.ReactNode; props: BlockProps }) {
   const childrenArray = React.Children.toArray(children)
-  const threeColumns = props.layout === 'threeColumns'
-  const columns = threeColumns ? childrenArray.slice(0, 3) : [childrenArray[0], childrenArray[childrenArray.length - 1]]
+  const layout = getString(props.layout) || 'twoColumns'
+  const columnTemplates: Record<string, string> = {
+    fourColumns: 'repeat(4, minmax(0, 1fr))',
+    oneColumn: 'minmax(0, 1fr)',
+    threeColumns: 'repeat(3, minmax(0, 1fr))',
+    twoColumns: 'repeat(2, minmax(0, 1fr))',
+    twoColumnsLeftWide: '2fr 1fr',
+    twoColumnsRightWide: '1fr 2fr',
+  }
+  const columnCount = layout === 'oneColumn'
+    ? 1
+    : layout === 'threeColumns'
+      ? 3
+      : layout === 'fourColumns'
+        ? 4
+        : 2
+  const columns = childrenArray.slice(0, columnCount)
 
   return (
-    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: `repeat(${threeColumns ? 3 : 2}, minmax(0, 1fr))`, margin: '10px 0 26px' }}>
+    <div style={{ display: 'grid', gap: 12, gridTemplateColumns: columnTemplates[layout] || columnTemplates.twoColumns, margin: '10px 0 26px' }}>
       {columns.map((child, index) => (
         <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 120, padding: 10 }}>
           {child}

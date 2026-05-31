@@ -94,6 +94,7 @@ export interface Config {
     'email-lists': EmailList;
     'email-list-memberships': EmailListMembership;
     'email-send-events': EmailSendEvent;
+    'email-send-jobs': EmailSendJob;
     'email-import-jobs': EmailImportJob;
     contacts: Contact;
     'chatgpt-oauth-clients': ChatgptOauthClient;
@@ -138,6 +139,7 @@ export interface Config {
     'email-lists': EmailListsSelect<false> | EmailListsSelect<true>;
     'email-list-memberships': EmailListMembershipsSelect<false> | EmailListMembershipsSelect<true>;
     'email-send-events': EmailSendEventsSelect<false> | EmailSendEventsSelect<true>;
+    'email-send-jobs': EmailSendJobsSelect<false> | EmailSendJobsSelect<true>;
     'email-import-jobs': EmailImportJobsSelect<false> | EmailImportJobsSelect<true>;
     contacts: ContactsSelect<false> | ContactsSelect<true>;
     'chatgpt-oauth-clients': ChatgptOauthClientsSelect<false> | ChatgptOauthClientsSelect<true>;
@@ -2968,10 +2970,10 @@ export interface Email {
    */
   emailList?: (string | null) | EmailList;
   replyTo?: string | null;
-  status: 'draft' | 'approved' | 'scheduled' | 'sending' | 'sent' | 'failed';
+  status: 'draft' | 'approved' | 'scheduled' | 'queued' | 'sending' | 'sent' | 'failed';
   scheduledAt?: string | null;
   /**
-   * Build this email in the Email Builder tab.
+   * Build this email in the Builder tab.
    */
   layout: (
     | EmailHeaderSocialBlock
@@ -3225,7 +3227,7 @@ export interface EmailGalleryBlock {
  * via the `definition` "EmailGridBlock".
  */
 export interface EmailGridBlock {
-  layout: 'twoColumns' | 'threeColumns';
+  layout: 'oneColumn' | 'twoColumns' | 'twoColumnsLeftWide' | 'twoColumnsRightWide' | 'threeColumns' | 'fourColumns';
   leftBlocks?:
     | (
         | EmailHeadingBlock
@@ -3259,6 +3261,22 @@ export interface EmailGridBlock {
       )[]
     | null;
   rightBlocks?:
+    | (
+        | EmailHeadingBlock
+        | EmailTextBlock
+        | EmailInlineLinkBlock
+        | EmailButtonBlock
+        | EmailTwoButtonBlock
+        | EmailImageBlock
+        | EmailGalleryBlock
+        | EmailListBlock
+        | EmailMarkdownBlock
+        | EmailDividerBlock
+        | EmailSpacerBlock
+        | EmailCalloutBlock
+      )[]
+    | null;
+  fourthBlocks?:
     | (
         | EmailHeadingBlock
         | EmailTextBlock
@@ -3496,6 +3514,29 @@ export interface EmailSendEvent {
     | number
     | boolean
     | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-send-jobs".
+ */
+export interface EmailSendJob {
+  id: string;
+  email: string | Email;
+  tenant?: (string | null) | Tenant;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  kind: 'manual' | 'scheduled';
+  requestedBy?: (string | null) | User;
+  requestedAt: string;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  attempts?: number | null;
+  lockedAt?: string | null;
+  lockExpiresAt?: string | null;
+  recipientCount?: number | null;
+  elasticCampaignId?: string | null;
+  message?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -4157,6 +4198,24 @@ export interface PayloadMcpApiKey {
      */
     delete?: boolean | null;
   };
+  emailSendJobs?: {
+    /**
+     * Allow clients to find email-send-jobs.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create email-send-jobs.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update email-send-jobs.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete email-send-jobs.
+     */
+    delete?: boolean | null;
+  };
   emailImportJobs?: {
     /**
      * Allow clients to find email-import-jobs.
@@ -4584,6 +4643,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'email-send-events';
         value: string | EmailSendEvent;
+      } | null)
+    | ({
+        relationTo: 'email-send-jobs';
+        value: string | EmailSendJob;
       } | null)
     | ({
         relationTo: 'email-import-jobs';
@@ -6511,6 +6574,22 @@ export interface EmailGridBlockSelect<T extends boolean = true> {
         emailSpacer?: T | EmailSpacerBlockSelect<T>;
         emailCallout?: T | EmailCalloutBlockSelect<T>;
       };
+  fourthBlocks?:
+    | T
+    | {
+        emailHeading?: T | EmailHeadingBlockSelect<T>;
+        emailText?: T | EmailTextBlockSelect<T>;
+        emailInlineLink?: T | EmailInlineLinkBlockSelect<T>;
+        emailButton?: T | EmailButtonBlockSelect<T>;
+        emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
+        emailImage?: T | EmailImageBlockSelect<T>;
+        emailGallery?: T | EmailGalleryBlockSelect<T>;
+        emailList?: T | EmailListBlockSelect<T>;
+        emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
+        emailDivider?: T | EmailDividerBlockSelect<T>;
+        emailSpacer?: T | EmailSpacerBlockSelect<T>;
+        emailCallout?: T | EmailCalloutBlockSelect<T>;
+      };
   id?: T;
   blockName?: T;
 }
@@ -6723,6 +6802,28 @@ export interface EmailSendEventsSelect<T extends boolean = true> {
   occurredAt?: T;
   url?: T;
   raw?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-send-jobs_select".
+ */
+export interface EmailSendJobsSelect<T extends boolean = true> {
+  email?: T;
+  tenant?: T;
+  status?: T;
+  kind?: T;
+  requestedBy?: T;
+  requestedAt?: T;
+  startedAt?: T;
+  completedAt?: T;
+  attempts?: T;
+  lockedAt?: T;
+  lockExpiresAt?: T;
+  recipientCount?: T;
+  elasticCampaignId?: T;
+  message?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -7122,6 +7223,14 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         delete?: T;
       };
   emailSendEvents?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  emailSendJobs?:
     | T
     | {
         find?: T;
