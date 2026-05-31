@@ -4194,9 +4194,9 @@ const updateGlobalDocumentTool = {
 const shareDocumentToTenantsTool = {
   name: 'shareDocumentToTenants',
   description:
-    'Clone a post or form into selected tenants, preserving nested media, nested forms, and tenant scoping.',
+    'Clone a post, form, or email into selected tenants, preserving nested media, nested forms, and tenant scoping.',
   parameters: {
-    collection: z.enum(['posts', 'forms']).describe('Document type to share.'),
+    collection: z.enum(['posts', 'forms', 'emails']).describe('Document type to share.'),
     docId: z.union([z.string(), z.number()]).describe('Source document ID to clone.'),
     tenantIDs: z.array(z.union([z.string(), z.number()])).optional().describe('Target tenant IDs to clone into.'),
     tenantSlugs: z.array(z.string()).optional().describe('Target tenant slugs to clone into.'),
@@ -4204,7 +4204,7 @@ const shareDocumentToTenantsTool = {
     sourceTenantSlug: z.string().optional().describe('Optional source tenant slug scope.'),
   },
   handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
-    const collection = args.collection === 'forms' ? 'forms' : 'posts';
+    const collection = args.collection === 'forms' ? 'forms' : args.collection === 'emails' ? 'emails' : 'posts';
     const docId = args.docId != null ? String(args.docId).trim() : '';
     const rawTenantIds = Array.isArray(args.tenantIDs)
       ? args.tenantIDs

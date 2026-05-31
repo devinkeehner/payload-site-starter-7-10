@@ -4298,7 +4298,7 @@ export interface PayloadMcpApiKey {
      */
     updateGlobal?: boolean | null;
     /**
-     * Clone a post or form into selected tenants, preserving nested media, nested forms, and tenant scoping.
+     * Clone a post, form, or email into selected tenants, preserving nested media, nested forms, and tenant scoping.
      */
     shareDocumentToTenants?: boolean | null;
     /**

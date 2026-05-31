@@ -1,8 +1,10 @@
-import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug, Where } from 'payload'
+import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug, PayloadHandler, PayloadRequest, Where } from 'payload'
 
+import { isSuperUser } from '@/lib/access/isSuperUser'
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
 import { buildDefaultEmailLayout } from '@/lib/email/defaultEmailLayout'
+import { shareDocumentToTenants } from '@/lib/mcp-tenant-shares'
 
 const EMAIL_LISTS_COLLECTION = 'email-lists' as CollectionSlug
 
@@ -14,6 +16,130 @@ const populateDefaultLayout: CollectionBeforeValidateHook = async ({ data, opera
     ...data,
     layout: await buildDefaultEmailLayout(data as Record<string, unknown>, req),
   }
+}
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+
+const extractIDs = (value: unknown): string[] => {
+  if (!value) return []
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === 'string' || typeof item === 'number') return String(item)
+        const record = asRecord(item)
+        return typeof record.id === 'string' ? record.id : typeof record.value === 'string' ? record.value : ''
+      })
+      .filter(Boolean)
+  }
+  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean)
+  if (typeof value === 'object') {
+    const record = asRecord(value)
+    return Object.keys(record)
+      .filter((key) => key.startsWith('tenantIDs['))
+      .map((key) => String(record[key] || '').trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+const getRequestId = (req: Record<string, unknown>, collectionSlug: string): string | undefined => {
+  const params = asRecord(req.params)
+  const routeParams = asRecord(req.routeParams)
+  const query = asRecord(req.query)
+  const id = params.id || routeParams.id || query.id
+  if (typeof id === 'string' && id) return id
+
+  const url = typeof req.originalUrl === 'string' ? req.originalUrl : typeof req.url === 'string' ? req.url : ''
+  const match = url.match(new RegExp(`/api/${collectionSlug}/([^/]+)/share`))
+  return match?.[1]
+}
+
+const parseShareBody = async (req: Record<string, unknown>): Promise<Record<string, unknown>> => {
+  let raw = req.body
+
+  if (raw && typeof raw === 'string') {
+    try {
+      raw = JSON.parse(raw)
+    } catch {
+      raw = {}
+    }
+  } else if (raw && typeof Buffer !== 'undefined' && Buffer.isBuffer(raw)) {
+    try {
+      raw = JSON.parse(raw.toString('utf-8'))
+    } catch {
+      raw = {}
+    }
+  }
+
+  const rawRecord = asRecord(raw)
+  const looksLikeReadableStream =
+    Boolean(raw && typeof raw === 'object') &&
+    (typeof rawRecord.getReader === 'function' || typeof rawRecord.tee === 'function')
+  const missingKeys =
+    !raw ||
+    typeof raw !== 'object' ||
+    (!('tenantIDs' in rawRecord) &&
+      !('tenantIds' in rawRecord) &&
+      !('tenant_ids' in rawRecord) &&
+      !('tenants' in rawRecord) &&
+      !('sourceTenantID' in rawRecord) &&
+      !('sourceTenantId' in rawRecord))
+
+  if (looksLikeReadableStream || missingKeys) {
+    try {
+      if (typeof req.json === 'function') {
+        const parsed = await (req.json as () => Promise<unknown>)()
+        if (parsed && typeof parsed === 'object') raw = parsed
+      } else if (typeof req.text === 'function') {
+        const text = await (req.text as () => Promise<string>)()
+        raw = text ? JSON.parse(text) : raw || {}
+      }
+    } catch {
+      // Keep best-effort raw body.
+    }
+  }
+
+  return asRecord(raw)
+}
+
+const getTenantIDsFromRequest = (req: Record<string, unknown>, body: Record<string, unknown>) => {
+  let tenantIDs = extractIDs(body.tenantIDs)
+  if (!tenantIDs.length) tenantIDs = extractIDs(body.tenantIds)
+  if (!tenantIDs.length) tenantIDs = extractIDs(body.tenant_ids)
+  if (!tenantIDs.length) tenantIDs = extractIDs(body.tenants)
+
+  if (!tenantIDs.length) {
+    const query = asRecord(req.query)
+    tenantIDs = extractIDs(query.tenantIDs)
+    if (!tenantIDs.length) tenantIDs = extractIDs(query.tenantIds)
+  }
+
+  if (!tenantIDs.length && (typeof req.originalUrl === 'string' || typeof req.url === 'string')) {
+    try {
+      const url = new URL(String(req.originalUrl || req.url), 'http://local')
+      tenantIDs = extractIDs(url.searchParams.getAll('tenantIDs'))
+      if (!tenantIDs.length) tenantIDs = extractIDs(url.searchParams.get('tenantIDs') || url.searchParams.get('tenantIds'))
+    } catch {
+      // URL parsing is best effort.
+    }
+  }
+
+  return tenantIDs
+}
+
+const getUserTenantIDs = (user: unknown): string[] => {
+  const tenants = asRecord(user).tenants
+  if (!Array.isArray(tenants)) return []
+
+  return tenants
+    .map((entry) => {
+      const tenant = asRecord(entry).tenant
+      if (typeof tenant === 'string') return tenant
+      const tenantRecord = asRecord(tenant)
+      return typeof tenantRecord.id === 'string' ? tenantRecord.id : ''
+    })
+    .filter(Boolean)
 }
 
 export const Emails: CollectionConfig<'emails'> = {
@@ -92,6 +218,61 @@ export const Emails: CollectionConfig<'emails'> = {
   hooks: {
     beforeValidate: [populateDefaultLayout],
   },
+  endpoints: [
+    {
+      path: '/:id/share',
+      method: 'post',
+      handler: (async (req: PayloadRequest & Record<string, unknown>, res?: { status?: (status: number) => { json: (body: unknown) => unknown } }) => {
+        const send = (status: number, body: unknown) => {
+          if (res?.status && typeof res.status === 'function') {
+            return res.status(status).json(body)
+          }
+          return new Response(JSON.stringify(body), {
+            status,
+            headers: { 'content-type': 'application/json' },
+          })
+        }
+
+        try {
+          if (!req.user) return send(401, { error: 'Unauthorized' })
+
+          const id = getRequestId(req, 'emails')
+          if (!id) return send(400, { error: 'Missing email id' })
+
+          const body = await parseShareBody(req)
+          const tenantIDs = getTenantIDsFromRequest(req, body)
+          if (!tenantIDs.length) return send(400, { error: 'No tenantIDs provided' })
+
+          const sourceTenantID =
+            typeof body.sourceTenantID === 'string'
+              ? body.sourceTenantID
+              : typeof body.sourceTenantId === 'string'
+                ? body.sourceTenantId
+                : undefined
+
+          const allowedTenantIDs = isSuperUser(req.user)
+            ? tenantIDs
+            : tenantIDs.filter((tenantID) => getUserTenantIDs(req.user).includes(tenantID))
+          if (!allowedTenantIDs.length) return send(403, { error: 'You do not have access to the selected tenants' })
+
+          const shareResult = await shareDocumentToTenants({
+            collection: 'emails',
+            docId: id,
+            tenantIDs: allowedTenantIDs,
+            sourceTenantID,
+            req,
+          })
+
+          return send(200, { ok: true, count: shareResult.count, results: shareResult.results })
+        } catch (error) {
+          console.error('[emails/:id/share] error', error)
+          const body: Record<string, unknown> = { error: error instanceof Error ? error.message : 'Server error' }
+          if (process.env.NODE_ENV !== 'production' && error instanceof Error) body.stack = error.stack
+          return send(500, body)
+        }
+      }) as unknown as PayloadHandler,
+    },
+  ],
   fields: [
     {
       name: 'title',
@@ -282,6 +463,23 @@ export const Emails: CollectionConfig<'emails'> = {
                   type: 'textarea',
                 },
               ],
+            },
+          ],
+        },
+        {
+          label: 'Share',
+          fields: [
+            {
+              name: 'shareCopy',
+              label: 'Share Copy',
+              type: 'ui',
+              admin: {
+                components: {
+                  Field: {
+                    path: '@/components/admin/ShareCopyField#ShareCopyField',
+                  },
+                },
+              },
             },
           ],
         },

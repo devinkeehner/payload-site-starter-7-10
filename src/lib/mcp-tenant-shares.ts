@@ -1,5 +1,7 @@
 import type { PayloadRequest } from 'payload'
 
+import { buildDefaultEmailLayout } from '@/lib/email/defaultEmailLayout'
+
 type UnknownRecord = Record<string, unknown>
 
 type ShareResultRow = {
@@ -12,7 +14,7 @@ type ShareResultRow = {
   error?: string
 }
 
-type ShareCollection = 'posts' | 'forms'
+type ShareCollection = 'posts' | 'forms' | 'emails'
 
 type ShareArgs = {
   collection: ShareCollection
@@ -563,6 +565,202 @@ const clonePostToTenant = async (
   }
 }
 
+const getTenantDefaultEmailPieces = async (
+  req: PayloadRequest,
+  tenantId: string | undefined,
+  seed: UnknownRecord,
+  scopedReq?: PayloadRequest | (PayloadRequest & { tenant: string }),
+): Promise<{ defaultFeaturedImageId?: string; footer?: UnknownRecord }> => {
+  if (!tenantId) return {}
+
+  const defaultLayout = await buildDefaultEmailLayout(
+    {
+      ...seed,
+      tenant: tenantId,
+    },
+    scopedReq || ({ ...req, tenant: tenantId } as PayloadRequest & { tenant: string }),
+  )
+
+  const defaultImage = defaultLayout.find(
+    (block) => asRecord(block).blockType === 'emailImage' && extractMediaId(asRecord(block).media),
+  )
+  const footer = defaultLayout.find((block) => asRecord(block).blockType === 'emailFooterOneColumn')
+
+  return {
+    defaultFeaturedImageId: extractMediaId(asRecord(defaultImage).media),
+    footer: footer ? asRecord(footer) : undefined,
+  }
+}
+
+const isGeneratedEmailHeaderImage = (
+  block: UnknownRecord,
+  isFirstTopLevelBlock: boolean,
+  sourceDefaultFeaturedImageId?: string,
+) => {
+  if (block.blockType !== 'emailImage') return false
+
+  const source = getString(block.imageSource) || getString(block.generatedSource) || getString(block.source)
+  if (source === 'tenantDefaultFeaturedImage' || source === 'tenant-default-featured-image') return true
+
+  const mediaId = extractMediaId(block.media)
+  return Boolean(isFirstTopLevelBlock && sourceDefaultFeaturedImageId && mediaId === sourceDefaultFeaturedImageId)
+}
+
+const cloneEmailLayout = async (
+  layout: unknown,
+  tenantId: string,
+  scopedReq: PayloadRequest | (PayloadRequest & { tenant: string }),
+  ensureMediaClone: ReturnType<typeof ensureMediaCloneFactory>,
+  targetDefaults: { defaultFeaturedImageId?: string; footer?: UnknownRecord },
+  sourceDefaults: { defaultFeaturedImageId?: string },
+) => {
+  const cloneValue = async (
+    value: unknown,
+    isFirstTopLevelBlock = false,
+    isTopLevelLayout = false,
+  ): Promise<unknown> => {
+    if (Array.isArray(value)) {
+      const next: unknown[] = []
+      for (let index = 0; index < value.length; index += 1) {
+        const cloned = await cloneValue(value[index], isTopLevelLayout && index === 0, false)
+        if (typeof cloned !== 'undefined') next.push(cloned)
+      }
+      return next
+    }
+
+    if (!value || typeof value !== 'object') return value
+
+    const record = asRecord(value)
+    const blockType = getString(record.blockType)
+
+    if (blockType === 'emailImage') {
+      if (isGeneratedEmailHeaderImage(record, isFirstTopLevelBlock, sourceDefaults.defaultFeaturedImageId)) {
+        if (!targetDefaults.defaultFeaturedImageId) return undefined
+
+        return {
+          ...record,
+          imageSource: 'tenantDefaultFeaturedImage',
+          media: targetDefaults.defaultFeaturedImageId,
+        }
+      }
+
+      return {
+        ...record,
+        media: await ensureMediaClone(extractMediaId(record.media), tenantId, scopedReq),
+      }
+    }
+
+    if (blockType === 'emailFooterOneColumn' && targetDefaults.footer) {
+      return {
+        ...record,
+        ...JSON.parse(JSON.stringify(targetDefaults.footer)),
+        blockType: 'emailFooterOneColumn',
+        id: record.id,
+      }
+    }
+
+    const next: UnknownRecord = { ...record }
+    for (const [key, childValue] of Object.entries(record)) {
+      if (!childValue) {
+        next[key] = childValue
+        continue
+      }
+
+      if (key === 'media' || key === 'image') {
+        const mediaId = extractMediaId(childValue)
+        if (mediaId) {
+          next[key] = await ensureMediaClone(mediaId, tenantId, scopedReq)
+          continue
+        }
+      }
+
+      next[key] = await cloneValue(childValue, false, false)
+    }
+
+    return next
+  }
+
+  return cloneValue(layout, false, true)
+}
+
+const cloneEmailToTenant = async (
+  req: PayloadRequest,
+  emailId: string,
+  tenantId: string,
+  scopedReq: PayloadRequest | (PayloadRequest & { tenant: string }),
+  sourceTenantID: string | undefined,
+  tenantCache: Map<string, { id: string; slug?: string | null }>,
+  mediaDocCache: Map<string, unknown>,
+  mediaCloneCache: Map<string, string>,
+): Promise<{ id: string; _status?: string | null }> => {
+  const sourceReq = sourceTenantID
+    ? ({ ...req, tenant: sourceTenantID } as PayloadRequest & { tenant: string })
+    : req
+
+  const emailDoc = await req.payload.findByID({
+    collection: 'emails',
+    id: emailId,
+    depth: 0,
+    overrideAccess: true,
+    req: sourceReq,
+  })
+
+  const emailRecord = asRecord(emailDoc)
+  const sourceTenantId =
+    sourceTenantID ||
+    (typeof emailRecord.tenant === 'string' ? emailRecord.tenant : getString(asRecord(emailRecord.tenant).id))
+  const ensureMediaClone = ensureMediaCloneFactory(req, sourceTenantId, tenantCache, mediaDocCache, mediaCloneCache)
+  const defaultSeed = {
+    subject: emailRecord.subject,
+    title: emailRecord.title,
+  }
+  const [targetDefaults, sourceDefaults] = await Promise.all([
+    getTenantDefaultEmailPieces(req, tenantId, defaultSeed, scopedReq),
+    getTenantDefaultEmailPieces(req, sourceTenantId, defaultSeed, sourceReq),
+  ])
+
+  const clonedLayout = await cloneEmailLayout(
+    emailRecord.layout,
+    tenantId,
+    scopedReq,
+    ensureMediaClone,
+    targetDefaults,
+    sourceDefaults,
+  )
+
+  const data: Record<string, unknown> = {
+    title: emailRecord.title,
+    subject: emailRecord.subject,
+    preheader: emailRecord.preheader,
+    recipientEmail: emailRecord.recipientEmail,
+    replyTo: emailRecord.replyTo,
+    status: 'draft',
+    scheduledAt: null,
+    emailList: null,
+    layout: Array.isArray(clonedLayout) ? clonedLayout : [],
+    tenant: tenantId,
+  }
+
+  const created = await req.payload.create({
+    collection: 'emails',
+    data,
+    draft: true,
+    depth: 0,
+    req: scopedReq,
+    overrideAccess: true,
+    context: { disableRevalidate: true },
+  })
+
+  const createdRecord = asRecord(created)
+  const id = getString(createdRecord.id)
+  if (!id) throw new Error(`Cloned email for ${emailId} did not return an ID`)
+
+  return {
+    id,
+    _status: getString(createdRecord._status) ?? 'draft',
+  }
+}
+
 export async function shareDocumentToTenants({
   collection,
   docId,
@@ -588,6 +786,22 @@ export async function shareDocumentToTenants({
     const scopedReq = { ...req, tenant: tenantId } as PayloadRequest & { tenant: string }
 
     try {
+      if (collection === 'emails') {
+        const cloned = await cloneEmailToTenant(
+          req,
+          docId,
+          tenantId,
+          scopedReq,
+          sourceTenantID,
+          tenantCache,
+          mediaDocCache,
+          mediaCloneCache,
+        )
+        results.push({ tenantID: tenantId, id: cloned.id, _status: cloned._status ?? 'draft' })
+        count += 1
+        continue
+      }
+
       if (collection === 'forms') {
         const newId = await cloneFormToTenant(
           req,

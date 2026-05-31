@@ -75,8 +75,16 @@ interface ShareCopyFieldProps {
   collectionSlug?: string
 }
 
+const getCollectionLabel = (collectionSlug: string) => {
+  if (collectionSlug === 'forms') return 'form'
+  if (collectionSlug === 'emails') return 'email'
+  if (collectionSlug === 'posts') return 'post'
+  return 'document'
+}
+
 const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
   const effectiveCollectionSlug = collectionSlug || deriveCollectionSlugFromPath() || 'posts'
+  const collectionLabel = getCollectionLabel(effectiveCollectionSlug)
   const docInfo = useDocumentInfo() as { id?: string } | null
   const infoId = docInfo?.id
   const fieldId = useFormFields(([fields]) => readIdField(fields))
@@ -188,7 +196,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
 
   const handleShare = async () => {
     if (!resolvedId) {
-      alert('Save the post first, then try again.')
+      alert(`Save the ${collectionLabel} first, then try again.`)
       return
     }
     if (selected.length === 0) {
@@ -229,7 +237,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
         setStatus(msg)
         setStatusDetails([
           `Collection: ${effectiveCollectionSlug}`,
-          `Post ID: ${resolvedId}`,
+          `${collectionLabel.charAt(0).toUpperCase()}${collectionLabel.slice(1)} ID: ${resolvedId}`,
           `Content-Type: ${contentType || '(missing)'}`,
           `Error: ${serverMsg}`,
         ])
@@ -285,7 +293,7 @@ const ShareCopyField: React.FC<ShareCopyFieldProps> = ({ collectionSlug }) => {
 
       {!resolvedId ? (
         <div style={{ marginBottom: 8 }}>
-          <small>Save the post first to enable sharing.</small>
+          <small>Save the {collectionLabel} first to enable sharing.</small>
         </div>
       ) : null}
 

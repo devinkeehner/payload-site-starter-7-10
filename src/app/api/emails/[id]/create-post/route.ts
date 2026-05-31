@@ -22,6 +22,33 @@ function getRelationshipId(value: unknown): string | number | null {
   return null
 }
 
+async function getTenantDefaultFeaturedImageId(
+  payload: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['payload'],
+  payloadReq: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['req'],
+  tenantId: string | number | null,
+) {
+  if (!tenantId) return null
+
+  const result = await payload.find({
+    collection: 'standard-media',
+    depth: 0,
+    limit: 1,
+    overrideAccess: false,
+    req: payloadReq,
+    select: {
+      defaultFeaturedImage: true,
+    },
+    where: {
+      tenant: {
+        equals: tenantId,
+      },
+    },
+  })
+
+  const doc = result.docs[0] as Record<string, unknown> | undefined
+  return getRelationshipId(doc?.defaultFeaturedImage)
+}
+
 async function getAuthenticatedPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
     canSetHeaders: false,
@@ -51,8 +78,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }) as unknown as EmailDoc
 
     const title = email.subject?.trim() || email.title?.trim() || 'Email update'
-    const converted = convertEmailToPost(email.layout, email.preheader || title)
     const tenantId = getRelationshipId(email.tenant)
+    const tenantDefaultFeaturedImageId = await getTenantDefaultFeaturedImageId(payload, payloadReq, tenantId)
+    const converted = convertEmailToPost(email.layout, email.preheader || title, {
+      tenantDefaultFeaturedImageId,
+    })
     const data: Record<string, unknown> = {
       _status: 'draft',
       content: converted.content,

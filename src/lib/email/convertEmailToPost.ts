@@ -21,6 +21,10 @@ export type ConvertedEmailPost = {
   layout: Array<Record<string, unknown>>
 }
 
+export type ConvertEmailToPostOptions = {
+  tenantDefaultFeaturedImageId?: string | number | null
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
@@ -235,11 +239,11 @@ function postBentoGrid(block: EmailBlock): Record<string, unknown> | null {
   }
 }
 
-function postGrid(block: EmailBlock): Record<string, unknown> | null {
-  const leftBlocks = convertEmailLayout(block.leftBlocks)
-  const centerBlocks = convertEmailLayout(block.centerBlocks)
-  const rightBlocks = convertEmailLayout(block.rightBlocks)
-  const fourthBlocks = convertEmailLayout(block.fourthBlocks)
+function postGrid(block: EmailBlock, options: ConvertEmailToPostOptions): Record<string, unknown> | null {
+  const leftBlocks = convertEmailLayout(block.leftBlocks, options, false)
+  const centerBlocks = convertEmailLayout(block.centerBlocks, options, false)
+  const rightBlocks = convertEmailLayout(block.rightBlocks, options, false)
+  const fourthBlocks = convertEmailLayout(block.fourthBlocks, options, false)
   const postRightBlocks = [...rightBlocks, ...fourthBlocks]
 
   if (!leftBlocks.length && !centerBlocks.length && !postRightBlocks.length) return null
@@ -299,7 +303,31 @@ function textSection(headingText: string, bodyText?: string): Record<string, unk
   return blocks.length ? postRichText(richText(blocks)) : null
 }
 
-function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
+function isGeneratedHeaderImage(
+  block: EmailBlock,
+  isFirstTopLevelBlock: boolean,
+  options: ConvertEmailToPostOptions,
+): boolean {
+  if (block.blockType !== 'emailImage') return false
+
+  const source = getString(block.imageSource) || getString(block.generatedSource) || getString(block.source)
+  if (source === 'tenantDefaultFeaturedImage' || source === 'tenant-default-featured-image') return true
+
+  const mediaId = getUploadId(block.media)
+  const defaultImageId = options.tenantDefaultFeaturedImageId
+  return Boolean(
+    isFirstTopLevelBlock &&
+      defaultImageId != null &&
+      mediaId != null &&
+      String(mediaId) === String(defaultImageId),
+  )
+}
+
+function convertEmailBlock(
+  block: EmailBlock,
+  options: ConvertEmailToPostOptions,
+  isFirstTopLevelBlock = false,
+): Array<Record<string, unknown>> {
   switch (block.blockType) {
     case 'emailHeading': {
       const text = getString(block.text)
@@ -321,6 +349,7 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
         postButton(getString(block.secondaryLabel), getString(block.secondaryUrl), block.secondaryVariant, block.align),
       ].filter((item): item is Record<string, unknown> => Boolean(item))
     case 'emailImage': {
+      if (isGeneratedHeaderImage(block, isFirstTopLevelBlock, options)) return []
       const converted = postImage(block.media)
       return converted ? [converted] : []
     }
@@ -393,7 +422,7 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
       return converted ? [converted] : []
     }
     case 'emailGrid': {
-      const converted = postGrid(block)
+      const converted = postGrid(block, options)
       return converted ? [converted] : []
     }
     case 'emailSpacer':
@@ -410,42 +439,29 @@ function convertEmailBlock(block: EmailBlock): Array<Record<string, unknown>> {
       return converted ? [converted] : []
     }
     case 'emailFooterOneColumn':
-      {
-        const links = [
-          ...getItems(block.links),
-          ...getItems(block.socialLinks).map((link) => ({
-            label: getString(link.platform),
-            url: getString(link.url),
-          })),
-          ...getItems(block.towns).map((town) => ({
-            label: getString(town.town),
-            url: getString(town.url),
-          })),
-        ]
-
-        return [
-          postLinks(
-            getString(block.heading),
-            [getString(block.body), getString(block.address), getString(block.copyright)].filter(Boolean).join('\n\n'),
-            links,
-            'footer',
-          ),
-        ].filter((item): item is Record<string, unknown> => Boolean(item))
-      }
+      return []
     default:
       return []
   }
 }
 
-function convertEmailLayout(layout: unknown): Array<Record<string, unknown>> {
+function convertEmailLayout(
+  layout: unknown,
+  options: ConvertEmailToPostOptions,
+  isTopLevelLayout = true,
+): Array<Record<string, unknown>> {
   if (!Array.isArray(layout)) return []
   return layout
     .filter((block): block is EmailBlock => isRecord(block) && typeof block.blockType === 'string')
-    .flatMap(convertEmailBlock)
+    .flatMap((block, index) => convertEmailBlock(block, options, isTopLevelLayout && index === 0))
 }
 
-export function convertEmailToPost(layout: unknown, fallbackContent: string): ConvertedEmailPost {
-  const convertedLayout = convertEmailLayout(layout)
+export function convertEmailToPost(
+  layout: unknown,
+  fallbackContent: string,
+  options: ConvertEmailToPostOptions = {},
+): ConvertedEmailPost {
+  const convertedLayout = convertEmailLayout(layout, options)
   const firstRichText = convertedLayout.find((block) => isLexicalState(block.content))?.content
   const firstText = firstTextFromLexical(firstRichText) || fallbackContent
 
