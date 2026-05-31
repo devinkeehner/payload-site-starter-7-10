@@ -16,6 +16,13 @@ function getString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value : fallback
 }
 
+function getText(value: unknown, fallback = ''): React.ReactNode {
+  if (typeof value === 'string' && value.trim()) return value
+  if (typeof value === 'number') return value
+  if (React.isValidElement(value)) return value
+  return fallback
+}
+
 function getNumber(value: unknown, fallback: number) {
   if (typeof value === 'string' && value.trim()) {
     const numberValue = Number(value)
@@ -95,6 +102,22 @@ function getOptionLabelForValue(options: Record<string, unknown>[], value: unkno
   return getString(match?.label, stringValue)
 }
 
+function getOptionLabel(option: Record<string, unknown>, fallback: string) {
+  return getText(option.label, fallback)
+}
+
+function getPreviewValue(value: unknown, fallback: string) {
+  return getText(value, fallback)
+}
+
+function hasPreviewValue(value: unknown) {
+  return (
+    (typeof value === 'string' && value.trim().length > 0) ||
+    typeof value === 'number' ||
+    React.isValidElement(value)
+  )
+}
+
 function PreviewNote({ children }: { children?: React.ReactNode }) {
   if (!children) return null
   return <div className={styles.formPreviewHint}>{children}</div>
@@ -106,7 +129,7 @@ function FieldChrome({
   props,
 }: {
   children: React.ReactNode
-  label: string
+  label: React.ReactNode
   props: Record<string, unknown>
 }) {
   const width = getNumber(props.width, 100)
@@ -124,22 +147,29 @@ function FieldChrome({
 }
 
 function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: string }) {
-  const label = getString(props.label, getFallbackLabel(type))
+  const label = getText(props.label, getFallbackLabel(type))
   const options = getOptions(props.options)
   const defaultValue = getString(props.defaultValue)
 
   if (type === 'select') {
     const placeholder = getString(props.placeholder, 'Choose an option')
     const selectedLabel = getOptionLabelForValue(options, defaultValue)
+    const hasDefaultValue = hasPreviewValue(props.defaultValue)
+    const previewValue = selectedLabel || (hasDefaultValue ? getPreviewValue(props.defaultValue, defaultValue) : placeholder)
 
     return (
       <FieldChrome label={label} props={props}>
-        <div className={styles.formInputPreview} data-empty={!selectedLabel}>
-          {selectedLabel || defaultValue || placeholder}
+        <div className={styles.formInputPreview} data-empty={!selectedLabel && !hasDefaultValue}>
+          {previewValue}
         </div>
         {options.length ? (
           <PreviewNote>
-            Options: {options.map((option) => getString(option.label, 'Option')).join(', ')}
+            Options: {options.map((option, index) => (
+              <React.Fragment key={index}>
+                {index > 0 ? ', ' : ''}
+                {getOptionLabel(option, 'Option')}
+              </React.Fragment>
+            ))}
           </PreviewNote>
         ) : null}
       </FieldChrome>
@@ -151,9 +181,10 @@ function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: 
       <div className={type === 'image-select' ? styles.formImageOptionsPreview : styles.formOptionsPreview}>
         {(options.length ? options : [{ label: 'First option' }, { label: 'Second option' }]).slice(0, 4).map((option, index) => {
           const media = type === 'image-select' ? normalizeMediaResource(option.image) : null
-          const optionLabel = getString(option.label, `Option ${index + 1}`)
-          const optionValue = getString(option.value, optionLabel)
-          const selected = defaultValue && (defaultValue === optionValue || defaultValue === optionLabel)
+          const optionLabel = getOptionLabel(option, `Option ${index + 1}`)
+          const optionLabelString = getString(option.label, `Option ${index + 1}`)
+          const optionValue = getString(option.value, optionLabelString)
+          const selected = defaultValue && (defaultValue === optionValue || defaultValue === optionLabelString)
           return (
             <span key={index} data-selected={Boolean(selected)}>
               {media?.url ? (
@@ -191,7 +222,7 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
   }
 
   if (blockType === 'checkbox') {
-    const label = getString(props.label, getFallbackLabel(blockType))
+    const label = getText(props.label, getFallbackLabel(blockType))
     return (
       <FieldChrome label={label} props={props}>
         <div className={styles.formCheckboxPreview}>
@@ -206,7 +237,7 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
   if (blockType === 'video-capture') {
     const helpText = getString(props.helpText)
     return (
-      <FieldChrome label={getString(props.label, getFallbackLabel(blockType))} props={props}>
+      <FieldChrome label={getText(props.label, getFallbackLabel(blockType))} props={props}>
         <div className={styles.formVideoPreview}>{helpText || 'Video upload / recording field'}</div>
         <PreviewNote>
           {`${getNumber(props.maxDuration, 60)} seconds max, ${getNumber(props.maxFileSizeMB, 100)} MB max`}
@@ -215,7 +246,7 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
     )
   }
 
-  const label = getString(props.label, getFallbackLabel(blockType))
+  const label = getText(props.label, getFallbackLabel(blockType))
   const placeholder = getString(
     props.placeholder,
     blockType === 'email'
@@ -230,20 +261,23 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
               ? 'Enter a longer response'
               : 'Enter text',
   )
-  const rawDefault = typeof props.defaultValue === 'number'
+  const defaultValueText = typeof props.defaultValue === 'number'
     ? String(props.defaultValue)
     : getString(props.defaultValue)
-  const previewValue = rawDefault || placeholder
+  const hasDefaultValue = hasPreviewValue(props.defaultValue)
+  const previewValue = hasDefaultValue
+    ? getPreviewValue(props.defaultValue, defaultValueText)
+    : placeholder
 
   return (
     <FieldChrome label={label} props={props}>
       <div
         className={blockType === 'textarea' ? styles.formTextareaPreview : styles.formInputPreview}
-        data-empty={!rawDefault}
+        data-empty={!hasDefaultValue}
       >
         {previewValue}
       </div>
-      {rawDefault ? <PreviewNote>Default: {rawDefault}</PreviewNote> : null}
+      {defaultValueText ? <PreviewNote>Default: {defaultValueText}</PreviewNote> : null}
     </FieldChrome>
   )
 }
