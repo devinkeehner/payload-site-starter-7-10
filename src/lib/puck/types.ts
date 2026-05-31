@@ -19,6 +19,13 @@ export type PuckEmailDoc = {
   layout?: unknown[] | null
 }
 
+export type PuckFormDoc = Record<string, unknown> & {
+  id?: string | number
+  fields?: PuckPageBlock[] | null
+  submitButtonLabel?: string | null
+  title?: string | null
+}
+
 export type PuckPostDoc = Record<string, unknown> & {
   id?: string | number
   title?: string | null

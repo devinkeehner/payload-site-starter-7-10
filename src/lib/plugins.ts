@@ -734,7 +734,24 @@ export const plugins: Plugin[] = [
       } as any,
     },
     formOverrides: {
-      admin: { group: 'Forms & Submissions' },
+      admin: {
+        group: 'Forms & Submissions',
+        components: {
+          views: {
+            edit: {
+              visual: {
+                path: '/visual',
+                Component: '@/components/admin/form/PuckFormBuilderView',
+                tab: {
+                  href: '/visual',
+                  label: 'Form Builder',
+                  order: 75,
+                },
+              },
+            },
+          },
+        },
+      },
       fields: ({ defaultFields }) => {
         const fields = Array.isArray(defaultFields) ? [...defaultFields] : []
 

@@ -1,6 +1,6 @@
 import type { ComponentData } from '@puckeditor/core'
 
-import type { PuckEmailDoc, PuckPageBlock, PuckPageData, PuckPageDoc, PuckPostDoc } from './types'
+import type { PuckEmailDoc, PuckFormDoc, PuckPageBlock, PuckPageData, PuckPageDoc, PuckPostDoc } from './types'
 
 const FALLBACK_HERO = {
   type: 'none',
@@ -383,6 +383,10 @@ export function emailToPuckData(email: PuckEmailDoc): PuckPageData {
   return layoutToPuckData(email.layout)
 }
 
+export function formToPuckData(form: PuckFormDoc): PuckPageData {
+  return layoutToPuckData(form.fields)
+}
+
 export function postToPuckData(post: PuckPostDoc): PuckPageData {
   const layout = Array.isArray(post.layout) && post.layout.length
     ? post.layout.map((block) => block.blockType === 'postBody' ? { ...block, content: post.content || null } : block)
@@ -472,4 +476,93 @@ export function puckDataToPostPatch(data: PuckPageData): {
       return postBodyBlock
     }),
   }
+}
+
+function slugifyFieldName(value: unknown, fallback: string): string {
+  const source = typeof value === 'string' && value.trim() ? value : fallback
+  const slug = source
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+  const camel = slug.replace(/-([a-z0-9])/g, (_, char: string) => char.toUpperCase())
+  return camel || fallback
+}
+
+function normalizeFormFieldName(
+  field: Record<string, unknown>,
+  blockType: string,
+  index: number,
+  usedNames: Set<string>,
+) {
+  if (blockType === 'message') return field
+
+  const baseName = slugifyFieldName(field.name || field.label, `${blockType}${index + 1}`)
+  let nextName = baseName
+  let suffix = 2
+
+  while (usedNames.has(nextName)) {
+    nextName = `${baseName}${suffix}`
+    suffix += 1
+  }
+
+  usedNames.add(nextName)
+  return {
+    ...field,
+    name: nextName,
+  }
+}
+
+function normalizeFormOptions(value: unknown, fallbackBase = 'option') {
+  if (!Array.isArray(value)) return value
+
+  return value.map((option, index) => {
+    if (!isRecord(option)) return option
+    const label = typeof option.label === 'string' && option.label.trim() ? option.label : `Option ${index + 1}`
+    const value = typeof option.value === 'string' && option.value.trim()
+      ? option.value
+      : slugifyFieldName(label, `${fallbackBase}${index + 1}`)
+    return {
+      ...option,
+      label,
+      value,
+    }
+  })
+}
+
+export function puckDataToFormPatch(data: PuckPageData): {
+  fields: Array<Record<string, unknown>>
+} {
+  const content = Array.isArray(data.content) ? data.content : []
+  const usedNames = new Set<string>()
+  const fields = content
+    .filter((item): item is ComponentData<Record<string, unknown>> => Boolean(item?.type))
+    .map((item, index) => {
+      const itemRecord = item as ComponentData<Record<string, unknown>> & { id?: string }
+      const props: Record<string, unknown> =
+        itemRecord.props && typeof itemRecord.props === 'object'
+          ? (itemRecord.props as Record<string, unknown>)
+          : {}
+      const blockType = String(itemRecord.type)
+      const payloadProps = toPayloadValue(props) as Record<string, unknown>
+      const id = props.id ?? itemRecord.id ?? undefined
+      const nextField: Record<string, unknown> = {
+        ...payloadProps,
+        id,
+        blockType,
+      }
+
+      if ('width' in nextField && typeof nextField.width === 'number') {
+        nextField.width = Math.max(1, Math.min(100, nextField.width))
+      }
+
+      if ('options' in nextField) {
+        nextField.options = normalizeFormOptions(nextField.options, blockType)
+      }
+
+      return normalizeFormFieldName(nextField, blockType, index, usedNames)
+    })
+
+  return { fields }
 }

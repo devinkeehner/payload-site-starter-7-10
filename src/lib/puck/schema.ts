@@ -2,6 +2,7 @@ import type { Block, Field } from 'payload'
 
 import { POST_LAYOUT_BLOCKS } from '@/lib/blocks/postLayoutBlocks'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
+import { FORM_FIELD_BLOCKS } from '@/lib/forms/puckFormBlocks'
 
 import type { PuckBlockSchema, PuckFieldSchema } from './types'
 
@@ -161,6 +162,10 @@ export function getEmailPuckBlockSchema(): PuckBlockSchema[] {
 
 export function getPostPuckBlockSchema(): PuckBlockSchema[] {
   return POST_LAYOUT_BLOCKS.map(normalizeBlock)
+}
+
+export function getFormPuckBlockSchema(): PuckBlockSchema[] {
+  return FORM_FIELD_BLOCKS.map(normalizeBlock)
 }
 
 export function getFooterPuckBlockSchema(): PuckBlockSchema[] {
