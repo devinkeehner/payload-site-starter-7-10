@@ -28,6 +28,10 @@ function getBooleanLabel(value: unknown) {
   return value === true || value === 'true' ? 'Checked by default' : 'Unchecked by default'
 }
 
+function isTruthy(value: unknown) {
+  return value === true || value === 'true'
+}
+
 function getOptions(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
@@ -47,6 +51,53 @@ function getLexicalText(value: unknown) {
 
   walk(value)
   return parts.join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function getFallbackLabel(blockType: string) {
+  switch (blockType) {
+    case 'checkbox-group':
+      return 'Select all that apply'
+    case 'country':
+      return 'Country'
+    case 'email':
+      return 'Email address'
+    case 'image-select':
+      return 'Choose an image'
+    case 'number':
+      return 'Number'
+    case 'radio':
+      return 'Choose one'
+    case 'select':
+      return 'Select one'
+    case 'state':
+      return 'State'
+    case 'textarea':
+      return 'Long answer'
+    case 'video-capture':
+      return 'Record a video'
+    case 'checkbox':
+      return 'Checkbox'
+    default:
+      return 'Text field'
+  }
+}
+
+function getOptionLabelForValue(options: Record<string, unknown>[], value: unknown) {
+  const stringValue = getString(value)
+  if (!stringValue) return ''
+
+  const match = options.find((option) => {
+    const optionValue = getString(option.value)
+    const optionLabel = getString(option.label)
+    return optionValue === stringValue || optionLabel === stringValue
+  })
+
+  return getString(match?.label, stringValue)
+}
+
+function PreviewNote({ children }: { children?: React.ReactNode }) {
+  if (!children) return null
+  return <div className={styles.formPreviewHint}>{children}</div>
 }
 
 function FieldChrome({
@@ -73,19 +124,23 @@ function FieldChrome({
 }
 
 function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: string }) {
-  const label = getString(props.label, type === 'image-select' ? 'Choose an image' : 'Choose one')
+  const label = getString(props.label, getFallbackLabel(type))
   const options = getOptions(props.options)
+  const defaultValue = getString(props.defaultValue)
 
   if (type === 'select') {
     const placeholder = getString(props.placeholder, 'Choose an option')
-    const defaultValue = getString(props.defaultValue)
+    const selectedLabel = getOptionLabelForValue(options, defaultValue)
+
     return (
       <FieldChrome label={label} props={props}>
-        <div className={styles.formInputPreview}>{defaultValue || placeholder}</div>
+        <div className={styles.formInputPreview} data-empty={!selectedLabel}>
+          {selectedLabel || defaultValue || placeholder}
+        </div>
         {options.length ? (
-          <div className={styles.formPreviewHint}>
-            {options.map((option) => getString(option.label, 'Option')).join(', ')}
-          </div>
+          <PreviewNote>
+            Options: {options.map((option) => getString(option.label, 'Option')).join(', ')}
+          </PreviewNote>
         ) : null}
       </FieldChrome>
     )
@@ -96,8 +151,11 @@ function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: 
       <div className={type === 'image-select' ? styles.formImageOptionsPreview : styles.formOptionsPreview}>
         {(options.length ? options : [{ label: 'First option' }, { label: 'Second option' }]).slice(0, 4).map((option, index) => {
           const media = type === 'image-select' ? normalizeMediaResource(option.image) : null
+          const optionLabel = getString(option.label, `Option ${index + 1}`)
+          const optionValue = getString(option.value, optionLabel)
+          const selected = defaultValue && (defaultValue === optionValue || defaultValue === optionLabel)
           return (
-            <span key={index}>
+            <span key={index} data-selected={Boolean(selected)}>
               {media?.url ? (
                 <span
                   aria-hidden="true"
@@ -106,12 +164,15 @@ function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: 
                 />
               ) : null}
               <i aria-hidden="true" />
-              <b>{getString(option.label, `Option ${index + 1}`)}</b>
+              <b>{optionLabel}</b>
             </span>
           )
         })}
       </div>
-      {type === 'image-select' && props.allowMultiple ? <div className={styles.formPreviewHint}>Multiple selections allowed</div> : null}
+      <PreviewNote>
+        {defaultValue ? `Default: ${getOptionLabelForValue(options, defaultValue) || defaultValue}` : ''}
+        {type === 'image-select' && props.allowMultiple ? `${defaultValue ? ' · ' : ''}Multiple selections allowed` : ''}
+      </PreviewNote>
     </FieldChrome>
   )
 }
@@ -130,48 +191,59 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
   }
 
   if (blockType === 'checkbox') {
+    const label = getString(props.label, getFallbackLabel(blockType))
     return (
-      <FieldChrome label={getString(props.label, 'Checkbox')} props={props}>
+      <FieldChrome label={label} props={props}>
         <div className={styles.formCheckboxPreview}>
-          <i aria-hidden="true" />
-          <span>{getString(props.label, 'Checkbox')}</span>
+          <i aria-hidden="true" data-checked={isTruthy(props.defaultValue)} />
+          <span>{label}</span>
         </div>
-        <div className={styles.formPreviewHint}>{getBooleanLabel(props.defaultValue)}</div>
+        <PreviewNote>{getBooleanLabel(props.defaultValue)}</PreviewNote>
       </FieldChrome>
     )
   }
 
   if (blockType === 'video-capture') {
+    const helpText = getString(props.helpText)
     return (
-      <FieldChrome label={getString(props.label, 'Record a video')} props={props}>
-        <div className={styles.formVideoPreview}>Video upload / recording field</div>
-        <div className={styles.formPreviewHint}>
-          {getString(props.helpText) || `${getNumber(props.maxDuration, 60)} seconds max, ${getNumber(props.maxFileSizeMB, 100)} MB max`}
-        </div>
+      <FieldChrome label={getString(props.label, getFallbackLabel(blockType))} props={props}>
+        <div className={styles.formVideoPreview}>{helpText || 'Video upload / recording field'}</div>
+        <PreviewNote>
+          {`${getNumber(props.maxDuration, 60)} seconds max, ${getNumber(props.maxFileSizeMB, 100)} MB max`}
+        </PreviewNote>
       </FieldChrome>
     )
   }
 
-  const label = getString(
-    props.label,
+  const label = getString(props.label, getFallbackLabel(blockType))
+  const placeholder = getString(
+    props.placeholder,
     blockType === 'email'
-      ? 'Email address'
-      : blockType === 'textarea'
-        ? 'Long answer'
-        : blockType === 'number'
-          ? 'Number'
-          : blockType === 'state'
-            ? 'State'
-            : blockType === 'country'
-              ? 'Country'
-              : 'Text field',
+      ? 'name@example.com'
+      : blockType === 'state'
+        ? 'Select a state'
+        : blockType === 'country'
+          ? 'Select a country'
+          : blockType === 'number'
+            ? '0'
+            : blockType === 'textarea'
+              ? 'Enter a longer response'
+              : 'Enter text',
   )
+  const rawDefault = typeof props.defaultValue === 'number'
+    ? String(props.defaultValue)
+    : getString(props.defaultValue)
+  const previewValue = rawDefault || placeholder
 
   return (
     <FieldChrome label={label} props={props}>
-      <div className={blockType === 'textarea' ? styles.formTextareaPreview : styles.formInputPreview}>
-        {getString(props.defaultValue, blockType === 'email' ? 'name@example.com' : blockType === 'state' ? 'State selector' : blockType === 'country' ? 'Country selector' : 'No default value')}
+      <div
+        className={blockType === 'textarea' ? styles.formTextareaPreview : styles.formInputPreview}
+        data-empty={!rawDefault}
+      >
+        {previewValue}
       </div>
+      {rawDefault ? <PreviewNote>Default: {rawDefault}</PreviewNote> : null}
     </FieldChrome>
   )
 }

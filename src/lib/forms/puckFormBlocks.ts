@@ -41,6 +41,13 @@ const defaultTextField = {
   label: 'Default Value',
 }
 
+const placeholderField = (defaultValue: string) => ({
+  name: 'placeholder',
+  type: 'text' as const,
+  label: 'Placeholder',
+  defaultValue,
+})
+
 const optionFields = [
   {
     name: 'label',
@@ -91,10 +98,20 @@ const baseFieldBlock = (
 })
 
 export const FORM_FIELD_BLOCKS: Block[] = [
-  baseFieldBlock('text', 'Text', { label: 'Text field', name: 'textField' }, [defaultTextField]),
-  baseFieldBlock('textarea', 'Textarea', { label: 'Long answer', name: 'longAnswer' }, [defaultTextField]),
-  baseFieldBlock('email', 'Email', { label: 'Email address', name: 'email' }),
+  baseFieldBlock('text', 'Text', { label: 'Text field', name: 'textField' }, [
+    placeholderField('Enter text'),
+    defaultTextField,
+  ]),
+  baseFieldBlock('textarea', 'Textarea', { label: 'Long answer', name: 'longAnswer' }, [
+    placeholderField('Enter a longer response'),
+    defaultTextField,
+  ]),
+  baseFieldBlock('email', 'Email', { label: 'Email address', name: 'email' }, [
+    placeholderField('name@example.com'),
+    defaultTextField,
+  ]),
   baseFieldBlock('number', 'Number', { label: 'Number', name: 'number' }, [
+    placeholderField('0'),
     {
       name: 'defaultValue',
       type: 'number',
@@ -103,12 +120,7 @@ export const FORM_FIELD_BLOCKS: Block[] = [
   ]),
   baseFieldBlock('select', 'Select', { label: 'Select one', name: 'selectOne' }, [
     defaultTextField,
-    {
-      name: 'placeholder',
-      type: 'text',
-      label: 'Placeholder',
-      defaultValue: 'Choose an option',
-    },
+    placeholderField('Choose an option'),
     choiceOptionsField('Select Options'),
   ]),
   baseFieldBlock('radio', 'Radio', { label: 'Choose one', name: 'chooseOne' }, [
