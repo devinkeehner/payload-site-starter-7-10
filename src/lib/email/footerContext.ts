@@ -175,6 +175,12 @@ export function applyEmailFooterContext(layout: unknown, context: EmailFooterCon
     if (block.blockType !== 'emailFooterOneColumn') return block
 
     const links = Array.isArray(block.links) ? block.links.filter((item) => isRecord(item)) : []
+    const socialLinks = Array.isArray(block.socialLinks)
+      ? block.socialLinks.filter((item) => isRecord(item))
+      : context.socialLinks
+    const towns = Array.isArray(block.towns)
+      ? block.towns.filter((item) => isRecord(item))
+      : context.towns
     const withoutPreferences = links.filter((link) => getString(link.label).toLowerCase() !== 'email preferences')
 
     return {
@@ -187,8 +193,8 @@ export function applyEmailFooterContext(layout: unknown, context: EmailFooterCon
           url: context.unsubscribeUrl,
         },
       ],
-      socialLinks: context.socialLinks.length ? context.socialLinks : block.socialLinks,
-      towns: context.towns.length ? context.towns : block.towns,
+      socialLinks,
+      towns,
     }
   })
 }

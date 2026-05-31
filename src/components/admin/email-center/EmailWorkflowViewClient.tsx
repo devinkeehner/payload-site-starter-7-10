@@ -28,7 +28,7 @@ type Readiness = {
   items: ReadinessItem[]
   quality?: {
     label: string
-    links: Array<{ href: string; label: string; reason?: string; remoteStatus?: number; status: 'invalid' | 'merge' | 'ok' | 'warning' }>
+    links: Array<{ confirmed?: boolean; confirmedAt?: string; href: string; label: string; reason?: string; remoteStatus?: number; status: 'invalid' | 'merge' | 'ok' | 'warning' }>
     score: number
     warnings: string[]
   }
@@ -81,9 +81,12 @@ export function EmailWorkflowViewClient({
   const blockingLinks = useMemo(
     () => (readiness?.quality?.links || []).filter((link) => {
       if (link.status === 'invalid') return true
-      if (typeof link.remoteStatus === 'number' && (link.remoteStatus < 200 || link.remoteStatus >= 400)) return true
       return false
     }),
+    [readiness],
+  )
+  const reviewLinks = useMemo(
+    () => (readiness?.quality?.links || []).filter((link) => link.status === 'invalid' || link.status === 'warning'),
     [readiness],
   )
   const sendChecklistItems = useMemo(() => {
@@ -152,6 +155,30 @@ export function EmailWorkflowViewClient({
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to send test email')
+    }
+  }
+
+  async function confirmLink(link: NonNullable<Readiness['quality']>['links'][number]) {
+    setStatus('loading')
+    setMessage(null)
+    try {
+      const res = await fetch(`/api/emails/${emailId}/link-review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          href: link.href,
+          label: link.label,
+          reason: link.reason || (link.remoteStatus ? `Remote check returned ${link.remoteStatus}` : undefined),
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      setMessage('Link confirmed.')
+      void loadWorkflow()
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to confirm link')
     }
   }
 
@@ -230,8 +257,10 @@ export function EmailWorkflowViewClient({
                 <strong>Link Check</strong>
                 <span>
                   {blockingLinks.length
-                    ? `${blockingLinks.length} broken or malformed link${blockingLinks.length === 1 ? '' : 's'}`
-                    : `${readiness.quality.links.length} link${readiness.quality.links.length === 1 ? '' : 's'} checked`}
+                    ? `${blockingLinks.length} malformed or missing link${blockingLinks.length === 1 ? '' : 's'}`
+                    : reviewLinks.length
+                      ? `${reviewLinks.length} warning${reviewLinks.length === 1 ? '' : 's'}`
+                      : `${readiness.quality.links.length} link${readiness.quality.links.length === 1 ? '' : 's'} checked`}
                 </span>
               </div>
               {blockingLinks.length ? (
@@ -289,7 +318,7 @@ export function EmailWorkflowViewClient({
               {readiness.quality.links.map((link, index) => (
                 <div className="email-flow__row" key={`${link.href}-${index}`}>
                   <Pill pillStyle={link.status === 'ok' || link.status === 'merge' ? 'success' : link.status === 'warning' ? 'warning' : 'error'} size="small">
-                    {link.status}
+                    {link.confirmed ? 'confirmed' : link.status}
                   </Pill>
                   <strong>{link.label || 'Link'}</strong>
                   {link.status === 'invalid' ? (
@@ -297,7 +326,14 @@ export function EmailWorkflowViewClient({
                   ) : (
                     <a href={link.href} rel="noreferrer" target="_blank">{link.href}</a>
                   )}
-                  <span>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || ''}</span>
+                  <span>
+                    {link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || ''}
+                    {link.status === 'warning' ? (
+                      <button className="email-flow__inline-button" type="button" onClick={() => void confirmLink(link)}>
+                        Confirm link
+                      </button>
+                    ) : null}
+                  </span>
                 </div>
               ))}
             </div>

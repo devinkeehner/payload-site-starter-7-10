@@ -2242,6 +2242,10 @@
   padding-top: 6px;
 }
 
+.emailBuilderLinkList div[data-state='warning'] {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .emailBuilderLinkList strong,
 .emailBuilderLinkList span,
 .emailBuilderLinkList em {
@@ -2253,6 +2257,20 @@
   color: #64748b;
   font-size: 12px;
   font-style: normal;
+}
+
+.emailBuilderLinkList button {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  align-self: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 6px 9px;
+  background: #fff;
+  color: #0f172a;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .headerActions {

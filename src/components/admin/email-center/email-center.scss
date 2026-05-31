@@ -224,6 +224,20 @@
   overflow-wrap: anywhere;
 }
 
+.email-flow__inline-button {
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 4px;
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: 8px;
+  padding: 4px 8px;
+}
+
 .email-flow__stats {
   display: grid;
   gap: calc(var(--base) / 2);

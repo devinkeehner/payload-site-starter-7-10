@@ -96,7 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         .map((link) => `${link.label || 'Link'}: ${link.href || 'Missing URL'}${link.remoteStatus ? ` (HTTP ${link.remoteStatus})` : link.reason ? ` (${link.reason})` : ''}`)
         .join('\n')
 
-      throw new Error(`Fix broken links before sending a test:\n${failures}`)
+      throw new Error(`Fix malformed or missing links before sending a test:\n${failures}`)
     }
 
     const email = (await payload.findByID({

@@ -464,6 +464,44 @@ export const Emails: CollectionConfig<'emails'> = {
                 },
               ],
             },
+            {
+              name: 'linkReviewOverrides',
+              type: 'array',
+              label: 'Manually confirmed links',
+              admin: {
+                description: 'Links that were reviewed and confirmed after a remote checker warning.',
+                readOnly: true,
+              },
+              fields: [
+                {
+                  name: 'href',
+                  type: 'text',
+                  required: true,
+                },
+                {
+                  name: 'label',
+                  type: 'text',
+                },
+                {
+                  name: 'reason',
+                  type: 'textarea',
+                },
+                {
+                  name: 'confirmedAt',
+                  type: 'date',
+                  admin: {
+                    date: {
+                      pickerAppearance: 'dayAndTime',
+                    },
+                  },
+                },
+                {
+                  name: 'confirmedBy',
+                  type: 'relationship',
+                  relationTo: 'users',
+                },
+              ],
+            },
           ],
         },
         {

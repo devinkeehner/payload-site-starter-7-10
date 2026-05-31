@@ -1,5 +1,7 @@
 export type EmailLinkCheck = {
   checkedAt?: string
+  confirmed?: boolean
+  confirmedAt?: string
   href: string
   label: string
   reason?: string
@@ -136,7 +138,7 @@ async function checkRemoteLink(link: EmailLinkCheck): Promise<EmailLinkCheck> {
 export async function checkRemoteEmailLinks(quality: EmailQualityResult): Promise<EmailQualityResult> {
   const uniqueChecks = new Map<string, Promise<EmailLinkCheck>>()
   const checkedLinks = await Promise.all(quality.links.map(async (link) => {
-    if (!link.href || link.status === 'invalid' || link.status === 'merge' || /^(mailto|tel):/i.test(link.href)) return link
+    if (link.confirmed || !link.href || link.status === 'invalid' || link.status === 'merge' || /^(mailto|tel):/i.test(link.href)) return link
     if (!uniqueChecks.has(link.href)) uniqueChecks.set(link.href, checkRemoteLink(link))
     const checked = await uniqueChecks.get(link.href)
     return checked ? { ...link, ...checked } : link
@@ -153,6 +155,49 @@ export async function checkRemoteEmailLinks(quality: EmailQualityResult): Promis
     ...quality,
     label: score >= 80 ? 'Good' : score >= 60 ? 'Needs review' : 'Risky',
     links: checkedLinks,
+    score,
+    warnings,
+  }
+}
+
+export function applyConfirmedEmailLinks(
+  quality: EmailQualityResult,
+  confirmations: Array<{ confirmedAt?: string; href?: string | null }> | undefined,
+): EmailQualityResult {
+  if (!Array.isArray(confirmations) || confirmations.length === 0) return quality
+
+  const confirmed = new Map(
+    confirmations
+      .map((entry) => [decodeEntities(entry.href || '').trim(), entry.confirmedAt || new Date().toISOString()] as const)
+      .filter(([href]) => href),
+  )
+  if (!confirmed.size) return quality
+
+  const links = quality.links.map((link) => {
+    const confirmedAt = confirmed.get(link.href)
+    if (!confirmedAt || link.status === 'invalid') return link
+
+    return {
+      ...link,
+      confirmed: true,
+      confirmedAt,
+      reason: 'Manually confirmed',
+      status: 'ok' as const,
+    }
+  })
+  const warningCount = links.filter((link) => link.status === 'warning').length
+  const warnings = quality.warnings.filter((warning) => !/link.+need remote review/i.test(warning))
+
+  if (warningCount) {
+    warnings.push(`${warningCount} link${warningCount === 1 ? '' : 's'} need remote review.`)
+  }
+
+  const score = Math.min(100, quality.score + (quality.links.filter((link) => confirmed.has(link.href) && link.status === 'warning').length * 5))
+
+  return {
+    ...quality,
+    label: score >= 80 ? 'Good' : score >= 60 ? 'Needs review' : 'Risky',
+    links,
     score,
     warnings,
   }

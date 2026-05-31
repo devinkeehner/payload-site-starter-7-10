@@ -2,7 +2,7 @@ import type { Payload, PayloadRequest } from 'payload'
 
 import { getEmailAudienceSummary } from './audienceSummary'
 import { prepareEmailLayoutForRender } from './footerContext'
-import { checkRemoteEmailLinks, inspectEmailQuality, type DeclaredEmailLink, type EmailLinkCheck, type EmailQualityResult } from './quality'
+import { applyConfirmedEmailLinks, checkRemoteEmailLinks, inspectEmailQuality, type DeclaredEmailLink, type EmailLinkCheck, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
 
 type UnknownRecord = Record<string, unknown>
@@ -146,7 +146,6 @@ export function getBlockingEmailLinks(links: EmailLinkCheck[] | undefined): Emai
 
   return links.filter((link) => {
     if (link.status === 'invalid') return true
-    if (typeof link.remoteStatus === 'number' && (link.remoteStatus < 200 || link.remoteStatus >= 400)) return true
     return false
   })
 }
@@ -209,14 +208,17 @@ export async function getEmailReadiness({
     return block.links.some((link) => isRecord(link) && /preferences|unsubscribe/i.test(getString(link.label)) && getString(link.url))
   })
   const quality = rendered
-    ? await checkRemoteEmailLinks(inspectEmailQuality({
-        declaredLinks: collectDeclaredEmailLinks(prepared.layout),
-        hasAddress: prepared.footerContext.hasAddress,
-        hasUnsubscribeLink,
-        html: rendered.html,
-        subject,
-        text: rendered.text,
-      }))
+    ? await checkRemoteEmailLinks(applyConfirmedEmailLinks(
+        inspectEmailQuality({
+          declaredLinks: collectDeclaredEmailLinks(prepared.layout),
+          hasAddress: prepared.footerContext.hasAddress,
+          hasUnsubscribeLink,
+          html: rendered.html,
+          subject,
+          text: rendered.text,
+        }),
+        Array.isArray(email.linkReviewOverrides) ? email.linkReviewOverrides as Array<{ confirmedAt?: string; href?: string | null }> : undefined,
+      ))
     : undefined
   const blockingLinks = getBlockingEmailLinks(quality?.links)
 
@@ -264,7 +266,7 @@ export async function getEmailReadiness({
     message: !rendered
       ? 'Render the email before checking links.'
       : blockingLinks.length
-        ? `${blockingLinks.length} broken or malformed link${blockingLinks.length === 1 ? '' : 's'} must be fixed before sending.`
+        ? `${blockingLinks.length} malformed or missing link${blockingLinks.length === 1 ? '' : 's'} must be fixed before sending.`
         : quality?.links.length
           ? `${quality.links.length} link${quality.links.length === 1 ? '' : 's'} checked.`
           : 'No links found in the rendered email.',

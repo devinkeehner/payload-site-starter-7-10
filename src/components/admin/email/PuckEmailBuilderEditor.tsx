@@ -20,6 +20,8 @@ const useEmailBuilderPuck = createUsePuck()
 
 type LinkCheck = {
   checkedAt?: string
+  confirmed?: boolean
+  confirmedAt?: string
   href: string
   label: string
   reason?: string
@@ -641,9 +643,14 @@ function getBlockingLinks(links: LinkCheck[] | undefined): LinkCheck[] {
 
   return links.filter((link) => {
     if (link.status === 'invalid') return true
-    if (typeof link.remoteStatus === 'number' && (link.remoteStatus < 200 || link.remoteStatus >= 400)) return true
     return false
   })
+}
+
+function getReviewLinks(links: LinkCheck[] | undefined): LinkCheck[] {
+  if (!Array.isArray(links)) return []
+
+  return links.filter((link) => link.status === 'invalid' || link.status === 'warning')
 }
 
 export function PuckEmailBuilderEditor({
@@ -854,9 +861,9 @@ export function PuckEmailBuilderEditor({
       setStatus('idle')
       setLinkCheckMessage(
         blockingLinks.length
-          ? `${blockingLinks.length} broken or malformed link${blockingLinks.length === 1 ? '' : 's'} found. Fix before sending.`
+          ? `${blockingLinks.length} malformed or missing link${blockingLinks.length === 1 ? '' : 's'} found. Fix before sending.`
           : links.length
-            ? `${links.length} link${links.length === 1 ? '' : 's'} checked. No broken links found.`
+            ? `${links.length} link${links.length === 1 ? '' : 's'} checked. Warnings do not block test sends.`
             : 'No links found in this email.',
       )
 
@@ -890,12 +897,37 @@ export function PuckEmailBuilderEditor({
     }
   }
 
+  async function confirmLink(link: LinkCheck) {
+    setStatus('checkingLinks')
+    setMessage(null)
+
+    try {
+      const res = await fetch(`/api/emails/${emailId}/link-review`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          href: link.href,
+          label: link.label,
+          reason: link.reason || (link.remoteStatus ? `Remote check returned ${link.remoteStatus}` : undefined),
+        }),
+      })
+      if (!res.ok) throw new Error(await res.text())
+      await checkLinks()
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to confirm link')
+    }
+  }
+
   if (!data) {
     return <div className={styles.loading}>Loading email builder...</div>
   }
 
   const links = linkCheck?.quality?.links || []
   const blockingLinks = getBlockingLinks(links)
+  const reviewLinks = getReviewLinks(links)
 
   return (
     <div className={styles.wrapper}>
@@ -977,17 +1009,24 @@ export function PuckEmailBuilderEditor({
                 ? 'Checking...'
                 : blockingLinks.length
                   ? `${blockingLinks.length} blocking`
-                  : `${links.length} checked`}
+                  : reviewLinks.length
+                    ? `${reviewLinks.length} warning${reviewLinks.length === 1 ? '' : 's'}`
+                    : `${links.length} checked`}
             </span>
           </div>
           {linkCheckMessage ? <p>{linkCheckMessage}</p> : null}
-          {blockingLinks.length ? (
+          {reviewLinks.length ? (
             <div className={styles.emailBuilderLinkList}>
-              {blockingLinks.slice(0, 4).map((link, index) => (
-                <div key={`${link.href}-${index}`}>
+              {reviewLinks.slice(0, 6).map((link, index) => (
+                <div key={`${link.href}-${index}`} data-state={link.status}>
                   <strong>{link.label || 'Link'}</strong>
                   <span>{link.href || 'Missing URL'}</span>
                   <em>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || link.status}</em>
+                  {link.status === 'warning' ? (
+                    <button type="button" onClick={() => void confirmLink(link)}>
+                      Confirm link
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>

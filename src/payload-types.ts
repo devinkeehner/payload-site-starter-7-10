@@ -3010,6 +3010,19 @@ export interface Email {
     sentAt?: string | null;
     message?: string | null;
   };
+  /**
+   * Links that were reviewed and confirmed after a remote checker warning.
+   */
+  linkReviewOverrides?:
+    | {
+        href: string;
+        label?: string | null;
+        reason?: string | null;
+        confirmedAt?: string | null;
+        confirmedBy?: (string | null) | User;
+        id?: string | null;
+      }[]
+    | null;
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
@@ -6405,6 +6418,16 @@ export interface EmailsSelect<T extends boolean = true> {
         recipientEmail?: T;
         sentAt?: T;
         message?: T;
+      };
+  linkReviewOverrides?:
+    | T
+    | {
+        href?: T;
+        label?: T;
+        reason?: T;
+        confirmedAt?: T;
+        confirmedBy?: T;
+        id?: T;
       };
   updatedAt?: T;
   createdAt?: T;
