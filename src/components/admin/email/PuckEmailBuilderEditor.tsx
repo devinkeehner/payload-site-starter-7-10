@@ -706,50 +706,11 @@ export function PuckEmailBuilderEditor({
   const queuedSaveDataRef = useRef<Data | null>(null)
   const queuedSaveWaitersRef = useRef<Array<(saved: boolean) => void>>([])
 
-  const overrides = {
+  const overrides = useMemo(() => ({
       drawerItem: EmailDrawerItem,
       header: (props: { actions: React.ReactNode; children: React.ReactNode }) => (
         <div className={styles.builderHeaderShell}>
           {props.children}
-          {settings ? (
-            <section className={styles.emailBuilderSettingsPanel} aria-label="Email inbox settings">
-              <label>
-                <span>Subject</span>
-                <input
-                  onBlur={() => void saveSettings()}
-                  onChange={(event) => updateSettingsField('subject', event.target.value)}
-                  placeholder="Enter subject line"
-                  value={settings.subject}
-                />
-              </label>
-              <label>
-                <span>Preview Text</span>
-                <textarea
-                  onBlur={() => void saveSettings()}
-                  onChange={(event) => updateSettingsField('preheader', event.target.value)}
-                  placeholder="Enter preview text"
-                  value={settings.preheader}
-                />
-              </label>
-              <label>
-                <span>Test Recipient</span>
-                <input
-                  onBlur={() => void saveSettings()}
-                  onChange={(event) => updateSettingsField('recipientEmail', event.target.value)}
-                  placeholder="name@example.com"
-                  type="email"
-                  value={settings.recipientEmail}
-                />
-              </label>
-              <button
-                disabled={!settingsDirty || status === 'saving'}
-                type="button"
-                onClick={() => void saveSettings()}
-              >
-                {settingsDirty ? 'Save Settings' : 'Settings Saved'}
-              </button>
-            </section>
-          ) : null}
           <div
             className={styles.builderHeaderRichTextToolbar}
             ref={setRichTextToolbarTarget}
@@ -758,7 +719,7 @@ export function PuckEmailBuilderEditor({
       ),
       iframe: PuckPreviewIframe,
       puck: EmailBuilderPuckShell,
-    }
+    }), [])
   const plugins = useMemo(
     () => createEmailBuilderPlugins(contentPaletteSlugs, rowPaletteSlugs),
     [contentPaletteSlugs, rowPaletteSlugs],
@@ -1047,12 +1008,51 @@ export function PuckEmailBuilderEditor({
 
   return (
     <div className={styles.wrapper}>
+      {settings ? (
+        <section className={styles.emailBuilderSettingsPanel} aria-label="Email inbox settings">
+          <label>
+            <span>Subject</span>
+            <input
+              onBlur={() => void saveSettings()}
+              onChange={(event) => updateSettingsField('subject', event.target.value)}
+              placeholder="Enter subject line"
+              value={settings.subject}
+            />
+          </label>
+          <label>
+            <span>Preview Text</span>
+            <textarea
+              onBlur={() => void saveSettings()}
+              onChange={(event) => updateSettingsField('preheader', event.target.value)}
+              placeholder="Enter preview text"
+              value={settings.preheader}
+            />
+          </label>
+          <label>
+            <span>Test Recipient</span>
+            <input
+              onBlur={() => void saveSettings()}
+              onChange={(event) => updateSettingsField('recipientEmail', event.target.value)}
+              placeholder="name@example.com"
+              type="email"
+              value={settings.recipientEmail}
+            />
+          </label>
+          <button
+            disabled={!settingsDirty || status === 'saving'}
+            type="button"
+            onClick={() => void saveSettings()}
+          >
+            {settingsDirty ? 'Save Settings' : 'Settings Saved'}
+          </button>
+        </section>
+      ) : null}
       <PuckRichTextToolbarProvider target={richTextToolbarTarget}>
         <Puck
           config={config}
           data={data}
           headerTitle="Email Builder"
-          height="calc(100vh - 96px)"
+          height={settings ? 'calc(100vh - 162px)' : 'calc(100vh - 96px)'}
           onChange={(nextData) => {
             const nextPuckData = nextData as PuckPageData
             const nextSnapshot = serializePuckData(nextPuckData)

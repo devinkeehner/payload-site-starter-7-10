@@ -5106,12 +5106,37 @@ export default buildConfig({
       const siteIndex = filtered.findIndex((c) => c.slug === 'site-seo');
 
       if (forms) {
+        const existingViews = (forms.admin?.components?.views || {}) as Record<string, any>
+        const existingEditViews = (existingViews.edit || {}) as Record<string, any>
         forms.admin = {
           ...(forms.admin || {}),
           components: {
             ...(forms.admin?.components || {}),
             views: {
-              ...(forms.admin?.components?.views || {}),
+              ...existingViews,
+              edit: {
+                ...existingEditViews,
+                default: {
+                  ...(existingEditViews.default || {}),
+                  tab: {
+                    href: '/',
+                    label: 'Advanced',
+                    order: 200,
+                    ...(existingEditViews.default?.tab || {}),
+                  },
+                },
+                visual: {
+                  ...(existingEditViews.visual || {}),
+                  Component: '@/components/admin/form/PuckFormBuilderView#default',
+                  path: '/visual',
+                  tab: {
+                    href: '/visual',
+                    label: 'Form Builder',
+                    order: 75,
+                    ...(existingEditViews.visual?.tab || {}),
+                  },
+                },
+              },
               list: {
                 ...(forms.admin?.components?.views?.list || {}),
                 Component: '@/components/admin/FormResultsDashboard#default',
