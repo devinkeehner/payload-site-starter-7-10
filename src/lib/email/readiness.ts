@@ -2,7 +2,7 @@ import type { Payload, PayloadRequest } from 'payload'
 
 import { getEmailAudienceSummary } from './audienceSummary'
 import { prepareEmailLayoutForRender } from './footerContext'
-import { checkRemoteEmailLinks, inspectEmailQuality, type EmailQualityResult } from './quality'
+import { checkRemoteEmailLinks, inspectEmailQuality, type EmailLinkCheck, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
 
 type UnknownRecord = Record<string, unknown>
@@ -54,6 +54,16 @@ function flattenBlocks(value: unknown): UnknownRecord[] {
 
 function addItem(items: EmailReadinessItem[], item: EmailReadinessItem) {
   items.push(item)
+}
+
+export function getBlockingEmailLinks(links: EmailLinkCheck[] | undefined): EmailLinkCheck[] {
+  if (!Array.isArray(links)) return []
+
+  return links.filter((link) => {
+    if (link.status === 'invalid') return true
+    if (typeof link.remoteStatus === 'number' && (link.remoteStatus < 200 || link.remoteStatus >= 400)) return true
+    return false
+  })
 }
 
 export async function getEmailReadiness({
@@ -122,6 +132,7 @@ export async function getEmailReadiness({
         text: rendered.text,
       }))
     : undefined
+  const blockingLinks = getBlockingEmailLinks(quality?.links)
 
   addItem(items, {
     key: 'subject',
@@ -157,9 +168,21 @@ export async function getEmailReadiness({
   })
   addItem(items, {
     key: 'unsubscribe',
-    label: 'Email preferences',
+    label: 'Footer preferences',
     message: hasUnsubscribeLink ? 'Email preferences link will be included in the footer.' : 'Add an email preferences link.',
     status: hasUnsubscribeLink ? 'pass' : 'fail',
+  })
+  addItem(items, {
+    key: 'links',
+    label: 'Broken links',
+    message: !rendered
+      ? 'Render the email before checking links.'
+      : blockingLinks.length
+        ? `${blockingLinks.length} broken or malformed link${blockingLinks.length === 1 ? '' : 's'} must be fixed before sending.`
+        : quality?.links.length
+          ? `${quality.links.length} link${quality.links.length === 1 ? '' : 's'} checked.`
+          : 'No links found in the rendered email.',
+    status: !rendered || blockingLinks.length ? 'fail' : 'pass',
   })
   addItem(items, {
     key: 'send-status',
@@ -185,7 +208,7 @@ export async function getEmailReadiness({
   })
   addItem(items, {
     key: 'audience',
-    label: 'Audience',
+    label: 'Audience selected',
     message: audience
       ? `${audience.active} subscribed recipients are eligible.`
       : 'Select an audience list before sending.',

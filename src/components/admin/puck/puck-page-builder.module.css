@@ -415,6 +415,48 @@
   font-family: var(--tenant-body-font, var(--font-geist-sans, system-ui, sans-serif));
 }
 
+.wrapper :global([class*='PuckLayout--rightSideBarVisible']) {
+  grid-template-columns: var(--left-side-bar-width, 256px) minmax(0, 1fr) 0 !important;
+}
+
+.wrapper :global([class*='PuckLayout']) {
+  height: 100% !important;
+}
+
+.wrapper :global([class*='PuckLayout-inner']) {
+  min-height: 0;
+}
+
+.wrapper :global([class*='PuckLayout-rightSideBar']),
+.wrapper :global([class*='PuckHeader-rightSideBarToggle']) {
+  display: none !important;
+}
+
+.builderHeaderShell {
+  position: relative;
+}
+
+.builderHeaderRichTextToolbar {
+  position: absolute;
+  z-index: 20;
+  top: 50%;
+  right: 218px;
+  left: 142px;
+  display: flex;
+  min-width: 0;
+  justify-content: center;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.builderHeaderRichTextToolbar:empty {
+  display: none;
+}
+
+.builderHeaderRichTextToolbar > * {
+  pointer-events: auto;
+}
+
 .sitePreviewBlock {
   position: relative;
   background: var(--tenant-background, #fff);
@@ -745,6 +787,89 @@
   font-weight: 700;
 }
 
+.lexicalField[data-surface='canvas'] {
+  display: block;
+  gap: 0;
+}
+
+.lexicalField[data-surface='canvas'] .richTextEditor {
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lexicalField[data-surface='canvas'] .richTextContentEditable {
+  min-height: 86px;
+  max-height: none;
+  overflow: visible;
+  padding: 16px;
+  cursor: text;
+}
+
+.lexicalField[data-surface='canvas'] .richTextPlaceholder {
+  top: 16px;
+  left: 16px;
+}
+
+.inlineRichTextPrototype {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.inlineRichTextPrototype:focus-within {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(248, 250, 252, 0.55);
+}
+
+.richTextGlobalToolbar,
+.richTextCanvasToolbar {
+  display: inline-flex;
+  max-width: min(100%, 920px);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 8px;
+  padding: 5px 6px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.14);
+}
+
+.richTextCanvasToolbar {
+  position: fixed;
+  z-index: 2000;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  box-sizing: border-box;
+  max-width: 100%;
+  pointer-events: auto;
+}
+
+.richTextGlobalToolbarLabel,
+.richTextCanvasToolbarLabel {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.richTextGlobalToolbar .richTextToolbar,
+.richTextCanvasToolbar .richTextToolbar {
+  min-width: 0;
+  max-height: 42px;
+  overflow: auto hidden;
+  flex-wrap: nowrap;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
 .richTextToolbar {
   display: flex;
   flex-wrap: wrap;
@@ -774,6 +899,12 @@
 .richTextToolbarButton[data-active='true'] {
   border-color: rgba(37, 99, 235, 0.35);
   background: #fff;
+  color: #1d4ed8;
+}
+
+.richTextToolbarButton[aria-pressed='true'] {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: #eff6ff;
   color: #1d4ed8;
 }
 
@@ -1339,12 +1470,83 @@
 
 .status[data-state='saving'],
 .status[data-state='saved'],
+.status[data-state='checkingLinks'],
 .status[data-state='error'] {
   opacity: 1;
 }
 
 .status[data-state='error'] {
   background: #991b1b;
+}
+
+.emailBuilderLinkPanel {
+  position: fixed;
+  right: 20px;
+  bottom: 76px;
+  z-index: 100;
+  display: grid;
+  gap: 8px;
+  width: min(440px, calc(100vw - 40px));
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.16);
+  color: #111827;
+  font-size: 13px;
+}
+
+.emailBuilderLinkPanel[data-state='error'] {
+  border-color: rgba(185, 28, 28, 0.35);
+  background: #fff7f7;
+}
+
+.emailBuilderLinkPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.emailBuilderLinkPanelHeader strong {
+  font-size: 14px;
+}
+
+.emailBuilderLinkPanelHeader span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.emailBuilderLinkPanel p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.emailBuilderLinkList {
+  display: grid;
+  gap: 6px;
+}
+
+.emailBuilderLinkList div {
+  display: grid;
+  gap: 2px;
+  border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 6px;
+}
+
+.emailBuilderLinkList strong,
+.emailBuilderLinkList span,
+.emailBuilderLinkList em {
+  overflow-wrap: anywhere;
+}
+
+.emailBuilderLinkList span,
+.emailBuilderLinkList em {
+  color: #64748b;
+  font-size: 12px;
+  font-style: normal;
 }
 
 .headerActions {

@@ -3,6 +3,7 @@ import { createPayloadRequest } from 'payload'
 
 import { sendElasticMarketingEmail } from '@/lib/email/elasticEmail'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
+import { getBlockingEmailLinks, getEmailReadiness } from '@/lib/email/readiness'
 import { renderEmail } from '@/lib/email/renderEmail'
 import { getEmailWebVersionUrl } from '@/lib/email/webVersion'
 import type { Email } from '@/payload-types'
@@ -83,6 +84,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let recipientEmail = ''
 
   try {
+    const readiness = await getEmailReadiness({
+      emailId: id,
+      payload,
+      req: payloadReq,
+    })
+    const blockingLinks = getBlockingEmailLinks(readiness.quality?.links)
+
+    if (blockingLinks.length) {
+      const failures = blockingLinks
+        .map((link) => `${link.label || 'Link'}: ${link.href || 'Missing URL'}${link.remoteStatus ? ` (HTTP ${link.remoteStatus})` : link.reason ? ` (${link.reason})` : ''}`)
+        .join('\n')
+
+      throw new Error(`Fix broken links before sending a test:\n${failures}`)
+    }
+
     const email = (await payload.findByID({
       collection: 'emails',
       id,

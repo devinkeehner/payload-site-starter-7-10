@@ -2,6 +2,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
+import { getEmailReadiness } from '@/lib/email/readiness'
 import { enqueueEmailSendJob } from '@/lib/email/sendQueue'
 
 async function getAuthenticatedPayloadRequest(req: Request) {
@@ -23,6 +24,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   try {
+    const readiness = await getEmailReadiness({
+      emailId: id,
+      payload,
+      req: payloadReq,
+    })
+
+    if (!readiness.canSend) {
+      const failures = readiness.items
+        .filter((item) => item.status === 'fail')
+        .map((item) => `${item.label}: ${item.message}`)
+        .join('\n')
+
+      return new Response(
+        failures ? `Resolve readiness failures before sending:\n${failures}` : 'Resolve readiness failures before sending.',
+        { status: 400 },
+      )
+    }
+
     const result = await enqueueEmailSendJob({
       emailId: id,
       payload,

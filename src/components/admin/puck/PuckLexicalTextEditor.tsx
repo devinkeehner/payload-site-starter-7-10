@@ -14,19 +14,21 @@ import {
 } from '@payloadcms/richtext-lexical/client'
 import {
   $createParagraphNode,
+  $createRangeSelectionFromDom,
   $getSelection,
   $getNodeByKey,
   $insertNodes,
   $isElementNode,
   $isRangeSelection,
+  $setSelection,
   COMMAND_PRIORITY_LOW,
   FORMAT_ELEMENT_COMMAND,
-  FORMAT_TEXT_COMMAND,
   SELECTION_CHANGE_COMMAND,
   type ElementFormatType,
   type EditorState,
   type LexicalNode,
   type NodeKey,
+  type RangeSelection,
   type SerializedEditorState,
   type TextFormatType,
 } from '@payloadcms/richtext-lexical/lexical'
@@ -59,7 +61,8 @@ import { HistoryPlugin } from '@payloadcms/richtext-lexical/lexical/react/Lexica
 import { ListPlugin } from '@payloadcms/richtext-lexical/lexical/react/LexicalListPlugin'
 import { OnChangePlugin } from '@payloadcms/richtext-lexical/lexical/react/LexicalOnChangePlugin'
 import { RichTextPlugin } from '@payloadcms/richtext-lexical/lexical/react/LexicalRichTextPlugin'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import type { PuckBlockSchema, PuckFieldSchema } from '@/lib/puck/types'
 
@@ -116,9 +119,43 @@ type PuckLexicalBlockContextValue = {
   readOnly?: boolean
 }
 
+type PuckRichTextToolbarContextValue = {
+  activeEditorId: string | null
+  setActiveEditorId: React.Dispatch<React.SetStateAction<string | null>>
+  target: HTMLElement | null
+}
+
+type PuckSpellCheckContextValue = {
+  enabled: boolean
+  toggle: () => void
+}
+
 const PuckLexicalBlockContext = React.createContext<PuckLexicalBlockContextValue>({
   blockSchemas: [],
 })
+
+const PuckRichTextToolbarContext = React.createContext<PuckRichTextToolbarContextValue | null>(null)
+const PuckSpellCheckContext = React.createContext<PuckSpellCheckContextValue | null>(null)
+
+export function PuckRichTextToolbarProvider({
+  children,
+  target,
+}: {
+  children: React.ReactNode
+  target: HTMLElement | null
+}) {
+  const [activeEditorId, setActiveEditorId] = useState<string | null>(null)
+  const value = useMemo(
+    () => ({ activeEditorId, setActiveEditorId, target }),
+    [activeEditorId, target],
+  )
+
+  return (
+    <PuckRichTextToolbarContext.Provider value={value}>
+      {children}
+    </PuckRichTextToolbarContext.Provider>
+  )
+}
 
 function getSerializedBlockFields(serializedNode: LexicalRecord): LexicalBlockFields {
   const fields = serializedNode.fields
@@ -396,17 +433,100 @@ function ToolbarButton({
   onClick: () => void
   title: string
 }) {
+  const handledPointerRef = useRef(false)
+
+  const runAction = useCallback(() => {
+    if (!disabled) {
+      onClick()
+    }
+  }, [disabled, onClick])
+
   return (
     <button
       aria-pressed={active ? 'true' : 'false'}
       className={styles.richTextToolbarButton}
       data-active={active ? 'true' : undefined}
       disabled={disabled}
-      onClick={onClick}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (handledPointerRef.current) {
+          handledPointerRef.current = false
+          return
+        }
+
+        runAction()
+      }}
+      onMouseDown={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onPointerDown={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        handledPointerRef.current = true
+        runAction()
+      }}
       title={title}
       type="button"
     >
       {children}
+    </button>
+  )
+}
+
+function ToolbarColorButton({
+  active,
+  disabled,
+  onSelect,
+  option,
+}: {
+  active?: boolean
+  disabled?: boolean
+  onSelect: () => void
+  option: { label: string, swatch: string, value: string }
+}) {
+  const handledPointerRef = useRef(false)
+
+  const runAction = useCallback(() => {
+    if (!disabled) {
+      onSelect()
+    }
+  }, [disabled, onSelect])
+
+  return (
+    <button
+      aria-checked={active}
+      className={styles.richTextColorButton}
+      data-active={active ? 'true' : undefined}
+      disabled={disabled}
+      onClick={(event) => {
+        event.stopPropagation()
+        if (handledPointerRef.current) {
+          handledPointerRef.current = false
+          return
+        }
+
+        runAction()
+      }}
+      onMouseDown={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+      }}
+      onPointerDown={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        handledPointerRef.current = true
+        runAction()
+      }}
+      role="radio"
+      title={option.label}
+      type="button"
+    >
+      <span
+        aria-hidden="true"
+        className={styles.richTextColorSwatch}
+        style={{ background: option.swatch }}
+      />
     </button>
   )
 }
@@ -506,6 +626,7 @@ function GenericFieldEditor({
             type={field.type === 'email' ? 'email' : field.type === 'date' ? 'date' : 'text'}
             value={typeof value === 'string' || typeof value === 'number' ? String(value) : ''}
             disabled={readOnly}
+            spellCheck={field.type === 'text'}
             onChange={(event) => onChange(event.target.value)}
           />
         </label>
@@ -518,6 +639,7 @@ function GenericFieldEditor({
           <textarea
             value={typeof value === 'string' ? value : ''}
             disabled={readOnly}
+            spellCheck={field.type === 'textarea'}
             onChange={(event) => onChange(event.target.value)}
           />
         </label>
@@ -867,8 +989,10 @@ function applyCustomLink(url: string | null) {
 function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
   const [editor] = useLexicalComposerContext()
   const { blockSchemas } = React.useContext(PuckLexicalBlockContext)
+  const spellCheck = React.useContext(PuckSpellCheckContext)
   const [activeFormats, setActiveFormats] = useState<ActiveFormats>(EMPTY_FORMATS)
   const [selectedBlockType, setSelectedBlockType] = useState(() => blockSchemas[0]?.slug || '')
+  const lastRangeSelectionRef = useRef<RangeSelection | null>(null)
 
   useEffect(() => {
     if (!blockSchemas.length) return
@@ -885,6 +1009,8 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
       setActiveFormats(EMPTY_FORMATS)
       return
     }
+
+    lastRangeSelectionRef.current = selection.clone()
 
     setActiveFormats({
       alignment: getSelectionAlignment(),
@@ -918,18 +1044,74 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
     }
   }, [editor, updateToolbarState])
 
+  const restoreToolbarSelection = useCallback((): RangeSelection | null => {
+    const rootElement = editor.getRootElement()
+    const domSelection = rootElement?.ownerDocument.getSelection() ?? null
+    const domRangeSelection = domSelection && domSelection.rangeCount > 0
+      ? $createRangeSelectionFromDom(domSelection, editor)
+      : null
+
+    if ($isRangeSelection(domRangeSelection)) {
+      $setSelection(domRangeSelection)
+      lastRangeSelectionRef.current = domRangeSelection.clone()
+      return domRangeSelection
+    }
+
+    const selection = $getSelection()
+    if ($isRangeSelection(selection)) {
+      lastRangeSelectionRef.current = selection.clone()
+      return selection
+    }
+
+    const lastSelection = lastRangeSelectionRef.current
+    if (!lastSelection) return null
+
+    try {
+      const restoredSelection = lastSelection.clone()
+      $setSelection(restoredSelection)
+      return restoredSelection
+    } catch {
+      lastRangeSelectionRef.current = null
+      return null
+    }
+  }, [editor])
+
+  const runToolbarUpdate = useCallback(
+    (callback: (selection: RangeSelection | null) => void) => {
+      editor.update(
+        () => {
+          const selection = restoreToolbarSelection()
+          callback(selection)
+
+          const nextSelection = $getSelection()
+          if ($isRangeSelection(nextSelection)) {
+            lastRangeSelectionRef.current = nextSelection.clone()
+          }
+        },
+        {
+          discrete: true,
+          onUpdate: () => {
+            editor.focus(undefined, { defaultSelection: 'rootEnd' })
+          },
+        },
+      )
+    },
+    [editor, restoreToolbarSelection],
+  )
+
   const formatText = useCallback(
     (format: TextFormatType) => {
-      editor.dispatchCommand(FORMAT_TEXT_COMMAND, format)
+      runToolbarUpdate((selection) => {
+        selection?.formatText(format)
+      })
     },
-    [editor],
+    [runToolbarUpdate],
   )
 
   const formatBlock = useCallback(
     (blockType: 'paragraph' | 'quote' | HeadingTagType) => {
-      editor.update(() => {
-        const selection = $getSelection()
-        if (!$isRangeSelection(selection)) return
+      runToolbarUpdate((selection) => {
+        if (!selection) return
 
         if (blockType === 'paragraph') {
           $setBlocksType(selection, () => $createParagraphNode())
@@ -944,54 +1126,55 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
         $setBlocksType(selection, () => $createHeadingNode(blockType))
       })
     },
-    [editor],
+    [runToolbarUpdate],
   )
 
   const formatAlignment = useCallback(
     (alignment: ElementFormatType) => {
-      editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment)
+      runToolbarUpdate(() => {
+        editor.dispatchCommand(FORMAT_ELEMENT_COMMAND, alignment)
+      })
     },
-    [editor],
+    [editor, runToolbarUpdate],
   )
 
   const setTextColor = useCallback(
     (color: string) => {
-      editor.update(() => {
-        const selection = $getSelection()
-        if ($isRangeSelection(selection)) {
+      runToolbarUpdate((selection) => {
+        if (selection) {
           $patchStyleText(selection, { color: color || null })
         }
       })
     },
-    [editor],
+    [runToolbarUpdate],
   )
 
   const insertHorizontalRule = useCallback(() => {
-    editor.update(() => {
+    runToolbarUpdate(() => {
       $insertNodes([$createHorizontalRuleNode()])
     })
-  }, [editor])
+  }, [runToolbarUpdate])
 
   const insertLexicalBlock = useCallback(
     () => {
       const schema = blockSchemas.find((candidate) => candidate.slug === selectedBlockType)
       if (!schema) return
 
-      editor.update(() => {
+      runToolbarUpdate(() => {
         const fields = createDefaultBlockFields(schema)
         const node = new PuckBlockNode(createBlockNodeArgs({ fields }))
 
         $insertNodes([node])
       })
     },
-    [blockSchemas, editor, selectedBlockType],
+    [blockSchemas, runToolbarUpdate, selectedBlockType],
   )
 
   const setLink = useCallback(() => {
     const url = window.prompt('Link URL')
     if (url === null) return
 
-    editor.update(() => {
+    runToolbarUpdate(() => {
       if (!url.trim()) {
         applyCustomLink(null)
         return
@@ -999,218 +1182,285 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
 
       applyCustomLink(url.trim())
     })
-  }, [editor])
+  }, [runToolbarUpdate])
 
   return (
-    <div className={styles.richTextToolbar} role="toolbar">
-      <ToolbarButton
-        active={activeFormats.bold}
-        disabled={readOnly}
-        title="Bold"
-        onClick={() => formatText('bold')}
-      >
-        B
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.italic}
-        disabled={readOnly}
-        title="Italic"
-        onClick={() => formatText('italic')}
-      >
-        I
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.underline}
-        disabled={readOnly}
-        title="Underline"
-        onClick={() => formatText('underline')}
-      >
-        U
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.strikethrough}
-        disabled={readOnly}
-        title="Strikethrough"
-        onClick={() => formatText('strikethrough')}
-      >
-        S
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.code}
-        disabled={readOnly}
-        title="Inline code"
-        onClick={() => formatText('code')}
-      >
-        {'</>'}
-      </ToolbarButton>
-      <span className={styles.richTextToolbarDivider} />
-      <ToolbarButton
-        active={activeFormats.blockType === 'paragraph'}
-        disabled={readOnly}
-        title="Paragraph"
-        onClick={() => formatBlock('paragraph')}
-      >
-        P
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.blockType === 'h1'}
-        disabled={readOnly}
-        title="Heading 1"
-        onClick={() => formatBlock('h1')}
-      >
-        H1
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.blockType === 'h2'}
-        disabled={readOnly}
-        title="Heading 2"
-        onClick={() => formatBlock('h2')}
-      >
-        H2
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.blockType === 'h3'}
-        disabled={readOnly}
-        title="Heading 3"
-        onClick={() => formatBlock('h3')}
-      >
-        H3
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.blockType === 'h4'}
-        disabled={readOnly}
-        title="Heading 4"
-        onClick={() => formatBlock('h4')}
-      >
-        H4
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.blockType === 'quote'}
-        disabled={readOnly}
-        title="Quote"
-        onClick={() => formatBlock('quote')}
-      >
-        Quote
-      </ToolbarButton>
-      <span className={styles.richTextToolbarDivider} />
-      <ToolbarButton
-        active={activeFormats.blockType === 'bullet'}
-        disabled={readOnly}
-        title="Bullet list"
-        onClick={() => editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)}
-      >
-        *
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.blockType === 'number'}
-        disabled={readOnly}
-        title="Numbered list"
-        onClick={() => editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)}
-      >
-        1.
-      </ToolbarButton>
-      <ToolbarButton
-        disabled={readOnly}
-        title="Link"
-        onClick={setLink}
-      >
-        Link
-      </ToolbarButton>
-      <ToolbarButton
-        disabled={readOnly}
-        title="Horizontal rule"
-        onClick={insertHorizontalRule}
-      >
-        HR
-      </ToolbarButton>
-      {blockSchemas.length > 0 ? (
-        <>
-          <span className={styles.richTextToolbarDivider} />
-          <label className={styles.richTextToolbarInsertGroup}>
-            <span>Block</span>
-            <select
-              className={styles.richTextToolbarSelect}
-              disabled={readOnly}
-              onChange={(event) => setSelectedBlockType(event.target.value)}
-              value={selectedBlockType}
-            >
-              {blockSchemas.map((schema) => (
-                <option key={schema.slug} value={schema.slug}>
-                  {schema.label}
-                </option>
-              ))}
-            </select>
-          </label>
+    <>
+      <div className={styles.richTextToolbar} role="toolbar">
+        <ToolbarButton
+          active={activeFormats.bold}
+          disabled={readOnly}
+          title="Bold"
+          onClick={() => formatText('bold')}
+        >
+          B
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.italic}
+          disabled={readOnly}
+          title="Italic"
+          onClick={() => formatText('italic')}
+        >
+          I
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.underline}
+          disabled={readOnly}
+          title="Underline"
+          onClick={() => formatText('underline')}
+        >
+          U
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.strikethrough}
+          disabled={readOnly}
+          title="Strikethrough"
+          onClick={() => formatText('strikethrough')}
+        >
+          S
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.code}
+          disabled={readOnly}
+          title="Inline code"
+          onClick={() => formatText('code')}
+        >
+          {'</>'}
+        </ToolbarButton>
+        <span className={styles.richTextToolbarDivider} />
+        <ToolbarButton
+          active={activeFormats.blockType === 'paragraph'}
+          disabled={readOnly}
+          title="Paragraph"
+          onClick={() => formatBlock('paragraph')}
+        >
+          P
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.blockType === 'h1'}
+          disabled={readOnly}
+          title="Heading 1"
+          onClick={() => formatBlock('h1')}
+        >
+          H1
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.blockType === 'h2'}
+          disabled={readOnly}
+          title="Heading 2"
+          onClick={() => formatBlock('h2')}
+        >
+          H2
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.blockType === 'h3'}
+          disabled={readOnly}
+          title="Heading 3"
+          onClick={() => formatBlock('h3')}
+        >
+          H3
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.blockType === 'h4'}
+          disabled={readOnly}
+          title="Heading 4"
+          onClick={() => formatBlock('h4')}
+        >
+          H4
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.blockType === 'quote'}
+          disabled={readOnly}
+          title="Quote"
+          onClick={() => formatBlock('quote')}
+        >
+          Quote
+        </ToolbarButton>
+        <span className={styles.richTextToolbarDivider} />
+        <ToolbarButton
+          active={activeFormats.blockType === 'bullet'}
+          disabled={readOnly}
+          title="Bullet list"
+          onClick={() => runToolbarUpdate(() => {
+            editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)
+          })}
+        >
+          *
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.blockType === 'number'}
+          disabled={readOnly}
+          title="Numbered list"
+          onClick={() => runToolbarUpdate(() => {
+            editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)
+          })}
+        >
+          1.
+        </ToolbarButton>
+        <ToolbarButton
+          disabled={readOnly}
+          title="Link"
+          onClick={setLink}
+        >
+          Link
+        </ToolbarButton>
+        {spellCheck ? (
           <ToolbarButton
-            disabled={readOnly || !selectedBlockType}
-            title="Insert block"
-            onClick={insertLexicalBlock}
+            active={spellCheck.enabled}
+            disabled={readOnly}
+            title="Toggle browser spellcheck"
+            onClick={spellCheck.toggle}
           >
-            Insert
+            Spell
           </ToolbarButton>
-        </>
-      ) : null}
-      <span className={styles.richTextToolbarDivider} />
-      <ToolbarButton
-        active={activeFormats.alignment === 'left'}
-        disabled={readOnly}
-        title="Align left"
-        onClick={() => formatAlignment('left')}
-      >
-        Left
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.alignment === 'center'}
-        disabled={readOnly}
-        title="Align center"
-        onClick={() => formatAlignment('center')}
-      >
-        Center
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.alignment === 'right'}
-        disabled={readOnly}
-        title="Align right"
-        onClick={() => formatAlignment('right')}
-      >
-        Right
-      </ToolbarButton>
-      <ToolbarButton
-        active={activeFormats.alignment === 'justify'}
-        disabled={readOnly}
-        title="Justify"
-        onClick={() => formatAlignment('justify')}
-      >
-        Justify
-      </ToolbarButton>
-      <div className={styles.richTextColorSwatches} role="radiogroup" aria-label="Text color">
-        <span>Color</span>
-        {TEXT_COLOR_OPTIONS.map((option) => {
-          const active = activeFormats.color === option.value
-
-          return (
-            <button
-              key={option.label}
-              aria-checked={active}
-              className={styles.richTextColorButton}
-              data-active={active ? 'true' : undefined}
-              disabled={readOnly}
-              onClick={() => setTextColor(option.value)}
-              role="radio"
-              title={option.label}
-              type="button"
+        ) : null}
+        <ToolbarButton
+          disabled={readOnly}
+          title="Horizontal rule"
+          onClick={insertHorizontalRule}
+        >
+          HR
+        </ToolbarButton>
+        {blockSchemas.length > 0 ? (
+          <>
+            <span className={styles.richTextToolbarDivider} />
+            <label className={styles.richTextToolbarInsertGroup}>
+              <span>Block</span>
+              <select
+                className={styles.richTextToolbarSelect}
+                disabled={readOnly}
+                onChange={(event) => setSelectedBlockType(event.target.value)}
+                value={selectedBlockType}
+              >
+                {blockSchemas.map((schema) => (
+                  <option key={schema.slug} value={schema.slug}>
+                    {schema.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <ToolbarButton
+              disabled={readOnly || !selectedBlockType}
+              title="Insert block"
+              onClick={insertLexicalBlock}
             >
-              <span
-                aria-hidden="true"
-                className={styles.richTextColorSwatch}
-                style={{ background: option.swatch }}
+              Insert
+            </ToolbarButton>
+          </>
+        ) : null}
+        <span className={styles.richTextToolbarDivider} />
+        <ToolbarButton
+          active={activeFormats.alignment === 'left'}
+          disabled={readOnly}
+          title="Align left"
+          onClick={() => formatAlignment('left')}
+        >
+          Left
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.alignment === 'center'}
+          disabled={readOnly}
+          title="Align center"
+          onClick={() => formatAlignment('center')}
+        >
+          Center
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.alignment === 'right'}
+          disabled={readOnly}
+          title="Align right"
+          onClick={() => formatAlignment('right')}
+        >
+          Right
+        </ToolbarButton>
+        <ToolbarButton
+          active={activeFormats.alignment === 'justify'}
+          disabled={readOnly}
+          title="Justify"
+          onClick={() => formatAlignment('justify')}
+        >
+          Justify
+        </ToolbarButton>
+        <div className={styles.richTextColorSwatches} role="radiogroup" aria-label="Text color">
+          <span>Color</span>
+          {TEXT_COLOR_OPTIONS.map((option) => {
+            const active = activeFormats.color === option.value
+
+            return (
+              <ToolbarColorButton
+                key={option.label}
+                active={active}
+                disabled={readOnly}
+                onSelect={() => setTextColor(option.value)}
+                option={option}
               />
-            </button>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
-    </div>
+    </>
   )
+}
+
+function RichTextGlobalToolbar({
+  editorId,
+  label,
+  readOnly,
+}: {
+  editorId: string
+  label?: string
+  readOnly?: boolean
+}) {
+  const toolbarContext = React.useContext(PuckRichTextToolbarContext)
+  const target = toolbarContext?.target
+
+  if (!target || toolbarContext?.activeEditorId !== editorId) return null
+
+  return createPortal(
+    <div
+      className={styles.richTextGlobalToolbar}
+      data-puck-overlay-portal="true"
+      data-puck-rich-text-toolbar="true"
+      onClick={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+    >
+      <span className={styles.richTextGlobalToolbarLabel}>{label || 'Text'}</span>
+      <RichTextToolbar readOnly={readOnly} />
+    </div>,
+    target,
+  )
+}
+
+function RichTextFocusPlugin({
+  editorId,
+  toolbarMode,
+}: {
+  editorId: string
+  toolbarMode: 'global' | 'inline'
+}) {
+  const [editor] = useLexicalComposerContext()
+  const toolbarContext = React.useContext(PuckRichTextToolbarContext)
+  const setActiveEditorId = toolbarContext?.setActiveEditorId
+
+  useEffect(() => {
+    if (toolbarMode !== 'global' || !setActiveEditorId) return
+
+    const handleFocusIn = () => setActiveEditorId(editorId)
+
+    const unregisterRoot = editor.registerRootListener((rootElement, prevRootElement) => {
+      prevRootElement?.removeEventListener('focusin', handleFocusIn)
+      rootElement?.addEventListener('focusin', handleFocusIn)
+    })
+
+    return () => {
+      editor.getRootElement()?.removeEventListener('focusin', handleFocusIn)
+      unregisterRoot()
+      setActiveEditorId((current) => (current === editorId ? null : current))
+    }
+  }, [editor, editorId, setActiveEditorId, toolbarMode])
+
+  return null
 }
 
 function ExternalValuePlugin({
@@ -1241,21 +1491,84 @@ function ExternalValuePlugin({
   return null
 }
 
+function AutoFocusPlugin({ enabled }: { enabled?: boolean }) {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    if (!enabled) return
+
+    window.requestAnimationFrame(() => {
+      editor.focus()
+    })
+  }, [editor, enabled])
+
+  return null
+}
+
 export function PuckLexicalTextEditor({
+  autoFocus = false,
   blockSchemas = [],
+  contentEditableStyle,
+  hideAdvancedJson = false,
   onChange,
   readOnly,
+  surface = 'field',
+  toolbarLabel,
+  toolbarMode = 'inline',
   value,
 }: {
+  autoFocus?: boolean
   blockSchemas?: PuckBlockSchema[]
+  contentEditableStyle?: React.CSSProperties
+  hideAdvancedJson?: boolean
   onChange: (value: unknown) => void
   readOnly?: boolean
+  surface?: 'canvas' | 'field'
+  toolbarLabel?: string
+  toolbarMode?: 'global' | 'inline'
   value: unknown
 }) {
+  const editorId = useId()
   const normalizedValue = useMemo(() => normalizeLexicalValue(value), [value])
   const [initialEditorState] = useState(() => serializeLexicalValue(normalizedValue))
   const latestSerializedRef = useRef(initialEditorState)
+  const fieldRef = useRef<HTMLDivElement | null>(null)
+  const canvasToolbarRef = useRef<HTMLDivElement | null>(null)
+  const [canvasToolbarTarget, setCanvasToolbarTarget] = useState<HTMLElement | null>(null)
   const [editorError, setEditorError] = useState<string | null>(null)
+  const [isCanvasToolbarOpen, setIsCanvasToolbarOpen] = useState(false)
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true)
+  const toolbarContext = React.useContext(PuckRichTextToolbarContext)
+  const shouldUseCanvasToolbar = toolbarMode === 'global' && surface === 'canvas'
+  const shouldUseHeaderToolbar = toolbarMode === 'global' && !shouldUseCanvasToolbar && Boolean(toolbarContext?.target)
+  const shouldHideDefaultToolbar = shouldUseHeaderToolbar || shouldUseCanvasToolbar
+
+  useEffect(() => {
+    if (!shouldUseCanvasToolbar) return
+
+    setCanvasToolbarTarget(fieldRef.current?.ownerDocument.body ?? null)
+  }, [shouldUseCanvasToolbar])
+
+  useEffect(() => {
+    if (!shouldUseCanvasToolbar || !isCanvasToolbarOpen) return
+
+    const ownerDocument = fieldRef.current?.ownerDocument
+    if (!ownerDocument) return
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (target && fieldRef.current?.contains(target as Node)) return
+      if (target && canvasToolbarRef.current?.contains(target as Node)) return
+
+      setIsCanvasToolbarOpen(false)
+    }
+
+    ownerDocument.addEventListener('pointerdown', handlePointerDown, true)
+
+    return () => {
+      ownerDocument.removeEventListener('pointerdown', handlePointerDown, true)
+    }
+  }, [isCanvasToolbarOpen, shouldUseCanvasToolbar])
 
   const initialConfig = useMemo<InitialConfigType>(
     () => ({
@@ -1297,18 +1610,69 @@ export function PuckLexicalTextEditor({
     setEditorError(message)
   }, [])
 
+  const spellCheckContext = useMemo(
+    () => ({
+      enabled: spellCheckEnabled,
+      toggle: () => setSpellCheckEnabled((current) => !current),
+    }),
+    [spellCheckEnabled],
+  )
+
   return (
-    <div className={styles.lexicalField}>
+    <div
+      className={styles.lexicalField}
+      data-surface={surface}
+      ref={fieldRef}
+      onFocusCapture={() => {
+        if (shouldUseCanvasToolbar) setIsCanvasToolbarOpen(true)
+      }}
+      onPointerDownCapture={() => {
+        if (shouldUseCanvasToolbar) setIsCanvasToolbarOpen(true)
+      }}
+    >
       <PuckLexicalBlockContext.Provider value={{ blockSchemas, readOnly }}>
+        <PuckSpellCheckContext.Provider value={spellCheckContext}>
         <LexicalComposer initialConfig={initialConfig}>
-          <RichTextToolbar readOnly={readOnly} />
+          {shouldHideDefaultToolbar ? null : <RichTextToolbar readOnly={readOnly} />}
+          <RichTextFocusPlugin
+            editorId={editorId}
+            toolbarMode={shouldUseHeaderToolbar ? 'global' : 'inline'}
+          />
+          {shouldUseHeaderToolbar ? (
+            <RichTextGlobalToolbar
+              editorId={editorId}
+              label={toolbarLabel}
+              readOnly={readOnly}
+            />
+          ) : null}
+          {shouldUseCanvasToolbar && isCanvasToolbarOpen && canvasToolbarTarget
+            ? createPortal(
+                <div
+                  className={styles.richTextCanvasToolbar}
+                  data-puck-overlay-portal="true"
+                  data-puck-rich-text-toolbar="true"
+                  onClick={(event) => event.stopPropagation()}
+                  onMouseDown={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  ref={canvasToolbarRef}
+                >
+                  <span className={styles.richTextCanvasToolbarLabel}>{toolbarLabel || 'Text'}</span>
+                  <RichTextToolbar readOnly={readOnly} />
+                </div>,
+                canvasToolbarTarget,
+              )
+            : null}
           <div className={styles.richTextEditor}>
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
                   aria-placeholder="Write rich text"
+                  autoCapitalize="sentences"
+                  autoCorrect="on"
                   className={styles.richTextContentEditable}
                   placeholder={<div className={styles.richTextPlaceholder}>Write rich text</div>}
+                  spellCheck={spellCheckEnabled}
+                  style={contentEditableStyle}
                 />
               }
               ErrorBoundary={LexicalErrorBoundary}
@@ -1317,6 +1681,7 @@ export function PuckLexicalTextEditor({
             <HistoryPlugin />
             <ListPlugin />
             <OnChangePlugin ignoreSelectionChange onChange={handleChange} />
+            <AutoFocusPlugin enabled={autoFocus} />
             <ExternalValuePlugin
               latestSerializedRef={latestSerializedRef}
               onParseError={handleParseError}
@@ -1324,14 +1689,17 @@ export function PuckLexicalTextEditor({
             />
           </div>
         </LexicalComposer>
+        </PuckSpellCheckContext.Provider>
       </PuckLexicalBlockContext.Provider>
 
       {editorError ? <div className={styles.fieldError}>{editorError}</div> : null}
 
-      <details>
-        <summary>Advanced JSON</summary>
-        <JsonEditor value={value} onChange={onChange} readOnly={readOnly} />
-      </details>
+      {hideAdvancedJson ? null : (
+        <details>
+          <summary>Advanced JSON</summary>
+          <JsonEditor value={value} onChange={onChange} readOnly={readOnly} />
+        </details>
+      )}
     </div>
   )
 }
@@ -1357,6 +1725,7 @@ function JsonEditor({
       <textarea
         value={draft}
         readOnly={readOnly}
+        spellCheck={false}
         onChange={(event) => {
           const next = event.target.value
           setDraft(next)

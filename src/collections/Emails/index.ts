@@ -77,7 +77,7 @@ export const Emails: CollectionConfig<'emails'> = {
             Component: '@/components/admin/email-center/EmailWorkflowView#default',
             tab: {
               href: '/review',
-              label: 'Review & Send',
+              label: 'Final Check',
               order: 350,
             },
           },
@@ -197,7 +197,7 @@ export const Emails: CollectionConfig<'emails'> = {
               blocks: EMAIL_LAYOUT_BLOCKS,
               required: true,
               admin: {
-                description: 'Build this email in the Email Builder tab.',
+                description: 'Build this email in the Builder tab.',
                 initCollapsed: true,
               },
             },

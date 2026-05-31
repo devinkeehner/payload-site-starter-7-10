@@ -78,6 +78,18 @@ export function EmailWorkflowViewClient({
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
   const builderURL = `${editURL}/visual`
   const audienceURL = `${editURL}/audience`
+  const blockingLinks = useMemo(
+    () => (readiness?.quality?.links || []).filter((link) => {
+      if (link.status === 'invalid') return true
+      if (typeof link.remoteStatus === 'number' && (link.remoteStatus < 200 || link.remoteStatus >= 400)) return true
+      return false
+    }),
+    [readiness],
+  )
+  const sendChecklistItems = useMemo(() => {
+    const priority = { fail: 0, warn: 1, pass: 2 } as const
+    return [...(readiness?.items || [])].sort((a, b) => priority[a.status] - priority[b.status])
+  }, [readiness])
 
   const loadWorkflow = useCallback(async () => {
     setStatus('loading')
@@ -168,9 +180,9 @@ export function EmailWorkflowViewClient({
   return (
     <Gutter className="email-flow">
       <div className="email-flow__header">
-        <p className="email-flow__eyebrow">Review & Send</p>
+        <p className="email-flow__eyebrow">Final Check</p>
         <h1>{title}</h1>
-        <p>Check readiness, preview the email, create the matching post draft, then send the campaign.</p>
+        <p>Resolve blocking issues, send a test email, preview the final email, then send the campaign when approved.</p>
       </div>
 
       {message ? <Banner type={status === 'error' ? 'error' : 'info'}>{message}</Banner> : null}
@@ -189,16 +201,16 @@ export function EmailWorkflowViewClient({
 
       <section className="email-flow__review-grid">
         <aside className="email-flow__panel">
-          <h2>Readiness</h2>
+          <h2>Send Checklist</h2>
           {readiness ? (
             <>
               <div className="email-flow__meta">
-                <span>{readiness.failures} failures</span>
+                <span>{readiness.failures} blocking issues</span>
                 <span>{readiness.warnings} warnings</span>
                 <span>{readiness.audience?.active || 0} recipients</span>
               </div>
               <div className="email-flow__checklist">
-                {readiness.items.map((item) => (
+                {sendChecklistItems.map((item) => (
                   <div className="email-flow__check" key={item.key}>
                     <Pill pillStyle={item.status === 'pass' ? 'success' : item.status === 'warn' ? 'warning' : 'error'} size="small">
                       {item.status}
@@ -212,15 +224,40 @@ export function EmailWorkflowViewClient({
           ) : (
             <p>{status === 'loading' ? 'Loading readiness...' : 'No readiness data.'}</p>
           )}
+          {readiness?.quality ? (
+            <div className={`email-flow__link-gate${blockingLinks.length ? ' email-flow__link-gate--error' : ''}`}>
+              <div>
+                <strong>Link Check</strong>
+                <span>
+                  {blockingLinks.length
+                    ? `${blockingLinks.length} broken or malformed link${blockingLinks.length === 1 ? '' : 's'}`
+                    : `${readiness.quality.links.length} link${readiness.quality.links.length === 1 ? '' : 's'} checked`}
+                </span>
+              </div>
+              {blockingLinks.length ? (
+                <ul>
+                  {blockingLinks.slice(0, 4).map((link, index) => (
+                    <li key={`${link.href}-${index}`}>
+                      <strong>{link.label || 'Link'}:</strong> {link.href || 'Missing URL'}
+                      {link.remoteStatus ? ` (HTTP ${link.remoteStatus})` : link.reason ? ` (${link.reason})` : ''}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="email-flow__muted">
+            Test sends only go to the test recipient. Campaign sends go to the selected audience list.
+          </p>
           <div className="email-flow__actions">
-            <Button buttonStyle="primary" disabled={status === 'sendingTest'} onClick={() => void sendTestEmail()} type="button">
-              {status === 'sendingTest' ? 'Sending Test...' : 'Send Test Email'}
+            <Button buttonStyle="primary" disabled={blockingLinks.length > 0 || status === 'sendingTest'} onClick={() => void sendTestEmail()} type="button">
+              {status === 'sendingTest' ? 'Sending Test Email...' : 'Send Test Email'}
             </Button>
             <Button buttonStyle="secondary" disabled={status === 'creatingPost'} onClick={() => void createPostDraft()} type="button">
               {status === 'creatingPost' ? 'Creating...' : 'Create Post Draft'}
             </Button>
             <Button buttonStyle="primary" disabled={!readiness?.canSend || status === 'sending'} onClick={() => void sendCampaign()} type="button">
-              {status === 'sending' ? 'Sending...' : 'Send Campaign'}
+              {status === 'sending' ? 'Sending Campaign...' : 'Send Campaign'}
             </Button>
           </div>
         </aside>

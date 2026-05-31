@@ -319,6 +319,43 @@
   font-size: 13px;
 }
 
+.email-flow__link-gate {
+  border: 1px solid var(--theme-success-300, var(--theme-elevation-150));
+  border-radius: 4px;
+  display: grid;
+  gap: 8px;
+  padding: calc(var(--base) / 2);
+}
+
+.email-flow__link-gate--error {
+  border-color: var(--theme-error-400, #b91c1c);
+  background: color-mix(in srgb, var(--theme-error-100, #fee2e2) 55%, transparent);
+}
+
+.email-flow__link-gate div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.email-flow__link-gate strong {
+  color: var(--theme-elevation-900);
+}
+
+.email-flow__link-gate span,
+.email-flow__link-gate li {
+  color: var(--theme-elevation-650);
+  font-size: 13px;
+}
+
+.email-flow__link-gate ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: var(--base);
+}
+
 .email-flow__preview {
   background: var(--theme-elevation-50);
   border: 1px solid var(--theme-elevation-150);

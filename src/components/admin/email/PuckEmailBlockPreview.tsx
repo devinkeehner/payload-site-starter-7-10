@@ -1,7 +1,10 @@
 'use client'
 
-import React from 'react'
+import { createUsePuck, registerOverlayPortal } from '@puckeditor/core'
+import React, { useCallback, useEffect, useRef } from 'react'
 
+import { PuckLexicalTextEditor } from '@/components/admin/puck/PuckLexicalTextEditor'
+import styles from '@/components/admin/puck/puck-page-builder.module.css'
 import { normalizeMediaResource } from '@/lib/utilities/image'
 
 type BlockProps = Record<string, unknown>
@@ -23,6 +26,8 @@ type LexicalState = {
     children?: LexicalNode[]
   }
 }
+
+const usePuck = createUsePuck()
 
 const COLORS = {
   accent: '#7a0012',
@@ -111,6 +116,10 @@ function getText(value: unknown): React.ReactNode {
 
 function getString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function getComponentId(props: BlockProps): string | null {
+  return typeof props.id === 'string' && props.id ? props.id : null
 }
 
 function getItems(value: unknown): Record<string, unknown>[] {
@@ -439,6 +448,11 @@ function EmailHeadingPreview(props: BlockProps) {
 }
 
 function EmailTextPreview(props: BlockProps) {
+  const componentId = getComponentId(props)
+  if (componentId) {
+    return <EmailTextCanvasEditor componentId={componentId} props={props} />
+  }
+
   const richText = renderRichTextPreview(props.text, props.color, props.align)
   if (richText) return <>{richText}</>
 
@@ -457,6 +471,119 @@ function EmailTextPreview(props: BlockProps) {
       }}
     >
       {text}
+    </div>
+  )
+}
+
+function EmailTextCanvasEditor({
+  componentId,
+  props,
+}: {
+  componentId: string
+  props: BlockProps
+}) {
+  const portalRef = useRef<HTMLDivElement | null>(null)
+  const dispatch = usePuck((state) => state.dispatch)
+  const getItemById = usePuck((state) => state.getItemById)
+  const getSelectorForId = usePuck((state) => state.getSelectorForId)
+
+  useEffect(() => {
+    if (!portalRef.current) return
+
+    return registerOverlayPortal(portalRef.current, {
+      disableDragOnFocus: true,
+    })
+  }, [])
+
+  const selectCurrentBlock = useCallback(() => {
+    const selector = getSelectorForId(componentId)
+    if (!selector) return
+
+    dispatch({
+      type: 'setUi',
+      ui: {
+        itemSelector: selector,
+        leftSideBarVisible: true,
+        plugin: { current: 'fields' },
+        rightSideBarVisible: false,
+      },
+    })
+  }, [componentId, dispatch, getSelectorForId])
+
+  const updateText = useCallback(
+    (value: unknown) => {
+      const item = getItemById(componentId)
+      const selector = getSelectorForId(componentId)
+      if (!item || !selector) return
+
+      const itemProps = item.props as BlockProps
+
+      dispatch({
+        type: 'replace',
+        data: {
+          ...item,
+          props: {
+            ...itemProps,
+            id: componentId,
+            text: value,
+          },
+        },
+        destinationIndex: selector.index,
+        destinationZone: selector.zone,
+        ui: {
+          itemSelector: selector,
+          leftSideBarVisible: true,
+          plugin: { current: 'fields' },
+          rightSideBarVisible: false,
+        },
+      })
+    },
+    [componentId, dispatch, getItemById, getSelectorForId],
+  )
+
+  const handleClickCapture = useCallback(
+    (event: React.SyntheticEvent) => {
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest('[data-puck-rich-text-toolbar="true"]')
+      ) {
+        return
+      }
+
+      event.stopPropagation()
+      selectCurrentBlock()
+    },
+    [selectCurrentBlock],
+  )
+
+  return (
+    <div
+      className={styles.inlineRichTextPrototype}
+      data-puck-overlay-portal="true"
+      data-puck-rich-text-editor="true"
+      onClick={(event) => event.stopPropagation()}
+      onClickCapture={handleClickCapture}
+      onDragStart={(event) => event.preventDefault()}
+      onPointerDown={(event) => event.stopPropagation()}
+      ref={portalRef}
+      style={{ margin: '0 0 18px' }}
+    >
+      <PuckLexicalTextEditor
+        contentEditableStyle={{
+          color: getTextColor(props.color),
+          fontSize: 16,
+          lineHeight: '27px',
+          minHeight: 27,
+          padding: 0,
+          textAlign: getAlign(props.align),
+        }}
+        hideAdvancedJson
+        surface="canvas"
+        toolbarLabel="Text"
+        toolbarMode="global"
+        value={props.text}
+        onChange={updateText}
+      />
     </div>
   )
 }

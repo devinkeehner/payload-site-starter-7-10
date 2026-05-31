@@ -213,6 +213,7 @@ function JsonEditor({
       <textarea
         value={draft}
         readOnly={readOnly}
+        spellCheck={false}
         onChange={(event) => {
           const next = event.target.value
           setDraft(next)
