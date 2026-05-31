@@ -14,6 +14,11 @@ export type EmailQualityResult = {
   warnings: string[]
 }
 
+export type DeclaredEmailLink = {
+  href: string
+  label: string
+}
+
 function stripTags(value: string) {
   return value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
 }
@@ -48,6 +53,27 @@ function classifyLink(href: string, seen: Set<string>): EmailLinkCheck['status']
   } catch {
     return 'invalid'
   }
+}
+
+function addLinkCheck({
+  href,
+  label,
+  links,
+  seen,
+}: {
+  href: string
+  label: string
+  links: EmailLinkCheck[]
+  seen: Set<string>
+}) {
+  const normalizedHref = decodeEntities(href).trim()
+  const status = classifyLink(normalizedHref, seen)
+  if (normalizedHref) seen.add(normalizedHref)
+  links.push({
+    href: normalizedHref,
+    label: stripTags(label || normalizedHref).slice(0, 80) || normalizedHref || 'Missing URL',
+    status,
+  })
 }
 
 function isPrivateHostname(hostname: string) {
@@ -133,12 +159,14 @@ export async function checkRemoteEmailLinks(quality: EmailQualityResult): Promis
 }
 
 export function inspectEmailQuality({
+  declaredLinks = [],
   hasAddress,
   hasUnsubscribeLink,
   html,
   subject,
   text,
 }: {
+  declaredLinks?: DeclaredEmailLink[]
   hasAddress: boolean
   hasUnsubscribeLink: boolean
   html: string
@@ -166,13 +194,22 @@ export function inspectEmailQuality({
   if (/<img\b(?![^>]*\balt=)/i.test(html)) warnings.push('At least one image is missing alt text.')
 
   for (const match of getHrefMatches(html)) {
-    const href = decodeEntities(match.href).trim()
-    const status = classifyLink(href, seen)
-    if (href) seen.add(href)
-    links.push({
+    addLinkCheck({
+      href: match.href,
+      label: match.label,
+      links,
+      seen,
+    })
+  }
+
+  for (const link of declaredLinks) {
+    const href = decodeEntities(link.href).trim()
+    if (href && seen.has(href)) continue
+    addLinkCheck({
       href,
-      label: stripTags(match.label || href).slice(0, 80) || href,
-      status,
+      label: link.label,
+      links,
+      seen,
     })
   }
 

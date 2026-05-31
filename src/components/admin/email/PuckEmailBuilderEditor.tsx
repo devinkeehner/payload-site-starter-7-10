@@ -462,10 +462,18 @@ function EmailBuilderAutoPropertiesTab() {
   const itemSelector = useEmailBuilderPuck((state) => state.appState.ui.itemSelector)
   const currentPlugin = useEmailBuilderPuck((state) => state.appState.ui.plugin.current)
   const leftSideBarVisible = useEmailBuilderPuck((state) => state.appState.ui.leftSideBarVisible)
+  const lastAutoOpenedSelectorRef = useRef('')
   const selectorKey = itemSelector ? `${itemSelector.zone}:${itemSelector.index}` : ''
 
   useEffect(() => {
-    if (!selectorKey) return
+    if (!selectorKey) {
+      lastAutoOpenedSelectorRef.current = ''
+      return
+    }
+
+    if (lastAutoOpenedSelectorRef.current === selectorKey) return
+    lastAutoOpenedSelectorRef.current = selectorKey
+
     if (currentPlugin === 'fields' && leftSideBarVisible) return
 
     dispatch({

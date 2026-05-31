@@ -1124,6 +1124,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
   const [isLinkPanelOpen, setIsLinkPanelOpen] = useState(false)
   const [linkDraft, setLinkDraft] = useState({ newTab: false, url: '' })
   const [selectedBlockType, setSelectedBlockType] = useState(() => blockSchemas[0]?.slug || '')
+  const linkSelectionRef = useRef<RangeSelection | null>(null)
   const lastRangeSelectionRef = useRef<RangeSelection | null>(null)
 
   useEffect(() => {
@@ -1195,7 +1196,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
       return selection
     }
 
-    const lastSelection = lastRangeSelectionRef.current
+    const lastSelection = linkSelectionRef.current || lastRangeSelectionRef.current
     if (!lastSelection) return null
 
     try {
@@ -1314,7 +1315,12 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
 
   const openLinkPanel = useCallback(() => {
     setLinkDraft(readSelectedLink())
-    setIsLinkPanelOpen((current) => !current)
+    linkSelectionRef.current = lastRangeSelectionRef.current?.clone() || null
+    setIsLinkPanelOpen((current) => {
+      const next = !current
+      if (!next) linkSelectionRef.current = null
+      return next
+    })
   }, [readSelectedLink])
 
   const applyLinkDraft = useCallback(() => {
@@ -1327,6 +1333,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
 
       applyCustomLink(url, linkDraft.newTab)
     })
+    linkSelectionRef.current = null
     setIsLinkPanelOpen(false)
   }, [linkDraft.newTab, linkDraft.url, runToolbarUpdate])
 
@@ -1334,6 +1341,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
     runToolbarUpdate(() => {
       applyCustomLink(null)
     })
+    linkSelectionRef.current = null
     setLinkDraft({ newTab: false, url: '' })
     setIsLinkPanelOpen(false)
   }, [runToolbarUpdate])
@@ -1526,6 +1534,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
                   }
                   if (event.key === 'Escape') {
                     event.preventDefault()
+                    linkSelectionRef.current = null
                     setIsLinkPanelOpen(false)
                   }
                 }}

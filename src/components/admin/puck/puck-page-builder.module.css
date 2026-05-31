@@ -617,14 +617,14 @@
 
 .builderHeaderRichTextToolbar {
   position: absolute;
-  z-index: 20;
+  z-index: 2500;
   top: 50%;
   right: 218px;
   left: 142px;
   display: flex;
   min-width: 0;
   justify-content: center;
-  pointer-events: none;
+  pointer-events: auto;
   transform: translateY(-50%);
 }
 
@@ -634,6 +634,26 @@
 
 .builderHeaderRichTextToolbar > * {
   pointer-events: auto;
+}
+
+.wrapper :global([data-puck-dropzone='root']) .emailPaletteItem {
+  min-height: 8px;
+  height: 8px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0;
+  background: #2563eb;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.14);
+  color: transparent;
+}
+
+.wrapper :global([data-puck-dropzone='root']) .emailPaletteItem * {
+  display: none;
+}
+
+.wrapper :global([data-puck-dropzone='root']) :global([data-puck-component]):has(.emailPaletteItem) {
+  min-height: 8px !important;
+  margin: 8px 0;
 }
 
 .sitePreviewBlock {
@@ -1210,7 +1230,7 @@
 
 .richTextLinkPopover {
   position: absolute;
-  z-index: 25;
+  z-index: 3000;
   top: calc(100% + 8px);
   left: 0;
   display: grid;
@@ -1221,6 +1241,7 @@
   padding: 12px;
   background: #fff;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.16);
+  pointer-events: auto;
 }
 
 .richTextLinkPopover label {

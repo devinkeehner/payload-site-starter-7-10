@@ -2,7 +2,7 @@ import type { Payload, PayloadRequest } from 'payload'
 
 import { getEmailAudienceSummary } from './audienceSummary'
 import { prepareEmailLayoutForRender } from './footerContext'
-import { checkRemoteEmailLinks, inspectEmailQuality, type EmailLinkCheck, type EmailQualityResult } from './quality'
+import { checkRemoteEmailLinks, inspectEmailQuality, type DeclaredEmailLink, type EmailLinkCheck, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
 
 type UnknownRecord = Record<string, unknown>
@@ -51,6 +51,90 @@ function flattenBlocks(value: unknown): UnknownRecord[] {
     ]
     return [block, ...nested]
   })
+}
+
+function looksLikeMediaRecord(value: UnknownRecord): boolean {
+  return Boolean(value.mimeType || value.filename || value.filesize || value.sizes)
+}
+
+function getLinkLabel(record: UnknownRecord, key: string): string {
+  if (key === 'primaryUrl') return getString(record.primaryLabel) || getString(record.primaryText) || 'Primary button'
+  if (key === 'secondaryUrl') return getString(record.secondaryLabel) || getString(record.secondaryText) || 'Secondary button'
+
+  return (
+    getString(record.label) ||
+    getString(record.linkLabel) ||
+    getString(record.text) ||
+    getString(record.title) ||
+    getString(record.heading) ||
+    getString(record.platform) ||
+    getString(record.town) ||
+    getString(record.alt) ||
+    'Link'
+  )
+}
+
+function hasDeclaredLinkIntent(record: UnknownRecord, key: string, href: string): boolean {
+  if (href.trim()) return true
+  if (key === 'primaryUrl') return Boolean(getString(record.primaryLabel) || getString(record.primaryText))
+  if (key === 'secondaryUrl') return Boolean(getString(record.secondaryLabel) || getString(record.secondaryText))
+
+  return Boolean(
+    getString(record.label) ||
+    getString(record.linkLabel) ||
+    getString(record.text) ||
+    getString(record.platform),
+  )
+}
+
+function getNodeText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.map(getNodeText).join(' ').replace(/\s+/g, ' ').trim()
+  if (!isRecord(value)) return ''
+
+  return [
+    getString(value.text),
+    getNodeText(value.children),
+  ].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+}
+
+function collectDeclaredEmailLinks(value: unknown): DeclaredEmailLink[] {
+  const links: DeclaredEmailLink[] = []
+  const linkKeys = new Set(['href', 'primaryUrl', 'secondaryUrl', 'url'])
+
+  function visit(node: unknown) {
+    if (Array.isArray(node)) {
+      node.forEach(visit)
+      return
+    }
+
+    if (!isRecord(node)) return
+
+    if (node.type === 'link' || node.type === 'autolink') {
+      const fields = isRecord(node.fields) ? node.fields : {}
+      const href = getString(fields.url) || getString(node.url)
+      const label = getNodeText(node.children) || 'Inline link'
+      if (href || label) {
+        links.push({ href, label })
+      }
+    }
+
+    Object.entries(node).forEach(([key, child]) => {
+      if (linkKeys.has(key) && typeof child === 'string') {
+        if (!(key === 'url' && looksLikeMediaRecord(node)) && hasDeclaredLinkIntent(node, key, child)) {
+          links.push({
+            href: child,
+            label: getLinkLabel(node, key),
+          })
+        }
+      }
+
+      visit(child)
+    })
+  }
+
+  visit(value)
+  return links
 }
 
 function addItem(items: EmailReadinessItem[], item: EmailReadinessItem) {
@@ -126,6 +210,7 @@ export async function getEmailReadiness({
   })
   const quality = rendered
     ? await checkRemoteEmailLinks(inspectEmailQuality({
+        declaredLinks: collectDeclaredEmailLinks(prepared.layout),
         hasAddress: prepared.footerContext.hasAddress,
         hasUnsubscribeLink,
         html: rendered.html,
