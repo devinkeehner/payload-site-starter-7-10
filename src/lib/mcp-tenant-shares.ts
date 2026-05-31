@@ -700,7 +700,8 @@ const cloneEmailToTenant = async (
   const emailDoc = await req.payload.findByID({
     collection: 'emails',
     id: emailId,
-    depth: 0,
+    draft: true,
+    depth: 2,
     overrideAccess: true,
     req: sourceReq,
   })
