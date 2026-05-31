@@ -576,6 +576,13 @@
   font-weight: 800;
 }
 
+.formPreviewHint {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .formCheckboxPreview,
 .formOptionsPreview {
   display: grid;
@@ -628,6 +635,14 @@
   border-radius: 7px;
   padding: 8px;
   background: #f8fafc;
+}
+
+.formImageOptionsPreview b {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #1f2937;
+  font-size: 13px;
+  font-weight: 800;
 }
 
 .formImageOptionMedia {

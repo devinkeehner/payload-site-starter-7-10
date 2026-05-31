@@ -393,7 +393,7 @@ export function emailToPuckData(email: PuckEmailDoc): PuckPageData {
 }
 
 export function formToPuckData(form: PuckFormDoc): PuckPageData {
-  return layoutToPuckData(form.fields)
+  return formFieldsToPuckData(form.fields)
 }
 
 export function postToPuckData(post: PuckPostDoc): PuckPageData {
@@ -544,6 +544,144 @@ function getFormRowZoneId(rowId: string, columnIndex: number) {
   return `${rowId}:column${columnIndex}`
 }
 
+function getFormFieldWidth(value: unknown) {
+  const width = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number(value)
+      : 100
+
+  return Number.isFinite(width) ? Math.max(1, Math.min(100, width)) : 100
+}
+
+function getFormRowComponentType(widths: number[]) {
+  const rounded = widths.map((width) => Math.round(width))
+
+  if (rounded.length === 2 && rounded.every((width) => width >= 49 && width <= 51)) return 'formRowTwoColumns'
+  if (
+    rounded.length === 2 &&
+    rounded[0] != null &&
+    rounded[1] != null &&
+    rounded[0] >= 65 &&
+    rounded[0] <= 68 &&
+    rounded[1] >= 32 &&
+    rounded[1] <= 35
+  ) return 'formRowLeftWide'
+  if (
+    rounded.length === 2 &&
+    rounded[0] != null &&
+    rounded[1] != null &&
+    rounded[0] >= 32 &&
+    rounded[0] <= 35 &&
+    rounded[1] >= 65 &&
+    rounded[1] <= 68
+  ) return 'formRowRightWide'
+  if (rounded.length === 3 && rounded.every((width) => width >= 32 && width <= 34)) return 'formRowThreeColumns'
+  if (rounded.length === 4 && rounded.every((width) => width >= 24 && width <= 26)) return 'formRowFourColumns'
+
+  return 'formRowCustom'
+}
+
+function formFieldToPuckContent(block: PuckPageBlock, index: number): ComponentData<Record<string, unknown>> {
+  const id = getBlockId(block, index)
+
+  return {
+    type: String(block.blockType),
+    props: {
+      ...withoutBlockType(block),
+      id,
+    },
+  }
+}
+
+function formFieldsToPuckData(fields: unknown[] | null | undefined): PuckPageData {
+  const safeFields = Array.isArray(fields) ? fields : []
+  const content: ComponentData<Record<string, unknown>>[] = []
+  const zones: Record<string, ComponentData<Record<string, unknown>>[]> = {}
+  let index = 0
+  let rowIndex = 0
+
+  while (index < safeFields.length) {
+    const block = safeFields[index]
+
+    if (!isRecord(block) || typeof block.blockType !== 'string') {
+      index += 1
+      continue
+    }
+
+    const width = getFormFieldWidth(block.width)
+
+    if (width >= 99) {
+      content.push(formFieldToPuckContent(block, index))
+      index += 1
+      continue
+    }
+
+    const rowFields: Array<{ block: PuckPageBlock; index: number }> = []
+    const rowWidths: number[] = []
+    let widthTotal = 0
+
+    while (index < safeFields.length) {
+      const rowBlock = safeFields[index]
+
+      if (!isRecord(rowBlock) || typeof rowBlock.blockType !== 'string') break
+
+      const rowWidth = getFormFieldWidth(rowBlock.width)
+      if (rowWidth >= 99) break
+      if (rowFields.length > 0 && widthTotal + rowWidth > 101) break
+
+      rowFields.push({ block: rowBlock, index })
+      rowWidths.push(rowWidth)
+      widthTotal += rowWidth
+      index += 1
+
+      if (widthTotal >= 99) break
+    }
+
+    if (!rowFields.length) {
+      content.push(formFieldToPuckContent(block, index))
+      index += 1
+      continue
+    }
+
+    const rowId = `formRow-${rowIndex}`
+    const rowType = getFormRowComponentType(rowWidths)
+
+    content.push({
+      type: rowType,
+      props: {
+        columns: rowWidths,
+        id: rowId,
+      },
+    })
+
+    rowFields.forEach((rowField, columnIndex) => {
+      zones[getFormRowZoneId(rowId, columnIndex)] = [formFieldToPuckContent(rowField.block, rowField.index)]
+    })
+    rowIndex += 1
+  }
+
+  return {
+    root: {
+      props: {},
+    },
+    content,
+    zones,
+  } as PuckPageData
+}
+
+function getFormRowColumns(componentType: string, props: Record<string, unknown>) {
+  if (componentType === 'formRowCustom' && Array.isArray(props.columns)) {
+    const columns = props.columns
+      .map((column) => Number(column))
+      .filter((column) => Number.isFinite(column) && column > 0)
+
+    if (columns.length) return columns
+  }
+
+  return FORM_ROW_COMPONENT_TO_COLUMNS[componentType] || [1]
+}
+
 function normalizeFormFieldWidth(field: Record<string, unknown>) {
   if (!('width' in field)) return field
 
@@ -611,12 +749,12 @@ export function puckDataToFormPatch(data: PuckPageData): {
       const itemRecord = item as ComponentData<Record<string, unknown>> & { id?: string }
       const blockType = String(itemRecord.type)
 
-      if (FORM_ROW_COMPONENT_TYPES.has(blockType)) {
+      if (FORM_ROW_COMPONENT_TYPES.has(blockType) || blockType === 'formRowCustom') {
         const props = itemRecord.props && typeof itemRecord.props === 'object'
           ? (itemRecord.props as Record<string, unknown>)
           : {}
         const rowId = props.id ?? itemRecord.id
-        const columns = FORM_ROW_COMPONENT_TO_COLUMNS[blockType] || [1]
+        const columns = getFormRowColumns(blockType, props)
         const total = columns.reduce((sum, column) => sum + column, 0)
 
         if (typeof rowId === 'string' || typeof rowId === 'number') {

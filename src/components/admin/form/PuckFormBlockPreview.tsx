@@ -49,27 +49,6 @@ function getLexicalText(value: unknown) {
   return parts.join(' ').replace(/\s+/g, ' ').trim()
 }
 
-function getWidthLabel(width: number) {
-  if (width >= 99) return 'Full row'
-  if (width >= 49 && width <= 51) return 'Half row'
-  if (width >= 32 && width <= 34) return 'Third row'
-  if (width >= 24 && width <= 26) return 'Quarter row'
-  return `${width}% wide`
-}
-
-function MetaList({ items }: { items: Array<{ label: string; value: string }> }) {
-  return (
-    <dl className={styles.formFieldMeta}>
-      {items.filter((item) => item.value).map((item) => (
-        <div key={item.label}>
-          <dt>{item.label}</dt>
-          <dd>{item.value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
-}
-
 function FieldChrome({
   children,
   label,
@@ -81,10 +60,6 @@ function FieldChrome({
 }) {
   const width = getNumber(props.width, 100)
   const clampedWidth = Math.max(1, Math.min(100, width))
-  const meta = [
-    { label: 'Name', value: getString(props.name, 'fieldName') },
-    { label: 'Width', value: `${getWidthLabel(clampedWidth)} (${clampedWidth}%)` },
-  ]
 
   return (
     <div className={styles.formFieldPreview} style={{ ['--field-width' as string]: `${clampedWidth}%` }}>
@@ -93,7 +68,6 @@ function FieldChrome({
         {props.required ? <em>Required</em> : null}
       </div>
       {children}
-      <MetaList items={meta} />
     </div>
   )
 }
@@ -107,14 +81,12 @@ function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: 
     const defaultValue = getString(props.defaultValue)
     return (
       <FieldChrome label={label} props={props}>
-        <div className={styles.formInputPreview}>{placeholder}</div>
-        <MetaList
-          items={[
-            { label: 'Placeholder', value: placeholder },
-            { label: 'Default', value: defaultValue || 'None' },
-            { label: 'Options', value: options.map((option) => `${getString(option.label, 'Option')} = ${getString(option.value, 'value')}`).join(', ') },
-          ]}
-        />
+        <div className={styles.formInputPreview}>{defaultValue || placeholder}</div>
+        {options.length ? (
+          <div className={styles.formPreviewHint}>
+            {options.map((option) => getString(option.label, 'Option')).join(', ')}
+          </div>
+        ) : null}
       </FieldChrome>
     )
   }
@@ -134,18 +106,12 @@ function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: 
                 />
               ) : null}
               <i aria-hidden="true" />
-              {getString(option.label, `Option ${index + 1}`)}
+              <b>{getString(option.label, `Option ${index + 1}`)}</b>
             </span>
           )
         })}
       </div>
-      <MetaList
-        items={[
-          { label: 'Default', value: getString(props.defaultValue, 'None') },
-          { label: 'Options', value: options.map((option) => `${getString(option.label, 'Option')} = ${getString(option.value, 'value')}`).join(', ') },
-          { label: 'Selection', value: type === 'image-select' && props.allowMultiple ? 'Multiple allowed' : '' },
-        ]}
-      />
+      {type === 'image-select' && props.allowMultiple ? <div className={styles.formPreviewHint}>Multiple selections allowed</div> : null}
     </FieldChrome>
   )
 }
@@ -170,7 +136,7 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
           <i aria-hidden="true" />
           <span>{getString(props.label, 'Checkbox')}</span>
         </div>
-        <MetaList items={[{ label: 'Default', value: getBooleanLabel(props.defaultValue) }]} />
+        <div className={styles.formPreviewHint}>{getBooleanLabel(props.defaultValue)}</div>
       </FieldChrome>
     )
   }
@@ -179,13 +145,9 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
     return (
       <FieldChrome label={getString(props.label, 'Record a video')} props={props}>
         <div className={styles.formVideoPreview}>Video upload / recording field</div>
-        <MetaList
-          items={[
-            { label: 'Help', value: getString(props.helpText, 'None') },
-            { label: 'Duration', value: `${getNumber(props.maxDuration, 60)} seconds max` },
-            { label: 'File Size', value: `${getNumber(props.maxFileSizeMB, 100)} MB max` },
-          ]}
-        />
+        <div className={styles.formPreviewHint}>
+          {getString(props.helpText) || `${getNumber(props.maxDuration, 60)} seconds max, ${getNumber(props.maxFileSizeMB, 100)} MB max`}
+        </div>
       </FieldChrome>
     )
   }
@@ -210,12 +172,6 @@ export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps
       <div className={blockType === 'textarea' ? styles.formTextareaPreview : styles.formInputPreview}>
         {getString(props.defaultValue, blockType === 'email' ? 'name@example.com' : blockType === 'state' ? 'State selector' : blockType === 'country' ? 'Country selector' : 'No default value')}
       </div>
-      <MetaList
-        items={[
-          { label: 'Default', value: getString(props.defaultValue, 'None') },
-          { label: 'Type', value: blockType },
-        ]}
-      />
     </FieldChrome>
   )
 }

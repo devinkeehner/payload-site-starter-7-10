@@ -3,7 +3,7 @@
 import '@puckeditor/core/puck.css'
 
 import { createUsePuck, Drawer, DropZone, fieldsPlugin, Puck, type Config, type Data, type Plugin } from '@puckeditor/core'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 
 import { buildDefaults, buildFields } from '@/components/admin/puck/PuckPageBuilderEditor'
 import styles from '@/components/admin/puck/puck-page-builder.module.css'
@@ -126,10 +126,41 @@ function FormBuilderStartClosed() {
   return null
 }
 
+function FormBuilderAutoPropertiesTab() {
+  const dispatch = useFormBuilderPuck((state) => state.dispatch)
+  const itemSelector = useFormBuilderPuck((state) => state.appState.ui.itemSelector)
+  const currentPlugin = useFormBuilderPuck((state) => state.appState.ui.plugin.current)
+  const leftSideBarVisible = useFormBuilderPuck((state) => state.appState.ui.leftSideBarVisible)
+  const lastAutoOpenedSelectorRef = useRef('')
+  const selectorKey = itemSelector ? `${itemSelector.zone}:${itemSelector.index}` : ''
+
+  useEffect(() => {
+    if (!selectorKey) {
+      lastAutoOpenedSelectorRef.current = ''
+      return
+    }
+
+    if (lastAutoOpenedSelectorRef.current === selectorKey) return
+    lastAutoOpenedSelectorRef.current = selectorKey
+
+    dispatch({
+      recordHistory: false,
+      type: 'setUi',
+      ui: {
+        leftSideBarVisible: true,
+        plugin: { current: 'fields' },
+      },
+    })
+  }, [currentPlugin, dispatch, leftSideBarVisible, selectorKey])
+
+  return null
+}
+
 function FormBuilderPuckShell({ children }: { children?: React.ReactNode }) {
   return (
     <>
       <FormBuilderStartClosed />
+      <FormBuilderAutoPropertiesTab />
       {children}
     </>
   )
@@ -239,7 +270,7 @@ function createPlugins(items: string[]): Plugin[] {
   return [
     {
       label: 'Fields',
-      name: 'fields-palette',
+      name: 'blocks',
       render: () => <FormPaletteDrawer items={items} />,
     },
     {
@@ -308,6 +339,42 @@ function createConfig(
       },
     }
   })
+
+  components.formRowCustom = {
+    label: 'Custom Row',
+    defaultProps: {
+      columns: [1, 1],
+    },
+    render: (props) => {
+      const columns = Array.isArray((props as Record<string, unknown>).columns)
+        ? ((props as Record<string, unknown>).columns as unknown[]).map((column) => Number(column)).filter((column) => Number.isFinite(column) && column > 0)
+        : [1, 1]
+      const safeColumns = columns.length ? columns : [1, 1]
+      const total = safeColumns.reduce((sum, column) => sum + column, 0)
+
+      return (
+        <section className={styles.formRowPreview}>
+          <div className={styles.formRowPreviewHeader}>
+            <span>Custom Row</span>
+            <small>
+              {safeColumns.map((column) => `${Math.round((column / total) * 100)}%`).join(' / ')}
+            </small>
+          </div>
+          <div className={styles.formRowPreviewColumns}>
+            {safeColumns.map((column, index) => (
+              <div key={index} className={styles.formRowPreviewColumn} style={{ flex: column }}>
+                <DropZone
+                  allow={fieldSlugs}
+                  minEmptyHeight={FORM_ROW_DROPZONE_MIN_HEIGHT}
+                  zone={getRowZoneName(index)}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )
+    },
+  }
 
   return {
     root: {
