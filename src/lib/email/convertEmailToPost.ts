@@ -41,7 +41,16 @@ function getItems(value: unknown): Record<string, unknown>[] {
 
 function getUploadId(value: unknown): unknown {
   if (!isRecord(value)) return value
-  return value.id ?? value.value ?? value
+  const id = value.id ?? value._id
+  if (typeof id === 'string' || typeof id === 'number') return id
+
+  const nestedValue = value.value
+  if (isRecord(nestedValue)) {
+    const nestedId = nestedValue.id ?? nestedValue._id ?? nestedValue.value
+    return typeof nestedId === 'string' || typeof nestedId === 'number' ? nestedId : nestedValue
+  }
+
+  return nestedValue ?? value
 }
 
 function paragraph(children: LexicalNode[]): LexicalNode {

@@ -829,7 +829,9 @@ export function puckDataToFormPatch(data: PuckPageData): {
         if (typeof rowId === 'string' || typeof rowId === 'number') {
           columns.forEach((column, columnIndex) => {
             const zoneContent = zones?.[getFormRowZoneId(String(rowId), columnIndex)]
-            const columnWidth = total > 0 ? (column / total) * 100 : 100
+            const columnWidth = blockType === 'formRowCustom'
+              ? getFormFieldWidth(column)
+              : total > 0 ? (column / total) * 100 : 100
 
             if (!Array.isArray(zoneContent)) return
 

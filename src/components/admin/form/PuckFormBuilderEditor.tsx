@@ -54,6 +54,18 @@ const FORM_ROWS: VisualRowPreset[] = [
   { columns: [1, 1, 1, 1], label: '4 Columns', mode: 'fieldRows', slug: 'formRowFourColumns' },
 ]
 
+const FORM_CONFIG_ROWS: VisualRowPreset[] = [
+  ...FORM_ROWS,
+  {
+    allowCustomColumns: true,
+    columns: [1],
+    hiddenFromPalette: true,
+    label: 'Custom Row',
+    mode: 'fieldRows',
+    slug: 'formRowCustom',
+  },
+]
+
 const FORM_PALETTE_ITEMS: VisualPaletteItem[] = [
   ...FIELD_ITEMS,
   ...FORM_ROWS.map((row) => ({ kind: 'row' as const, label: row.label, slug: row.slug })),
@@ -117,7 +129,7 @@ export function PuckFormBuilderEditor({
           </section>
         </main>
       ),
-      rows: FORM_ROWS,
+      rows: FORM_CONFIG_ROWS,
     }),
     [blockSchema, paletteSlugs, submitButtonLabel, title],
   )
@@ -141,7 +153,7 @@ export function PuckFormBuilderEditor({
         rowTitle: 'Rows',
       }}
       previewFrameStyle={{ minHeight: '100%' }}
-      rows={FORM_ROWS}
+      rows={FORM_CONFIG_ROWS}
       saveButtonLabel="Save Form"
       saveErrorMessage="Unable to save form"
       savedMessage="Form draft saved."

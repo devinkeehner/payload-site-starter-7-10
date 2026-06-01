@@ -32,6 +32,7 @@ export default function PuckPostBuilderView(props: DocumentViewServerProps) {
     <PuckPostBuilderClient
       blockSchema={getPostPuckBlockSchema()}
       initialData={postToPuckData(doc)}
+      initialPostContent={doc.content || null}
       postId={String(id)}
       title={typeof doc?.title === 'string' ? doc.title : 'Untitled post'}
     />

@@ -74,6 +74,7 @@ export type VisualPaletteItem = {
 export type VisualRowPreset =
   | {
       columns: number[]
+      hiddenFromPalette?: boolean
       label: string
       layout: string
       mode: 'layoutRows'
@@ -81,7 +82,9 @@ export type VisualRowPreset =
       zones: string[]
     }
   | {
+      allowCustomColumns?: boolean
       columns: number[]
+      hiddenFromPalette?: boolean
       label: string
       mode: 'fieldRows'
       slug: string
@@ -197,6 +200,16 @@ function RowSkeleton({ columns }: { columns: number[] }) {
       ))}
     </span>
   )
+}
+
+function getValidRowColumns(value: unknown, fallback: number[]) {
+  if (!Array.isArray(value)) return fallback
+
+  const columns = value
+    .map((column) => Number(column))
+    .filter((column) => Number.isFinite(column) && column > 0)
+
+  return columns.length ? columns : fallback
 }
 
 function VisualPaletteSvgIcon({ icon }: { icon: VisualPaletteIcon }) {
@@ -517,7 +530,7 @@ export function createVisualDocumentConfig({
   rootRenderer,
   rows,
 }: VisualDocumentConfigInput): Config {
-  const rowSlugs = rows.map((row) => row.slug)
+  const rowSlugs = rows.filter((row) => !row.hiddenFromPalette).map((row) => row.slug)
   const paletteItemMap = getPaletteItemMap(paletteItems)
   const allowedNestedSlugs = nestedContentSlugs || contentSlugs
   const components = blockSchema.reduce<Config['components']>((acc, block) => {
@@ -600,27 +613,43 @@ export function createVisualDocumentConfig({
           columns: row.columns,
         },
         label: row.label,
-        render: () => {
-          const total = row.columns.reduce((sum, column) => sum + column, 0)
+        render: (props) => {
+          const rowProps = props as Record<string, unknown>
+          const columns = row.allowCustomColumns
+            ? getValidRowColumns(rowProps.columns, row.columns)
+            : row.columns
+          const total = columns.reduce((sum, column) => sum + column, 0)
 
           return (
             <section className={styles.formRowPreview}>
               <div className={styles.formRowPreviewHeader}>
                 <span>{row.label}</span>
                 <small>
-                  {row.columns.map((column) => `${Math.round((column / total) * 100)}%`).join(' / ')}
+                  {columns.map((column) => {
+                    const width = row.allowCustomColumns ? column : total > 0 ? (column / total) * 100 : 100
+                    return `${Math.round(width)}%`
+                  }).join(' / ')}
                 </small>
               </div>
               <div className={styles.formRowPreviewColumns}>
-                {row.columns.map((column, index) => (
-                  <div key={index} className={styles.formRowPreviewColumn} style={{ flex: column }}>
-                    <DropZone
-                      allow={contentSlugs}
-                      minEmptyHeight={fieldRowDropzoneMinHeight || dropzoneMinHeight}
-                      zone={getFieldRowZoneName(index)}
-                    />
-                  </div>
-                ))}
+                {columns.map((column, index) => {
+                  const width = Math.max(1, Math.min(100, column))
+                  const customColumnStyle = row.allowCustomColumns
+                    ? {
+                        flex: `0 1 calc(${width}% - ${((columns.length - 1) * 12) / columns.length}px)`,
+                      }
+                    : { flex: column }
+
+                  return (
+                    <div key={index} className={styles.formRowPreviewColumn} style={customColumnStyle}>
+                      <DropZone
+                        allow={contentSlugs}
+                        minEmptyHeight={fieldRowDropzoneMinHeight || dropzoneMinHeight}
+                        zone={getFieldRowZoneName(index)}
+                      />
+                    </div>
+                  )
+                })}
               </div>
             </section>
           )

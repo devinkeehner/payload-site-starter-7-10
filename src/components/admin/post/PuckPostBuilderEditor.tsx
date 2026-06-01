@@ -17,6 +17,7 @@ const POST_ROW_DROPZONE_MIN_HEIGHT = 148
 export type PuckPostBuilderProps = {
   blockSchema: PuckBlockSchema[]
   initialData: PuckPageData
+  initialPostContent?: Record<string, unknown> | null
   initialThemeStyle?: Record<string, string> | null
   postId: string
   title: string
@@ -126,23 +127,27 @@ function getRowPaletteSlugs(blockSchema: PuckBlockSchema[]): string[] {
 export function PuckPostBuilderEditor({
   blockSchema,
   initialData,
+  initialPostContent,
   initialThemeStyle,
   postId,
   title,
 }: PuckPostBuilderProps) {
   const contentPaletteSlugs = useMemo(() => getContentPaletteSlugs(blockSchema), [blockSchema])
   const rowPaletteSlugs = useMemo(() => getRowPaletteSlugs(blockSchema), [blockSchema])
+  const postBodyDefaultContent = useMemo(
+    () => getPostBodyContentFromData(initialData) || initialPostContent || null,
+    [initialData, initialPostContent],
+  )
   const [previewThemeStyle, setPreviewThemeStyle] = useState<React.CSSProperties | undefined>(
     initialThemeStyle ? (initialThemeStyle as React.CSSProperties) : undefined,
   )
-  const [postContent, setPostContent] = useState<Record<string, unknown> | null>(() => getPostBodyContentFromData(initialData))
   const config = useMemo(
     () => createVisualDocumentConfig({
       blockSchema,
       contentSlugs: contentPaletteSlugs,
       defaultPropsBySlug: {
         postBody: {
-          content: postContent || null,
+          content: postBodyDefaultContent || null,
         },
       },
       dropzoneMinHeight: POST_ROW_DROPZONE_MIN_HEIGHT,
@@ -182,11 +187,10 @@ export function PuckPostBuilderEditor({
       ),
       rows: POST_ROWS,
     }),
-    [blockSchema, contentPaletteSlugs, postContent, previewThemeStyle],
+    [blockSchema, contentPaletteSlugs, postBodyDefaultContent, previewThemeStyle],
   )
 
-  function capturePayload(payload: PuckPostPayload, data: PuckPageData) {
-    setPostContent(payload.post.content || getPostBodyContentFromData(data))
+  function capturePayload(payload: PuckPostPayload) {
     setPreviewThemeStyle((current) => getThemeStyleFromPayload(payload) ?? current)
   }
 
