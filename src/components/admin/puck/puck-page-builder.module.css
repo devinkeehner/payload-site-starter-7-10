@@ -824,6 +824,13 @@
   line-height: 1.12;
 }
 
+.emailPaletteDescription {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
 .emailPaletteItem[data-kind='row'] .emailPaletteLabel {
   color: #6b7280;
   font-size: 12px;

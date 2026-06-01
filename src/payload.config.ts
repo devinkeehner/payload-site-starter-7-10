@@ -5131,7 +5131,7 @@ export default buildConfig({
                   path: '/visual',
                   tab: {
                     href: '/visual',
-                    label: 'Form Builder',
+                    label: 'Builder',
                     order: 75,
                     ...(existingEditViews.visual?.tab || {}),
                   },

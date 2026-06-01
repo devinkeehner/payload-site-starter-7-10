@@ -221,7 +221,7 @@ export const Posts: CollectionConfig<'posts'> = {
             Component: '@/components/admin/post/PuckPostBuilderView',
             tab: {
               href: '/visual',
-              label: 'Post Builder',
+              label: 'Builder',
               order: 75,
               condition: ({ req }) => isSuperUser(req.user),
             },
