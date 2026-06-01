@@ -44,13 +44,32 @@ const EMAIL_ROW_COMPONENT_TO_LAYOUT: Record<string, string> = {
   emailRowThreeColumns: 'threeColumns',
   emailRowTwoColumns: 'twoColumns',
 }
+const POST_ROW_COMPONENT_TO_LAYOUT: Record<string, string> = {
+  postRowFourColumns: 'fourColumns',
+  postRowLeftWide: 'twoColumnsLeftWide',
+  postRowOneColumn: 'oneColumn',
+  postRowRightWide: 'twoColumnsRightWide',
+  postRowThreeColumns: 'threeColumns',
+  postRowTwoColumns: 'twoColumns',
+}
 const EMAIL_ROW_LAYOUT_TO_COMPONENT = Object.entries(EMAIL_ROW_COMPONENT_TO_LAYOUT)
   .reduce<Record<string, string>>((acc, [componentType, layout]) => {
     acc[layout] = componentType
     return acc
   }, {})
+const POST_ROW_LAYOUT_TO_COMPONENT = Object.entries(POST_ROW_COMPONENT_TO_LAYOUT)
+  .reduce<Record<string, string>>((acc, [componentType, layout]) => {
+    acc[layout] = componentType
+    return acc
+  }, {})
 const EMAIL_GRID_COMPONENT_TYPES = new Set([EMAIL_GRID_BLOCK_TYPE, ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT)])
-const GRID_BLOCK_TYPES = new Set([EMAIL_GRID_BLOCK_TYPE, 'postGrid', ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT)])
+const POST_GRID_COMPONENT_TYPES = new Set(['postGrid', ...Object.keys(POST_ROW_COMPONENT_TO_LAYOUT)])
+const GRID_BLOCK_TYPES = new Set([
+  EMAIL_GRID_BLOCK_TYPE,
+  'postGrid',
+  ...Object.keys(EMAIL_ROW_COMPONENT_TO_LAYOUT),
+  ...Object.keys(POST_ROW_COMPONENT_TO_LAYOUT),
+])
 const FORM_ROW_COMPONENT_TO_COLUMNS: Record<string, number[]> = {
   formRowFourColumns: [1, 1, 1, 1],
   formRowLeftWide: [2, 1],
@@ -95,8 +114,14 @@ function getEmailGridPuckType(layout: unknown): string {
   return EMAIL_ROW_LAYOUT_TO_COMPONENT[String(layout)] || EMAIL_GRID_BLOCK_TYPE
 }
 
+function getPostGridPuckType(layout: unknown): string {
+  return POST_ROW_LAYOUT_TO_COMPONENT[String(layout)] || 'postGrid'
+}
+
 function normalizePuckBlockType(type: string): string {
-  return EMAIL_GRID_COMPONENT_TYPES.has(type) ? EMAIL_GRID_BLOCK_TYPE : type
+  if (EMAIL_GRID_COMPONENT_TYPES.has(type)) return EMAIL_GRID_BLOCK_TYPE
+  if (POST_GRID_COMPONENT_TYPES.has(type)) return 'postGrid'
+  return type
 }
 
 function getRelationshipId(value: unknown): string | number | null {
@@ -367,7 +392,7 @@ function layoutToPuckData(layout: unknown[] | null | undefined): PuckPageData {
           zones[`${id}:left`] = emailLayoutToPuckContent(block.leftBlocks)
           zones[`${id}:center`] = emailLayoutToPuckContent(block.centerBlocks)
           zones[`${id}:right`] = emailLayoutToPuckContent(block.rightBlocks)
-          if (blockType === EMAIL_GRID_BLOCK_TYPE) {
+          if (blockType === EMAIL_GRID_BLOCK_TYPE || blockType === 'postGrid') {
             zones[`${id}:fourth`] = emailLayoutToPuckContent(block.fourthBlocks)
           }
           delete props.leftBlocks
@@ -377,7 +402,11 @@ function layoutToPuckData(layout: unknown[] | null | undefined): PuckPageData {
         }
 
         return {
-          type: blockType === EMAIL_GRID_BLOCK_TYPE ? getEmailGridPuckType(props.layout) : blockType,
+          type: blockType === EMAIL_GRID_BLOCK_TYPE
+            ? getEmailGridPuckType(props.layout)
+            : blockType === 'postGrid'
+              ? getPostGridPuckType(props.layout)
+              : blockType,
           props: {
             ...props,
             id,
@@ -396,9 +425,30 @@ export function formToPuckData(form: PuckFormDoc): PuckPageData {
   return formFieldsToPuckData(form.fields)
 }
 
+function injectPostContentIntoLayout(layout: unknown, content: PuckPostDoc['content']): unknown {
+  if (Array.isArray(layout)) {
+    return layout.map((block) => injectPostContentIntoLayout(block, content))
+  }
+
+  if (!isRecord(layout)) return layout
+
+  const next: Record<string, unknown> = { ...layout }
+  if (next.blockType === 'postBody') {
+    next.content = content || null
+  }
+
+  for (const key of ['leftBlocks', 'centerBlocks', 'rightBlocks', 'fourthBlocks'] as const) {
+    if (Array.isArray(next[key])) {
+      next[key] = injectPostContentIntoLayout(next[key], content)
+    }
+  }
+
+  return next
+}
+
 export function postToPuckData(post: PuckPostDoc): PuckPageData {
   const layout = Array.isArray(post.layout) && post.layout.length
-    ? post.layout.map((block) => block.blockType === 'postBody' ? { ...block, content: post.content || null } : block)
+    ? injectPostContentIntoLayout(post.layout, post.content) as PuckPageBlock[]
     : [{ blockType: 'postBody', content: post.content || null }]
 
   return layoutToPuckData(layout)
@@ -448,12 +498,15 @@ function puckContentToEmailLayout(
       if (EMAIL_ROW_COMPONENT_TO_LAYOUT[componentType] && !payloadBlock.layout) {
         payloadBlock.layout = EMAIL_ROW_COMPONENT_TO_LAYOUT[componentType]
       }
+      if (POST_ROW_COMPONENT_TO_LAYOUT[componentType] && !payloadBlock.layout) {
+        payloadBlock.layout = POST_ROW_COMPONENT_TO_LAYOUT[componentType]
+      }
 
       if (GRID_BLOCK_TYPES.has(componentType) && id) {
         payloadBlock.leftBlocks = puckContentToEmailLayout(zones?.[`${id}:left`], zones)
         payloadBlock.centerBlocks = puckContentToEmailLayout(zones?.[`${id}:center`], zones)
         payloadBlock.rightBlocks = puckContentToEmailLayout(zones?.[`${id}:right`], zones)
-        if (EMAIL_GRID_COMPONENT_TYPES.has(componentType)) {
+        if (EMAIL_GRID_COMPONENT_TYPES.has(componentType) || POST_GRID_COMPONENT_TYPES.has(componentType)) {
           payloadBlock.fourthBlocks = puckContentToEmailLayout(zones?.[`${id}:fourth`], zones)
         }
       }
@@ -479,12 +532,28 @@ export function puckDataToPostPatch(data: PuckPageData): {
   const { layout } = puckDataToLayoutPatch(data)
 
   return {
-    layout: layout.map((block) => {
-      if (block.blockType !== 'postBody') return block
-      const { content: _content, ...postBodyBlock } = block
-      return postBodyBlock
-    }),
+    layout: stripPostBodyContentFromLayout(layout),
   }
+}
+
+function stripPostBodyContentFromLayout(layout: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  return layout.map((block) => {
+    const nextBlock: Record<string, unknown> = { ...block }
+
+    if (nextBlock.blockType === 'postBody') {
+      delete nextBlock.content
+    }
+
+    for (const key of ['leftBlocks', 'centerBlocks', 'rightBlocks', 'fourthBlocks'] as const) {
+      if (Array.isArray(nextBlock[key])) {
+        nextBlock[key] = stripPostBodyContentFromLayout(
+          nextBlock[key].filter((item): item is Record<string, unknown> => isRecord(item)),
+        )
+      }
+    }
+
+    return nextBlock
+  })
 }
 
 function slugifyFieldName(value: unknown, fallback: string): string {

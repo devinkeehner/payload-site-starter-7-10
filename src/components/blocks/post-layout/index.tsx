@@ -322,13 +322,42 @@ function PostBentoGrid({ block }: { block: PostLayoutBlock }) {
 }
 
 function PostGrid({ block, content }: { block: PostLayoutBlock; content?: Post['content'] | null }) {
-  const threeColumns = block.layout === 'threeColumns'
-  const columns = threeColumns
-    ? [block.leftBlocks, block.centerBlocks, block.rightBlocks]
-    : [block.leftBlocks, block.rightBlocks]
+  const layout = typeof block.layout === 'string' ? block.layout : 'twoColumns'
+  const columns = (() => {
+    switch (layout) {
+      case 'oneColumn':
+        return [block.leftBlocks]
+      case 'threeColumns':
+        return [block.leftBlocks, block.centerBlocks, block.rightBlocks]
+      case 'fourColumns':
+        return [block.leftBlocks, block.centerBlocks, block.rightBlocks, block.fourthBlocks]
+      case 'twoColumnsLeftWide':
+      case 'twoColumnsRightWide':
+      case 'twoColumns':
+      default:
+        return [block.leftBlocks, block.rightBlocks]
+    }
+  })()
+  const desktopClass = (() => {
+    switch (layout) {
+      case 'oneColumn':
+        return 'md:grid-cols-1'
+      case 'twoColumnsLeftWide':
+        return 'md:grid-cols-[2fr_1fr]'
+      case 'twoColumnsRightWide':
+        return 'md:grid-cols-[1fr_2fr]'
+      case 'threeColumns':
+        return 'md:grid-cols-3'
+      case 'fourColumns':
+        return 'md:grid-cols-4'
+      case 'twoColumns':
+      default:
+        return 'md:grid-cols-2'
+    }
+  })()
 
   return (
-    <div className={cn('grid gap-5', threeColumns ? 'md:grid-cols-3' : 'md:grid-cols-2')}>
+    <div className={cn('grid gap-5', desktopClass)}>
       {columns.map((column, index) => (
         <div className="min-w-0 rounded-lg border border-slate-200 bg-slate-50 p-4 shadow-sm" key={index}>
           <RenderPostBlocks blocks={Array.isArray(column) ? column : []} content={content} />

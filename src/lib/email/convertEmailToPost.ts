@@ -244,16 +244,32 @@ function postGrid(block: EmailBlock, options: ConvertEmailToPostOptions): Record
   const centerBlocks = convertEmailLayout(block.centerBlocks, options, false)
   const rightBlocks = convertEmailLayout(block.rightBlocks, options, false)
   const fourthBlocks = convertEmailLayout(block.fourthBlocks, options, false)
-  const postRightBlocks = [...rightBlocks, ...fourthBlocks]
 
-  if (!leftBlocks.length && !centerBlocks.length && !postRightBlocks.length) return null
+  if (!leftBlocks.length && !centerBlocks.length && !rightBlocks.length && !fourthBlocks.length) return null
+
+  const layout = (() => {
+    switch (block.layout) {
+      case 'oneColumn':
+      case 'twoColumns':
+      case 'twoColumnsLeftWide':
+      case 'twoColumnsRightWide':
+      case 'threeColumns':
+      case 'fourColumns':
+        return block.layout
+      default:
+        if (fourthBlocks.length) return 'fourColumns'
+        if (centerBlocks.length) return 'threeColumns'
+        return 'twoColumns'
+    }
+  })()
 
   return {
     blockType: 'postGrid',
     centerBlocks,
-    layout: block.layout === 'threeColumns' || block.layout === 'fourColumns' ? 'threeColumns' : 'twoColumns',
+    fourthBlocks,
+    layout,
     leftBlocks,
-    rightBlocks: postRightBlocks,
+    rightBlocks,
   }
 }
 

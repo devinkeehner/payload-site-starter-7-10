@@ -437,6 +437,7 @@ export const PostBentoGridBlock: Block = {
 }
 
 const POST_NESTED_LAYOUT_BLOCKS = [
+  PostBodyBlock,
   PostRichTextBlock,
   PostCalloutBlock,
   PostButtonBlock,
@@ -460,8 +461,12 @@ export const PostGridBlock: Block = {
       type: 'select',
       defaultValue: 'twoColumns',
       options: [
+        { label: 'One row, one column', value: 'oneColumn' },
         { label: 'One row, two columns', value: 'twoColumns' },
+        { label: 'One row, left column wide', value: 'twoColumnsLeftWide' },
+        { label: 'One row, right column wide', value: 'twoColumnsRightWide' },
         { label: 'One row, three columns', value: 'threeColumns' },
+        { label: 'One row, four columns', value: 'fourColumns' },
       ],
       required: true,
     },
@@ -483,6 +488,14 @@ export const PostGridBlock: Block = {
     },
     {
       name: 'rightBlocks',
+      type: 'blocks',
+      blocks: POST_NESTED_LAYOUT_BLOCKS,
+      admin: {
+        initCollapsed: true,
+      },
+    },
+    {
+      name: 'fourthBlocks',
       type: 'blocks',
       blocks: POST_NESTED_LAYOUT_BLOCKS,
       admin: {

@@ -430,11 +430,42 @@ function PostBentoGridPreview(props: BlockProps) {
 
 function PostGridPreview({ children, props }: { children?: React.ReactNode; props: BlockProps }) {
   const childrenArray = React.Children.toArray(children)
-  const threeColumns = props.layout === 'threeColumns'
-  const columns = threeColumns ? childrenArray.slice(0, 3) : [childrenArray[0], childrenArray[childrenArray.length - 1]]
+  const layout = typeof props.layout === 'string' ? props.layout : 'twoColumns'
+  const columns = (() => {
+    switch (layout) {
+      case 'oneColumn':
+        return childrenArray.slice(0, 1)
+      case 'threeColumns':
+        return childrenArray.slice(0, 3)
+      case 'fourColumns':
+        return childrenArray.slice(0, 4)
+      case 'twoColumnsLeftWide':
+      case 'twoColumnsRightWide':
+      case 'twoColumns':
+      default:
+        return [childrenArray[0], childrenArray[childrenArray.length - 1]]
+    }
+  })()
+  const gridTemplateColumns = (() => {
+    switch (layout) {
+      case 'oneColumn':
+        return 'minmax(0, 1fr)'
+      case 'twoColumnsLeftWide':
+        return 'minmax(0, 2fr) minmax(0, 1fr)'
+      case 'twoColumnsRightWide':
+        return 'minmax(0, 1fr) minmax(0, 2fr)'
+      case 'threeColumns':
+        return 'repeat(3, minmax(0, 1fr))'
+      case 'fourColumns':
+        return 'repeat(4, minmax(0, 1fr))'
+      case 'twoColumns':
+      default:
+        return 'repeat(2, minmax(0, 1fr))'
+    }
+  })()
 
   return (
-    <div style={{ display: 'grid', gap: 16, gridTemplateColumns: `repeat(${threeColumns ? 3 : 2}, minmax(0, 1fr))`, margin: '4px 0 30px' }}>
+    <div style={{ display: 'grid', gap: 16, gridTemplateColumns, margin: '4px 0 30px' }}>
       {columns.map((child, index) => (
         <div key={index} style={{ ...cardStyle, borderStyle: 'dashed', minHeight: 140, padding: 12 }}>
           {child}

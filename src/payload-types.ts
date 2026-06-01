@@ -631,9 +631,10 @@ export interface PostBentoGridBlock {
  * via the `definition` "PostGridBlock".
  */
 export interface PostGridBlock {
-  layout: 'twoColumns' | 'threeColumns';
+  layout: 'oneColumn' | 'twoColumns' | 'twoColumnsLeftWide' | 'twoColumnsRightWide' | 'threeColumns' | 'fourColumns';
   leftBlocks?:
     | (
+        | PostBodyBlock
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
@@ -648,6 +649,7 @@ export interface PostGridBlock {
     | null;
   centerBlocks?:
     | (
+        | PostBodyBlock
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
@@ -662,6 +664,22 @@ export interface PostGridBlock {
     | null;
   rightBlocks?:
     | (
+        | PostBodyBlock
+        | PostRichTextBlock
+        | PostCalloutBlock
+        | PostButtonBlock
+        | PostImageBlock
+        | PostGalleryBlock
+        | PostListBlock
+        | PostLinksBlock
+        | PostDividerBlock
+        | PostSpacerBlock
+        | PostBentoGridBlock
+      )[]
+    | null;
+  fourthBlocks?:
+    | (
+        | PostBodyBlock
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
@@ -4953,6 +4971,7 @@ export interface PostGridBlockSelect<T extends boolean = true> {
   leftBlocks?:
     | T
     | {
+        postBody?: T | PostBodyBlockSelect<T>;
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
@@ -4967,6 +4986,7 @@ export interface PostGridBlockSelect<T extends boolean = true> {
   centerBlocks?:
     | T
     | {
+        postBody?: T | PostBodyBlockSelect<T>;
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
@@ -4981,6 +5001,22 @@ export interface PostGridBlockSelect<T extends boolean = true> {
   rightBlocks?:
     | T
     | {
+        postBody?: T | PostBodyBlockSelect<T>;
+        postRichText?: T | PostRichTextBlockSelect<T>;
+        postCallout?: T | PostCalloutBlockSelect<T>;
+        postButton?: T | PostButtonBlockSelect<T>;
+        postImage?: T | PostImageBlockSelect<T>;
+        postGallery?: T | PostGalleryBlockSelect<T>;
+        postList?: T | PostListBlockSelect<T>;
+        postLinks?: T | PostLinksBlockSelect<T>;
+        postDivider?: T | PostDividerBlockSelect<T>;
+        postSpacer?: T | PostSpacerBlockSelect<T>;
+        postBentoGrid?: T | PostBentoGridBlockSelect<T>;
+      };
+  fourthBlocks?:
+    | T
+    | {
+        postBody?: T | PostBodyBlockSelect<T>;
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
