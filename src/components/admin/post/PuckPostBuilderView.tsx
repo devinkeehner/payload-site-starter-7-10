@@ -1,6 +1,6 @@
 import type { DocumentViewServerProps } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseBuilders } from '@/lib/access/isSuperUser'
 import { postToPuckData } from '@/lib/puck/converters'
 import { getPostPuckBlockSchema } from '@/lib/puck/schema'
 import type { PuckPostDoc } from '@/lib/puck/types'
@@ -12,10 +12,10 @@ export default function PuckPostBuilderView(props: DocumentViewServerProps) {
   const id = props.id ?? doc?.id
   const user = props.user
 
-  if (!isSuperUser(user)) {
+  if (!canUseBuilders(user)) {
     return (
       <div style={{ padding: '2rem' }}>
-        You do not have access to the post builder.
+        Only alpha testers and super admins can use the post builder.
       </div>
     )
   }

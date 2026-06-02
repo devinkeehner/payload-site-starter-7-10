@@ -1,7 +1,7 @@
 import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseBuilders } from '@/lib/access/isSuperUser'
 import { postToPuckData, puckDataToPostPatch } from '@/lib/puck/converters'
 import type { PuckPageData, PuckPostDoc } from '@/lib/puck/types'
 
@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseBuilders(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 
@@ -48,7 +48,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
 
-  if (!user || !isSuperUser(user)) {
+  if (!user || !canUseBuilders(user)) {
     return new Response('Unauthorized', { status: 403 })
   }
 

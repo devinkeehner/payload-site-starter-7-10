@@ -33,7 +33,7 @@ import {
   PreviewField,
 } from '@payloadcms/plugin-seo/fields'
 import { slugField } from '@/collections/fields/slug'
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseBuilders, isSuperUser } from '@/lib/access/isSuperUser'
 import {
   DEFAULT_SEO_ASSISTANT_SETTINGS,
   type SeoAssistantSettings,
@@ -223,7 +223,7 @@ export const Posts: CollectionConfig<'posts'> = {
               href: '/visual',
               label: 'Builder',
               order: 75,
-              condition: ({ req }) => isSuperUser(req.user),
+              condition: ({ req }) => canUseBuilders(req.user),
             },
           },
         },

@@ -24,3 +24,5 @@ export const isAlphaTester = (user: unknown): boolean => {
 }
 
 export const canUseEmailFeatures = (user: unknown): boolean => isSuperUser(user) || isAlphaTester(user)
+
+export const canUseBuilders = (user: unknown): boolean => isSuperUser(user) || isAlphaTester(user)
