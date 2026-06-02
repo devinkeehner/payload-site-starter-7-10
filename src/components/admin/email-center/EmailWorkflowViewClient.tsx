@@ -75,24 +75,30 @@ export function EmailWorkflowViewClient({
   const [report, setReport] = useState<Report | null>(null)
   const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'sending' | 'sendingTest' | 'sent'>('loading')
   const [message, setMessage] = useState<string | null>(null)
+  const [testRecipient, setTestRecipient] = useState('')
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
   const builderURL = `${editURL}/visual`
   const audienceURL = `${editURL}/audience`
   const blockingLinks = useMemo(
-    () => (readiness?.quality?.links || []).filter((link) => {
-      if (link.status === 'invalid') return true
-      return false
-    }),
+    () => (readiness?.quality?.links || []).filter((link) => link.status === 'invalid'),
     [readiness],
   )
-  const reviewLinks = useMemo(
-    () => (readiness?.quality?.links || []).filter((link) => link.status === 'invalid' || link.status === 'warning'),
+  const warningLinks = useMemo(
+    () => (readiness?.quality?.links || []).filter((link) => link.status === 'warning'),
     [readiness],
   )
   const sendChecklistItems = useMemo(() => {
     const priority = { fail: 0, warn: 1, pass: 2 } as const
     return [...(readiness?.items || [])].sort((a, b) => priority[a.status] - priority[b.status])
   }, [readiness])
+  const failingChecklistItems = useMemo(
+    () => sendChecklistItems.filter((item) => item.status === 'fail'),
+    [sendChecklistItems],
+  )
+  const warningChecklistItems = useMemo(
+    () => sendChecklistItems.filter((item) => item.status === 'warn'),
+    [sendChecklistItems],
+  )
 
   const loadWorkflow = useCallback(async () => {
     setStatus('loading')
@@ -143,14 +149,22 @@ export function EmailWorkflowViewClient({
   }
 
   async function sendTestEmail() {
+    const trimmedRecipient = testRecipient.trim()
+
     setStatus('sendingTest')
     setMessage(null)
     try {
-      const res = await fetch(`/api/emails/${emailId}/send-test`, { method: 'POST' })
+      const res = await fetch(`/api/emails/${emailId}/send-test`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(trimmedRecipient ? { recipientEmail: trimmedRecipient } : {}),
+      })
       if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { message?: string }
+      const payload = (await res.json()) as { message?: string; recipientEmail?: string }
       setStatus('sent')
-      setMessage(payload.message || 'Test email sent.')
+      setMessage(payload.message || `Test email sent${payload.recipientEmail ? ` to ${payload.recipientEmail}` : ''}.`)
       void loadWorkflow()
     } catch (error) {
       setStatus('error')
@@ -209,10 +223,100 @@ export function EmailWorkflowViewClient({
       <div className="email-flow__header">
         <p className="email-flow__eyebrow">Final Check</p>
         <h1>{title}</h1>
-        <p>Resolve blocking issues, send a test email, preview the final email, then send the campaign when approved.</p>
+        <p>Confirm the email is safe to send, then run a test and send the campaign when approved.</p>
       </div>
 
       {message ? <Banner type={status === 'error' ? 'error' : 'info'}>{message}</Banner> : null}
+
+      <section className="email-flow__priority-grid">
+        <div
+          className="email-flow__send-status"
+          data-state={!readiness ? 'loading' : readiness.canSend ? 'ready' : 'blocked'}
+        >
+          <Pill pillStyle={!readiness ? 'warning' : readiness.canSend ? 'success' : 'error'} size="small">
+            {!readiness ? 'checking' : readiness.canSend ? 'ready' : 'blocked'}
+          </Pill>
+          <div>
+            <h2>{!readiness ? 'Running final checks' : readiness.canSend ? 'Ready to send' : 'Needs attention before sending'}</h2>
+            <p>
+              {!readiness
+                ? 'Loading the latest email, audience, and link checks.'
+                : readiness.canSend
+                  ? `${readiness.audience?.active || 0} active recipients are ready. Send a test before the campaign.`
+                  : `${readiness.failures} blocking issue${readiness.failures === 1 ? '' : 's'} must be fixed before sending.`}
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="email-flow__priority-panel"
+          data-state={blockingLinks.length ? 'error' : warningLinks.length ? 'warning' : 'ok'}
+        >
+          <div className="email-flow__section-header">
+            <div>
+              <p className="email-flow__eyebrow">Links First</p>
+              <h2>{blockingLinks.length ? 'Broken links need fixing' : warningLinks.length ? 'Review link warnings' : 'No broken links found'}</h2>
+            </div>
+            <Pill pillStyle={blockingLinks.length ? 'error' : warningLinks.length ? 'warning' : 'success'} size="small">
+              {blockingLinks.length
+                ? `${blockingLinks.length} broken`
+                : warningLinks.length
+                  ? `${warningLinks.length} warning${warningLinks.length === 1 ? '' : 's'}`
+                  : `${readiness?.quality?.links.length || 0} checked`}
+            </Pill>
+          </div>
+
+          {!readiness ? (
+            <p className="email-flow__muted">Loading link check results...</p>
+          ) : blockingLinks.length ? (
+            <>
+              <p>Fix these before sending. Test sends and campaign sends are blocked while malformed or missing links remain.</p>
+              <div className="email-flow__issue-list">
+                {blockingLinks.slice(0, 6).map((link, index) => (
+                  <div className="email-flow__issue" key={`${link.href}-${index}`}>
+                    <strong>{link.label || 'Link'}</strong>
+                    <span>{link.href || 'Missing URL'}</span>
+                    <em>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || 'Invalid link'}</em>
+                  </div>
+                ))}
+              </div>
+              {blockingLinks.length > 6 ? (
+                <p className="email-flow__muted">Showing the first 6 broken links. The full link list is below.</p>
+              ) : null}
+            </>
+          ) : warningLinks.length ? (
+            <>
+              <p>Warnings do not block test sends, but each should either be fixed or manually confirmed.</p>
+              <div className="email-flow__issue-list">
+                {warningLinks.slice(0, 6).map((link, index) => (
+                  <div className="email-flow__issue email-flow__issue--action" key={`${link.href}-${index}`}>
+                    <strong>{link.label || 'Link'}</strong>
+                    <a href={link.href} rel="noreferrer" target="_blank">{link.href}</a>
+                    <em>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || 'Needs review'}</em>
+                    <button type="button" onClick={() => void confirmLink(link)}>
+                      Confirm
+                    </button>
+                  </div>
+                ))}
+              </div>
+              {warningLinks.length > 6 ? (
+                <p className="email-flow__muted">Showing the first 6 warnings. The full link list is below.</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="email-flow__muted">The rendered email has no malformed links. Keep an eye on the preview below before sending.</p>
+          )}
+
+          <div className="email-flow__actions">
+            <Button buttonStyle={blockingLinks.length ? 'primary' : 'secondary'} el="link" to={builderURL} type="button">
+              Open Builder
+            </Button>
+            <Button buttonStyle="secondary" onClick={() => void loadWorkflow()} type="button">
+              Recheck
+            </Button>
+          </div>
+        </div>
+      </section>
 
       <section className="email-flow__toolbar">
         <Button buttonStyle="secondary" el="link" to={builderURL} type="button">
@@ -228,7 +332,14 @@ export function EmailWorkflowViewClient({
 
       <section className="email-flow__review-grid">
         <aside className="email-flow__panel">
-          <h2>Send Checklist</h2>
+          <div className="email-flow__section-header">
+            <h2>Send Actions</h2>
+            {readiness ? (
+              <Pill pillStyle={readiness.canSend ? 'success' : 'error'} size="small">
+                {readiness.canSend ? 'ready' : 'blocked'}
+              </Pill>
+            ) : null}
+          </div>
           {readiness ? (
             <>
               <div className="email-flow__meta">
@@ -236,48 +347,42 @@ export function EmailWorkflowViewClient({
                 <span>{readiness.warnings} warnings</span>
                 <span>{readiness.audience?.active || 0} recipients</span>
               </div>
-              <div className="email-flow__checklist">
-                {sendChecklistItems.map((item) => (
-                  <div className="email-flow__check" key={item.key}>
-                    <Pill pillStyle={item.status === 'pass' ? 'success' : item.status === 'warn' ? 'warning' : 'error'} size="small">
-                      {item.status}
-                    </Pill>
-                    <strong>{item.label}</strong>
-                    <span>{item.message}</span>
-                  </div>
-                ))}
-              </div>
+              {failingChecklistItems.length || warningChecklistItems.length ? (
+                <div className="email-flow__mini-list">
+                  {failingChecklistItems.slice(0, 4).map((item) => (
+                    <div key={item.key} data-state="fail">
+                      <strong>{item.label}</strong>
+                      <span>{item.message}</span>
+                    </div>
+                  ))}
+                  {!failingChecklistItems.length
+                    ? warningChecklistItems.slice(0, 3).map((item) => (
+                        <div key={item.key} data-state="warn">
+                          <strong>{item.label}</strong>
+                          <span>{item.message}</span>
+                        </div>
+                      ))
+                    : null}
+                </div>
+              ) : null}
             </>
           ) : (
             <p>{status === 'loading' ? 'Loading readiness...' : 'No readiness data.'}</p>
           )}
-          {readiness?.quality ? (
-            <div className={`email-flow__link-gate${blockingLinks.length ? ' email-flow__link-gate--error' : ''}`}>
-              <div>
-                <strong>Link Check</strong>
-                <span>
-                  {blockingLinks.length
-                    ? `${blockingLinks.length} malformed or missing link${blockingLinks.length === 1 ? '' : 's'}`
-                    : reviewLinks.length
-                      ? `${reviewLinks.length} warning${reviewLinks.length === 1 ? '' : 's'}`
-                      : `${readiness.quality.links.length} link${readiness.quality.links.length === 1 ? '' : 's'} checked`}
-                </span>
-              </div>
-              {blockingLinks.length ? (
-                <ul>
-                  {blockingLinks.slice(0, 4).map((link, index) => (
-                    <li key={`${link.href}-${index}`}>
-                      <strong>{link.label || 'Link'}:</strong> {link.href || 'Missing URL'}
-                      {link.remoteStatus ? ` (HTTP ${link.remoteStatus})` : link.reason ? ` (${link.reason})` : ''}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
           <p className="email-flow__muted">
-            Test sends only go to the test recipient. Campaign sends go to the selected audience list.
+            Test sends use the recipient below or the saved test recipient. Campaign sends go to the selected audience list.
           </p>
+          <label className="email-flow__field">
+            <span>Test email recipient</span>
+            <input
+              disabled={status === 'sendingTest'}
+              inputMode="email"
+              placeholder="Leave blank to use saved test recipient"
+              type="email"
+              value={testRecipient}
+              onChange={(event) => setTestRecipient(event.target.value)}
+            />
+          </label>
           <div className="email-flow__actions">
             <Button buttonStyle="primary" disabled={blockingLinks.length > 0 || status === 'sendingTest'} onClick={() => void sendTestEmail()} type="button">
               {status === 'sendingTest' ? 'Sending Test Email...' : 'Send Test Email'}
@@ -300,6 +405,30 @@ export function EmailWorkflowViewClient({
       </section>
 
       <section className="email-flow__panel">
+        <div className="email-flow__section-header">
+          <h2>Detailed Checklist</h2>
+          {readiness ? <span className="email-flow__muted">{readiness.failures} blocking, {readiness.warnings} warnings</span> : null}
+        </div>
+        {readiness ? (
+          <>
+            <div className="email-flow__checklist email-flow__checklist--compact">
+              {sendChecklistItems.map((item) => (
+                <div className="email-flow__check" key={item.key}>
+                  <Pill pillStyle={item.status === 'pass' ? 'success' : item.status === 'warn' ? 'warning' : 'error'} size="small">
+                    {item.status}
+                  </Pill>
+                  <strong>{item.label}</strong>
+                  <span>{item.message}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p>{status === 'loading' ? 'Loading readiness...' : 'No readiness data.'}</p>
+        )}
+      </section>
+
+      <section className="email-flow__panel">
         <h2>Quality Check</h2>
         {readiness?.quality ? (
           <>
@@ -313,16 +442,16 @@ export function EmailWorkflowViewClient({
                 {readiness.quality.warnings.map((warning) => <li key={warning}>{warning}</li>)}
               </ul>
             ) : <p className="email-flow__muted">No major quality warnings found.</p>}
-            <h3>Link Checker</h3>
+            <h3>All Links</h3>
             <div className="email-flow__table">
               {readiness.quality.links.map((link, index) => (
-                <div className="email-flow__row" key={`${link.href}-${index}`}>
+                <div className="email-flow__row" data-state={link.status} key={`${link.href}-${index}`}>
                   <Pill pillStyle={link.status === 'ok' || link.status === 'merge' ? 'success' : link.status === 'warning' ? 'warning' : 'error'} size="small">
                     {link.confirmed ? 'confirmed' : link.status}
                   </Pill>
                   <strong>{link.label || 'Link'}</strong>
                   {link.status === 'invalid' ? (
-                    <span>{link.href}</span>
+                    <span>{link.href || 'Missing URL'}</span>
                   ) : (
                     <a href={link.href} rel="noreferrer" target="_blank">{link.href}</a>
                   )}
