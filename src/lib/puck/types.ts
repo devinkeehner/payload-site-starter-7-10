@@ -17,6 +17,7 @@ export type PuckEmailDoc = {
   id?: string | number
   title?: string | null
   layout?: unknown[] | null
+  recipientEmail?: string | null
 }
 
 export type PuckFormDoc = Record<string, unknown> & {

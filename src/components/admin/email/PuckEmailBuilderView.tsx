@@ -24,6 +24,7 @@ export default function PuckEmailBuilderView(props: DocumentViewServerProps) {
     <PuckEmailBuilderClient
       blockSchema={blockSchema}
       initialData={emailToPuckData(doc)}
+      initialRecipientEmail={doc.recipientEmail}
       emailId={String(id)}
       title={doc.title || 'Untitled email'}
     />

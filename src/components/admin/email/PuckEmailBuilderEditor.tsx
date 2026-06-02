@@ -43,6 +43,7 @@ export type PuckEmailBuilderProps = {
   blockSchema: PuckBlockSchema[]
   emailId: string
   initialData: PuckPageData
+  initialRecipientEmail?: string | null
   title: string
 }
 
@@ -127,6 +128,7 @@ export function PuckEmailBuilderEditor({
   blockSchema,
   emailId,
   initialData,
+  initialRecipientEmail,
   title,
 }: PuckEmailBuilderProps) {
   const contentPaletteSlugs = useMemo(() => getContentPaletteSlugs(blockSchema), [blockSchema])
@@ -177,6 +179,15 @@ export function PuckEmailBuilderEditor({
   const [linkCheckMessage, setLinkCheckMessage] = useState<string | null>(null)
   const [emailStatus, setEmailStatus] = useState<'checkingLinks' | 'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [emailMessage, setEmailMessage] = useState<string | null>(null)
+  const [testEmailRecipient, setTestEmailRecipient] = useState(initialRecipientEmail || '')
+  const [testEmailPanelOpen, setTestEmailPanelOpen] = useState(false)
+  const [testEmailError, setTestEmailError] = useState<string | null>(null)
+
+  function captureEmailPayload(payload: EmailPayload) {
+    const recipientEmail = payload.email.recipientEmail || ''
+
+    setTestEmailRecipient((current) => current || recipientEmail)
+  }
 
   async function checkLinks(context: VisualDocumentEditorContext<EmailPayload>): Promise<boolean> {
     const saved = await context.saveLatestData()
@@ -212,7 +223,14 @@ export function PuckEmailBuilderEditor({
     }
   }
 
-  async function sendTestEmail(context: VisualDocumentEditorContext<EmailPayload>) {
+  async function sendTestEmail(context: VisualDocumentEditorContext<EmailPayload>, recipientEmail: string) {
+    const trimmedRecipient = recipientEmail.trim()
+    if (!trimmedRecipient) {
+      setTestEmailError('Enter a test recipient email.')
+      return
+    }
+
+    setTestEmailError(null)
     const linksPassed = await checkLinks(context)
     if (!linksPassed) return
 
@@ -222,12 +240,19 @@ export function PuckEmailBuilderEditor({
     try {
       const res = await fetch(`/api/emails/${emailId}/send-test`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          recipientEmail: trimmedRecipient,
+        }),
       })
 
       if (!res.ok) throw new Error(await res.text())
-      const payload = (await res.json()) as { message?: string }
+      const payload = (await res.json()) as { message?: string; recipientEmail?: string }
       setEmailStatus('sent')
-      setEmailMessage(payload.message || 'Test email sent successfully.')
+      setEmailMessage(payload.message || `Test email sent to ${payload.recipientEmail || trimmedRecipient}.`)
+      setTestEmailPanelOpen(false)
     } catch (error) {
       setEmailStatus('error')
       setEmailMessage(error instanceof Error ? error.message : 'Unable to send test email')
@@ -285,6 +310,7 @@ export function PuckEmailBuilderEditor({
       headerTitle={`Email Builder: ${title}`}
       initialData={initialData}
       loadingLabel="Loading email builder..."
+      onLoadPayload={captureEmailPayload}
       palette={{
         contentDescription: 'Drag content blocks into the email canvas.',
         contentSlugs: contentPaletteSlugs,
@@ -326,7 +352,10 @@ export function PuckEmailBuilderEditor({
               className={styles.saveButton}
               disabled={busy}
               type="button"
-              onClick={() => void sendTestEmail(context)}
+              onClick={() => {
+                setTestEmailPanelOpen(true)
+                setTestEmailError(null)
+              }}
             >
               {emailStatus === 'sending' ? 'Sending Test Email...' : 'Send Test Email'}
             </button>
@@ -345,38 +374,90 @@ export function PuckEmailBuilderEditor({
       saveErrorMessage="Unable to save email"
       savedMessage="Email draft autosaved."
       savingMessage="Autosaving draft..."
-      sidePanel={(context) => linkCheck || emailStatus === 'checkingLinks' ? (
-        <aside className={styles.emailBuilderLinkPanel} data-state={blockingLinks.length ? 'error' : 'ok'}>
-          <div className={styles.emailBuilderLinkPanelHeader}>
-            <strong>Link Check</strong>
-            <span>
-              {emailStatus === 'checkingLinks'
-                ? 'Checking...'
-                : blockingLinks.length
-                  ? `${blockingLinks.length} blocking`
-                  : reviewLinks.length
-                    ? `${reviewLinks.length} warning${reviewLinks.length === 1 ? '' : 's'}`
-                    : `${links.length} checked`}
-            </span>
-          </div>
-          {linkCheckMessage ? <p>{linkCheckMessage}</p> : null}
-          {reviewLinks.length ? (
-            <div className={styles.emailBuilderLinkList}>
-              {reviewLinks.slice(0, 6).map((link, index) => (
-                <div key={`${link.href}-${index}`} data-state={link.status}>
-                  <strong>{link.label || 'Link'}</strong>
-                  <span>{link.href || 'Missing URL'}</span>
-                  <em>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || link.status}</em>
-                  {link.status === 'warning' ? (
-                    <button type="button" onClick={() => void confirmLink(context, link)}>
-                      Confirm link
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
+      sidePanel={(context) => testEmailPanelOpen || linkCheck || emailStatus === 'checkingLinks' ? (
+        <div className={styles.emailBuilderFloatingPanels}>
+          {testEmailPanelOpen ? (
+            <aside className={styles.emailBuilderTestPanel}>
+              <div className={styles.emailBuilderLinkPanelHeader}>
+                <strong>Send Test Email</strong>
+                <button
+                  aria-label="Close test email panel"
+                  disabled={emailStatus === 'sending' || emailStatus === 'checkingLinks'}
+                  type="button"
+                  onClick={() => {
+                    setTestEmailPanelOpen(false)
+                    setTestEmailError(null)
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+              <label>
+                <span>Recipient email</span>
+                <input
+                  autoFocus
+                  disabled={emailStatus === 'sending' || emailStatus === 'checkingLinks'}
+                  inputMode="email"
+                  type="email"
+                  value={testEmailRecipient}
+                  onChange={(event) => {
+                    setTestEmailRecipient(event.target.value)
+                    setTestEmailError(null)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      void sendTestEmail(context, testEmailRecipient)
+                    }
+                  }}
+                />
+              </label>
+              {testEmailError ? <p data-state="error">{testEmailError}</p> : null}
+              <div className={styles.emailBuilderTestPanelActions}>
+                <button
+                  disabled={emailStatus === 'sending' || emailStatus === 'checkingLinks'}
+                  type="button"
+                  onClick={() => void sendTestEmail(context, testEmailRecipient)}
+                >
+                  {emailStatus === 'sending' ? 'Sending...' : 'Send Test'}
+                </button>
+              </div>
+            </aside>
           ) : null}
-        </aside>
+          {linkCheck || emailStatus === 'checkingLinks' ? (
+            <aside className={styles.emailBuilderLinkPanel} data-state={blockingLinks.length ? 'error' : 'ok'}>
+              <div className={styles.emailBuilderLinkPanelHeader}>
+                <strong>Link Check</strong>
+                <span>
+                  {emailStatus === 'checkingLinks'
+                    ? 'Checking...'
+                    : blockingLinks.length
+                      ? `${blockingLinks.length} blocking`
+                      : reviewLinks.length
+                        ? `${reviewLinks.length} warning${reviewLinks.length === 1 ? '' : 's'}`
+                        : `${links.length} checked`}
+                </span>
+              </div>
+              {linkCheckMessage ? <p>{linkCheckMessage}</p> : null}
+              {reviewLinks.length ? (
+                <div className={styles.emailBuilderLinkList}>
+                  {reviewLinks.slice(0, 6).map((link, index) => (
+                    <div key={`${link.href}-${index}`} data-state={link.status}>
+                      <strong>{link.label || 'Link'}</strong>
+                      <span>{link.href || 'Missing URL'}</span>
+                      <em>{link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || link.status}</em>
+                      {link.status === 'warning' ? (
+                        <button type="button" onClick={() => void confirmLink(context, link)}>
+                          Confirm link
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </aside>
+          ) : null}
+        </div>
       ) : null}
       statusMessage={(context) => emailStatus === 'checkingLinks'
         ? 'Checking links...'

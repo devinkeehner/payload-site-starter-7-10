@@ -26,6 +26,16 @@ function getRequiredString(value: unknown, label: string): string {
   return value.trim()
 }
 
+function getOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function assertValidEmail(value: string) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    throw new Error('Enter a valid test recipient email.')
+  }
+}
+
 function hasSendableLayout(value: unknown): value is Array<Record<string, unknown>> {
   return Array.isArray(value) && value.some((block) => block && typeof block === 'object')
 }
@@ -84,6 +94,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let recipientEmail = ''
 
   try {
+    const body = (await req.json().catch(() => ({}))) as { recipientEmail?: unknown }
     const readiness = await getEmailReadiness({
       emailId: id,
       payload,
@@ -108,7 +119,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       req: payloadReq,
     })) as Email
 
-    recipientEmail = getRequiredString(email.recipientEmail, 'Test recipient email')
+    recipientEmail = getRequiredString(
+      getOptionalString(body.recipientEmail) || email.recipientEmail,
+      'Test recipient email',
+    )
+    assertValidEmail(recipientEmail)
     const subject = getRequiredString(email.subject, 'Subject')
     const preheader = typeof email.preheader === 'string' ? email.preheader : ''
     const replyTo = typeof email.replyTo === 'string' && email.replyTo.trim() ? email.replyTo.trim() : undefined
@@ -139,8 +154,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
 
     const message = result.id
-      ? `Test email sent successfully. Elastic Email ID: ${result.id}`
-      : 'Test email sent successfully.'
+      ? `Test email sent to ${recipientEmail}. Elastic Email ID: ${result.id}`
+      : `Test email sent to ${recipientEmail}.`
 
     await updateLastTestSend({
       id,
@@ -154,6 +169,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return Response.json({
       id: result.id,
       message,
+      recipientEmail,
       status: 'sent',
     })
   } catch (error) {

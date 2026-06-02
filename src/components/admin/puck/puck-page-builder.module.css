@@ -2184,12 +2184,24 @@
 .status[data-state='saving'],
 .status[data-state='saved'],
 .status[data-state='checkingLinks'],
+.status[data-state='sending'],
+.status[data-state='sent'],
 .status[data-state='error'] {
   opacity: 1;
 }
 
 .status[data-state='error'] {
   background: #991b1b;
+}
+
+.emailBuilderFloatingPanels {
+  position: fixed;
+  right: 20px;
+  bottom: 76px;
+  z-index: 100;
+  display: grid;
+  gap: 10px;
+  width: min(440px, calc(100vw - 40px));
 }
 
 .emailBuilderLinkPanel {
@@ -2209,9 +2221,28 @@
   font-size: 13px;
 }
 
+.emailBuilderFloatingPanels .emailBuilderLinkPanel {
+  position: static;
+  right: auto;
+  bottom: auto;
+  width: 100%;
+}
+
 .emailBuilderLinkPanel[data-state='error'] {
   border-color: rgba(185, 28, 28, 0.35);
   background: #fff7f7;
+}
+
+.emailBuilderTestPanel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.16);
+  color: #111827;
+  font-size: 13px;
 }
 
 .emailBuilderLinkPanelHeader {
@@ -2231,10 +2262,85 @@
   font-weight: 800;
 }
 
+.emailBuilderLinkPanelHeader button {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.emailBuilderLinkPanelHeader button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .emailBuilderLinkPanel p {
   margin: 0;
   color: #475569;
   line-height: 1.35;
+}
+
+.emailBuilderTestPanel label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.emailBuilderTestPanel input {
+  width: 100%;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+}
+
+.emailBuilderTestPanel input:focus {
+  border-color: var(--tenant-accent, #2563eb);
+  outline: 2px solid rgba(37, 99, 235, 0.16);
+  outline-offset: 0;
+}
+
+.emailBuilderTestPanel p {
+  margin: 0;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.emailBuilderTestPanel p[data-state='error'] {
+  color: #991b1b;
+  font-weight: 800;
+}
+
+.emailBuilderTestPanelActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.emailBuilderTestPanelActions button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #111827;
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.emailBuilderTestPanelActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .emailBuilderLinkList {
