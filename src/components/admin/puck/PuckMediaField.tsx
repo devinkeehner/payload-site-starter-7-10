@@ -1,7 +1,9 @@
 'use client'
 
 import Image from 'next/image'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+
+import { getSelectedTenantID } from '@/components/admin/hooks/useActiveTenant'
 
 import styles from './puck-page-builder.module.css'
 
@@ -65,6 +67,28 @@ function getMediaURL(value: MediaResource | null): string | null {
   return typeof value.url === 'string' && value.url ? value.url : null
 }
 
+function getDefaultAlt(file: File): string {
+  return file.name.replace(/\.[^.]+$/u, '').replace(/[-_]+/gu, ' ').trim() || 'Uploaded image'
+}
+
+async function getUploadError(res: Response): Promise<string> {
+  try {
+    const text = await res.text()
+    if (!text.trim()) return `Upload failed with status ${res.status}.`
+
+    try {
+      const payload = JSON.parse(text) as { message?: unknown }
+      if (typeof payload.message === 'string' && payload.message.trim()) return payload.message
+    } catch {
+      // Use plain text response below.
+    }
+
+    return text
+  } catch {
+    return `Upload failed with status ${res.status}.`
+  }
+}
+
 export function PuckMediaField({
   value,
   onChange,
@@ -79,7 +103,9 @@ export function PuckMediaField({
   const [resolvedValue, setResolvedValue] = useState<MediaResource | null>(null)
   const [isExpanded, setIsExpanded] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const currentMedia = getMediaResource(value) || resolvedValue
   const currentURL = getMediaURL(currentMedia)
   const currentId = getMediaId(value)
@@ -174,6 +200,61 @@ export function PuckMediaField({
     }
   }, [isExpanded, query])
 
+  async function uploadImage(file: File) {
+    if (readOnly || isUploading) return
+    if (!file.type.startsWith('image/')) {
+      setError('Choose an image file to upload.')
+      return
+    }
+
+    const tenantID = getSelectedTenantID()
+    const alt = getDefaultAlt(file)
+    const data = {
+      alt,
+      ...(tenantID ? { tenant: tenantID } : {}),
+    }
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('alt', alt)
+    formData.append('data', JSON.stringify(data))
+    if (tenantID) formData.append('tenant', tenantID)
+
+    setIsUploading(true)
+    setError(null)
+
+    try {
+      const res = await fetch('/api/media-canvas/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin',
+        headers: tenantID ? { 'X-Payload-Tenant': tenantID } : undefined,
+      })
+      if (!res.ok) throw new Error(await getUploadError(res))
+
+      const created = (await res.json()) as MediaResource
+      const resource = getMediaResource(created)
+      const selectedValue = resource || getMediaId(created)
+      if (!selectedValue) throw new Error('Upload succeeded, but the new image could not be selected.')
+
+      const option: OptionItem = {
+        label: getMediaLabel(resource || created),
+        resource: resource || created,
+        thumbnailURL: getMediaURL(resource || created),
+        value: getMediaId(resource || created) || selectedValue,
+      }
+
+      setResolvedValue(resource || created)
+      setItems((current) => [option, ...current.filter((item) => String(item.value) !== String(option.value))])
+      onChange(resource || selectedValue)
+      setIsExpanded(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to upload image')
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   return (
     <div className={styles.mediaField}>
       {currentMedia ? (
@@ -201,7 +282,7 @@ export function PuckMediaField({
       <div className={styles.mediaFieldActions}>
         <button
           className={styles.mediaToggleButton}
-          disabled={readOnly}
+          disabled={readOnly || isUploading}
           onClick={() => setIsExpanded((current) => !current)}
           type="button"
         >
@@ -213,6 +294,25 @@ export function PuckMediaField({
               ? 'Hide media library'
               : 'Choose image'}
         </button>
+        <button
+          className={styles.mediaUploadButton}
+          disabled={readOnly || isUploading}
+          onClick={() => fileInputRef.current?.click()}
+          type="button"
+        >
+          {isUploading ? 'Uploading...' : 'Upload image'}
+        </button>
+        <input
+          ref={fileInputRef}
+          accept="image/*"
+          className={styles.mediaUploadInput}
+          disabled={readOnly || isUploading}
+          type="file"
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (file) void uploadImage(file)
+          }}
+        />
       </div>
 
       {isExpanded ? (
@@ -269,6 +369,7 @@ export function PuckMediaField({
           {isLoading ? <div className={styles.mediaLoading}>Loading images...</div> : null}
         </>
       ) : null}
+      {isUploading ? <div className={styles.mediaLoading}>Uploading image...</div> : null}
     </div>
   )
 }

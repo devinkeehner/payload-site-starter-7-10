@@ -2076,10 +2076,13 @@
 
 .mediaFieldActions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: flex-start;
 }
 
-.mediaToggleButton {
+.mediaToggleButton,
+.mediaUploadButton {
   min-height: 34px;
   border: 1px solid rgba(15, 23, 42, 0.16);
   border-radius: 6px;
@@ -2092,14 +2095,30 @@
   font-weight: 800;
 }
 
-.mediaToggleButton:hover {
+.mediaUploadButton {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+.mediaToggleButton:hover,
+.mediaUploadButton:hover {
   border-color: rgba(37, 99, 235, 0.45);
   color: #1d4ed8;
 }
 
-.mediaToggleButton:disabled {
+.mediaUploadButton:hover {
+  background: #fff;
+}
+
+.mediaToggleButton:disabled,
+.mediaUploadButton:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+
+.mediaUploadInput {
+  display: none;
 }
 
 .mediaGrid {
@@ -2470,7 +2489,9 @@
 :global(.payload-theme-dark) .richTextToolbarSelect,
 :global([data-theme='dark']) .richTextToolbarSelect,
 :global(.payload-theme-dark) .mediaToggleButton,
-:global([data-theme='dark']) .mediaToggleButton {
+:global([data-theme='dark']) .mediaToggleButton,
+:global(.payload-theme-dark) .mediaUploadButton,
+:global([data-theme='dark']) .mediaUploadButton {
   border-color: rgba(148, 163, 184, 0.45);
   background: var(--theme-elevation-100);
   color: var(--theme-text);
