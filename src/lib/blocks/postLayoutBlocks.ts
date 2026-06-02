@@ -182,6 +182,65 @@ export const PostButtonBlock: Block = {
   },
 }
 
+export const PostTwoButtonBlock: Block = {
+  slug: 'postTwoButtons',
+  admin: {
+    group: 'Post',
+  },
+  fields: [
+    {
+      name: 'primaryLabel',
+      type: 'text',
+      defaultValue: 'Primary action',
+      required: true,
+    },
+    {
+      name: 'primaryUrl',
+      type: 'text',
+      defaultValue: '/',
+      required: true,
+    },
+    {
+      name: 'primaryVariant',
+      type: 'select',
+      defaultValue: 'primary',
+      options: buttonVariantOptions,
+      required: true,
+    },
+    {
+      name: 'secondaryLabel',
+      type: 'text',
+      defaultValue: 'Secondary action',
+      required: true,
+    },
+    {
+      name: 'secondaryUrl',
+      type: 'text',
+      defaultValue: '/',
+      required: true,
+    },
+    {
+      name: 'secondaryVariant',
+      type: 'select',
+      defaultValue: 'outline',
+      options: buttonVariantOptions,
+      required: true,
+    },
+    {
+      name: 'align',
+      type: 'select',
+      defaultValue: 'left',
+      options: alignmentOptions,
+      required: true,
+    },
+  ],
+  interfaceName: 'PostTwoButtonBlock',
+  labels: {
+    plural: 'Post Two Button Rows',
+    singular: 'Post Two Button Row',
+  },
+}
+
 export const PostImageBlock: Block = {
   slug: 'postImage',
   admin: {
@@ -441,6 +500,7 @@ const POST_NESTED_LAYOUT_BLOCKS = [
   PostRichTextBlock,
   PostCalloutBlock,
   PostButtonBlock,
+  PostTwoButtonBlock,
   PostImageBlock,
   PostGalleryBlock,
   PostListBlock,
@@ -515,6 +575,7 @@ export const POST_LAYOUT_BLOCKS = [
   PostRichTextBlock,
   PostCalloutBlock,
   PostButtonBlock,
+  PostTwoButtonBlock,
   PostImageBlock,
   PostGalleryBlock,
   PostListBlock,

@@ -262,6 +262,7 @@ export interface Post {
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
+        | PostTwoButtonBlock
         | PostImageBlock
         | PostGalleryBlock
         | PostListBlock
@@ -524,6 +525,22 @@ export interface PostButtonBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostTwoButtonBlock".
+ */
+export interface PostTwoButtonBlock {
+  primaryLabel: string;
+  primaryUrl: string;
+  primaryVariant: 'primary' | 'secondary' | 'outline';
+  secondaryLabel: string;
+  secondaryUrl: string;
+  secondaryVariant: 'primary' | 'secondary' | 'outline';
+  align: 'left' | 'center' | 'right';
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'postTwoButtons';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "PostImageBlock".
  */
 export interface PostImageBlock {
@@ -638,6 +655,7 @@ export interface PostGridBlock {
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
+        | PostTwoButtonBlock
         | PostImageBlock
         | PostGalleryBlock
         | PostListBlock
@@ -653,6 +671,7 @@ export interface PostGridBlock {
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
+        | PostTwoButtonBlock
         | PostImageBlock
         | PostGalleryBlock
         | PostListBlock
@@ -668,6 +687,7 @@ export interface PostGridBlock {
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
+        | PostTwoButtonBlock
         | PostImageBlock
         | PostGalleryBlock
         | PostListBlock
@@ -683,6 +703,7 @@ export interface PostGridBlock {
         | PostRichTextBlock
         | PostCalloutBlock
         | PostButtonBlock
+        | PostTwoButtonBlock
         | PostImageBlock
         | PostGalleryBlock
         | PostListBlock
@@ -4789,6 +4810,7 @@ export interface PostsSelect<T extends boolean = true> {
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
+        postTwoButtons?: T | PostTwoButtonBlockSelect<T>;
         postImage?: T | PostImageBlockSelect<T>;
         postGallery?: T | PostGalleryBlockSelect<T>;
         postList?: T | PostListBlockSelect<T>;
@@ -4861,6 +4883,21 @@ export interface PostButtonBlockSelect<T extends boolean = true> {
   label?: T;
   url?: T;
   variant?: T;
+  align?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PostTwoButtonBlock_select".
+ */
+export interface PostTwoButtonBlockSelect<T extends boolean = true> {
+  primaryLabel?: T;
+  primaryUrl?: T;
+  primaryVariant?: T;
+  secondaryLabel?: T;
+  secondaryUrl?: T;
+  secondaryVariant?: T;
   align?: T;
   id?: T;
   blockName?: T;
@@ -4975,6 +5012,7 @@ export interface PostGridBlockSelect<T extends boolean = true> {
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
+        postTwoButtons?: T | PostTwoButtonBlockSelect<T>;
         postImage?: T | PostImageBlockSelect<T>;
         postGallery?: T | PostGalleryBlockSelect<T>;
         postList?: T | PostListBlockSelect<T>;
@@ -4990,6 +5028,7 @@ export interface PostGridBlockSelect<T extends boolean = true> {
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
+        postTwoButtons?: T | PostTwoButtonBlockSelect<T>;
         postImage?: T | PostImageBlockSelect<T>;
         postGallery?: T | PostGalleryBlockSelect<T>;
         postList?: T | PostListBlockSelect<T>;
@@ -5005,6 +5044,7 @@ export interface PostGridBlockSelect<T extends boolean = true> {
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
+        postTwoButtons?: T | PostTwoButtonBlockSelect<T>;
         postImage?: T | PostImageBlockSelect<T>;
         postGallery?: T | PostGalleryBlockSelect<T>;
         postList?: T | PostListBlockSelect<T>;
@@ -5020,6 +5060,7 @@ export interface PostGridBlockSelect<T extends boolean = true> {
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;
         postButton?: T | PostButtonBlockSelect<T>;
+        postTwoButtons?: T | PostTwoButtonBlockSelect<T>;
         postImage?: T | PostImageBlockSelect<T>;
         postGallery?: T | PostGalleryBlockSelect<T>;
         postList?: T | PostListBlockSelect<T>;

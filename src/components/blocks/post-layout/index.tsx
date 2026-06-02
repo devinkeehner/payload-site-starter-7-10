@@ -98,6 +98,36 @@ function PostButton({ block }: { block: PostLayoutBlock }) {
   )
 }
 
+function PostTwoButtons({ block }: { block: PostLayoutBlock }) {
+  const primaryLabel = typeof block.primaryLabel === 'string' ? block.primaryLabel.trim() : ''
+  const primaryUrl = typeof block.primaryUrl === 'string' ? block.primaryUrl.trim() : ''
+  const secondaryLabel = typeof block.secondaryLabel === 'string' ? block.secondaryLabel.trim() : ''
+  const secondaryUrl = typeof block.secondaryUrl === 'string' ? block.secondaryUrl.trim() : ''
+
+  if ((!primaryLabel || !primaryUrl) && (!secondaryLabel || !secondaryUrl)) return null
+
+  return (
+    <div className={cn('flex flex-wrap gap-3', getAlignClass(block.align))}>
+      {primaryLabel && primaryUrl ? (
+        <CMSLink
+          appearance={getButtonAppearance(block.primaryVariant)}
+          label={primaryLabel}
+          type="custom"
+          url={primaryUrl}
+        />
+      ) : null}
+      {secondaryLabel && secondaryUrl ? (
+        <CMSLink
+          appearance={getButtonAppearance(block.secondaryVariant)}
+          label={secondaryLabel}
+          type="custom"
+          url={secondaryUrl}
+        />
+      ) : null}
+    </div>
+  )
+}
+
 function PostImage({ block }: { block: PostLayoutBlock }) {
   const caption = typeof block.caption === 'string' ? block.caption.trim() : ''
   const media = getMediaResource(block.media)
@@ -401,6 +431,8 @@ export function RenderPostBlocks({ blocks, content }: RenderPostBlocksProps) {
             return <PostCallout key={key} block={postBlock} />
           case 'postButton':
             return <PostButton key={key} block={postBlock} />
+          case 'postTwoButtons':
+            return <PostTwoButtons key={key} block={postBlock} />
           case 'postImage':
             return <PostImage key={key} block={postBlock} />
           case 'postGallery':

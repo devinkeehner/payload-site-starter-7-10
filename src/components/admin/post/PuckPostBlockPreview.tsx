@@ -499,25 +499,53 @@ function PostCalloutPreview(props: BlockProps) {
 function PostButtonPreview(props: BlockProps) {
   const label = getString(props.label) || 'Read more'
   const align = getAlign(props.align)
-  const outline = props.variant === 'outline'
-  const secondary = props.variant === 'secondary'
+  const buttonStyle = getPostButtonPreviewStyle(props.variant)
 
   return (
     <div style={{ margin: '0 0 28px', textAlign: align }}>
-      <span
-        style={{
-          background: outline ? COLORS.white : secondary ? COLORS.surfaceAlt : COLORS.accent,
-          border: `1px solid ${outline ? COLORS.accent : secondary ? COLORS.border : COLORS.accent}`,
-          borderRadius: 8,
-          color: outline || secondary ? COLORS.accent : COLORS.white,
-          display: 'inline-block',
-          fontSize: 15,
-          fontWeight: 900,
-          padding: '11px 18px',
-        }}
-      >
+      <span style={buttonStyle}>
         {label}
       </span>
+    </div>
+  )
+}
+
+function getPostButtonPreviewStyle(variant: unknown): React.CSSProperties {
+  const outline = variant === 'outline'
+  const secondary = variant === 'secondary'
+
+  return {
+    background: outline ? COLORS.white : secondary ? COLORS.surfaceAlt : COLORS.accent,
+    border: `1px solid ${outline ? COLORS.accent : secondary ? COLORS.border : COLORS.accent}`,
+    borderRadius: 8,
+    color: outline || secondary ? COLORS.accent : COLORS.white,
+    display: 'inline-block',
+    fontSize: 15,
+    fontWeight: 900,
+    padding: '11px 18px',
+  }
+}
+
+function PostTwoButtonsPreview(props: BlockProps) {
+  const primaryLabel = getString(props.primaryLabel) || 'Primary action'
+  const secondaryLabel = getString(props.secondaryLabel) || 'Secondary action'
+  const primaryUrl = getString(props.primaryUrl) || '/'
+  const secondaryUrl = getString(props.secondaryUrl) || '/'
+  const align = getAlign(props.align)
+  const justifyContent = align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start'
+
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent, margin: '0 0 28px' }}>
+      {primaryLabel && primaryUrl ? (
+        <span style={getPostButtonPreviewStyle(props.primaryVariant)}>
+          {primaryLabel}
+        </span>
+      ) : null}
+      {secondaryLabel && secondaryUrl ? (
+        <span style={getPostButtonPreviewStyle(props.secondaryVariant)}>
+          {secondaryLabel}
+        </span>
+      ) : null}
     </div>
   )
 }
@@ -540,6 +568,8 @@ export function PuckPostBlockPreview({
       return <PostCalloutPreview {...props} />
     case 'postButton':
       return <PostButtonPreview {...props} />
+    case 'postTwoButtons':
+      return <PostTwoButtonsPreview {...props} />
     case 'postImage':
       return <PostImagePreview {...props} />
     case 'postGallery':

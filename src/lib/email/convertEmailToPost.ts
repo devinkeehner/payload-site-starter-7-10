@@ -184,6 +184,26 @@ function postButton(label: string, url: string, variant: unknown, align: unknown
   }
 }
 
+function postTwoButtons(block: EmailBlock): Record<string, unknown> | null {
+  const primaryLabel = getString(block.primaryLabel)
+  const primaryUrl = getString(block.primaryUrl)
+  const secondaryLabel = getString(block.secondaryLabel)
+  const secondaryUrl = getString(block.secondaryUrl)
+
+  if (!primaryLabel || !primaryUrl || !secondaryLabel || !secondaryUrl) return null
+
+  return {
+    blockType: 'postTwoButtons',
+    align: getTextAlignment(block.align),
+    primaryLabel,
+    primaryUrl,
+    primaryVariant: getButtonVariant(block.primaryVariant),
+    secondaryLabel,
+    secondaryUrl,
+    secondaryVariant: getButtonVariant(block.secondaryVariant),
+  }
+}
+
 function postImage(media: unknown, caption?: string): Record<string, unknown> | null {
   if (!media) return null
   return {
@@ -368,11 +388,15 @@ function convertEmailBlock(
       const converted = postButton(getString(block.label), getString(block.url), block.variant, block.align)
       return converted ? [converted] : []
     }
-    case 'emailTwoButtons':
-      return [
-        postButton(getString(block.primaryLabel), getString(block.primaryUrl), block.primaryVariant, block.align),
-        postButton(getString(block.secondaryLabel), getString(block.secondaryUrl), block.secondaryVariant, block.align),
-      ].filter((item): item is Record<string, unknown> => Boolean(item))
+    case 'emailTwoButtons': {
+      const converted = postTwoButtons(block)
+      return converted
+        ? [converted]
+        : [
+            postButton(getString(block.primaryLabel), getString(block.primaryUrl), block.primaryVariant, block.align),
+            postButton(getString(block.secondaryLabel), getString(block.secondaryUrl), block.secondaryVariant, block.align),
+          ].filter((item): item is Record<string, unknown> => Boolean(item))
+    }
     case 'emailImage': {
       if (isGeneratedHeaderImage(block, isFirstTopLevelBlock, options)) return []
       const converted = postImage(block.media)
