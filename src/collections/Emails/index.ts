@@ -8,6 +8,48 @@ import { shareDocumentToTenants } from '@/lib/mcp-tenant-shares'
 
 const EMAIL_LISTS_COLLECTION = 'email-lists' as CollectionSlug
 
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+
+const getString = (value: unknown): string =>
+  typeof value === 'string' ? value.trim() : ''
+
+const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key)
+
+const syncDefaultSubject: CollectionBeforeValidateHook = ({ data, operation, originalDoc }) => {
+  if (!data) return data
+
+  const original = asRecord(originalDoc)
+  const title = getString(data.title) || getString(original.title)
+  if (!title) return data
+
+  const hasSubject = hasOwn(data, 'subject')
+  const hasTitle = hasOwn(data, 'title')
+  const subject = getString(data.subject)
+
+  if (operation === 'create') {
+    return subject ? data : { ...data, subject: title }
+  }
+
+  const previousSubject = getString(original.subject)
+  const previousTitle = getString(original.title)
+
+  if (hasSubject) {
+    return subject ? data : { ...data, subject: title }
+  }
+
+  if (!previousSubject) {
+    return { ...data, subject: title }
+  }
+
+  if (hasTitle && previousTitle && previousSubject === previousTitle) {
+    return { ...data, subject: title }
+  }
+
+  return data
+}
+
 const populateDefaultLayout: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
   if (operation !== 'create' || !data) return data
   if (Array.isArray(data.layout) && data.layout.length > 0) return data
@@ -17,9 +59,6 @@ const populateDefaultLayout: CollectionBeforeValidateHook = async ({ data, opera
     layout: await buildDefaultEmailLayout(data as Record<string, unknown>, req),
   }
 }
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
 
 const extractIDs = (value: unknown): string[] => {
   if (!value) return []
@@ -217,7 +256,7 @@ export const Emails: CollectionConfig<'emails'> = {
     plural: 'Emails',
   },
   hooks: {
-    beforeValidate: [populateDefaultLayout],
+    beforeValidate: [syncDefaultSubject, populateDefaultLayout],
   },
   endpoints: [
     {

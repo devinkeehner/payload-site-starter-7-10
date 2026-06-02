@@ -90,6 +90,18 @@ const imageFrameStyle: React.CSSProperties = {
 }
 
 const EMAIL_CANVAS_WIDTH = 640
+const CONTENT_BLOCK_SIDE_PADDING = 20
+
+const contentBlockInsetStyle: React.CSSProperties = {
+  paddingLeft: CONTENT_BLOCK_SIDE_PADDING,
+  paddingRight: CONTENT_BLOCK_SIDE_PADDING,
+}
+
+const EDGE_TO_EDGE_BLOCK_TYPES = new Set([
+  'emailFooterOneColumn',
+  'emailHeaderSocial',
+  'emailImage',
+])
 
 function getTextColor(value: unknown): string {
   switch (value) {
@@ -1375,48 +1387,80 @@ function EmailFooterOneColumn({ block, context }: { block: EmailBlock; context: 
 }
 
 function renderBlock(block: EmailBlock, index: number, context: EmailRenderContext) {
+  let element: React.ReactNode
+
   switch (block.blockType) {
     case 'emailHeaderSocial':
-      return <EmailHeaderSocial key={index} block={block} context={context} />
+      element = <EmailHeaderSocial block={block} context={context} />
+      break
     case 'emailHeading':
-      return <EmailHeading key={index} block={block} />
+      element = <EmailHeading block={block} />
+      break
     case 'emailText':
-      return <EmailText key={index} block={block} />
+      element = <EmailText block={block} />
+      break
     case 'emailInlineLink':
-      return <EmailInlineLink key={index} block={block} />
+      element = <EmailInlineLink block={block} />
+      break
     case 'emailButton':
-      return <EmailButton key={index} block={block} />
+      element = <EmailButton block={block} />
+      break
     case 'emailTwoButtons':
-      return <EmailTwoButtons key={index} block={block} />
+      element = <EmailTwoButtons block={block} />
+      break
     case 'emailList':
-      return <EmailList key={index} block={block} />
+      element = <EmailList block={block} />
+      break
     case 'emailMarkdown':
-      return <EmailMarkdown key={index} block={block} />
+      element = <EmailMarkdown block={block} />
+      break
     case 'emailImage':
-      return <EmailImage key={index} block={block} fullWidth={!context.nested && index === 0} />
+      element = <EmailImage block={block} fullWidth={!context.nested && index === 0} />
+      break
     case 'emailArticleImageRight':
-      return <EmailArticleImageRight key={index} block={block} />
+      element = <EmailArticleImageRight block={block} />
+      break
     case 'emailArticleTwoCards':
-      return <EmailArticleTwoCards key={index} block={block} />
+      element = <EmailArticleTwoCards block={block} />
+      break
     case 'emailGallery':
-      return <EmailGallery key={index} block={block} />
+      element = <EmailGallery block={block} />
+      break
     case 'emailFeatureThreeCentered':
-      return <EmailFeatureThreeCentered key={index} block={block} />
+      element = <EmailFeatureThreeCentered block={block} />
+      break
     case 'emailBentoGrid':
-      return <EmailBentoGrid key={index} block={block} />
+      element = <EmailBentoGrid block={block} />
+      break
     case 'emailGrid':
-      return <EmailGrid key={index} block={block} context={context} />
+      element = <EmailGrid block={block} context={context} />
+      break
     case 'emailDivider':
-      return <EmailDivider key={index} block={block} />
+      element = <EmailDivider block={block} />
+      break
     case 'emailSpacer':
-      return <EmailSpacer key={index} block={block} />
+      element = <EmailSpacer block={block} />
+      break
     case 'emailCallout':
-      return <EmailCallout key={index} block={block} />
+      element = <EmailCallout block={block} />
+      break
     case 'emailFooterOneColumn':
-      return <EmailFooterOneColumn key={index} block={block} context={context} />
+      element = <EmailFooterOneColumn block={block} context={context} />
+      break
     default:
       return null
   }
+
+  if (!element) return null
+  if (block.blockType && EDGE_TO_EDGE_BLOCK_TYPES.has(block.blockType)) {
+    return <React.Fragment key={index}>{element}</React.Fragment>
+  }
+
+  return (
+    <Section key={index} style={contentBlockInsetStyle}>
+      {element}
+    </Section>
+  )
 }
 
 function EmailWebVersionLink({ url }: { url?: string | null }) {

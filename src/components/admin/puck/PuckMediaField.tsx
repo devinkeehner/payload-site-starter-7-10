@@ -315,6 +315,8 @@ export function PuckMediaField({
         />
       </div>
 
+      {error ? <div className={styles.fieldError}>{error}</div> : null}
+
       {isExpanded ? (
         <>
           <input
@@ -324,8 +326,6 @@ export function PuckMediaField({
             placeholder="Search images"
             onChange={(event) => setQuery(event.target.value)}
           />
-
-          {error ? <div className={styles.fieldError}>{error}</div> : null}
 
           <div className={styles.mediaGrid} data-loading={isLoading ? 'true' : undefined}>
             {items.map((item) => {

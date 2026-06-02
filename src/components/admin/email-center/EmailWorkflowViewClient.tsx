@@ -100,9 +100,9 @@ export function EmailWorkflowViewClient({
     [sendChecklistItems],
   )
 
-  const loadWorkflow = useCallback(async () => {
+  const loadWorkflow = useCallback(async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
     setStatus('loading')
-    setMessage(null)
+    if (clearMessage) setMessage(null)
     try {
       const [readinessRes, previewRes, postRes, reportRes] = await Promise.all([
         fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' }),
@@ -165,7 +165,7 @@ export function EmailWorkflowViewClient({
       const payload = (await res.json()) as { message?: string; recipientEmail?: string }
       setStatus('sent')
       setMessage(payload.message || `Test email sent${payload.recipientEmail ? ` to ${payload.recipientEmail}` : ''}.`)
-      void loadWorkflow()
+      void loadWorkflow({ clearMessage: false })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to send test email')
@@ -189,7 +189,7 @@ export function EmailWorkflowViewClient({
       })
       if (!res.ok) throw new Error(await res.text())
       setMessage('Link confirmed.')
-      void loadWorkflow()
+      void loadWorkflow({ clearMessage: false })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to confirm link')
@@ -211,7 +211,7 @@ export function EmailWorkflowViewClient({
       const payload = (await res.json()) as { message?: string; jobId?: string | null; status?: string }
       setStatus('sent')
       setMessage(payload.message || 'Campaign queued for sending.')
-      void loadWorkflow()
+      void loadWorkflow({ clearMessage: false })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to send campaign')

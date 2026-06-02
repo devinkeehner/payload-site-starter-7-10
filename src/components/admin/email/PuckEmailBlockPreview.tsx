@@ -62,6 +62,20 @@ const imageFrameStyle: React.CSSProperties = {
   display: 'block',
 }
 
+const CONTENT_BLOCK_SIDE_PADDING = 20
+
+const contentBlockInsetStyle: React.CSSProperties = {
+  boxSizing: 'border-box',
+  paddingLeft: CONTENT_BLOCK_SIDE_PADDING,
+  paddingRight: CONTENT_BLOCK_SIDE_PADDING,
+}
+
+const EDGE_TO_EDGE_BLOCK_TYPES = new Set([
+  'emailFooterOneColumn',
+  'emailHeaderSocial',
+  'emailImage',
+])
+
 function getTextColor(value: unknown): string {
   switch (value) {
     case 'primary':
@@ -1093,46 +1107,72 @@ export function PuckEmailBlockPreview({
   children?: React.ReactNode
   props: BlockProps
 }) {
+  let element: React.ReactNode
+
   switch (blockType) {
     case 'emailHeaderSocial':
-      return <EmailHeaderSocialPreview {...props} />
+      element = <EmailHeaderSocialPreview {...props} />
+      break
     case 'emailHeading':
-      return <EmailHeadingPreview {...props} />
+      element = <EmailHeadingPreview {...props} />
+      break
     case 'emailText':
-      return <EmailTextPreview {...props} />
+      element = <EmailTextPreview {...props} />
+      break
     case 'emailInlineLink':
-      return <EmailInlineLinkPreview {...props} />
+      element = <EmailInlineLinkPreview {...props} />
+      break
     case 'emailButton':
-      return <EmailButtonPreview {...props} />
+      element = <EmailButtonPreview {...props} />
+      break
     case 'emailTwoButtons':
-      return <EmailTwoButtonsPreview {...props} />
+      element = <EmailTwoButtonsPreview {...props} />
+      break
     case 'emailList':
-      return <EmailListPreview {...props} />
+      element = <EmailListPreview {...props} />
+      break
     case 'emailMarkdown':
-      return <EmailMarkdownPreview {...props} />
+      element = <EmailMarkdownPreview {...props} />
+      break
     case 'emailImage':
-      return <EmailImagePreview {...props} />
+      element = <EmailImagePreview {...props} />
+      break
     case 'emailArticleImageRight':
-      return <EmailArticleImageRightPreview {...props} />
+      element = <EmailArticleImageRightPreview {...props} />
+      break
     case 'emailArticleTwoCards':
-      return <EmailArticleTwoCardsPreview {...props} />
+      element = <EmailArticleTwoCardsPreview {...props} />
+      break
     case 'emailGallery':
-      return <EmailGalleryPreview {...props} />
+      element = <EmailGalleryPreview {...props} />
+      break
     case 'emailFeatureThreeCentered':
-      return <EmailFeatureThreeCenteredPreview {...props} />
+      element = <EmailFeatureThreeCenteredPreview {...props} />
+      break
     case 'emailBentoGrid':
-      return <EmailBentoGridPreview {...props} />
+      element = <EmailBentoGridPreview {...props} />
+      break
     case 'emailGrid':
-      return <EmailGridPreview props={props}>{children}</EmailGridPreview>
+      element = <EmailGridPreview props={props}>{children}</EmailGridPreview>
+      break
     case 'emailDivider':
-      return <EmailDividerPreview {...props} />
+      element = <EmailDividerPreview {...props} />
+      break
     case 'emailSpacer':
-      return <EmailSpacerPreview {...props} />
+      element = <EmailSpacerPreview {...props} />
+      break
     case 'emailCallout':
-      return <EmailCalloutPreview {...props} />
+      element = <EmailCalloutPreview {...props} />
+      break
     case 'emailFooterOneColumn':
-      return <EmailFooterOneColumnPreview {...props} />
+      element = <EmailFooterOneColumnPreview {...props} />
+      break
     default:
       return null
   }
+
+  if (!element) return null
+  if (EDGE_TO_EDGE_BLOCK_TYPES.has(blockType)) return <>{element}</>
+
+  return <div style={contentBlockInsetStyle}>{element}</div>
 }
