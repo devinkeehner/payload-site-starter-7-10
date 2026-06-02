@@ -152,6 +152,7 @@ export const Emails: CollectionConfig<'emails'> = {
   },
   admin: {
     defaultColumns: ['title', 'subject', 'emailList', 'recipientEmail', 'updatedAt'],
+    formatDocURL: ({ defaultURL, viewType }) => (viewType === 'trash' ? defaultURL : `${defaultURL}/campaign`),
     group: 'Email Marketing',
     hidden: isCollectionHiddenForRole('emails'),
     useAsTitle: 'title',
