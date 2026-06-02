@@ -418,7 +418,17 @@ function layoutToPuckData(layout: unknown[] | null | undefined): PuckPageData {
 }
 
 export function emailToPuckData(email: PuckEmailDoc): PuckPageData {
-  return layoutToPuckData(email.layout)
+  const layout = Array.isArray(email.layout)
+    ? email.layout.map((block, index) => {
+        if (index === 0 && isRecord(block) && block.blockType === 'emailImage') {
+          return { ...block, width: 640 }
+        }
+
+        return block
+      })
+    : email.layout
+
+  return layoutToPuckData(layout)
 }
 
 export function formToPuckData(form: PuckFormDoc): PuckPageData {

@@ -752,7 +752,7 @@ function EmailImagePreview(props: BlockProps) {
         height: 'auto',
         margin: '0 auto 24px',
         maxWidth: '100%',
-        width: getNumber(props.width, 560, 120, 640),
+        width: getNumber(props.width, 640, 120, 640),
       }}
     />
   )

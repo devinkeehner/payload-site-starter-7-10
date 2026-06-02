@@ -454,7 +454,7 @@ export const EmailImageBlock: Block = {
     {
       name: 'width',
       type: 'number',
-      defaultValue: 560,
+      defaultValue: 640,
       min: 120,
       max: 640,
     },

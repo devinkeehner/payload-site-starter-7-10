@@ -26,6 +26,7 @@ type EmailBlock = Record<string, unknown> & {
 
 type EmailRenderContext = {
   assetOrigin: string | null
+  nested?: boolean
 }
 
 type LexicalNode = Record<string, unknown> & {
@@ -87,6 +88,8 @@ const imageFrameStyle: React.CSSProperties = {
   display: 'block',
   height: 'auto',
 }
+
+const EMAIL_CANVAS_WIDTH = 640
 
 function getTextColor(value: unknown): string {
   switch (value) {
@@ -759,22 +762,22 @@ function EmailMarkdown({ block }: { block: EmailBlock }) {
   )
 }
 
-function EmailImage({ block }: { block: EmailBlock }) {
+function EmailImage({ block, fullWidth = false }: { block: EmailBlock; fullWidth?: boolean }) {
   const media = getMediaSource(block.media)
   if (!media) return null
 
   const alt = normalizeText(block.alt) || media?.alt || ''
-  const width = getNumber(block.width, 560, 120, 640)
+  const width = fullWidth ? EMAIL_CANVAS_WIDTH : getNumber(block.width, EMAIL_CANVAS_WIDTH, 120, EMAIL_CANVAS_WIDTH)
   return (
     <EmailSafeImage
       alt={alt}
-      fallbackWidth={560}
+      fallbackWidth={EMAIL_CANVAS_WIDTH}
       href={normalizeText(block.href)}
       media={media}
       width={width}
       style={{
         borderRadius: 0,
-        margin: '0 auto 24px',
+        margin: fullWidth ? '0 0 24px' : '0 auto 24px',
         width: '100%',
       }}
     />
@@ -1170,7 +1173,7 @@ function renderNestedBlocks(value: unknown, context: EmailRenderContext): React.
     ? value.filter((block): block is EmailBlock => Boolean(block && typeof block === 'object' && !Array.isArray(block)))
     : []
 
-  return blocks.map((block, index) => renderBlock(block, index, context))
+  return blocks.map((block, index) => renderBlock(block, index, { ...context, nested: true }))
 }
 
 function EmailGrid({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
@@ -1390,7 +1393,7 @@ function renderBlock(block: EmailBlock, index: number, context: EmailRenderConte
     case 'emailMarkdown':
       return <EmailMarkdown key={index} block={block} />
     case 'emailImage':
-      return <EmailImage key={index} block={block} />
+      return <EmailImage key={index} block={block} fullWidth={!context.nested && index === 0} />
     case 'emailArticleImageRight':
       return <EmailArticleImageRight key={index} block={block} />
     case 'emailArticleTwoCards':

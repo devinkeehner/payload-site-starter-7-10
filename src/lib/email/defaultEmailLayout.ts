@@ -229,7 +229,7 @@ export async function buildDefaultEmailLayout(data: UnknownRecord, req: PayloadR
     layout.push({
       blockType: 'emailImage',
       media: featuredImageId,
-      width: 560,
+      width: 640,
     })
   }
 
