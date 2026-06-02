@@ -22,6 +22,7 @@ import { PuckRichTextToolbarProvider } from './PuckLexicalTextEditor'
 import styles from './puck-page-builder.module.css'
 
 const DEFAULT_AUTOSAVE_INTERVAL_MS = 1000
+const EMPTY_BLOCK_SCHEMA: PuckBlockSchema[] = []
 const useVisualDocumentPuck = createUsePuck()
 
 export type VisualDocumentType = 'email' | 'form' | 'post'
@@ -706,7 +707,7 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   height = 'calc(100vh - 96px)',
   initialData,
   initialMessage = null,
-  lexicalBlockSchema = [],
+  lexicalBlockSchema = EMPTY_BLOCK_SCHEMA,
   loadingLabel,
   onDataChange,
   onLoadPayload,
