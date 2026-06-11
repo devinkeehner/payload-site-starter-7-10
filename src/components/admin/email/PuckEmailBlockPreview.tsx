@@ -182,6 +182,39 @@ function getMediaSource(value: unknown): { alt: string; src: string } | null {
   return { alt: media.alt || '', src }
 }
 
+function getYoutubeVideoId(value: unknown): string | null {
+  const url = getString(value)
+  if (!url) return null
+
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase()
+
+    if (host === 'youtu.be') return parsed.pathname.split('/').filter(Boolean)[0] || null
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      const fromQuery = parsed.searchParams.get('v')
+      if (fromQuery) return fromQuery
+
+      const parts = parsed.pathname.split('/').filter(Boolean)
+      if ((parts[0] === 'embed' || parts[0] === 'shorts' || parts[0] === 'live') && parts[1]) return parts[1]
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+function getYoutubeThumbnail(value: unknown, title: string): { alt: string; src: string } | null {
+  const id = getYoutubeVideoId(value)
+  if (!id) return null
+
+  return {
+    alt: title,
+    src: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+  }
+}
+
 function isLexicalState(value: unknown): value is LexicalState {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value) && 'root' in value)
 }
@@ -772,6 +805,84 @@ function EmailImagePreview(props: BlockProps) {
   )
 }
 
+function PlayButtonOverlayPreview() {
+  return (
+    <span
+      style={{
+        alignItems: 'center',
+        background: 'rgba(11, 30, 58, 0.84)',
+        border: `2px solid ${COLORS.white}`,
+        borderRadius: 999,
+        display: 'inline-flex',
+        height: 64,
+        justifyContent: 'center',
+        left: '50%',
+        position: 'absolute',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: 64,
+      }}
+    >
+      <span
+        style={{
+          borderBottom: '12px solid transparent',
+          borderLeft: `18px solid ${COLORS.white}`,
+          borderTop: '12px solid transparent',
+          display: 'inline-block',
+          height: 0,
+          marginLeft: 5,
+          width: 0,
+        }}
+      />
+    </span>
+  )
+}
+
+function EmailVideoPreview(props: BlockProps) {
+  const title = getString(props.title) || 'Watch this video'
+  const thumbnail = getMediaSource(props.thumbnailMedia) || getYoutubeThumbnail(props.youtubeUrl, title)
+  const video = getMediaSource(props.videoMedia)
+  const hasTarget = Boolean(getString(props.youtubeUrl) || video?.src)
+  const width = getNumber(props.width, 640, 240, 640)
+
+  return (
+    <div style={{ margin: '10px auto 26px', maxWidth: '100%', width }}>
+      <div
+        style={{
+          background: COLORS.primary,
+          border: `1px solid ${COLORS.border}`,
+          color: COLORS.white,
+          minHeight: 220,
+          overflow: 'hidden',
+          position: 'relative',
+        }}
+      >
+        {thumbnail ? (
+          <PreviewImage
+            alt={getString(props.thumbnailAlt) || thumbnail.alt || title}
+            src={thumbnail.src}
+            style={{
+              ...imageFrameStyle,
+              border: 0,
+              display: 'block',
+              height: 'auto',
+              width: '100%',
+            }}
+          />
+        ) : (
+          <div style={{ alignItems: 'center', display: 'flex', minHeight: 220, justifyContent: 'center', padding: 20, textAlign: 'center' }}>
+            {hasTarget ? 'Upload a thumbnail image' : 'Add a video upload or YouTube URL'}
+          </div>
+        )}
+        <PlayButtonOverlayPreview />
+      </div>
+      <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: '18px', marginTop: 8, textAlign: 'center' }}>
+        {title}
+      </div>
+    </div>
+  )
+}
+
 function EmailArticleImageRightPreview(props: BlockProps) {
   const media = getMediaSource(props.media)
 
@@ -1136,6 +1247,9 @@ export function PuckEmailBlockPreview({
       break
     case 'emailImage':
       element = <EmailImagePreview {...props} />
+      break
+    case 'emailVideo':
+      element = <EmailVideoPreview {...props} />
       break
     case 'emailArticleImageRight':
       element = <EmailArticleImageRightPreview {...props} />

@@ -62,6 +62,7 @@ export type VisualPaletteIcon =
   | 'state'
   | 'text'
   | 'textarea'
+  | 'video'
   | 'video-capture'
 
 export type VisualPaletteItem = {
@@ -285,6 +286,8 @@ function VisualPaletteSvgIcon({ icon }: { icon: VisualPaletteIcon }) {
       return <svg aria-hidden="true" viewBox="0 0 48 48"><path {...common} d="M24 42s14-11 14-23a14 14 0 1 0-28 0c0 12 14 23 14 23Z" /><circle {...common} cx="24" cy="19" r="4" /></svg>
     case 'textarea':
       return <svg aria-hidden="true" viewBox="0 0 48 48"><rect {...common} height="28" rx="4" width="32" x="8" y="10" /><path {...common} d="M15 18h18M15 25h15M15 32h10" /></svg>
+    case 'video':
+      return <svg aria-hidden="true" viewBox="0 0 48 48"><rect {...common} height="28" rx="4" width="34" x="7" y="10" /><path fill="currentColor" d="M21 18v12l10-6-10-6Z" /><path {...common} d="M12 34h24" /></svg>
     case 'video-capture':
       return <svg aria-hidden="true" viewBox="0 0 48 48"><rect {...common} height="22" rx="4" width="26" x="7" y="13" /><path {...common} d="m33 21 8-5v16l-8-5" /></svg>
     case 'text':

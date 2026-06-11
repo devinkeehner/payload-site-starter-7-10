@@ -213,6 +213,27 @@ function postImage(media: unknown, caption?: string): Record<string, unknown> | 
   }
 }
 
+function postVideo(block: EmailBlock): Record<string, unknown> | null {
+  const youtubeUrl = getString(block.youtubeUrl)
+  if (youtubeUrl) {
+    return {
+      blockType: 'videoBlock',
+      externalURL: youtubeUrl,
+      source: 'link',
+    }
+  }
+
+  if (block.videoMedia) {
+    return {
+      blockType: 'videoBlock',
+      media: getUploadId(block.videoMedia),
+      source: 'upload',
+    }
+  }
+
+  return null
+}
+
 function postGallery(items: Record<string, unknown>[], layout: unknown): Record<string, unknown> | null {
   const galleryItems = items
     .map((item) => ({
@@ -400,6 +421,10 @@ function convertEmailBlock(
     case 'emailImage': {
       if (isGeneratedHeaderImage(block, isFirstTopLevelBlock, options)) return []
       const converted = postImage(block.media)
+      return converted ? [converted] : []
+    }
+    case 'emailVideo': {
+      const converted = postVideo(block)
       return converted ? [converted] : []
     }
     case 'emailGallery':

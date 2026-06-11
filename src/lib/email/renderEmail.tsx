@@ -275,6 +275,41 @@ function getMediaSource(value: unknown): EmailMediaSource | null {
   return { alt: media?.alt || '', height: media?.height || null, src, width: media?.width || null }
 }
 
+function getYoutubeVideoId(value: unknown): string | null {
+  const url = normalizeText(value)
+  if (!url) return null
+
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.replace(/^www\./, '').toLowerCase()
+
+    if (host === 'youtu.be') return parsed.pathname.split('/').filter(Boolean)[0] || null
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      const fromQuery = parsed.searchParams.get('v')
+      if (fromQuery) return fromQuery
+
+      const parts = parsed.pathname.split('/').filter(Boolean)
+      if ((parts[0] === 'embed' || parts[0] === 'shorts' || parts[0] === 'live') && parts[1]) return parts[1]
+    }
+  } catch {
+    return null
+  }
+
+  return null
+}
+
+function getYoutubeThumbnail(value: unknown, title: string): EmailMediaSource | null {
+  const id = getYoutubeVideoId(value)
+  if (!id) return null
+
+  return {
+    alt: title,
+    height: 360,
+    src: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    width: 480,
+  }
+}
+
 function getEmailImageSize(
   media: Pick<NormalizedMedia, 'height' | 'width'> | EmailMediaSource,
   width: number,
@@ -793,6 +828,88 @@ function EmailImage({ block, fullWidth = false }: { block: EmailBlock; fullWidth
         width: '100%',
       }}
     />
+  )
+}
+
+function PlayButtonOverlay() {
+  return (
+    <span
+      style={{
+        alignItems: 'center',
+        backgroundColor: 'rgba(11, 30, 58, 0.84)',
+        border: `2px solid ${COLORS.white}`,
+        borderRadius: 999,
+        display: 'inline-flex',
+        height: 64,
+        justifyContent: 'center',
+        left: '50%',
+        marginLeft: -32,
+        marginTop: -32,
+        position: 'absolute',
+        top: '50%',
+        width: 64,
+      }}
+    >
+      <span
+        style={{
+          borderBottom: '12px solid transparent',
+          borderLeft: `18px solid ${COLORS.white}`,
+          borderTop: '12px solid transparent',
+          display: 'inline-block',
+          height: 0,
+          marginLeft: 5,
+          width: 0,
+        }}
+      />
+    </span>
+  )
+}
+
+function EmailVideo({ block }: { block: EmailBlock }) {
+  const title = normalizeText(block.title) || 'Watch this video'
+  const videoMedia = getMediaSource(block.videoMedia)
+  const youtubeUrl = normalizeText(block.youtubeUrl)
+  const href = youtubeUrl || videoMedia?.src || ''
+  if (!href) return null
+
+  const thumbnail = getMediaSource(block.thumbnailMedia) || getYoutubeThumbnail(youtubeUrl, title)
+  const width = getNumber(block.width, EMAIL_CANVAS_WIDTH, 240, EMAIL_CANVAS_WIDTH)
+
+  return (
+    <Section style={{ margin: '10px auto 26px', maxWidth: '100%', width }}>
+      <Link href={href} style={{ color: COLORS.white, display: 'block', position: 'relative', textDecoration: 'none' }}>
+        {thumbnail ? (
+          <Img
+            alt={normalizeText(block.thumbnailAlt) || thumbnail.alt || title}
+            {...getEmailImageSize(thumbnail, width)}
+            src={thumbnail.src}
+            style={getEmailImageStyle({
+              borderRadius: 0,
+              display: 'block',
+              width: '100%',
+            })}
+          />
+        ) : (
+          <span
+            style={{
+              backgroundColor: COLORS.primary,
+              border: `1px solid ${COLORS.border}`,
+              display: 'block',
+              height: 260,
+              lineHeight: '260px',
+              textAlign: 'center',
+              width: '100%',
+            }}
+          >
+            {title}
+          </span>
+        )}
+        <PlayButtonOverlay />
+      </Link>
+      <Text style={{ color: COLORS.muted, fontSize: 13, lineHeight: '18px', margin: '8px 0 0', textAlign: 'center' }}>
+        {title}
+      </Text>
+    </Section>
   )
 }
 
@@ -1416,6 +1533,9 @@ function renderBlock(block: EmailBlock, index: number, context: EmailRenderConte
       break
     case 'emailImage':
       element = <EmailImage block={block} fullWidth={!context.nested && index === 0} />
+      break
+    case 'emailVideo':
+      element = <EmailVideo block={block} />
       break
     case 'emailArticleImageRight':
       element = <EmailArticleImageRight block={block} />

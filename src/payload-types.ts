@@ -3022,6 +3022,7 @@ export interface Email {
     | EmailButtonBlock
     | EmailTwoButtonBlock
     | EmailImageBlock
+    | EmailVideoBlock
     | EmailGalleryBlock
     | EmailGridBlock
     | EmailListBlock
@@ -3257,6 +3258,30 @@ export interface EmailImageBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailVideoBlock".
+ */
+export interface EmailVideoBlock {
+  title: string;
+  /**
+   * Upload a video file, or leave this blank and use a YouTube URL.
+   */
+  videoMedia?: (string | null) | Media;
+  /**
+   * Paste a YouTube watch, share, shorts, or embed URL.
+   */
+  youtubeUrl?: string | null;
+  /**
+   * Optional. YouTube videos will use the YouTube thumbnail when this is blank.
+   */
+  thumbnailMedia?: (string | null) | Media;
+  thumbnailAlt?: string | null;
+  width?: number | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'emailVideo';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "EmailGalleryBlock".
  */
 export interface EmailGalleryBlock {
@@ -3288,6 +3313,7 @@ export interface EmailGridBlock {
         | EmailButtonBlock
         | EmailTwoButtonBlock
         | EmailImageBlock
+        | EmailVideoBlock
         | EmailGalleryBlock
         | EmailListBlock
         | EmailMarkdownBlock
@@ -3304,6 +3330,7 @@ export interface EmailGridBlock {
         | EmailButtonBlock
         | EmailTwoButtonBlock
         | EmailImageBlock
+        | EmailVideoBlock
         | EmailGalleryBlock
         | EmailListBlock
         | EmailMarkdownBlock
@@ -3320,6 +3347,7 @@ export interface EmailGridBlock {
         | EmailButtonBlock
         | EmailTwoButtonBlock
         | EmailImageBlock
+        | EmailVideoBlock
         | EmailGalleryBlock
         | EmailListBlock
         | EmailMarkdownBlock
@@ -3336,6 +3364,7 @@ export interface EmailGridBlock {
         | EmailButtonBlock
         | EmailTwoButtonBlock
         | EmailImageBlock
+        | EmailVideoBlock
         | EmailGalleryBlock
         | EmailListBlock
         | EmailMarkdownBlock
@@ -6465,6 +6494,7 @@ export interface EmailsSelect<T extends boolean = true> {
         emailButton?: T | EmailButtonBlockSelect<T>;
         emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
         emailImage?: T | EmailImageBlockSelect<T>;
+        emailVideo?: T | EmailVideoBlockSelect<T>;
         emailGallery?: T | EmailGalleryBlockSelect<T>;
         emailGrid?: T | EmailGridBlockSelect<T>;
         emailList?: T | EmailListBlockSelect<T>;
@@ -6604,6 +6634,20 @@ export interface EmailImageBlockSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "EmailVideoBlock_select".
+ */
+export interface EmailVideoBlockSelect<T extends boolean = true> {
+  title?: T;
+  videoMedia?: T;
+  youtubeUrl?: T;
+  thumbnailMedia?: T;
+  thumbnailAlt?: T;
+  width?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "EmailGalleryBlock_select".
  */
 export interface EmailGalleryBlockSelect<T extends boolean = true> {
@@ -6635,6 +6679,7 @@ export interface EmailGridBlockSelect<T extends boolean = true> {
         emailButton?: T | EmailButtonBlockSelect<T>;
         emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
         emailImage?: T | EmailImageBlockSelect<T>;
+        emailVideo?: T | EmailVideoBlockSelect<T>;
         emailGallery?: T | EmailGalleryBlockSelect<T>;
         emailList?: T | EmailListBlockSelect<T>;
         emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
@@ -6651,6 +6696,7 @@ export interface EmailGridBlockSelect<T extends boolean = true> {
         emailButton?: T | EmailButtonBlockSelect<T>;
         emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
         emailImage?: T | EmailImageBlockSelect<T>;
+        emailVideo?: T | EmailVideoBlockSelect<T>;
         emailGallery?: T | EmailGalleryBlockSelect<T>;
         emailList?: T | EmailListBlockSelect<T>;
         emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
@@ -6667,6 +6713,7 @@ export interface EmailGridBlockSelect<T extends boolean = true> {
         emailButton?: T | EmailButtonBlockSelect<T>;
         emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
         emailImage?: T | EmailImageBlockSelect<T>;
+        emailVideo?: T | EmailVideoBlockSelect<T>;
         emailGallery?: T | EmailGalleryBlockSelect<T>;
         emailList?: T | EmailListBlockSelect<T>;
         emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
@@ -6683,6 +6730,7 @@ export interface EmailGridBlockSelect<T extends boolean = true> {
         emailButton?: T | EmailButtonBlockSelect<T>;
         emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
         emailImage?: T | EmailImageBlockSelect<T>;
+        emailVideo?: T | EmailVideoBlockSelect<T>;
         emailGallery?: T | EmailGalleryBlockSelect<T>;
         emailList?: T | EmailListBlockSelect<T>;
         emailMarkdown?: T | EmailMarkdownBlockSelect<T>;

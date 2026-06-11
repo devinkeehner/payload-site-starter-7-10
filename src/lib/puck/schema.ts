@@ -110,6 +110,7 @@ function normalizeField(field: Field): PuckFieldSchema | null {
   if ('minRows' in field && typeof field.minRows === 'number') normalized.minRows = field.minRows
   if ('maxRows' in field && typeof field.maxRows === 'number') normalized.maxRows = field.maxRows
   if ('relationTo' in field) normalized.relationTo = field.relationTo as string | string[]
+  if ('mimeTypes' in field && Array.isArray(field.mimeTypes)) normalized.mimeTypes = field.mimeTypes
 
   if ('options' in field && Array.isArray(field.options)) {
     normalized.options = field.options.reduce<Array<{ label: string; value: unknown }>>((acc, option) => {

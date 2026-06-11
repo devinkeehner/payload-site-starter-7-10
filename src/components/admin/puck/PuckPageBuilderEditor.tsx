@@ -109,6 +109,11 @@ function getDefaultValue(field: PuckFieldSchema): unknown {
   }
 }
 
+function getUploadAccept(field: PuckFieldSchema): string {
+  if (Array.isArray(field.mimeTypes) && field.mimeTypes.length) return field.mimeTypes.join(',')
+  return /video/i.test(field.name) ? 'video/*' : 'image/*'
+}
+
 function createField(field: PuckFieldSchema, blockSchema: PuckBlockSchema[]): Field | null {
   if (['id', 'blockType', 'blockName'].includes(field.name)) return null
 
@@ -125,12 +130,24 @@ function createField(field: PuckFieldSchema, blockSchema: PuckBlockSchema[]): Fi
     case 'select':
     case 'radio':
       return { type: 'select', label: field.label || field.name, options: buildOptionList(field.options) }
-    case 'upload':
+    case 'upload': {
+      const uploadAccept = getUploadAccept(field)
+      const isVideoUpload = uploadAccept.toLowerCase().includes('video')
       return {
         type: 'custom',
         label: field.label || field.name,
-        render: ({ value, onChange, readOnly }) => <PuckMediaField value={value} onChange={onChange} readOnly={readOnly} />,
+        render: ({ value, onChange, readOnly }) => (
+          <PuckMediaField
+            chooseLabel={isVideoUpload ? 'Choose video' : undefined}
+            uploadAccept={uploadAccept}
+            uploadLabel={isVideoUpload ? 'Upload video' : undefined}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
+          />
+        ),
       }
+    }
     case 'relationship':
       return {
         type: 'custom',

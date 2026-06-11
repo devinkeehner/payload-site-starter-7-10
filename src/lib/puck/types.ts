@@ -44,6 +44,7 @@ export type PuckFieldSchema = {
   required?: boolean
   defaultValue?: unknown
   relationTo?: string | string[]
+  mimeTypes?: string[]
   minRows?: number
   maxRows?: number
   options?: Array<{ label: string; value: unknown }>

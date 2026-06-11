@@ -18,6 +18,7 @@ type MediaResource = Record<string, unknown> & {
   alt?: string | null
   filename?: string | null
   id?: string | number
+  mimeType?: string | null
   url?: string | null
 }
 
@@ -68,7 +69,37 @@ function getMediaURL(value: MediaResource | null): string | null {
 }
 
 function getDefaultAlt(file: File): string {
-  return file.name.replace(/\.[^.]+$/u, '').replace(/[-_]+/gu, ' ').trim() || 'Uploaded image'
+  return file.name.replace(/\.[^.]+$/u, '').replace(/[-_]+/gu, ' ').trim() || 'Uploaded media'
+}
+
+function getUploadKind(accept: string): 'file' | 'image' | 'video' {
+  if (accept.toLowerCase().includes('video')) return 'video'
+  if (accept.toLowerCase().includes('image')) return 'image'
+  return 'file'
+}
+
+function isAcceptedFile(file: File, accept: string): boolean {
+  const rules = accept.split(',').map((rule) => rule.trim().toLowerCase()).filter(Boolean)
+  if (!rules.length) return true
+
+  const fileType = file.type.toLowerCase()
+  const fileName = file.name.toLowerCase()
+
+  return rules.some((rule) => {
+    if (rule.endsWith('/*')) return fileType.startsWith(rule.slice(0, -1))
+    if (rule.startsWith('.')) return fileName.endsWith(rule)
+    return fileType === rule
+  })
+}
+
+function isVideoMedia(value: MediaResource | null): boolean {
+  return typeof value?.mimeType === 'string' && value.mimeType.startsWith('video/')
+}
+
+function matchesUploadKind(value: MediaResource | null, uploadKind: 'file' | 'image' | 'video'): boolean {
+  if (uploadKind === 'file') return true
+  if (uploadKind === 'video') return isVideoMedia(value)
+  return !isVideoMedia(value)
 }
 
 async function getUploadError(res: Response): Promise<string> {
@@ -90,10 +121,16 @@ async function getUploadError(res: Response): Promise<string> {
 }
 
 export function PuckMediaField({
+  chooseLabel,
+  uploadAccept = 'image/*',
+  uploadLabel,
   value,
   onChange,
   readOnly,
 }: {
+  chooseLabel?: string
+  uploadAccept?: string
+  uploadLabel?: string
   value: unknown
   onChange: (value: unknown) => void
   readOnly?: boolean
@@ -109,6 +146,8 @@ export function PuckMediaField({
   const currentMedia = getMediaResource(value) || resolvedValue
   const currentURL = getMediaURL(currentMedia)
   const currentId = getMediaId(value)
+  const uploadKind = getUploadKind(uploadAccept)
+  const mediaLabel = uploadKind === 'video' ? 'video' : uploadKind === 'image' ? 'image' : 'file'
 
   useEffect(() => {
     const id = currentId
@@ -177,7 +216,7 @@ export function PuckMediaField({
 
         const payload = (await res.json()) as { options?: OptionItem[] }
         if (!cancelled) {
-          setItems(payload.options || [])
+          setItems((payload.options || []).filter((item) => matchesUploadKind(getMediaResource(item.resource), uploadKind)))
         }
       } catch (err) {
         if (!cancelled) {
@@ -198,12 +237,12 @@ export function PuckMediaField({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [isExpanded, query])
+  }, [isExpanded, query, uploadKind])
 
-  async function uploadImage(file: File) {
+  async function uploadFile(file: File) {
     if (readOnly || isUploading) return
-    if (!file.type.startsWith('image/')) {
-      setError('Choose an image file to upload.')
+    if (!isAcceptedFile(file, uploadAccept)) {
+      setError(`Choose a ${mediaLabel} file to upload.`)
       return
     }
 
@@ -248,7 +287,7 @@ export function PuckMediaField({
       onChange(resource || selectedValue)
       setIsExpanded(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to upload image')
+      setError(err instanceof Error ? err.message : `Unable to upload ${mediaLabel}`)
     } finally {
       setIsUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -259,7 +298,11 @@ export function PuckMediaField({
     <div className={styles.mediaField}>
       {currentMedia ? (
         <div className={styles.mediaFieldCurrent}>
-          {currentURL ? (
+          {isVideoMedia(currentMedia) ? (
+            <span className={styles.mediaThumb} data-kind="video">
+              Video
+            </span>
+          ) : currentURL ? (
             <span className={styles.mediaThumb}>
               <Image
                 src={currentURL}
@@ -289,10 +332,10 @@ export function PuckMediaField({
           {currentMedia
             ? isExpanded
               ? 'Hide media library'
-              : 'Change image'
+              : chooseLabel || `Change ${mediaLabel}`
             : isExpanded
               ? 'Hide media library'
-              : 'Choose image'}
+              : chooseLabel || `Choose ${mediaLabel}`}
         </button>
         <button
           className={styles.mediaUploadButton}
@@ -300,17 +343,17 @@ export function PuckMediaField({
           onClick={() => fileInputRef.current?.click()}
           type="button"
         >
-          {isUploading ? 'Uploading...' : 'Upload image'}
+          {isUploading ? 'Uploading...' : uploadLabel || `Upload ${mediaLabel}`}
         </button>
         <input
           ref={fileInputRef}
-          accept="image/*"
+          accept={uploadAccept}
           className={styles.mediaUploadInput}
           disabled={readOnly || isUploading}
           type="file"
           onChange={(event) => {
             const file = event.target.files?.[0]
-            if (file) void uploadImage(file)
+            if (file) void uploadFile(file)
           }}
         />
       </div>
@@ -333,6 +376,7 @@ export function PuckMediaField({
               const thumbnailURL = item.thumbnailURL || getMediaURL(resource)
               const isSelected =
                 currentMedia?.id != null && resource?.id != null && String(currentMedia.id) === String(resource.id)
+              const isVideo = isVideoMedia(resource)
 
               return (
                 <button
@@ -347,7 +391,11 @@ export function PuckMediaField({
                     setIsExpanded(false)
                   }}
                 >
-                  {thumbnailURL ? (
+                  {isVideo ? (
+                    <span className={styles.mediaThumb} data-kind="video">
+                      Video
+                    </span>
+                  ) : thumbnailURL ? (
                     <span className={styles.mediaThumb}>
                       <Image
                         src={thumbnailURL}
@@ -369,7 +417,7 @@ export function PuckMediaField({
           {isLoading ? <div className={styles.mediaLoading}>Loading images...</div> : null}
         </>
       ) : null}
-      {isUploading ? <div className={styles.mediaLoading}>Uploading image...</div> : null}
+      {isUploading ? <div className={styles.mediaLoading}>Uploading {mediaLabel}...</div> : null}
     </div>
   )
 }

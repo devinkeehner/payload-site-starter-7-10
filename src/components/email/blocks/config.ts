@@ -466,6 +466,64 @@ export const EmailImageBlock: Block = {
   },
 }
 
+export const EmailVideoBlock: Block = {
+  slug: 'emailVideo',
+  admin: {
+    group: 'Email',
+  },
+  fields: [
+    {
+      name: 'title',
+      type: 'text',
+      defaultValue: 'Watch this video',
+      required: true,
+    },
+    {
+      name: 'videoMedia',
+      label: 'Uploaded video',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Upload a video file, or leave this blank and use a YouTube URL.',
+      },
+    },
+    {
+      name: 'youtubeUrl',
+      label: 'YouTube URL',
+      type: 'text',
+      admin: {
+        description: 'Paste a YouTube watch, share, shorts, or embed URL.',
+      },
+    },
+    {
+      name: 'thumbnailMedia',
+      label: 'Thumbnail image',
+      type: 'upload',
+      relationTo: 'media',
+      admin: {
+        description: 'Optional. YouTube videos will use the YouTube thumbnail when this is blank.',
+      },
+    },
+    {
+      name: 'thumbnailAlt',
+      label: 'Thumbnail alt text',
+      type: 'text',
+    },
+    {
+      name: 'width',
+      type: 'number',
+      defaultValue: 640,
+      min: 240,
+      max: 640,
+    },
+  ],
+  interfaceName: 'EmailVideoBlock',
+  labels: {
+    plural: 'Email Videos',
+    singular: 'Email Video',
+  },
+}
+
 export const EmailArticleImageRightBlock: Block = {
   slug: 'emailArticleImageRight',
   admin: {
@@ -913,6 +971,7 @@ const EMAIL_NESTED_LAYOUT_BLOCKS = [
   EmailButtonBlock,
   EmailTwoButtonBlock,
   EmailImageBlock,
+  EmailVideoBlock,
   EmailGalleryBlock,
   EmailListBlock,
   EmailMarkdownBlock,
@@ -989,6 +1048,7 @@ export const EMAIL_LAYOUT_BLOCKS = [
   EmailButtonBlock,
   EmailTwoButtonBlock,
   EmailImageBlock,
+  EmailVideoBlock,
   EmailGalleryBlock,
   EmailGridBlock,
   EmailListBlock,
