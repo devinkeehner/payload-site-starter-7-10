@@ -838,20 +838,31 @@ function PlayButtonOverlayPreview() {
   )
 }
 
+function getVideoTitle(value: unknown): string {
+  const title = getString(value)
+  return title.toLowerCase() === 'watch this video' ? '' : title
+}
+
 function EmailVideoPreview(props: BlockProps) {
-  const title = getString(props.title) || 'Watch this video'
-  const thumbnail = getMediaSource(props.thumbnailMedia) || getYoutubeThumbnail(props.youtubeUrl, title)
+  const title = getVideoTitle(props.title)
+  const fallbackTitle = title || 'Video'
+  const thumbnail = getMediaSource(props.thumbnailMedia) || getYoutubeThumbnail(props.youtubeUrl, fallbackTitle)
   const video = getMediaSource(props.videoMedia)
   const hasTarget = Boolean(getString(props.youtubeUrl) || video?.src)
   const width = getNumber(props.width, 640, 240, 640)
 
   return (
     <div style={{ margin: '10px auto 26px', maxWidth: '100%', width }}>
+      {title ? (
+        <div style={{ color: COLORS.foreground, fontSize: 18, fontWeight: 800, lineHeight: '24px', marginBottom: 10, textAlign: 'center' }}>
+          {title}
+        </div>
+      ) : null}
       <div
         style={{
-          background: COLORS.primary,
-          border: `1px solid ${COLORS.border}`,
-          color: COLORS.white,
+          background: thumbnail ? 'transparent' : COLORS.surfaceAlt,
+          border: thumbnail ? `1px solid ${COLORS.border}` : `1px dashed ${COLORS.borderStrong}`,
+          color: COLORS.muted,
           minHeight: 220,
           overflow: 'hidden',
           position: 'relative',
@@ -859,7 +870,7 @@ function EmailVideoPreview(props: BlockProps) {
       >
         {thumbnail ? (
           <PreviewImage
-            alt={getString(props.thumbnailAlt) || thumbnail.alt || title}
+            alt={getString(props.thumbnailAlt) || thumbnail.alt || fallbackTitle}
             src={thumbnail.src}
             style={{
               ...imageFrameStyle,
@@ -875,9 +886,6 @@ function EmailVideoPreview(props: BlockProps) {
           </div>
         )}
         <PlayButtonOverlayPreview />
-      </div>
-      <div style={{ color: COLORS.muted, fontSize: 13, lineHeight: '18px', marginTop: 8, textAlign: 'center' }}>
-        {title}
       </div>
     </div>
   )

@@ -831,58 +831,42 @@ function EmailImage({ block, fullWidth = false }: { block: EmailBlock; fullWidth
   )
 }
 
-function PlayButtonOverlay() {
-  return (
-    <span
-      style={{
-        alignItems: 'center',
-        backgroundColor: 'rgba(11, 30, 58, 0.84)',
-        border: `2px solid ${COLORS.white}`,
-        borderRadius: 999,
-        display: 'inline-flex',
-        height: 64,
-        justifyContent: 'center',
-        left: '50%',
-        marginLeft: -32,
-        marginTop: -32,
-        position: 'absolute',
-        top: '50%',
-        width: 64,
-      }}
-    >
-      <span
-        style={{
-          borderBottom: '12px solid transparent',
-          borderLeft: `18px solid ${COLORS.white}`,
-          borderTop: '12px solid transparent',
-          display: 'inline-block',
-          height: 0,
-          marginLeft: 5,
-          width: 0,
-        }}
-      />
-    </span>
-  )
+function getVideoThumbnailWithPlayUrl(thumbnail: EmailMediaSource, assetOrigin: string | null): string {
+  if (!assetOrigin) return thumbnail.src
+
+  const params = new URLSearchParams({ src: thumbnail.src })
+  return `${assetOrigin}/api/email-video-thumbnail?${params.toString()}`
 }
 
-function EmailVideo({ block }: { block: EmailBlock }) {
-  const title = normalizeText(block.title) || 'Watch this video'
+function getVideoTitle(value: unknown): string {
+  const title = normalizeText(value)
+  return title.toLowerCase() === 'watch this video' ? '' : title
+}
+
+function EmailVideo({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
+  const title = getVideoTitle(block.title)
+  const fallbackTitle = title || 'Video'
   const videoMedia = getMediaSource(block.videoMedia)
   const youtubeUrl = normalizeText(block.youtubeUrl)
   const href = youtubeUrl || videoMedia?.src || ''
   if (!href) return null
 
-  const thumbnail = getMediaSource(block.thumbnailMedia) || getYoutubeThumbnail(youtubeUrl, title)
+  const thumbnail = getMediaSource(block.thumbnailMedia) || getYoutubeThumbnail(youtubeUrl, fallbackTitle)
   const width = getNumber(block.width, EMAIL_CANVAS_WIDTH, 240, EMAIL_CANVAS_WIDTH)
 
   return (
     <Section style={{ margin: '10px auto 26px', maxWidth: '100%', width }}>
-      <Link href={href} style={{ color: COLORS.white, display: 'block', position: 'relative', textDecoration: 'none' }}>
+      {title ? (
+        <Text style={{ color: COLORS.foreground, fontSize: 18, fontWeight: 800, lineHeight: '24px', margin: '0 0 10px', textAlign: 'center' }}>
+          {title}
+        </Text>
+      ) : null}
+      <Link href={href} style={{ color: COLORS.primary, display: 'block', textDecoration: 'none' }}>
         {thumbnail ? (
           <Img
-            alt={normalizeText(block.thumbnailAlt) || thumbnail.alt || title}
+            alt={normalizeText(block.thumbnailAlt) || thumbnail.alt || fallbackTitle}
             {...getEmailImageSize(thumbnail, width)}
-            src={thumbnail.src}
+            src={getVideoThumbnailWithPlayUrl(thumbnail, context.assetOrigin)}
             style={getEmailImageStyle({
               borderRadius: 0,
               display: 'block',
@@ -892,23 +876,22 @@ function EmailVideo({ block }: { block: EmailBlock }) {
         ) : (
           <span
             style={{
-              backgroundColor: COLORS.primary,
-              border: `1px solid ${COLORS.border}`,
+              backgroundColor: COLORS.surfaceAlt,
+              border: `1px dashed ${COLORS.borderStrong}`,
+              color: COLORS.muted,
               display: 'block',
-              height: 260,
-              lineHeight: '260px',
+              fontSize: 14,
+              fontWeight: 800,
+              height: 190,
+              lineHeight: '190px',
               textAlign: 'center',
               width: '100%',
             }}
           >
-            {title}
+            Play video
           </span>
         )}
-        <PlayButtonOverlay />
       </Link>
-      <Text style={{ color: COLORS.muted, fontSize: 13, lineHeight: '18px', margin: '8px 0 0', textAlign: 'center' }}>
-        {title}
-      </Text>
     </Section>
   )
 }
@@ -1535,7 +1518,7 @@ function renderBlock(block: EmailBlock, index: number, context: EmailRenderConte
       element = <EmailImage block={block} fullWidth={!context.nested && index === 0} />
       break
     case 'emailVideo':
-      element = <EmailVideo block={block} />
+      element = <EmailVideo block={block} context={context} />
       break
     case 'emailArticleImageRight':
       element = <EmailArticleImageRight block={block} />

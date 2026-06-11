@@ -475,7 +475,7 @@ export const EmailVideoBlock: Block = {
     {
       name: 'title',
       type: 'text',
-      defaultValue: 'Watch this video',
+      defaultValue: 'Video title',
       required: true,
     },
     {
