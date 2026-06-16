@@ -1333,21 +1333,36 @@ function EmailGrid({ block, context }: { block: EmailBlock; context: EmailRender
   )
 }
 
+function getDividerColor(value: unknown): string {
+  return value === 'default' || value === 'border' ? COLORS.border : getTextColor(value)
+}
+
+function getDividerThickness(value: unknown): number {
+  return value === 'default' || value === 'border' ? 1 : 2
+}
+
+function getDividerMargin(align: ReturnType<typeof getAlign>, spacing: number): string {
+  if (align === 'right') return `${spacing}px 0 ${spacing}px auto`
+  if (align === 'center') return `${spacing}px auto`
+  if (align === 'justify') return `${spacing}px 0`
+  return `${spacing}px auto ${spacing}px 0`
+}
+
 function EmailDivider({ block }: { block: EmailBlock }) {
   const spacing = getNumber(block.spacing, 24, 0, 64)
-  const color = block.color === 'primary'
-    ? COLORS.primary
-    : block.color === 'accent'
-      ? COLORS.accent
-      : COLORS.border
+  const align = getAlign(block.align)
+  const width = align === 'justify' ? 100 : getNumber(block.width, 100, 10, 100)
+  const color = getDividerColor(block.color)
 
   return (
     <Hr
       style={{
         borderColor: color,
         borderStyle: 'solid',
-        borderWidth: block.color === 'border' ? '1px 0 0' : '2px 0 0',
-        margin: `${spacing}px 0`,
+        borderWidth: `${getDividerThickness(block.color)}px 0 0`,
+        margin: getDividerMargin(align, spacing),
+        maxWidth: '100%',
+        width: `${width}%`,
       }}
     />
   )

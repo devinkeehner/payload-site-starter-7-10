@@ -26,6 +26,16 @@ const alignmentOptions = [
   { label: 'Right', value: 'right' },
 ]
 
+const dividerAlignmentOptions = [
+  ...alignmentOptions,
+  { label: 'Justify', value: 'justify' },
+]
+
+const dividerColorOptions = [
+  { label: 'Default', value: 'border' },
+  ...textColorOptions.filter((option) => option.value !== 'default'),
+]
+
 const buttonVariantOptions = [
   { label: 'Primary', value: 'primary' },
   { label: 'Accent', value: 'accent' },
@@ -789,11 +799,23 @@ export const EmailDividerBlock: Block = {
       name: 'color',
       type: 'select',
       defaultValue: 'border',
-      options: [
-        { label: 'Border', value: 'border' },
-        { label: 'Primary', value: 'primary' },
-        { label: 'Accent', value: 'accent' },
-      ],
+      options: dividerColorOptions,
+      required: true,
+    },
+    {
+      name: 'width',
+      label: 'Width (%)',
+      type: 'number',
+      defaultValue: 100,
+      min: 10,
+      max: 100,
+    },
+    {
+      name: 'align',
+      label: 'Justification',
+      type: 'select',
+      defaultValue: 'justify',
+      options: dividerAlignmentOptions,
       required: true,
     },
     {

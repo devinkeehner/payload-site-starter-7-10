@@ -3411,7 +3411,9 @@ export interface EmailMarkdownBlock {
  * via the `definition` "EmailDividerBlock".
  */
 export interface EmailDividerBlock {
-  color: 'border' | 'primary' | 'accent';
+  color: 'border' | 'foreground' | 'primary' | 'accent' | 'white';
+  width?: number | null;
+  align: 'left' | 'center' | 'right' | 'justify';
   spacing?: number | null;
   id?: string | null;
   blockName?: string | null;
@@ -6774,6 +6776,8 @@ export interface EmailMarkdownBlockSelect<T extends boolean = true> {
  */
 export interface EmailDividerBlockSelect<T extends boolean = true> {
   color?: T;
+  width?: T;
+  align?: T;
   spacing?: T;
   id?: T;
   blockName?: T;
