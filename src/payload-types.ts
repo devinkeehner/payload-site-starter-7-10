@@ -2732,6 +2732,18 @@ export interface RepInfo {
     | null;
   form?: (string | null) | Form;
   /**
+   * Used as the From name for this tenant when sending campaign emails.
+   */
+  emailFromName?: string | null;
+  /**
+   * Used as the From email for this tenant. Must be allowed by the authenticated sending domain.
+   */
+  emailFromEmail?: string | null;
+  /**
+   * Used when an email does not set its own reply-to address.
+   */
+  emailReplyTo?: string | null;
+  /**
    * Physical mailing address used in campaign email footers for compliance.
    */
   mailingAddress?: string | null;
@@ -5968,6 +5980,9 @@ export interface RepInfoSelect<T extends boolean = true> {
         id?: T;
       };
   form?: T;
+  emailFromName?: T;
+  emailFromEmail?: T;
+  emailReplyTo?: T;
   mailingAddress?: T;
   mailingAddressLine1?: T;
   mailingAddressLine2?: T;

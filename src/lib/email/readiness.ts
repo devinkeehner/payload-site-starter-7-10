@@ -4,6 +4,7 @@ import { getEmailAudienceSummary } from './audienceSummary'
 import { prepareEmailLayoutForRender } from './footerContext'
 import { applyConfirmedEmailLinks, checkRemoteEmailLinks, inspectEmailQuality, type DeclaredEmailLink, type EmailLinkCheck, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
+import { getTenantEmailSenderSettings, hasElasticEmailSender } from './sender'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -177,7 +178,6 @@ export async function getEmailReadiness({
   const hasLayout = blocks.length > 0
   const lastTest = isRecord(email.lastSend) ? email.lastSend : null
   const status = getString(email.status) || 'draft'
-  const elasticConfigured = Boolean(process.env.ELASTIC_EMAIL_API_KEY?.trim() && process.env.ELASTIC_EMAIL_FROM_EMAIL?.trim())
   const audience = emailListId
     ? await getEmailAudienceSummary({ listId: emailListId, payload, req }).catch(() => undefined)
     : undefined
@@ -190,6 +190,13 @@ export async function getEmailReadiness({
         req,
       }).catch(() => null)
     : null
+  const senderSettings = await getTenantEmailSenderSettings({
+    email,
+    emailList: isRecord(emailList) ? emailList : null,
+    payload,
+    req,
+  })
+  const elasticConfigured = hasElasticEmailSender(senderSettings)
   const prepared = await prepareEmailLayoutForRender({
     email,
     emailList: isRecord(emailList) ? emailList : null,
@@ -305,7 +312,11 @@ export async function getEmailReadiness({
   addItem(items, {
     key: 'elastic',
     label: 'Elastic Email',
-    message: elasticConfigured ? 'Elastic Email sender is configured.' : 'Elastic Email API key/from address are missing.',
+    message: elasticConfigured
+      ? senderSettings.fromEmail
+        ? 'Elastic Email is configured with this tenant sender.'
+        : 'Elastic Email sender is configured from environment defaults.'
+      : 'Elastic Email API key/from address are missing.',
     status: elasticConfigured ? 'pass' : 'fail',
   })
 

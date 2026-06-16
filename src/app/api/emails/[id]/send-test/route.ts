@@ -5,6 +5,7 @@ import { sendElasticMarketingEmail } from '@/lib/email/elasticEmail'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import { getBlockingEmailLinks, getEmailReadiness } from '@/lib/email/readiness'
 import { renderEmail } from '@/lib/email/renderEmail'
+import { getTenantEmailSenderSettings } from '@/lib/email/sender'
 import { getEmailWebVersionUrl } from '@/lib/email/webVersion'
 import type { Email } from '@/payload-types'
 
@@ -126,7 +127,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     assertValidEmail(recipientEmail)
     const subject = getRequiredString(email.subject, 'Subject')
     const preheader = typeof email.preheader === 'string' ? email.preheader : ''
-    const replyTo = typeof email.replyTo === 'string' && email.replyTo.trim() ? email.replyTo.trim() : undefined
+    const senderSettings = await getTenantEmailSenderSettings({
+      email: email as unknown as Record<string, unknown>,
+      payload,
+      req: payloadReq,
+    })
+    const replyTo = typeof email.replyTo === 'string' && email.replyTo.trim()
+      ? email.replyTo.trim()
+      : senderSettings.replyTo
 
     if (!hasSendableLayout(email.layout)) {
       throw new Error('Email content is required before sending a test.')
@@ -146,6 +154,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
 
     const result = await sendElasticMarketingEmail({
+      fromEmail: senderSettings.fromEmail,
+      fromName: senderSettings.fromName,
       html,
       replyTo,
       subject,

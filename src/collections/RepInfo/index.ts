@@ -138,6 +138,35 @@ export const RepInfo: CollectionConfig = {
       required: false,
     },
     {
+      type: 'row',
+      fields: [
+        {
+          name: 'emailFromName',
+          label: 'Default email sender name',
+          type: 'text',
+          admin: {
+            description: 'Used as the From name for this tenant when sending campaign emails.',
+          },
+        },
+        {
+          name: 'emailFromEmail',
+          label: 'Default email sender email',
+          type: 'email',
+          admin: {
+            description: 'Used as the From email for this tenant. Must be allowed by the authenticated sending domain.',
+          },
+        },
+      ],
+    },
+    {
+      name: 'emailReplyTo',
+      label: 'Default reply-to email',
+      type: 'email',
+      admin: {
+        description: 'Used when an email does not set its own reply-to address.',
+      },
+    },
+    {
       name: 'mailingAddress',
       label: 'Email footer mailing address',
       type: 'textarea',

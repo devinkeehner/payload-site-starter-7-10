@@ -42,6 +42,8 @@ type ElasticCampaignPayload = {
 }
 
 type SendElasticMarketingEmailArgs = {
+  fromEmail?: string
+  fromName?: string
   html: string
   replyTo?: string
   subject: string
@@ -66,15 +68,22 @@ function getRequiredEnv(name: string): string {
   return value
 }
 
-function getElasticFromAddress(): string {
-  const parsed = parseEmailSender(getRequiredEnv('ELASTIC_EMAIL_FROM_EMAIL'))
-  const fromName = process.env.ELASTIC_EMAIL_FROM_NAME?.trim() || parsed.name
+function getElasticFromAddress({
+  fromEmail,
+  fromName,
+}: {
+  fromEmail?: string
+  fromName?: string
+} = {}): string {
+  const configuredFromEmail = fromEmail?.trim() || getRequiredEnv('ELASTIC_EMAIL_FROM_EMAIL')
+  const parsed = parseEmailSender(configuredFromEmail)
+  const configuredFromName = fromName?.trim() || process.env.ELASTIC_EMAIL_FROM_NAME?.trim() || parsed.name
 
   if (!EMAIL_ADDRESS_PATTERN.test(parsed.address)) {
-    throw new Error('ELASTIC_EMAIL_FROM_EMAIL must include a valid email address.')
+    throw new Error(fromEmail ? 'Email sender must include a valid email address.' : 'ELASTIC_EMAIL_FROM_EMAIL must include a valid email address.')
   }
 
-  return fromName ? `${fromName} <${parsed.address}>` : parsed.address
+  return configuredFromName ? `${configuredFromName} <${parsed.address}>` : parsed.address
 }
 
 function getElasticApiKey(): string {
@@ -117,6 +126,8 @@ function getElasticSuccessId(value: unknown): string {
 }
 
 export async function sendElasticMarketingEmail({
+  fromEmail,
+  fromName,
   html,
   replyTo,
   subject,
@@ -138,7 +149,7 @@ export async function sendElasticMarketingEmail({
           ContentType: 'PlainText',
         },
       ],
-      From: getElasticFromAddress(),
+      From: getElasticFromAddress({ fromEmail, fromName }),
       Subject: subject,
     },
     Recipients: {
@@ -244,6 +255,8 @@ export async function addElasticContactsToList({
 }
 
 export async function createElasticCampaign({
+  fromEmail,
+  fromName,
   html,
   listName,
   name,
@@ -252,6 +265,8 @@ export async function createElasticCampaign({
   subject,
   text,
 }: {
+  fromEmail?: string
+  fromName?: string
   html: string
   listName: string
   name: string
@@ -273,7 +288,7 @@ export async function createElasticCampaign({
         ContentType: 'PlainText',
       },
     ],
-    From: getElasticFromAddress(),
+    From: getElasticFromAddress({ fromEmail, fromName }),
     Subject: subject,
     TemplateType: 'RawHTML',
   }

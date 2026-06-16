@@ -4,6 +4,7 @@ import { getElasticSafeListName, isValidEmailAddress, normalizeEmailAddress } fr
 import { addElasticContactsToList, createElasticCampaign, upsertElasticList } from './elasticEmail'
 import { prepareEmailLayoutForRender } from './footerContext'
 import { renderEmail } from './renderEmail'
+import { getTenantEmailSenderSettings } from './sender'
 import { getEmailWebVersionUrl } from './webVersion'
 
 type UnknownRecord = Record<string, unknown>
@@ -229,7 +230,14 @@ export async function sendProductionEmailCampaign({
   const elasticListName = getString(emailList.elasticListName) || getElasticSafeListName(tenantSlug, getString(emailList.name))
   const allowUnsubscribe = emailList.allowUnsubscribe !== false
   const preheader = getString(email.preheader)
-  const replyTo = getString(email.replyTo) || undefined
+  const senderSettings = await getTenantEmailSenderSettings({
+    email,
+    emailList,
+    overrideAccess,
+    payload,
+    req,
+  })
+  const replyTo = getString(email.replyTo) || senderSettings.replyTo || undefined
 
   const prepared = await prepareEmailLayoutForRender({
     email,
@@ -288,6 +296,8 @@ export async function sendProductionEmailCampaign({
 
   const campaignName = `payload-${emailId}-${Date.now()}`
   const campaign = await createElasticCampaign({
+    fromEmail: senderSettings.fromEmail,
+    fromName: senderSettings.fromName,
     html,
     listName: elasticListName,
     name: campaignName,
