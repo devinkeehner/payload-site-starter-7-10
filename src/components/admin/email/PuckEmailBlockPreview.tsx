@@ -1118,6 +1118,10 @@ function getDividerThickness(value: unknown): number {
   return value === 'default' || value === 'border' ? 1 : 2
 }
 
+function getDividerAlign(value: unknown): ReturnType<typeof getAlign> {
+  return value === 'left' || value === 'right' || value === 'justify' ? value : 'center'
+}
+
 function getDividerMargin(align: ReturnType<typeof getAlign>, spacing: number): string {
   if (align === 'right') return `${spacing}px 0 ${spacing}px auto`
   if (align === 'center') return `${spacing}px auto`
@@ -1127,7 +1131,7 @@ function getDividerMargin(align: ReturnType<typeof getAlign>, spacing: number): 
 
 function EmailDividerPreview(props: BlockProps) {
   const spacing = getNumber(props.spacing, 24, 0, 64)
-  const align = getAlign(props.align)
+  const align = getDividerAlign(props.align)
   const width = align === 'justify' ? 100 : getNumber(props.width, 100, 10, 100)
   const color = getDividerColor(props.color)
 

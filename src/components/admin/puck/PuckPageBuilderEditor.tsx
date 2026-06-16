@@ -20,6 +20,76 @@ function buildOptionList(options: PuckFieldSchema['options'] = []) {
   }))
 }
 
+const COLOR_SWATCHES: Record<string, string> = {
+  accent: '#7a0012',
+  border: 'linear-gradient(135deg, #fff 0 48%, #d1d5db 48% 52%, #f8fafc 52% 100%)',
+  default: 'linear-gradient(135deg, #fff 0 48%, #d1d5db 48% 52%, #f8fafc 52% 100%)',
+  foreground: '#111827',
+  primary: '#0b1e3a',
+  white: '#ffffff',
+}
+
+function isColorSelectField(field: PuckFieldSchema): boolean {
+  if (field.type !== 'select' || field.name.toLowerCase() !== 'color') return false
+
+  const options = buildOptionList(field.options)
+  return options.length > 0 && options.every((option) => option.value in COLOR_SWATCHES)
+}
+
+function PuckColorSelectField({
+  onChange,
+  options,
+  readOnly,
+  value,
+}: {
+  onChange: (value: string) => void
+  options: Array<{ label: string; value: string }>
+  readOnly?: boolean
+  value: unknown
+}) {
+  const selectedValue =
+    typeof value === 'string' && options.some((option) => option.value === value)
+      ? value
+      : options[0]?.value || ''
+
+  return (
+    <div className={styles.colorSwatchField} role="radiogroup">
+      {options.map((option) => {
+        const selected = selectedValue === option.value
+
+        return (
+          <button
+            key={option.value}
+            aria-checked={selected}
+            className={styles.colorSwatchButton}
+            data-selected={selected ? 'true' : undefined}
+            disabled={readOnly}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onChange(option.value)
+            }}
+            onMouseDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+            }}
+            role="radio"
+            title={option.label}
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className={styles.colorSwatch}
+              style={{ background: COLOR_SWATCHES[option.value] }}
+            />
+            <span>{option.label}</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 const INLINE_EDITABLE_FIELD_NAMES = new Set([
   'attribution',
   'body',
@@ -128,6 +198,23 @@ function createField(field: PuckFieldSchema, blockSchema: PuckBlockSchema[]): Fi
     case 'number':
       return { type: 'number', label: field.label || field.name }
     case 'select':
+      if (isColorSelectField(field)) {
+        const options = buildOptionList(field.options)
+        return {
+          type: 'custom',
+          label: field.label || field.name,
+          render: ({ value, onChange, readOnly }) => (
+            <PuckColorSelectField
+              options={options}
+              readOnly={readOnly}
+              value={value}
+              onChange={onChange}
+            />
+          ),
+        }
+      }
+
+      return { type: 'select', label: field.label || field.name, options: buildOptionList(field.options) }
     case 'radio':
       return { type: 'select', label: field.label || field.name, options: buildOptionList(field.options) }
     case 'upload': {

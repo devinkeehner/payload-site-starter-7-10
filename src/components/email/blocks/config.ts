@@ -814,7 +814,7 @@ export const EmailDividerBlock: Block = {
       name: 'align',
       label: 'Justification',
       type: 'select',
-      defaultValue: 'justify',
+      defaultValue: 'center',
       options: dividerAlignmentOptions,
       required: true,
     },
