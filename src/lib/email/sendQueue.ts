@@ -200,12 +200,14 @@ async function claimJob({
 }
 
 export async function processEmailSendQueue({
+  emailId,
   limit = 1,
   overrideAccess = false,
   payload,
   request,
   req,
 }: {
+  emailId?: string
   limit?: number
   overrideAccess?: boolean
   payload: Payload
@@ -219,9 +221,16 @@ export async function processEmailSendQueue({
     overrideAccess,
     req,
     sort: 'createdAt',
-    where: {
-      status: { equals: 'pending' },
-    } as Where,
+    where: emailId
+      ? {
+          and: [
+            { status: { equals: 'pending' } },
+            { email: { equals: emailId } },
+          ],
+        } as Where
+      : {
+          status: { equals: 'pending' },
+        } as Where,
   })
   const results: Array<{ emailId?: string; error?: string; jobId: string; sent?: boolean }> = []
 

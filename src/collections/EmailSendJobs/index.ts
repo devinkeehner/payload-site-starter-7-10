@@ -1,6 +1,6 @@
 import type { CollectionConfig, CollectionSlug } from 'payload'
 
-import { roleRestrictedAccess } from '@/lib/access/roles'
+import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 
 const EMAILS_COLLECTION = 'emails' as CollectionSlug
 const TENANTS_COLLECTION = 'tenants' as CollectionSlug
@@ -17,7 +17,7 @@ export const EmailSendJobs: CollectionConfig = {
   admin: {
     defaultColumns: ['email', 'status', 'kind', 'recipientCount', 'updatedAt'],
     group: 'Email Marketing',
-    hidden: true,
+    hidden: isCollectionHiddenForRole('email-send-jobs'),
     useAsTitle: 'email',
   },
   labels: {

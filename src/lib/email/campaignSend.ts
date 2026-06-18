@@ -173,6 +173,18 @@ function chunk<T>(items: T[], size: number): T[][] {
   return chunks
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+async function runElasticStep<T>(label: string, action: () => Promise<T>): Promise<T> {
+  try {
+    return await action()
+  } catch (error) {
+    throw new Error(`${label}: ${getErrorMessage(error)}`)
+  }
+}
+
 export async function sendProductionEmailCampaign({
   allowSendingStatus = false,
   emailId,
@@ -271,40 +283,46 @@ export async function sendProductionEmailCampaign({
     req,
   })
 
-  await upsertElasticList({
-    allowUnsubscribe,
-    listName: elasticListName,
-  })
-
-  for (const contactBatch of chunk(recipients, 1000)) {
-    await addElasticContactsToList({
-      contacts: contactBatch.map((recipient) => ({
-        CustomFields: {
-          ContactID: recipient.contactId || '',
-          Phone: recipient.phone || '',
-          PostalCode: recipient.postalCode || '',
-          Tenant: tenantSlug,
-        },
-        Email: recipient.email,
-        FirstName: recipient.firstName,
-        LastName: recipient.lastName,
-        Status: 'Active',
-      })),
+  await runElasticStep('Elastic list setup failed', () =>
+    upsertElasticList({
+      allowUnsubscribe,
       listName: elasticListName,
-    })
+    }),
+  )
+
+  for (const [batchIndex, contactBatch] of chunk(recipients, 1000).entries()) {
+    await runElasticStep(`Elastic contact sync failed for batch ${batchIndex + 1}`, () =>
+      addElasticContactsToList({
+        contacts: contactBatch.map((recipient) => ({
+          CustomFields: {
+            ContactID: recipient.contactId || '',
+            Phone: recipient.phone || '',
+            PostalCode: recipient.postalCode || '',
+            Tenant: tenantSlug,
+          },
+          Email: recipient.email,
+          FirstName: recipient.firstName,
+          LastName: recipient.lastName,
+          Status: 'Active',
+        })),
+        listName: elasticListName,
+      }),
+    )
   }
 
   const campaignName = `payload-${emailId}-${Date.now()}`
-  const campaign = await createElasticCampaign({
-    fromEmail: senderSettings.fromEmail,
-    fromName: senderSettings.fromName,
-    html,
-    listName: elasticListName,
-    name: campaignName,
-    replyTo,
-    subject,
-    text,
-  })
+  const campaign = await runElasticStep('Elastic campaign creation failed', () =>
+    createElasticCampaign({
+      fromEmail: senderSettings.fromEmail,
+      fromName: senderSettings.fromName,
+      html,
+      listName: elasticListName,
+      name: campaignName,
+      replyTo,
+      subject,
+      text,
+    }),
+  )
   const sentAt = new Date().toISOString()
 
   await payload.update({

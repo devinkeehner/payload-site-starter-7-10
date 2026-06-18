@@ -73,7 +73,7 @@ export function EmailWorkflowViewClient({
   const [emailPreview, setEmailPreview] = useState<EmailPreview | null>(null)
   const [postPreview, setPostPreview] = useState<PostPreview | null>(null)
   const [report, setReport] = useState<Report | null>(null)
-  const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'sending' | 'sendingTest' | 'sent'>('loading')
+  const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'processingQueue' | 'sending' | 'sendingTest' | 'sent'>('loading')
   const [message, setMessage] = useState<string | null>(null)
   const [testRecipient, setTestRecipient] = useState('')
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
@@ -99,6 +99,11 @@ export function EmailWorkflowViewClient({
     () => sendChecklistItems.filter((item) => item.status === 'warn'),
     [sendChecklistItems],
   )
+  const sendStatusItem = useMemo(
+    () => sendChecklistItems.find((item) => item.key === 'send-status') || null,
+    [sendChecklistItems],
+  )
+  const isQueuedForSending = Boolean(sendStatusItem?.message.toLowerCase().includes('queued'))
 
   const loadWorkflow = useCallback(async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
     setStatus('loading')
@@ -218,6 +223,42 @@ export function EmailWorkflowViewClient({
     }
   }
 
+  async function processQueuedSend() {
+    if (!isQueuedForSending) {
+      setMessage('This campaign is not queued for sending.')
+      return
+    }
+    if (!window.confirm(`Process the queued send job for "${title}" now?`)) return
+
+    setStatus('processingQueue')
+    setMessage(null)
+    try {
+      const res = await fetch('/api/emails/process-queue', {
+        body: JSON.stringify({ emailId, limit: 1 }),
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error(await res.text())
+      const payload = (await res.json()) as {
+        processed?: Array<{ emailId?: string; error?: string; jobId: string; sent?: boolean }>
+      }
+      const result = payload.processed?.find((item) => item.emailId === emailId) || payload.processed?.[0]
+      if (result?.error) throw new Error(result.error)
+      setStatus('sent')
+      setMessage(
+        result?.sent
+          ? 'Queued campaign processed. Elastic should show the campaign shortly.'
+          : 'No pending queued send was processed. It may already be running or completed.',
+      )
+      void loadWorkflow({ clearMessage: false })
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to process queued send')
+    }
+  }
+
   return (
     <Gutter className="email-flow">
       <div className="email-flow__header">
@@ -233,16 +274,18 @@ export function EmailWorkflowViewClient({
           className="email-flow__send-status"
           data-state={!readiness ? 'loading' : readiness.canSend ? 'ready' : 'blocked'}
         >
-          <Pill pillStyle={!readiness ? 'warning' : readiness.canSend ? 'success' : 'error'} size="small">
-            {!readiness ? 'checking' : readiness.canSend ? 'ready' : 'blocked'}
+          <Pill pillStyle={!readiness ? 'warning' : readiness.canSend ? 'success' : isQueuedForSending ? 'warning' : 'error'} size="small">
+            {!readiness ? 'checking' : readiness.canSend ? 'ready' : isQueuedForSending ? 'queued' : 'blocked'}
           </Pill>
           <div>
-            <h2>{!readiness ? 'Running final checks' : readiness.canSend ? 'Ready to send' : 'Needs attention before sending'}</h2>
+            <h2>{!readiness ? 'Running final checks' : readiness.canSend ? 'Ready to send' : isQueuedForSending ? 'Queued for sending' : 'Needs attention before sending'}</h2>
             <p>
               {!readiness
                 ? 'Loading the latest email, audience, and link checks.'
                 : readiness.canSend
                   ? `${readiness.audience?.active || 0} active recipients are ready. Send a test before the campaign.`
+                  : isQueuedForSending
+                    ? 'This campaign is waiting for the send queue processor.'
                   : `${readiness.failures} blocking issue${readiness.failures === 1 ? '' : 's'} must be fixed before sending.`}
             </p>
           </div>
@@ -393,6 +436,11 @@ export function EmailWorkflowViewClient({
             <Button buttonStyle="primary" disabled={!readiness?.canSend || status === 'sending'} onClick={() => void sendCampaign()} type="button">
               {status === 'sending' ? 'Sending Campaign...' : 'Send Campaign'}
             </Button>
+            {isQueuedForSending ? (
+              <Button buttonStyle="secondary" disabled={status === 'processingQueue'} onClick={() => void processQueuedSend()} type="button">
+                {status === 'processingQueue' ? 'Processing Queue...' : 'Process Queued Send'}
+              </Button>
+            ) : null}
           </div>
         </aside>
 
