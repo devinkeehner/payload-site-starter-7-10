@@ -49,7 +49,16 @@ export async function POST(req: Request) {
     if (!recipientEmail) continue
 
     const eventType = normalizeEventType(event.EventType || event.eventType || event.Event || event.event)
-    const elasticCampaignId = getString(event.CampaignName || event.campaignName || event.CampaignID || event.campaignID)
+    const elasticCampaignId = getString(
+      event.ChannelName ||
+      event.channelName ||
+      event.CampaignName ||
+      event.campaignName ||
+      event.CampaignID ||
+      event.campaignID ||
+      event.TransactionID ||
+      event.transactionID,
+    )
     const emailResult = elasticCampaignId
       ? await payload.find({
           collection: 'emails',

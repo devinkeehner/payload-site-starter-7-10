@@ -57,7 +57,7 @@ export const EmailSendEvents: CollectionConfig = {
     },
     {
       name: 'elasticCampaignId',
-      label: 'Elastic campaign ID',
+      label: 'Elastic send ID',
       type: 'text',
     },
     {

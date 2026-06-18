@@ -18,6 +18,21 @@ type ElasticEmailPayload = {
   }
 }
 
+type ElasticBulkEmailRecipient = {
+  Email: string
+  Fields?: Record<string, string>
+}
+
+type ElasticBulkEmailPayload = {
+  Content: ElasticEmailPayload['Content']
+  Options?: {
+    ChannelName?: string
+    TrackClicks?: boolean
+    TrackOpens?: boolean
+  }
+  Recipients: ElasticBulkEmailRecipient[]
+}
+
 type ElasticContactPayload = {
   Email: string
   Status?: 'Active' | 'Bounced' | 'Unsubscribed' | 'Inactive'
@@ -51,12 +66,18 @@ type SendElasticMarketingEmailArgs = {
   to: string
 }
 
+type SendElasticBulkMarketingEmailArgs = Omit<SendElasticMarketingEmailArgs, 'to'> & {
+  channelName?: string
+  recipients: ElasticBulkEmailRecipient[]
+}
+
 export type SendElasticMarketingEmailResult = {
   id: string
   message: string
 }
 
 const ELASTIC_EMAIL_TRANSACTIONAL_URL = 'https://api.elasticemail.com/v4/emails/transactional'
+const ELASTIC_EMAIL_BULK_URL = 'https://api.elasticemail.com/v4/emails'
 const ELASTIC_EMAIL_API_BASE = 'https://api.elasticemail.com/v4'
 const EMAIL_ADDRESS_PATTERN = /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/
 
@@ -88,6 +109,45 @@ function getElasticFromAddress({
 
 function getElasticApiKey(): string {
   return getRequiredEnv('ELASTIC_EMAIL_API_KEY')
+}
+
+function getElasticEmailContent({
+  fromEmail,
+  fromName,
+  html,
+  replyTo,
+  subject,
+  text,
+}: {
+  fromEmail?: string
+  fromName?: string
+  html: string
+  replyTo?: string
+  subject: string
+  text: string
+}): ElasticEmailPayload['Content'] {
+  const content: ElasticEmailPayload['Content'] = {
+    Body: [
+      {
+        Charset: 'utf-8',
+        Content: html,
+        ContentType: 'HTML',
+      },
+      {
+        Charset: 'utf-8',
+        Content: text,
+        ContentType: 'PlainText',
+      },
+    ],
+    From: getElasticFromAddress({ fromEmail, fromName }),
+    Subject: subject,
+  }
+
+  if (replyTo) {
+    content.ReplyTo = replyTo
+  }
+
+  return content
 }
 
 async function getElasticErrorMessage(res: Response): Promise<string> {
@@ -136,29 +196,10 @@ export async function sendElasticMarketingEmail({
 }: SendElasticMarketingEmailArgs): Promise<SendElasticMarketingEmailResult> {
   const apiKey = getElasticApiKey()
   const payload: ElasticEmailPayload = {
-    Content: {
-      Body: [
-        {
-          Charset: 'utf-8',
-          Content: html,
-          ContentType: 'HTML',
-        },
-        {
-          Charset: 'utf-8',
-          Content: text,
-          ContentType: 'PlainText',
-        },
-      ],
-      From: getElasticFromAddress({ fromEmail, fromName }),
-      Subject: subject,
-    },
+    Content: getElasticEmailContent({ fromEmail, fromName, html, replyTo, subject, text }),
     Recipients: {
       To: [to],
     },
-  }
-
-  if (replyTo) {
-    payload.Content.ReplyTo = replyTo
   }
 
   const res = await fetch(ELASTIC_EMAIL_TRANSACTIONAL_URL, {
@@ -182,6 +223,52 @@ export async function sendElasticMarketingEmail({
   return {
     id,
     message: id ? `Email sent successfully. Elastic Email ID: ${id}` : 'Email sent successfully.',
+  }
+}
+
+export async function sendElasticBulkMarketingEmail({
+  channelName,
+  fromEmail,
+  fromName,
+  html,
+  recipients,
+  replyTo,
+  subject,
+  text,
+}: SendElasticBulkMarketingEmailArgs): Promise<SendElasticMarketingEmailResult> {
+  if (!recipients.length) throw new Error('At least one recipient is required.')
+
+  const payload: ElasticBulkEmailPayload = {
+    Content: getElasticEmailContent({ fromEmail, fromName, html, replyTo, subject, text }),
+    Options: {
+      ChannelName: channelName,
+      TrackClicks: true,
+      TrackOpens: true,
+    },
+    Recipients: recipients,
+  }
+
+  const res = await fetch(ELASTIC_EMAIL_BULK_URL, {
+    body: JSON.stringify(payload),
+    headers: {
+      'Content-Type': 'application/json',
+      'X-ElasticEmail-ApiKey': getElasticApiKey(),
+    },
+    method: 'POST',
+  })
+
+  const responseText = await res.text()
+
+  if (!res.ok) {
+    throw new Error(await getElasticErrorMessage(new Response(responseText, { status: res.status })))
+  }
+
+  const data = parseJsonResponse(responseText)
+  const id = channelName || getElasticSuccessId(data)
+
+  return {
+    id,
+    message: id ? `Elastic Email bulk send accepted: ${id}` : 'Elastic Email bulk send accepted.',
   }
 }
 

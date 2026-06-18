@@ -181,7 +181,10 @@ export function applyEmailFooterContext(layout: unknown, context: EmailFooterCon
     const towns = Array.isArray(block.towns)
       ? block.towns.filter((item) => isRecord(item))
       : context.towns
-    const withoutPreferences = links.filter((link) => getString(link.label).toLowerCase() !== 'email preferences')
+    const withoutPreferences = links.filter((link) => {
+      const label = getString(link.label).toLowerCase()
+      return label !== 'email preferences' && label !== 'unsubscribe'
+    })
 
     return {
       ...block,
@@ -191,6 +194,10 @@ export function applyEmailFooterContext(layout: unknown, context: EmailFooterCon
         {
           label: 'Email Preferences',
           url: context.unsubscribeUrl,
+        },
+        {
+          label: 'Unsubscribe',
+          url: '{unsubscribe}',
         },
       ],
       socialLinks,

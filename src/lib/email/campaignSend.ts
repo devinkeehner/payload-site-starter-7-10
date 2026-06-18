@@ -1,7 +1,7 @@
 import type { Payload, PayloadRequest, Where } from 'payload'
 
-import { getElasticSafeListName, isValidEmailAddress, normalizeEmailAddress } from './contactNormalization'
-import { addElasticContactsToList, createElasticCampaign, upsertElasticList } from './elasticEmail'
+import { isValidEmailAddress, normalizeEmailAddress } from './contactNormalization'
+import { sendElasticBulkMarketingEmail } from './elasticEmail'
 import { prepareEmailLayoutForRender } from './footerContext'
 import { renderEmail } from './renderEmail'
 import { getTenantEmailSenderSettings } from './sender'
@@ -165,12 +165,8 @@ function hasSendableLayout(value: unknown): value is Array<UnknownRecord> {
   return Array.isArray(value) && value.some((block) => isRecord(block))
 }
 
-function chunk<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size))
-  }
-  return chunks
+function getElasticSendChannelName(emailId: string): string {
+  return `hro-email-${emailId}-${Date.now()}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80)
 }
 
 function getErrorMessage(error: unknown): string {
@@ -239,8 +235,6 @@ export async function sendProductionEmailCampaign({
   if (!recipients.length) throw new Error('Audience list has no subscribed recipients.')
 
   const tenantSlug = getTenantSlug(email.tenant) || getTenantSlug(emailList.tenant)
-  const elasticListName = getString(emailList.elasticListName) || getElasticSafeListName(tenantSlug, getString(emailList.name))
-  const allowUnsubscribe = emailList.allowUnsubscribe !== false
   const preheader = getString(email.preheader)
   const senderSettings = await getTenantEmailSenderSettings({
     email,
@@ -283,41 +277,26 @@ export async function sendProductionEmailCampaign({
     req,
   })
 
-  await runElasticStep('Elastic list setup failed', () =>
-    upsertElasticList({
-      allowUnsubscribe,
-      listName: elasticListName,
-    }),
-  )
-
-  for (const [batchIndex, contactBatch] of chunk(recipients, 1000).entries()) {
-    await runElasticStep(`Elastic contact sync failed for batch ${batchIndex + 1}`, () =>
-      addElasticContactsToList({
-        contacts: contactBatch.map((recipient) => ({
-          CustomFields: {
-            ContactID: recipient.contactId || '',
-            Phone: recipient.phone || '',
-            PostalCode: recipient.postalCode || '',
-            Tenant: tenantSlug,
-          },
-          Email: recipient.email,
-          FirstName: recipient.firstName,
-          LastName: recipient.lastName,
-          Status: 'Active',
-        })),
-        listName: elasticListName,
-      }),
-    )
-  }
-
-  const campaignName = `payload-${emailId}-${Date.now()}`
-  const campaign = await runElasticStep('Elastic campaign creation failed', () =>
-    createElasticCampaign({
+  const sendChannelName = getElasticSendChannelName(emailId)
+  const elasticSend = await runElasticStep('Elastic bulk send failed', () =>
+    sendElasticBulkMarketingEmail({
+      channelName: sendChannelName,
       fromEmail: senderSettings.fromEmail,
       fromName: senderSettings.fromName,
       html,
-      listName: elasticListName,
-      name: campaignName,
+      recipients: recipients.map((recipient) => ({
+        Email: recipient.email,
+        Fields: {
+          contactId: recipient.contactId || '',
+          email: recipient.email,
+          firstName: recipient.firstName || '',
+          fullName: [recipient.firstName, recipient.lastName].filter(Boolean).join(' '),
+          lastName: recipient.lastName || '',
+          phone: recipient.phone || '',
+          postalCode: recipient.postalCode || '',
+          tenant: tenantSlug,
+        },
+      })),
       replyTo,
       subject,
       text,
@@ -329,8 +308,6 @@ export async function sendProductionEmailCampaign({
     collection: 'email-lists',
     data: {
       activeContactCount: recipients.length,
-      elasticListName,
-      lastSyncedToElasticAt: sentAt,
     },
     id: emailListId,
     overrideAccess,
@@ -344,7 +321,7 @@ export async function sendProductionEmailCampaign({
       sendSummary: {
         approvedAt: sentAt,
         approvedBy: userId || undefined,
-        elasticCampaignId: campaign.id,
+        elasticCampaignId: elasticSend.id || sendChannelName,
         recipientCount: recipients.length,
         sendError: undefined,
         sentAt,
@@ -359,9 +336,8 @@ export async function sendProductionEmailCampaign({
   })
 
   return {
-    elasticCampaignId: campaign.id,
-    elasticListName,
-    message: campaign.message,
+    elasticCampaignId: elasticSend.id || sendChannelName,
+    message: elasticSend.message,
     recipientCount: recipients.length,
   }
 }

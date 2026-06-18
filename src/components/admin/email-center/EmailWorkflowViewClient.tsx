@@ -249,7 +249,7 @@ export function EmailWorkflowViewClient({
       setStatus('sent')
       setMessage(
         result?.sent
-          ? 'Queued campaign processed. Elastic should show the campaign shortly.'
+          ? 'Queued campaign processed. Elastic should show delivery activity shortly.'
           : 'No pending queued send was processed. It may already be running or completed.',
       )
       void loadWorkflow({ clearMessage: false })

@@ -437,7 +437,7 @@ export const Emails: CollectionConfig<'emails'> = {
               fields: [
                 {
                   name: 'elasticCampaignId',
-                  label: 'Elastic campaign ID',
+                  label: 'Elastic send ID',
                   type: 'text',
                 },
                 {
