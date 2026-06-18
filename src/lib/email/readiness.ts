@@ -177,6 +177,8 @@ export async function getEmailReadiness({
   const footer = blocks.some((block) => block.blockType === 'emailFooterOneColumn')
   const hasLayout = blocks.length > 0
   const lastTest = isRecord(email.lastSend) ? email.lastSend : null
+  const sendSummary = isRecord(email.sendSummary) ? email.sendSummary : null
+  const sendError = getString(sendSummary?.sendError)
   const status = getString(email.status) || 'draft'
   const audience = emailListId
     ? await getEmailAudienceSummary({ listId: emailListId, payload, req }).catch(() => undefined)
@@ -286,8 +288,12 @@ export async function getEmailReadiness({
       ? 'This email is queued for sending.'
       : status === 'sent' || status === 'sending'
         ? `This email is already ${status}. Duplicate it before sending again.`
+        : status === 'failed'
+          ? sendError
+            ? `The last send failed: ${sendError}`
+            : 'The last send failed. Review the send job before retrying.'
       : 'This email has not been sent.',
-    status: status === 'sent' || status === 'sending' || status === 'queued' ? 'fail' : 'pass',
+    status: status === 'sent' || status === 'sending' || status === 'queued' ? 'fail' : status === 'failed' ? 'warn' : 'pass',
   })
   addItem(items, {
     key: 'test-recipient',
