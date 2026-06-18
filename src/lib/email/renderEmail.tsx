@@ -825,7 +825,7 @@ function EmailImage({ block, fullWidth = false }: { block: EmailBlock; fullWidth
       style={{
         borderRadius: 0,
         margin: fullWidth ? '0 0 24px' : '0 auto 24px',
-        width: '100%',
+        width: fullWidth ? '100%' : width,
       }}
     />
   )
