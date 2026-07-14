@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, useAuth, useDocumentInfo, useField, useForm, useFormFields } from '@payloadcms/ui'
+import { Button, useDocumentInfo, useForm, useFormFields } from '@payloadcms/ui'
 
 import {
   DEFAULT_SEO_ASSISTANT_SETTINGS,
@@ -36,11 +36,6 @@ type FieldState = {
 
 type FormFields = Record<string, FieldState | undefined> & {
   _id?: FieldState
-}
-
-type TenantDoc = {
-  defaultGraphicTemplate?: unknown
-  id?: string
 }
 
 type Notice = {
@@ -87,12 +82,6 @@ const readRelationshipField = (fields: unknown, path: string): string | undefine
   return readRelationshipID(current)
 }
 
-const hasSuperRole = (value: unknown) => {
-  if (!value || typeof value !== 'object') return false
-  const roles = (value as { roles?: unknown }).roles
-  return Array.isArray(roles) && roles.includes('super')
-}
-
 const deriveIdFromPath = (): string | undefined => {
   if (typeof window === 'undefined') return undefined
 
@@ -107,33 +96,24 @@ const deriveIdFromPath = (): string | undefined => {
   return undefined
 }
 
-const tenantDefaultGraphicTemplateCache = new Map<string, string | null>()
-
 export const PostPublishingAssistant: React.FC = () => {
   const { dispatchFields } = useForm()
-  const { user } = useAuth()
   const docInfo = useDocumentInfo() as { id?: string } | null
   const documentID = useFormFields(([fields]) => readIdField(fields)) || docInfo?.id || deriveIdFromPath()
-  const tenantID = useFormFields(([fields]) => readRelationshipField(fields, 'tenant'))
-  const templateID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicTemplate'))
   const designID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicDesign'))
   const slugFromForm = useFormFields(([fields]) => {
     const slug = asFormFields(fields).slug?.value
     return typeof slug === 'string' ? slug : undefined
   })
-  const { setValue: setTemplateValue } = useField<string | null>({ path: 'graphicTemplate' })
   const [assistantSettings, setAssistantSettings] = useState<SeoAssistantSettings>(
     DEFAULT_SEO_ASSISTANT_SETTINGS,
   )
   const [tone, setTone] = useState<SeoAssistantTone>(DEFAULT_SEO_ASSISTANT_SETTINGS.defaultTone)
   const [additionalInstructions, setAdditionalInstructions] = useState('')
-  const [tenantDefaultTemplateID, setTenantDefaultTemplateID] = useState<string | null>(null)
   const [generateLoading, setGenerateLoading] = useState(false)
   const [configLoading, setConfigLoading] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
   const toneTouchedRef = useRef(false)
-  const isSuperAdmin = hasSuperRole(user)
-  const effectiveTemplateID = templateID || tenantDefaultTemplateID || undefined
 
   useEffect(() => {
     let ignore = false
@@ -172,45 +152,6 @@ export const PostPublishingAssistant: React.FC = () => {
     }
   }, [])
 
-  useEffect(() => {
-    if (!tenantID || templateID) return
-
-    const cached = tenantDefaultGraphicTemplateCache.get(tenantID)
-    if (cached !== undefined) {
-      setTenantDefaultTemplateID(cached)
-      if (cached) setTemplateValue(cached)
-      return
-    }
-
-    let ignore = false
-
-    const loadDefaultTemplate = async () => {
-      try {
-        const response = await fetch(`/api/tenants/${tenantID}?depth=1`, { credentials: 'include' })
-        if (!response.ok) throw new Error(`Failed to load tenant default template (${response.status})`)
-
-        const json = (await response.json()) as TenantDoc
-        const defaultID = readRelationshipID(json.defaultGraphicTemplate) ?? null
-        tenantDefaultGraphicTemplateCache.set(tenantID, defaultID)
-
-        if (ignore) return
-
-        setTenantDefaultTemplateID(defaultID)
-        if (defaultID) setTemplateValue(defaultID)
-      } catch (error) {
-        console.error('[PostPublishingAssistant] Failed to load tenant default graphic template', error)
-        tenantDefaultGraphicTemplateCache.set(tenantID, null)
-        if (!ignore) setTenantDefaultTemplateID(null)
-      }
-    }
-
-    void loadDefaultTemplate()
-
-    return () => {
-      ignore = true
-    }
-  }, [setTemplateValue, tenantID, templateID])
-
   const launchGraphicEditor = (params: URLSearchParams) => {
     if (typeof window === 'undefined') return
     window.location.assign(`/graphics-editor?${params.toString()}`)
@@ -219,15 +160,7 @@ export const PostPublishingAssistant: React.FC = () => {
   const openPostGraphicEditor = () => {
     if (!documentID) return
     const params = new URLSearchParams({ collection: 'posts', docId: documentID })
-    if (effectiveTemplateID) params.set('templateId', effectiveTemplateID)
     if (designID) params.set('designId', designID)
-    launchGraphicEditor(params)
-  }
-
-  const openTemplateEditor = () => {
-    const params = new URLSearchParams({ collection: 'posts' })
-    if (documentID) params.set('docId', documentID)
-    if (effectiveTemplateID) params.set('templateId', effectiveTemplateID)
     launchGraphicEditor(params)
   }
 
@@ -236,13 +169,7 @@ export const PostPublishingAssistant: React.FC = () => {
     const params = new URLSearchParams({ collection: 'posts' })
     if (documentID) params.set('docId', documentID)
     params.set('designId', designID)
-    if (effectiveTemplateID) params.set('templateId', effectiveTemplateID)
     launchGraphicEditor(params)
-  }
-
-  const openExperimentalTownGraphic = () => {
-    if (typeof window === 'undefined') return
-    window.location.assign('/graphics-editor-experimental')
   }
 
   const resolveIdFromSlug = async () => {
@@ -403,9 +330,6 @@ export const PostPublishingAssistant: React.FC = () => {
             <div className="post-publishing-assistant__section-copy">
               <h4>SEO Generation</h4>
               <p className="post-publishing-assistant__subtle">{activeModelSummary}</p>
-              {tenantID && !templateID && tenantDefaultTemplateID ? (
-                <p className="post-publishing-assistant__subtle">Tenant default template loaded</p>
-              ) : null}
             </div>
 
             <div className="post-publishing-assistant__controls">
@@ -453,15 +377,6 @@ export const PostPublishingAssistant: React.FC = () => {
             >
               Open Post Graphic Editor
             </Button>
-            {isSuperAdmin ? (
-              <Button
-                onClick={openTemplateEditor}
-                disabled={!effectiveTemplateID}
-                buttonStyle="secondary"
-              >
-                Edit Template
-              </Button>
-            ) : null}
             <Button
               onClick={openDesignEditor}
               disabled={!designID}

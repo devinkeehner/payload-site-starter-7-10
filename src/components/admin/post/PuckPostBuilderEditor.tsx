@@ -201,6 +201,8 @@ export function PuckPostBuilderEditor({
       apiPath={`/api/puck/posts/${postId}`}
       blockSchema={blockSchema}
       config={config}
+      documentId={postId}
+      documentTitle={title}
       documentType="post"
       headerTitle={`Post Builder: ${title}`}
       initialData={initialData}

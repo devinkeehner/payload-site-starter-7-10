@@ -11,6 +11,35 @@
   margin-top: 0 !important;
 }
 
+html[data-hro-visual-builder] {
+  &,
+  body {
+    overflow: hidden;
+  }
+
+  .template-default {
+    isolation: auto;
+    z-index: 10000;
+  }
+
+  [data-hro-tenant-header] {
+    display: none;
+  }
+}
+
+/* Puck copies the admin document attribute into its preview iframe. Restore
+ * scrolling inside that iframe while keeping the outer admin shell locked. */
+html[data-hro-visual-builder]:has([data-hro-puck-preview-root]) {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+
+  body {
+    min-height: 100%;
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
 .payload-default-template__wrap,
 .payload-minimal-template {
   padding-top: 0 !important;

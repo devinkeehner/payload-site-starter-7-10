@@ -237,6 +237,7 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   return (
     <>
       <div
+        data-hro-tenant-header="true"
         style={{
           position: "relative",
           zIndex: 10,

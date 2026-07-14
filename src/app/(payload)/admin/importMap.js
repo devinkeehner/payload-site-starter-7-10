@@ -39,6 +39,9 @@ import { MetaDescriptionComponent as MetaDescriptionComponent_a8a977ebc872c5d5ea
 import { GenerateSEOButton as GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae } from '../../../components/admin/GenerateSEOButton'
 import { default as default_ba1864c9a769a36011f463d5faeeb745 } from '@/components/admin/media/MediaGalleryListView'
 import { MediaCanvasField as MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07 } from '@/components/admin/MediaCanvasField'
+import { default as default_37461efde84e27dbdd00177f6b8a1329 } from '@/components/admin/graphics/GraphicDesignDefaultView'
+import { default as default_2d682d98f90fd2c18ebb1d4d5c0fcb05 } from '@/components/admin/graphics/GraphicDesignStudioView'
+import { default as default_6a1a3f7f0fa75e58b07b878e7a315d5c } from '@/components/admin/graphics/GraphicDesignGalleryListView'
 import { FacebookConnectionField as FacebookConnectionField_0cb92cbece99572909a34da846678f78 } from '@/components/admin/FacebookConnectionField'
 import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/components/site/navbar/row-label'
 import { FormShareField as FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f } from '@/components/admin/FormShareField'
@@ -120,6 +123,9 @@ export const importMap = {
   "./components/admin/GenerateSEOButton#GenerateSEOButton": GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae,
   "@/components/admin/media/MediaGalleryListView#default": default_ba1864c9a769a36011f463d5faeeb745,
   "@/components/admin/MediaCanvasField#MediaCanvasField": MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07,
+  "@/components/admin/graphics/GraphicDesignDefaultView#default": default_37461efde84e27dbdd00177f6b8a1329,
+  "@/components/admin/graphics/GraphicDesignStudioView#default": default_2d682d98f90fd2c18ebb1d4d5c0fcb05,
+  "@/components/admin/graphics/GraphicDesignGalleryListView#default": default_6a1a3f7f0fa75e58b07b878e7a315d5c,
   "@/components/admin/FacebookConnectionField#FacebookConnectionField": FacebookConnectionField_0cb92cbece99572909a34da846678f78,
   "@/components/site/navbar/row-label#RowLabel": RowLabel_049f819b8cc5e95a74082f1d6b1ff31a,
   "@/components/admin/FormShareField#FormShareField": FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f,

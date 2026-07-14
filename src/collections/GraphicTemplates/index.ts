@@ -14,8 +14,8 @@ export const GraphicTemplates: CollectionConfig = {
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
-    description: 'Reusable graphics templates shared across all tenants.',
-    hidden: ({ user }) => !isSuperUser(user),
+    description: 'Legacy graphic templates retained for existing Post graphics.',
+    hidden: true,
   },
   access: {
     create: ({ req }) => isSuperUser(req.user),

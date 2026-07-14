@@ -325,16 +325,13 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
-  /**
-   * Preselects the post graphic template for new posts in this tenant.
-   */
   defaultGraphicTemplate?: (string | null) | GraphicTemplate;
   archived?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
 /**
- * Reusable graphics templates shared across all tenants.
+ * Legacy graphic templates retained for existing Post graphics.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "graphic-templates".
@@ -718,7 +715,7 @@ export interface PostGridBlock {
   blockType: 'postGrid';
 }
 /**
- * Editable generated graphics linked to posts and reusable templates.
+ * Create and manage Post social and SEO graphics.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "graphic-designs".
@@ -734,7 +731,22 @@ export interface GraphicDesign {
   secondaryTenant?: (string | null) | Tenant;
   backgroundImage?: (string | null) | Media;
   titleOverride?: string | null;
+  /**
+   * Preserved for existing Post graphics. New studio edits are stored separately below.
+   */
   scene:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Open the Design Studio to edit this graphic visually.
+   */
+  studioScene:
     | {
         [k: string]: unknown;
       }
@@ -747,6 +759,7 @@ export interface GraphicDesign {
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5936,10 +5949,12 @@ export interface GraphicDesignsSelect<T extends boolean = true> {
   backgroundImage?: T;
   titleOverride?: T;
   scene?: T;
+  studioScene?: T;
   exportedMedia?: T;
   notes?: T;
   updatedAt?: T;
   createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

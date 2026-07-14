@@ -301,6 +301,8 @@ export function PuckEmailBuilderEditor({
       autosave
       blockSchema={blockSchema}
       config={config}
+      documentId={emailId}
+      documentTitle={title}
       documentType="email"
       externalBusy={emailStatus === 'checkingLinks' || emailStatus === 'sending'}
       externalMessage={emailStatus === 'checkingLinks'

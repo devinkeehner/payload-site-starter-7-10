@@ -36,7 +36,7 @@ export const Tenants: CollectionConfig = {
       relationTo: 'graphic-templates',
       required: false,
       admin: {
-        description: 'Preselects the post graphic template for new posts in this tenant.',
+        hidden: true,
       },
     },
     {

@@ -139,6 +139,8 @@ export function PuckFormBuilderEditor({
       apiPath={`/api/puck/forms/${formId}`}
       blockSchema={blockSchema}
       config={config}
+      documentId={formId}
+      documentTitle={title}
       documentType="form"
       headerTitle={`Form Builder: ${title}`}
       initialData={initialData}
