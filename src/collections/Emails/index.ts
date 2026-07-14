@@ -212,7 +212,7 @@ export const Emails: CollectionConfig<'emails'> = {
             Component: '@/components/admin/email-campaign/EmailCampaignView#default',
             tab: {
               href: '/campaign',
-              label: 'Campaign',
+              label: 'Overview',
               order: 100,
             },
           },
@@ -225,7 +225,7 @@ export const Emails: CollectionConfig<'emails'> = {
             Component: '@/components/admin/email/PuckEmailBuilderView',
             tab: {
               href: '/visual',
-              label: 'Builder',
+              label: 'Design',
               order: 200,
             },
           },
@@ -243,7 +243,7 @@ export const Emails: CollectionConfig<'emails'> = {
             Component: '@/components/admin/email-center/EmailWorkflowView#default',
             tab: {
               href: '/review',
-              label: 'Final Check',
+              label: 'Review & Send',
               order: 350,
             },
           },

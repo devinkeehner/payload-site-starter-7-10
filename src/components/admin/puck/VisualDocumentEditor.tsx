@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { useAdminBuilderMode } from '@/components/admin/hooks/useAdminBuilderMode'
 import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import { hydratePuckMedia } from '@/lib/puck/mediaHydration'
 import type { PuckBlockSchema, PuckPageData } from '@/lib/puck/types'
@@ -1141,18 +1142,7 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   workspaceLabel,
   wrapperStyle,
 }: VisualDocumentEditorProps<TPayload>) {
-  useEffect(() => {
-    const root = document.documentElement
-    const attribute = 'data-hro-visual-builder'
-    const previousValue = root.getAttribute(attribute)
-
-    root.setAttribute(attribute, documentType)
-
-    return () => {
-      if (previousValue === null) root.removeAttribute(attribute)
-      else root.setAttribute(attribute, previousValue)
-    }
-  }, [documentType])
+  useAdminBuilderMode(documentType)
 
   const resolveDataFromPayload = useMemo(
     () => getDataFromPayload || ((payload: TPayload) => defaultGetDataFromPayload(payload)),
@@ -1443,7 +1433,12 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   )
 
   return (
-    <div className={styles.wrapper} data-document-type={documentType} style={wrapperStyle}>
+    <div
+      className={styles.wrapper}
+      data-document-type={documentType}
+      data-hro-fullscreen-builder={documentType}
+      style={wrapperStyle}
+    >
       {toolbar ? (
         <PuckRichTextToolbarProvider target={richTextToolbarTarget}>
           {puck}

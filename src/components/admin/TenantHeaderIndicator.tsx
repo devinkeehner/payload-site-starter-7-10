@@ -3,10 +3,13 @@
 import React, { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useConfig } from "@payloadcms/ui"
+import { useAuth, useConfig } from "@payloadcms/ui"
 
 import { TenantBreadcrumbBar } from "./TenantBreadcrumbBar"
 import { useActiveTenant } from "./hooks/useActiveTenant"
+import { canUseBuilders } from "@/lib/access/isSuperUser"
+
+import './tenant-admin-header.scss'
 
 interface CollectionMeta {
   slug: string
@@ -108,6 +111,7 @@ const formatVisitHref = (slug?: string | null) => {
 const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname()
   const { config } = useConfig()
+  const { user } = useAuth()
   const { tenant, tenantID, tenantName } = useActiveTenant()
 
   const [collectionLabel, setCollectionLabel] = useState<string | undefined>(undefined)
@@ -142,6 +146,61 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
       window.removeEventListener("payload:locationchange", ensureTenantSelectorInteractive)
     }
   }, [])
+
+  useEffect(() => {
+    if (!canUseBuilders(user)) return
+
+    const params = new URLSearchParams(window.location.search)
+    const requestedTab = params.get('hroTab')?.trim()
+    const requestedField = params.get('hroField')?.trim()
+    if (!requestedTab) return
+
+    let finished = false
+    let attempts = 0
+
+    const focusTarget = () => {
+      if (requestedField) {
+        document.getElementById(requestedField)?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        })
+      }
+    }
+
+    const openRequestedTab = () => {
+      if (finished || attempts >= 20) return
+      attempts += 1
+
+      const buttons = Array.from(
+        document.querySelectorAll<HTMLButtonElement>('.tabs-field__tab-button'),
+      )
+      const target = buttons.find((button) => button.textContent?.trim() === requestedTab)
+      if (!target) return
+
+      finished = true
+      if (target.getAttribute('aria-selected') !== 'true') target.click()
+      window.requestAnimationFrame(focusTarget)
+    }
+
+    openRequestedTab()
+    if (finished) return
+
+    const observer = new MutationObserver(openRequestedTab)
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    const timer = window.setInterval(() => {
+      openRequestedTab()
+      if (finished || attempts >= 20) {
+        window.clearInterval(timer)
+        observer.disconnect()
+      }
+    }, 150)
+
+    return () => {
+      window.clearInterval(timer)
+      observer.disconnect()
+    }
+  }, [pathname, user])
 
   useEffect(() => {
     const raw = pathname || ""
@@ -234,85 +293,35 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
     }
   }, [docKey, collections])
 
+  if (!canUseBuilders(user)) return children
+
   return (
     <>
-      <div
-        data-hro-tenant-header="true"
-        style={{
-          position: "relative",
-          zIndex: 10,
-          background: "var(--theme-elevation-0)",
-          borderBottom: "1px solid var(--theme-elevation-100)",
-          padding: "1.25rem clamp(1rem, 3vw, 2rem) 1rem",
-          boxShadow: "0 1px 0 rgba(0,0,0,0.04)",
-          pointerEvents: "none",
-        }}
-      >
-        <div
-          style={{
-            pointerEvents: "auto",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "1.5rem",
-          }}
-        >
+      <div className="hro-admin-header" data-hro-tenant-header="true">
+        <div className="hro-admin-header__inner">
           <TenantBreadcrumbBar
             collectionLabel={collectionLabel}
             collectionHref={collectionHref}
             docLabel={docLabel}
           />
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-            }}
-          >
+          <div className="hro-admin-header__actions">
             {isHydrated && (visitHref || tenantName) && (
               <a
+                className="hro-admin-header__action"
                 href={visitHref || undefined}
                 target={visitHref ? "_blank" : undefined}
                 rel={visitHref ? "noreferrer" : undefined}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "0.4rem",
-                  fontSize: "0.95rem",
-                  fontWeight: 600,
-                  padding: "0.35rem 0.75rem",
-                  borderRadius: "999px",
-                  border: "1px solid var(--theme-elevation-150)",
-                  textDecoration: "none",
-                  color: "var(--theme-text)",
-                  background: "var(--theme-elevation-50)",
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-                  cursor: visitHref ? "pointer" : "default",
-                }}
               >
-                <span style={{ opacity: 0.7 }}>Visit Site</span>
-                {tenantSlug && <span style={{ opacity: 0.8 }}>/ {tenantSlug}</span>}
-                {!tenantSlug && tenantName && <span style={{ opacity: 0.8 }}>{tenantName}</span>}
+                <span className="hro-admin-header__action-label--desktop">View website</span>
+                <span aria-hidden="true" className="hro-admin-header__action-label--mobile">Visit</span>
               </a>
             )}
             <Link
+              aria-label="Account settings"
+              className="hro-admin-header__action hro-admin-header__action--account"
               href="/admin/account"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.4rem",
-                fontSize: "0.95rem",
-                fontWeight: 600,
-                padding: "0.35rem 0.75rem",
-                borderRadius: "999px",
-                border: "1px solid var(--theme-elevation-150)",
-                textDecoration: "none",
-                color: "var(--theme-text)",
-                background: "var(--theme-elevation-50)",
-                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
-              }}
             >
-              <span style={{ opacity: 0.7 }}>Account</span>
+              Account
             </Link>
           </div>
         </div>

@@ -2135,6 +2135,34 @@
   font-weight: 700;
 }
 
+.mediaField[data-display='compact'] .mediaFieldCurrent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+
+.mediaField[data-display='compact'] .mediaFieldCurrent .mediaThumb {
+  display: none;
+}
+
+.mediaField[data-display='compact'] .mediaFieldCurrent > div {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mediaField[data-display='compact'] .mediaFieldCurrent button {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
 .mediaFieldActions {
   display: flex;
   flex-wrap: wrap;
@@ -3203,9 +3231,24 @@
 }
 
 @media (max-width: 920px) {
+  .wrapper :global([class*='PuckLayout-inner']) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .wrapper :global([class*='PuckLayout-header']) {
+    min-width: 0;
+    width: 100%;
+  }
+
   .builderWorkspaceHeader {
     align-items: flex-start;
+    box-sizing: border-box;
     flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+    width: 100%;
   }
 
   .builderWorkspaceIdentity,
@@ -3215,7 +3258,15 @@
 
   .builderWorkspaceTools {
     justify-content: flex-start;
+    max-width: 100%;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+
+  .builderWorkspaceTools::-webkit-scrollbar {
+    display: none;
   }
 
   .builderWorkspaceTitle strong {
@@ -3223,6 +3274,44 @@
   }
 
   .builderWorkspaceBackButton span {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .builderWorkspaceHeader {
+    gap: 7px;
+    min-height: 116px;
+    padding: 7px 8px;
+  }
+
+  .builderWorkspaceTenant,
+  .builderWorkspaceTools > a[title='Visit site'],
+  .builderWorkspaceTools > a[title='Account'] {
+    display: none;
+  }
+
+  .builderWorkspaceIconButton {
+    width: 36px;
+    height: 36px;
+  }
+
+  .builderWorkspaceTitle {
+    flex: 1 1 auto;
+  }
+
+  .builderWorkspaceTitle strong {
+    max-width: none;
+  }
+
+  .builderWorkspaceActions {
+    flex: 0 0 auto;
+    max-width: none;
+    overflow: visible;
+  }
+
+  .builderWorkspaceSecondaryAction,
+  .builderWorkspaceBackButton {
     display: none;
   }
 }

@@ -345,7 +345,7 @@ export function PuckEmailBuilderEditor({
               {context.status === 'saving' ? 'Saving...' : 'Save'}
             </button>
             <button
-              className={styles.saveButton}
+              className={`${styles.saveButton} ${styles.builderWorkspaceSecondaryAction}`}
               disabled={busy}
               type="button"
               onClick={() => void checkLinks(context)}
@@ -353,7 +353,7 @@ export function PuckEmailBuilderEditor({
               {emailStatus === 'checkingLinks' ? 'Checking Links...' : 'Check Links'}
             </button>
             <button
-              className={styles.saveButton}
+              className={`${styles.saveButton} ${styles.builderWorkspaceSecondaryAction}`}
               disabled={busy}
               type="button"
               onClick={() => {

@@ -15,6 +15,7 @@ import {
   LayoutTemplate,
   ListChecks,
   Mail,
+  Palette,
   PanelBottom,
   PanelTop,
   Plus,
@@ -27,13 +28,25 @@ import {
 } from 'lucide-react'
 
 import { canAccessCollection } from '@/lib/access/roles'
+import {
+  getAdminWorkspaceLabel,
+  getDashboardWorkspaceSlugs,
+} from '@/components/admin/adminWorkspace'
+import {
+  DashboardBannerWidgetClient,
+  type DashboardMediaAsset,
+} from '@/components/admin/dashboard/DashboardBannerWidgetClient'
+import {
+  MySitesWidgetClient,
+  type DashboardSiteOption,
+} from '@/components/admin/dashboard/MySitesWidgetClient'
 
 import {
   collectionHelperText,
   getQuickTasks,
   getSelectedTenantID,
-  type AdminTask,
 } from './adminDashboardMeta'
+import type { AdminTask } from './adminDashboardShared'
 
 import './dashboard-widgets.scss'
 
@@ -68,6 +81,7 @@ const collectionIcons: Record<string, LucideIcon> = {
   'email-lists': ListChecks,
   'facebook-connections': Facebook,
   'facebook-pages': Facebook,
+  'graphic-designs': Palette,
   footer: PanelBottom,
   forms: ClipboardList,
   'form-submissions': Inbox,
@@ -84,6 +98,9 @@ const collectionIcons: Record<string, LucideIcon> = {
 
 const taskIcons: Record<AdminTask['key'], LucideIcon> = {
   createPost: FileText,
+  createForm: ClipboardList,
+  uploadMedia: ImageIcon,
+  createPage: LayoutTemplate,
   changeHomePageBanner: ImageIcon,
   updateSocialMedia: Facebook,
   editTowns: Building2,
@@ -168,7 +185,7 @@ function isHiddenCollection(collection: AdminCollectionConfig, user: PayloadRequ
 
 function getSelectedCollectionSlugs(props: WidgetServerProps) {
   const selected = props.widgetData?.collections
-  if (!Array.isArray(selected)) return null
+  if (!Array.isArray(selected)) return new Set(getDashboardWorkspaceSlugs())
 
   const slugs = selected.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
   return slugs.length ? new Set(slugs) : null
@@ -189,7 +206,8 @@ function getCollectionCards(props: WidgetServerProps): CollectionCard[] {
     .map((collection) => {
       const slug = String(collection.slug)
       const adminCollection = collection as AdminCollectionConfig
-      const label = getLocalizedLabel(adminCollection.labels?.plural, slug)
+      const payloadLabel = getLocalizedLabel(adminCollection.labels?.plural, slug)
+      const label = getAdminWorkspaceLabel(slug, payloadLabel)
       const description = collectionHelperText[slug] || `View and manage ${label.toLowerCase()}.`
 
       return {
@@ -309,7 +327,7 @@ function EmptyState({ children }: { children: React.ReactNode }) {
 }
 
 function TaskCard({ task }: { task: AdminTask }) {
-  const Icon = taskIcons[task.key]
+  const Icon = taskIcons[task.key] || FileText
 
   return (
     <a className="campaign-dashboard-widget__task" href={task.href}>
@@ -380,7 +398,7 @@ function ActivityList({ items }: { items: ActivityItem[] }) {
           <a href={item.href}>
             <span className="campaign-dashboard-widget__list-title">{item.title}</span>
             <span className="campaign-dashboard-widget__list-meta">
-              {collectionHelperText[item.collection] ? `${item.collection} · ` : ''}
+              {getAdminWorkspaceLabel(item.collection, item.collection)} ·{' '}
               {formatUpdatedAt(item.updatedAt) || 'Recently updated'}
             </span>
           </a>
@@ -419,8 +437,8 @@ export async function IconCollectionLauncherWidget(props: WidgetServerProps) {
     <section className="campaign-dashboard-widget campaign-dashboard-widget--launcher">
       <div className="campaign-dashboard-widget__header campaign-dashboard-widget__header--launcher">
         <div>
-          <h2>Admin Collections</h2>
-          <p>Everything visible here is available to your role.</p>
+          <h2>Workspace Areas</h2>
+          <p>Common content and communication areas. Technical records stay in Advanced.</p>
         </div>
         <BookOpen aria-hidden className="campaign-dashboard-widget__header-icon" size={30} strokeWidth={1.8} />
       </div>
@@ -439,13 +457,16 @@ export async function IconCollectionLauncherWidget(props: WidgetServerProps) {
 
 export async function QuickTasksWidget(props: WidgetServerProps) {
   const tasks = await getQuickTasks(props.req)
+  const primaryTasks = tasks.filter((task) =>
+    ['createPost', 'createForm', 'uploadMedia', 'createPage'].includes(task.key),
+  )
 
   return (
-    <section className="campaign-dashboard-widget campaign-dashboard-widget--tasks">
+    <section className="campaign-dashboard-widget campaign-dashboard-widget--tasks campaign-dashboard-widget--welcome">
       <div className="campaign-dashboard-widget__header campaign-dashboard-widget__header--launcher">
         <div>
-          <h2>Common Tasks</h2>
-          <p>Start the admin workflows editors use most.</p>
+          <h1>Welcome back</h1>
+          <p>Choose a common task to start working on this website.</p>
         </div>
         <ClipboardList
           aria-hidden
@@ -455,9 +476,464 @@ export async function QuickTasksWidget(props: WidgetServerProps) {
         />
       </div>
       <div className="campaign-dashboard-widget__task-grid">
-        {tasks.map((task) => (
+        {primaryTasks.map((task) => (
           <TaskCard key={task.key} task={task} />
         ))}
+      </div>
+    </section>
+  )
+}
+
+type StandardMediaDashboardDoc = {
+  bannerImage?: unknown
+  defaultFeaturedImage?: unknown
+  heroImageHorizontalAlign?: unknown
+  heroImageVerticalAlign?: unknown
+  heroTextAlign?: unknown
+  heroTextSize?: unknown
+  id?: number | string
+  mobileHeadshot?: unknown
+}
+
+type DashboardSite = {
+  archived: boolean
+  id: string
+  name: string
+  slug: string
+}
+
+type DashboardNavbarLink = {
+  depth: number
+  id: string
+  label: string
+  target: string
+}
+
+type DashboardNavbarDoc = {
+  id?: number | string
+  name?: unknown
+  navItems?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
+function getString(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function normalizeDashboardSite(value: unknown): DashboardSite | null {
+  if (!isRecord(value)) return null
+  const id = value.id ?? value._id
+  const name = getString(value.name)
+  const slug = getString(value.slug)
+  if ((typeof id !== 'number' && typeof id !== 'string') || !name || !slug) return null
+
+  return {
+    archived: value.archived === true,
+    id: String(id),
+    name,
+    slug,
+  }
+}
+
+function describeNavbarLink(value: unknown) {
+  if (!isRecord(value)) return { label: 'Untitled link', target: 'No destination' }
+
+  const label = getString(value.label)
+  const url = getString(value.url)
+  if (url) return { label: label || url, target: url }
+
+  const reference = isRecord(value.reference) ? value.reference : null
+  const relationTo = getString(reference?.relationTo)
+  const referencedValue = reference?.value
+  const referencedDoc = isRecord(referencedValue) ? referencedValue : null
+  const referenceLabel =
+    getString(referencedDoc?.title) ||
+    getString(referencedDoc?.name) ||
+    getString(referencedDoc?.pageName) ||
+    getString(referencedDoc?.slug) ||
+    getString(referencedValue)
+
+  if (referenceLabel) {
+    const kind = relationTo === 'posts' ? 'Post' : relationTo === 'pages' ? 'Page' : 'Content'
+    return { label: label || referenceLabel, target: `${kind} · ${referenceLabel}` }
+  }
+
+  return { label: label || 'Untitled link', target: 'No destination' }
+}
+
+function flattenNavbarItems(items: unknown, depth = 0, prefix = 'nav'): DashboardNavbarLink[] {
+  if (!Array.isArray(items)) return []
+
+  return items.flatMap((item, index) => {
+    if (!isRecord(item)) return []
+    const link = describeNavbarLink(item.link)
+    const id = String(item.id || `${prefix}-${index}`)
+    const children = [
+      ...flattenNavbarItems(item.subNav, depth + 1, `${id}-sub`),
+      ...flattenNavbarItems(item.subSubNav, depth + 1, `${id}-tertiary`),
+    ]
+
+    return [{ ...link, depth, id }, ...children]
+  })
+}
+
+async function findAssignedSites(props: WidgetServerProps): Promise<DashboardSite[]> {
+  const userID = (props.req.user as { id?: unknown } | null)?.id
+  if (typeof userID !== 'number' && typeof userID !== 'string') return []
+
+  try {
+    const user = await props.req.payload.findByID({
+      collection: 'users',
+      id: String(userID),
+      depth: 1,
+      overrideAccess: false,
+      req: props.req,
+    })
+    const rows = Array.isArray((user as { tenants?: unknown }).tenants)
+      ? ((user as { tenants: unknown[] }).tenants)
+      : []
+    const relations = rows
+      .map((row) => (isRecord(row) ? row.tenant : null))
+      .filter((tenant): tenant is NonNullable<typeof tenant> => tenant != null)
+    const hydrated = relations
+      .map(normalizeDashboardSite)
+      .filter((site): site is DashboardSite => Boolean(site))
+    const hydratedByID = new Map(hydrated.map((site) => [site.id, site]))
+    const missingIDs = relations
+      .filter((tenant) => !normalizeDashboardSite(tenant))
+      .map((tenant) => String(tenant))
+
+    if (missingIDs.length) {
+      const result = await props.req.payload.find({
+        collection: 'tenants',
+        depth: 0,
+        limit: missingIDs.length,
+        overrideAccess: false,
+        pagination: false,
+        req: props.req,
+        where: { id: { in: missingIDs } },
+      })
+      for (const doc of result.docs) {
+        const site = normalizeDashboardSite(doc)
+        if (site) hydratedByID.set(site.id, site)
+      }
+    }
+
+    return relations
+      .map((tenant) => {
+        const direct = normalizeDashboardSite(tenant)
+        return direct || hydratedByID.get(String(tenant)) || null
+      })
+      .filter((site): site is DashboardSite => Boolean(site))
+  } catch {
+    return []
+  }
+}
+
+async function findAvailableSites(props: WidgetServerProps): Promise<DashboardSite[]> {
+  try {
+    const result = await props.req.payload.find({
+      collection: 'tenants',
+      depth: 0,
+      limit: 500,
+      overrideAccess: false,
+      pagination: false,
+      req: props.req,
+      sort: 'name',
+    })
+
+    return result.docs
+      .map(normalizeDashboardSite)
+      .filter((site): site is DashboardSite => Boolean(site))
+  } catch {
+    return []
+  }
+}
+
+async function findNavbarForDashboard(props: WidgetServerProps) {
+  const tenantID = getSelectedTenantID(props.req)
+  if (!tenantID) return { doc: null, links: [], tenantID }
+
+  try {
+    const result = await props.req.payload.find({
+      collection: 'navbars',
+      depth: 2,
+      limit: 1,
+      overrideAccess: false,
+      pagination: false,
+      req: props.req,
+      where: { tenant: { equals: tenantID } },
+    })
+    const doc = (result.docs[0] || null) as DashboardNavbarDoc | null
+    return { doc, links: flattenNavbarItems(doc?.navItems), tenantID }
+  } catch {
+    return { doc: null, links: [], tenantID }
+  }
+}
+
+function getPublicSiteURL(slug: string) {
+  const base =
+    process.env.NEXT_PUBLIC_SERVER_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.FRONTEND_SERVER_URL
+  return base ? `${base.replace(/\/$/u, '')}/${slug}` : `/${slug}`
+}
+
+function normalizeDashboardMedia(value: unknown): DashboardMediaAsset | null {
+  if (!value || typeof value !== 'object') return null
+  const resource = value as Record<string, unknown>
+  const id = resource.id ?? resource._id
+  if (typeof id !== 'number' && typeof id !== 'string') return null
+
+  return {
+    alt: typeof resource.alt === 'string' ? resource.alt : null,
+    filename: typeof resource.filename === 'string' ? resource.filename : null,
+    id,
+    mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : null,
+    url: typeof resource.url === 'string' ? resource.url : null,
+  }
+}
+
+async function findStandardMediaForDashboard(props: WidgetServerProps) {
+  const tenantID = getSelectedTenantID(props.req)
+  if (!tenantID) return { doc: null, tenantID }
+
+  try {
+    const result = await props.req.payload.find({
+      collection: 'standard-media',
+      depth: 1,
+      limit: 1,
+      overrideAccess: false,
+      pagination: false,
+      req: props.req,
+      where: {
+        tenant: {
+          equals: tenantID,
+        },
+      },
+    })
+
+    return {
+      doc: (result.docs[0] || null) as StandardMediaDashboardDoc | null,
+      tenantID,
+    }
+  } catch {
+    return { doc: null, tenantID }
+  }
+}
+
+function withTenant(href: string, tenantID: string | null) {
+  if (!tenantID) return href
+  const separator = href.includes('?') ? '&' : '?'
+  return `${href}${separator}tenant=${encodeURIComponent(tenantID)}`
+}
+
+function getChoice<Value extends string>(
+  value: unknown,
+  choices: readonly Value[],
+  fallback: Value,
+): Value {
+  return choices.includes(value as Value) ? (value as Value) : fallback
+}
+
+function StandardMediaEmptyState({
+  description,
+  props,
+  tenantID,
+  title,
+}: {
+  description: string
+  props: WidgetServerProps
+  tenantID: string | null
+  title: string
+}) {
+  return (
+    <section className="campaign-dashboard-widget campaign-dashboard-widget--media-empty">
+      <div className="campaign-dashboard-widget__header">
+        <h2>{title}</h2>
+        <p>{description}</p>
+      </div>
+      {!tenantID ? (
+        <EmptyState>Select a site to see its shared images.</EmptyState>
+      ) : (
+        <a
+          className="campaign-dashboard-widget__primary-link"
+          href={withTenant(adminURL(props.req, '/collections/standard-media/create'), tenantID)}
+        >
+          Set up website images
+        </a>
+      )}
+    </section>
+  )
+}
+
+export async function HomepageBannerWidget(props: WidgetServerProps) {
+  if (!canAccessCollection(props.req.user as DashboardUser, 'standard-media')) {
+    return null
+  }
+
+  const { doc, tenantID } = await findStandardMediaForDashboard(props)
+  if (!doc?.id) {
+    return (
+      <StandardMediaEmptyState
+        description="Add the hero image and its homepage display settings."
+        props={props}
+        tenantID={tenantID}
+        title="Homepage Banner"
+      />
+    )
+  }
+
+  const editHref = `${withTenant(
+    adminURL(props.req, `/collections/standard-media/${doc.id}`),
+    tenantID,
+  )}#field-bannerImage`
+
+  return (
+    <DashboardBannerWidgetClient
+      documentId={String(doc.id)}
+      editHref={editHref}
+      initialBanner={normalizeDashboardMedia(doc.bannerImage)}
+      initialDefaultFeaturedImage={normalizeDashboardMedia(doc.defaultFeaturedImage)}
+      initialMobileHeadshot={normalizeDashboardMedia(doc.mobileHeadshot)}
+      initialSettings={{
+        heroImageHorizontalAlign: getChoice(
+          doc.heroImageHorizontalAlign,
+          ['left', 'center', 'right'] as const,
+          'center',
+        ),
+        heroImageVerticalAlign: getChoice(
+          doc.heroImageVerticalAlign,
+          ['top', 'center', 'bottom'] as const,
+          'center',
+        ),
+        heroTextAlign: getChoice(doc.heroTextAlign, ['left', 'right'] as const, 'left'),
+        heroTextSize: getChoice(
+          doc.heroTextSize,
+          ['small', 'default', 'large'] as const,
+          'default',
+        ),
+      }}
+      tenantId={tenantID}
+    />
+  )
+}
+
+export async function NavbarLinksWidget(props: WidgetServerProps) {
+  if (!canAccessCollection(props.req.user as DashboardUser, 'navbars')) {
+    return null
+  }
+
+  const { doc, links, tenantID } = await findNavbarForDashboard(props)
+  const editHref = doc?.id
+    ? adminURL(props.req, `/collections/navbars/${doc.id}`)
+    : withTenant(adminURL(props.req, '/collections/navbars/create'), tenantID)
+
+  return (
+    <section className="campaign-dashboard-widget campaign-dashboard-widget--site-panel">
+      <div className="campaign-dashboard-widget__header campaign-dashboard-widget__header--media">
+        <div>
+          <h2>Navbar Links</h2>
+          <p>Review the current site navigation without opening the full navbar editor.</p>
+        </div>
+        {tenantID ? <a href={editHref}>{doc?.id ? 'Edit navbar' : 'Create navbar'}</a> : null}
+      </div>
+      {!tenantID ? (
+        <EmptyState>Select a site to see its navbar links.</EmptyState>
+      ) : links.length ? (
+        <ul className="campaign-dashboard-widget__navbar-links">
+          {links.map((link) => (
+            <li
+              className="campaign-dashboard-widget__navbar-link"
+              data-depth={Math.min(link.depth, 2)}
+              key={link.id}
+            >
+              <strong>{link.label}</strong>
+              <span>{link.target}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <EmptyState>{doc?.id ? 'This navbar has no links yet.' : 'No navbar has been created for this site.'}</EmptyState>
+      )}
+    </section>
+  )
+}
+
+export async function MySitesWidget(props: WidgetServerProps) {
+  const [assignedSites, availableSites] = await Promise.all([
+    findAssignedSites(props),
+    findAvailableSites(props),
+  ])
+  const selectedTenantID = getSelectedTenantID(props.req)
+  const canEditSiteSettings = canAccessCollection(props.req.user as DashboardUser, 'tenants')
+  const sitesByID = new Map(availableSites.map((site) => [site.id, site]))
+  for (const site of assignedSites) sitesByID.set(site.id, site)
+  const sites: DashboardSiteOption[] = Array.from(sitesByID.values()).map((site) => ({
+    ...site,
+    editHref: `${adminURL(props.req, '/collections/pages')}?tenant=${encodeURIComponent(site.id)}`,
+    settingsHref: canEditSiteSettings
+      ? adminURL(props.req, `/collections/tenants/${site.id}`)
+      : null,
+    viewHref: getPublicSiteURL(site.slug),
+  }))
+
+  return (
+    <MySitesWidgetClient
+      initialAssignedIDs={assignedSites.map((site) => site.id)}
+      selectedTenantID={selectedTenantID}
+      sites={sites}
+    />
+  )
+}
+
+export async function SiteManagementWidget(props: WidgetServerProps) {
+  const [navbarLinks, mySites] = await Promise.all([
+    NavbarLinksWidget(props),
+    MySitesWidget(props),
+  ])
+
+  if (!navbarLinks && !mySites) return null
+
+  return (
+    <div className="campaign-dashboard-widget-stack">
+      {navbarLinks}
+      {mySites}
+    </div>
+  )
+}
+
+export async function WebsiteShortcutsWidget(props: WidgetServerProps) {
+  const tasks = await getQuickTasks(props.req)
+  const shortcuts = tasks.filter((task) =>
+    ['changeHomePageBanner', 'updateSocialMedia', 'editTowns', 'editNavbar'].includes(task.key),
+  )
+
+  return (
+    <section className="campaign-dashboard-widget campaign-dashboard-widget--shortcuts">
+      <div className="campaign-dashboard-widget__header">
+        <h2>Website Shortcuts</h2>
+        <p>Jump directly to common website-wide updates.</p>
+      </div>
+      <div className="campaign-dashboard-widget__shortcut-list">
+        {shortcuts.map((task) => {
+          const Icon = taskIcons[task.key] || FileText
+          return (
+            <a className="campaign-dashboard-widget__shortcut" href={task.href} key={task.key}>
+              <span className="campaign-dashboard-widget__shortcut-mark">
+                <Icon aria-hidden size={19} strokeWidth={1.9} />
+              </span>
+              <span>
+                <strong>{task.label}</strong>
+                <small>{task.description}</small>
+              </span>
+              <span aria-hidden className="campaign-dashboard-widget__shortcut-arrow">→</span>
+            </a>
+          )
+        })}
       </div>
     </section>
   )
@@ -501,6 +977,44 @@ export async function DraftsWidget(props: WidgetServerProps) {
       ) : (
         <EmptyState>No draft posts, pages, forms, or emails are waiting to publish.</EmptyState>
       )}
+    </section>
+  )
+}
+
+export async function PublishingOverviewWidget(props: WidgetServerProps) {
+  const tenantID = getSelectedTenantID(props.req)
+  const [items, drafts] = await Promise.all([findRecentActivity(props), findDrafts(props)])
+
+  return (
+    <section className="campaign-dashboard-widget campaign-dashboard-widget--publishing">
+      <div className="campaign-dashboard-widget__split">
+        <div className="campaign-dashboard-widget__split-section">
+          <div className="campaign-dashboard-widget__header">
+            <h2>Continue Editing</h2>
+            <p>Recently updated content in this site workspace.</p>
+          </div>
+          {!tenantID ? (
+            <EmptyState>Select a site to see recent activity.</EmptyState>
+          ) : items.length ? (
+            <ActivityList items={items} />
+          ) : (
+            <EmptyState>No recent activity yet.</EmptyState>
+          )}
+        </div>
+        <div className="campaign-dashboard-widget__split-section">
+          <div className="campaign-dashboard-widget__header">
+            <h2>Drafts to Review</h2>
+            <p>Unpublished work that may be ready for another look.</p>
+          </div>
+          {!tenantID ? (
+            <EmptyState>Select a site to see drafts.</EmptyState>
+          ) : drafts.length ? (
+            <ActivityList items={drafts} />
+          ) : (
+            <EmptyState>No drafts are waiting for review.</EmptyState>
+          )}
+        </div>
+      </div>
     </section>
   )
 }

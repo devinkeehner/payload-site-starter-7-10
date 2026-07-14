@@ -2,8 +2,9 @@
 
 import dynamic from 'next/dynamic'
 
-import type { GraphicScene } from '@/lib/graphics/studioTypes'
+import { useAdminBuilderMode } from '@/components/admin/hooks/useAdminBuilderMode'
 import { PuckVisualBuilderStepNav } from '@/components/admin/puck/PuckVisualBuilderStepNav'
+import type { GraphicScene } from '@/lib/graphics/studioTypes'
 
 import styles from './graphic-design-studio.module.css'
 
@@ -23,6 +24,8 @@ export function GraphicDesignStudioClient(props: {
   tenantId?: string | null
   title: string
 }) {
+  useAdminBuilderMode('graphic-design')
+
   return (
     <>
       <PuckVisualBuilderStepNav

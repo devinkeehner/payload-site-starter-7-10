@@ -94,7 +94,7 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
       {notice ? <Banner type="success">{notice}</Banner> : null}
 
       <section className="email-flow__toolbar">
-        <Button buttonStyle="secondary" el="link" to={editURL} type="button">Advanced Fields</Button>
+        <Button buttonStyle="primary" el="link" to={editURL} type="button">Edit Contact</Button>
         <Button buttonStyle="secondary" onClick={() => void load()} type="button">Refresh</Button>
       </section>
 
@@ -112,9 +112,13 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
           </section>
 
           <section className="email-flow__panel">
-            <h2>List Memberships</h2>
-            <div className="email-flow__table">
-              {profile.memberships.map((membership, index) => (
+            <div className="email-flow__section-header">
+              <h2>List Memberships</h2>
+              <span className="email-flow__muted">{profile.memberships.length} total</span>
+            </div>
+            {profile.memberships.length ? (
+              <div className="email-flow__table">
+                {profile.memberships.map((membership, index) => (
                 <div className="email-flow__row email-flow__row--actions" key={membership.id || index}>
                   <strong>{typeof membership.emailList === 'object' ? membership.emailList?.name : membership.emailList}</strong>
                   <label className="email-flow__inline-field">
@@ -131,34 +135,40 @@ export function ContactProfileViewClient({ contactId, title }: { contactId: stri
                   </label>
                   <span>{membership.updatedAt ? new Date(membership.updatedAt).toLocaleString() : ''}</span>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : <p className="email-flow__muted">This contact is not part of an email list yet.</p>}
           </section>
 
-          <section className="email-flow__panel">
-            <h2>Custom Fields</h2>
-            <div className="email-flow__table">
-              {(profile.contact.customFields || []).map((field, index) => (
-                <div className="email-flow__row" key={index}>
-                  <strong>{field.key}</strong>
-                  <span>{field.value}</span>
-                  <span>{field.source}</span>
-                </div>
-              ))}
-            </div>
-          </section>
+          {(profile.contact.customFields || []).length ? (
+            <details className="email-flow__panel email-flow__details">
+              <summary>Imported details ({profile.contact.customFields?.length})</summary>
+              <p className="email-flow__muted">Additional fields retained from imports and connected services.</p>
+              <div className="email-flow__table">
+                {(profile.contact.customFields || []).map((field, index) => (
+                  <div className="email-flow__row" key={index}>
+                    <strong>{field.key}</strong>
+                    <span>{field.value}</span>
+                    <span>{field.source}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
 
           <section className="email-flow__panel">
             <h2>Recent Email Events</h2>
-            <div className="email-flow__table">
-              {profile.events.map((event, index) => (
+            {profile.events.length ? (
+              <div className="email-flow__table">
+                {profile.events.map((event, index) => (
                 <div className="email-flow__row" key={index}>
                   <strong>{event.eventType}</strong>
                   <span>{event.occurredAt ? new Date(event.occurredAt).toLocaleString() : ''}</span>
                   <span>{event.url}</span>
                 </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : <p className="email-flow__muted">No email activity has been recorded for this contact.</p>}
           </section>
         </>
       )}

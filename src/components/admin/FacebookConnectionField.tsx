@@ -3,6 +3,8 @@
 import React, { useMemo, useState } from 'react'
 import { Button, useDocumentInfo, useFormFields } from '@payloadcms/ui'
 
+import './facebook-connection-field.scss'
+
 type FieldState = {
   value?: unknown
   initialValue?: unknown
@@ -62,6 +64,7 @@ const FacebookConnectionField: React.FC = () => {
   const connectionLabel = status === 'connected' && pageId
     ? `Connected${pageName ? ` to ${pageName}` : ''}`
     : 'Not connected'
+  const statusTone = status === 'connected' ? 'connected' : status === 'error' ? 'error' : 'disconnected'
 
   const disconnect = async () => {
     if (!resolvedId) return
@@ -85,16 +88,25 @@ const FacebookConnectionField: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'grid', gap: 10, padding: '14px 0' }}>
-      <div style={{ display: 'grid', gap: 4 }}>
-        <strong>Facebook feed connection</strong>
-        <span>{connectionLabel}</span>
-        {pageId ? <small>Page ID: {pageId}</small> : null}
-        {connectedAt ? <small>Connected: {new Date(connectedAt).toLocaleString()}</small> : null}
-        {lastError ? <small style={{ color: 'var(--theme-error-500)' }}>{lastError}</small> : null}
-        {!resolvedId ? <small>Save this Rep & District Settings document before connecting Facebook.</small> : null}
+    <section className="facebook-connection" data-status={statusTone}>
+      <div className="facebook-connection__summary">
+        <div className="facebook-connection__heading">
+          <span aria-hidden className="facebook-connection__status-dot" />
+          <div>
+            <strong>Facebook feed connection</strong>
+            <p>{connectionLabel}</p>
+          </div>
+        </div>
+        <div className="facebook-connection__details">
+          {pageId ? <span>Page ID: {pageId}</span> : null}
+          {connectedAt ? <span>Connected {new Date(connectedAt).toLocaleString()}</span> : null}
+        </div>
+        {lastError ? <p className="facebook-connection__error">{lastError}</p> : null}
+        {!resolvedId ? (
+          <p className="facebook-connection__hint">Save this site profile before connecting Facebook.</p>
+        ) : null}
       </div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div className="facebook-connection__actions">
         <Button
           buttonStyle="primary"
           size="small"
@@ -114,8 +126,8 @@ const FacebookConnectionField: React.FC = () => {
           {disconnecting ? 'Disconnecting...' : 'Disconnect'}
         </Button>
       </div>
-      {message ? <small>{message}</small> : null}
-    </div>
+      {message ? <p className="facebook-connection__error">{message}</p> : null}
+    </section>
   )
 }
 

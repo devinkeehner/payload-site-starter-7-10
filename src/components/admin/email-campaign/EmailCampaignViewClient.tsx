@@ -53,7 +53,7 @@ export function EmailCampaignViewClient({
   return (
     <Gutter className="email-flow">
       <div className="email-flow__header">
-        <p className="email-flow__eyebrow">Campaign</p>
+        <p className="email-flow__eyebrow">Email</p>
         <h1>{title}</h1>
         <p>Use these steps when preparing an email. Advanced fields remain available for unusual edits.</p>
       </div>

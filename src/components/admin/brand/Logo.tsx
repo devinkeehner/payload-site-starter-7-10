@@ -24,6 +24,7 @@ export default function Logo() {
       alt="Admin Logo"
       width={320}
       height={96}
+      priority
       style={{
         height: 96,
         width: 'auto',

@@ -782,7 +782,7 @@ export function GraphicDesignStudioEditor({
   ]
 
   return (
-    <div className={styles.wrapper}>
+    <div className={styles.wrapper} data-hro-fullscreen-builder="graphic-design">
       <header className={styles.header}>
         <div><input aria-label="Design title" className={styles.titleInput} maxLength={120} onChange={(event) => { setDesignTitle(event.target.value); setSaveState('dirty') }} value={designTitle} /><span>{saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Save failed' : saveState === 'dirty' ? 'Unsaved changes' : 'Ready'}</span></div>
         <div className={styles.headerControls}>

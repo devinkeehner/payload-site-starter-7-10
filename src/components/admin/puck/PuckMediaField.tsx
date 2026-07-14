@@ -130,7 +130,7 @@ export function PuckMediaField({
   readOnly,
 }: {
   chooseLabel?: string
-  display?: 'default' | 'gallery'
+  display?: 'compact' | 'default' | 'gallery'
   uploadAccept?: string
   uploadLabel?: string
   value: unknown

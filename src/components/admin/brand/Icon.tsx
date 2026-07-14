@@ -24,6 +24,7 @@ export default function Icon() {
       alt="Admin Icon"
       width={28}
       height={28}
+      priority
       style={{
         height: 28,
         width: 28,

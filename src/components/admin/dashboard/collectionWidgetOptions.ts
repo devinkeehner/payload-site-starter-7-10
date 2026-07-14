@@ -1,31 +1,12 @@
-const collectionWidgetOptionSlugs = [
-  'pages',
-  'posts',
-  'wordpress-posts',
-  'media',
-  'forms',
-  'form-submissions',
-  'navbars',
-  'authors',
-  'tags',
-  'site-seo',
-  'rep-info',
-  'standard-media',
-  'graphic-templates',
-  'graphic-designs',
-  'emails',
-  'email-lists',
-  'contacts',
-  'tenants',
-  'users',
-  'sitemap-artifacts',
-  'chatgpt-oauth-clients',
-] as const
+import { ADMIN_WORKSPACE_ENTRIES } from '@/components/admin/adminWorkspace'
 
-export const collectionWidgetOptions = collectionWidgetOptionSlugs.map((slug) => ({
-  label: slug
-    .split('-')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' '),
-  value: slug,
-}))
+const collectionWidgetOptionSlugs = ADMIN_WORKSPACE_ENTRIES.map((entry) => entry.slug)
+
+export const collectionWidgetOptions = collectionWidgetOptionSlugs.map((slug) => {
+  const entry = ADMIN_WORKSPACE_ENTRIES.find((item) => item.slug === slug)
+
+  return {
+    label: entry?.label || slug,
+    value: slug,
+  }
+})

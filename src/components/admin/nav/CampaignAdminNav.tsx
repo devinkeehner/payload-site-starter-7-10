@@ -1,10 +1,13 @@
 import type { PayloadComponent, PayloadRequest, SanitizedPermissions, ServerProps } from 'payload'
 
+import { DefaultNav } from '@payloadcms/next/rsc'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { EntityType, getVisibleEntities, groupNavItems } from '@payloadcms/ui/shared'
 import React from 'react'
 
 import { getQuickTasks } from '@/components/admin/dashboard/adminDashboardMeta'
+import { ADMIN_WORKSPACE_SECTIONS } from '@/components/admin/adminWorkspace'
+import { canUseBuilders } from '@/lib/access/isSuperUser'
 import { canAccessCollection } from '@/lib/access/roles'
 
 import { CampaignAdminNavClient } from './CampaignAdminNavClient'
@@ -31,7 +34,12 @@ export async function CampaignAdminNav(props: Props) {
   const { collections, globals } = payload.config
 
   const visibleEntities = getVisibleEntities({ req })
-  const groups = groupNavItems(
+
+  if (!canUseBuilders(req.user)) {
+    return <DefaultNav {...props} visibleEntities={visibleEntities} />
+  }
+
+  const payloadGroups = groupNavItems(
     ([
       ...collections
         .filter(({ slug }) => visibleEntities.collections.includes(slug) && canAccessCollection(req.user, slug))
@@ -49,6 +57,31 @@ export async function CampaignAdminNav(props: Props) {
     permissions,
     i18n,
   )
+  const visibleNavEntities = payloadGroups.flatMap((group) => group.entities)
+  const entityBySlug = new Map(visibleNavEntities.map((entity) => [String(entity.slug), entity]))
+  const assignedSlugs = new Set<string>()
+  const groups = ADMIN_WORKSPACE_SECTIONS.map((section) => {
+    const entities = section.slugs
+      .map((slug) => entityBySlug.get(slug))
+      .filter((entity): entity is (typeof visibleNavEntities)[number] => Boolean(entity))
+
+    entities.forEach((entity) => assignedSlugs.add(String(entity.slug)))
+
+    return {
+      entities,
+      label: section.label,
+    }
+  }).filter((group) => group.entities.length > 0)
+
+  const remainingEntities = visibleNavEntities.filter((entity) => !assignedSlugs.has(String(entity.slug)))
+  if (remainingEntities.length > 0) {
+    const advancedGroup = groups.find((group) => group.label === 'Advanced')
+    if (advancedGroup) {
+      advancedGroup.entities.push(...remainingEntities)
+    } else {
+      groups.push({ entities: remainingEntities, label: 'Advanced' })
+    }
+  }
   const tasks = await getQuickTasks(req)
   const serverProps = {
     i18n,

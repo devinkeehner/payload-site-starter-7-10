@@ -3,21 +3,14 @@ import { formatAdminURL } from 'payload/shared'
 import { getTenantFromCookie } from '@payloadcms/plugin-multi-tenant/utilities'
 
 import { CONTENT_EDITOR_COLLECTIONS, canAccessCollection } from '@/lib/access/roles'
-
-export type AdminTaskKey =
-  | 'createPost'
-  | 'changeHomePageBanner'
-  | 'updateSocialMedia'
-  | 'editTowns'
-  | 'editNavbar'
-
-export type AdminTask = {
-  description: string
-  disabled?: boolean
-  href: string
-  key: AdminTaskKey
-  label: string
-}
+import {
+  ADMIN_WORKSPACE_ENTRIES,
+  getAdminWorkspaceDescription,
+} from '@/components/admin/adminWorkspace'
+import {
+  quickTaskDescriptions,
+  type AdminTask,
+} from './adminDashboardShared'
 
 export const collectionHelperText: Record<string, string> = {
   pages: 'Build pages and edit tenant homepages.',
@@ -54,19 +47,15 @@ export const collectionHelperText: Record<string, string> = {
   'chatgpt-oauth-tokens': 'Inspect and revoke ChatGPT OAuth tokens.',
 }
 
+for (const entry of ADMIN_WORKSPACE_ENTRIES) {
+  collectionHelperText[entry.slug] = getAdminWorkspaceDescription(entry.slug, collectionHelperText[entry.slug] || '')
+}
+
 export const navGroupHelperText: Record<string, string> = {
   Collections: 'Content and settings available for your role.',
   Globals: 'Site-wide content that affects many pages.',
   Site: 'Tenant-wide header, footer, navigation, and SEO settings.',
   Email: 'Email drafting and sending tools.',
-}
-
-export const quickTaskDescriptions: Record<AdminTaskKey, string> = {
-  createPost: 'Draft a new news update or announcement.',
-  changeHomePageBanner: 'Update the homepage hero image, video, and default social images.',
-  updateSocialMedia: 'Update representative social media links and Facebook connection settings.',
-  editTowns: 'Update towns, town URLs, and district aid details.',
-  editNavbar: 'Update tenant navigation links and labels.',
 }
 
 function getAdminRoute(req: PayloadRequest) {
@@ -92,6 +81,13 @@ function appendTenantQuery(href: string, tenantID: string | null) {
   if (!tenantID) return href
   const separator = href.includes('?') ? '&' : '?'
   return `${href}${separator}tenant=${encodeURIComponent(tenantID)}`
+}
+
+function appendEditTarget(href: string, tab: string, field?: string) {
+  const params = new URLSearchParams({ hroTab: tab })
+  if (field) params.set('hroField', field)
+  const separator = href.includes('?') ? '&' : '?'
+  return `${href}${separator}${params.toString()}`
 }
 
 type DashboardUser = Parameters<typeof canAccessCollection>[0]
@@ -154,20 +150,38 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
       label: 'Create Post',
     },
     {
+      description: quickTaskDescriptions.createForm,
+      href: appendTenantQuery(adminURL(req, '/collections/forms/create'), tenantID),
+      key: 'createForm',
+      label: 'Build a Form',
+    },
+    {
+      description: quickTaskDescriptions.uploadMedia,
+      href: appendTenantQuery(adminURL(req, '/collections/media/create'), tenantID),
+      key: 'uploadMedia',
+      label: 'Upload Media',
+    },
+    {
+      description: quickTaskDescriptions.createPage,
+      href: appendTenantQuery(adminURL(req, '/collections/pages/create'), tenantID),
+      key: 'createPage',
+      label: 'Create Page',
+    },
+    {
       description: quickTaskDescriptions.changeHomePageBanner,
-      href: await singletonTaskURL(req, 'standard-media'),
+      href: `${await singletonTaskURL(req, 'standard-media')}#field-bannerImage`,
       key: 'changeHomePageBanner',
       label: 'Change Home Page Banner',
     },
     {
       description: quickTaskDescriptions.updateSocialMedia,
-      href: await singletonTaskURL(req, 'rep-info'),
+      href: appendEditTarget(await singletonTaskURL(req, 'rep-info'), 'Social & Facebook', 'field-facebook'),
       key: 'updateSocialMedia',
       label: 'Update Social Media',
     },
     {
       description: quickTaskDescriptions.editTowns,
-      href: await singletonTaskURL(req, 'rep-info'),
+      href: appendEditTarget(await singletonTaskURL(req, 'rep-info'), 'Profile & Towns', 'field-towns'),
       key: 'editTowns',
       label: 'Edit Towns',
     },
@@ -182,6 +196,9 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
   return tasks.filter((task) => {
     const user = req.user as DashboardUser
     if (task.key === 'createPost') return canAccessCollection(user, 'posts')
+    if (task.key === 'createForm') return canAccessCollection(user, 'forms')
+    if (task.key === 'uploadMedia') return canAccessCollection(user, 'media')
+    if (task.key === 'createPage') return canAccessCollection(user, 'pages')
     if (task.key === 'changeHomePageBanner') return canAccessCollection(user, 'standard-media')
     if (task.key === 'updateSocialMedia') return canAccessCollection(user, 'rep-info')
     if (task.key === 'editTowns') return canAccessCollection(user, 'rep-info')

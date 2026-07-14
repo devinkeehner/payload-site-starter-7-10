@@ -1,0 +1,95 @@
+.facebook-connection {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 0.5rem;
+  background: var(--theme-elevation-0);
+  color: var(--theme-text);
+}
+
+.facebook-connection__summary,
+.facebook-connection__heading,
+.facebook-connection__heading > div {
+  display: grid;
+}
+
+.facebook-connection__summary {
+  gap: 0.45rem;
+}
+
+.facebook-connection__heading {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+}
+
+.facebook-connection__heading > div {
+  gap: 0.2rem;
+}
+
+.facebook-connection__heading strong,
+.facebook-connection__heading p,
+.facebook-connection__error,
+.facebook-connection__hint {
+  margin: 0;
+}
+
+.facebook-connection__heading p,
+.facebook-connection__details,
+.facebook-connection__hint {
+  color: var(--theme-elevation-700);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.facebook-connection__status-dot {
+  width: 0.68rem;
+  height: 0.68rem;
+  margin-top: 0.3rem;
+  border: 2px solid var(--theme-elevation-0);
+  border-radius: 50%;
+  background: var(--theme-elevation-450);
+  box-shadow: 0 0 0 1px var(--theme-elevation-250);
+}
+
+.facebook-connection[data-status='connected'] .facebook-connection__status-dot {
+  background: var(--theme-success-500);
+}
+
+.facebook-connection[data-status='error'] .facebook-connection__status-dot {
+  background: var(--theme-error-500);
+}
+
+.facebook-connection__details,
+.facebook-connection__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
+}
+
+.facebook-connection__details {
+  padding-left: 1.35rem;
+}
+
+.facebook-connection__error {
+  color: var(--theme-error-500);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 700px) {
+  .facebook-connection {
+    padding: 0.85rem;
+  }
+
+  .facebook-connection__actions,
+  .facebook-connection__actions .btn {
+    width: 100%;
+  }
+
+  .facebook-connection__actions .btn {
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+}

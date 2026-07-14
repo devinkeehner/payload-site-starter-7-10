@@ -26,13 +26,15 @@ export default function GraphicDesignStudioView(props: DocumentViewServerProps) 
   const id = props.id ?? doc.id
 
   return (
-    <GraphicDesignStudioClient
-      designId={id == null ? null : String(id)}
-      initialScene={doc.studioScene || createDefaultGraphicScene()}
-      sourcePostId={getRelationId(doc.sourcePost)}
-      tenantColors={{ accent: '#a71e22', background: '#ffffff', primary: '#0b1e3a' }}
-      tenantId={getRelationId(doc.tenant) || getRelationId(doc.primaryTenant)}
-      title={doc.title || 'Untitled graphic'}
-    />
+    <div data-hro-fullscreen-builder="graphic-design" style={{ display: 'contents' }}>
+      <GraphicDesignStudioClient
+        designId={id == null ? null : String(id)}
+        initialScene={doc.studioScene || createDefaultGraphicScene()}
+        sourcePostId={getRelationId(doc.sourcePost)}
+        tenantColors={{ accent: '#a71e22', background: '#ffffff', primary: '#0b1e3a' }}
+        tenantId={getRelationId(doc.tenant) || getRelationId(doc.primaryTenant)}
+        title={doc.title || 'Untitled graphic'}
+      />
+    </div>
   )
 }
