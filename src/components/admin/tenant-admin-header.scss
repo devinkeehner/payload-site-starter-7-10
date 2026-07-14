@@ -15,13 +15,21 @@
   padding: 0.35rem clamp(0.8rem, 2.1vw, 1.5rem);
 }
 
+.hro-admin-header__workspace {
+  align-items: center;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
 .hro-admin-header__breadcrumbs {
   align-items: center;
   display: flex;
   font-size: 0.82rem;
   font-weight: 550;
   gap: 0.42rem;
-  min-width: 0;
+  min-width: 2.1rem;
   overflow: hidden;
 }
 
@@ -74,6 +82,51 @@
   gap: 0.4rem;
 }
 
+.tenant-nav-panel {
+  display: flex;
+  min-width: 0;
+  width: 100%;
+}
+
+.tenant-nav-panel[data-variant='sidebar'] {
+  border-bottom: 1px solid var(--theme-elevation-150);
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.15rem;
+}
+
+.tenant-nav-panel[data-variant='header'] {
+  flex: 0 1 16rem;
+  min-width: 11rem;
+  width: clamp(11rem, 19vw, 16rem);
+}
+
+.tenant-selector--custom {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0;
+  width: 100%;
+}
+
+.tenant-nav-panel[data-variant='header'] .tenant-selector--custom__label {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+.tenant-nav-panel[data-variant='header'] .rs__control {
+  border-radius: 5px !important;
+  min-height: 2.1rem !important;
+}
+
+.tenant-nav-panel[data-variant='header'] .rs__value-container {
+  padding-block: 0 !important;
+}
+
 .hro-admin-header__action {
   align-items: center;
   background: var(--theme-elevation-0);
@@ -107,6 +160,18 @@
 
   .hro-admin-header__breadcrumbs {
     font-size: 0.78rem;
+    flex: 0 1 auto;
+  }
+
+  .hro-admin-header__actions {
+    gap: 0.3rem;
+    max-width: min(72vw, 22rem);
+  }
+
+  .tenant-nav-panel[data-variant='header'] {
+    flex: 1 1 10rem;
+    min-width: 8rem;
+    width: min(42vw, 13rem);
   }
 
   .hro-admin-header__crumb:not(.hro-admin-header__crumb--current):first-of-type,
@@ -122,6 +187,37 @@
 }
 
 @media (max-width: 480px) {
+  .hro-admin-header__inner {
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+  }
+
+  .hro-admin-header__workspace {
+    gap: 0.4rem;
+  }
+
+  .hro-admin-header__breadcrumbs {
+    flex: 0 0 auto;
+    min-height: 2.1rem;
+  }
+
+  .hro-admin-header__actions {
+    max-width: none;
+    width: auto;
+  }
+
+  .tenant-nav-panel[data-variant='header'] {
+    flex: 1 1 8rem;
+    min-width: 0;
+    width: auto;
+  }
+
+  .hro-admin-header__crumb,
+  .hro-admin-header__separator {
+    display: none;
+  }
+
   .hro-admin-header__action-label--desktop {
     display: none;
   }

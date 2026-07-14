@@ -1,5 +1,7 @@
 export type AdminWorkspaceSectionKey = 'publishing' | 'engagement' | 'website' | 'advanced'
 
+export type AdminWorkspaceNavAreaKey = 'advanced' | 'content' | 'email' | 'forms' | 'website'
+
 export type AdminWorkspaceSection = {
   defaultOpen: boolean
   description: string
@@ -14,6 +16,14 @@ export type AdminWorkspaceEntry = {
   label: string
   section: AdminWorkspaceSectionKey
   slug: string
+}
+
+export type AdminWorkspaceNavArea = {
+  description: string
+  key: AdminWorkspaceNavAreaKey
+  label: string
+  primaryTaskKey?: 'createForm' | 'createPost'
+  slugs: readonly string[]
 }
 
 /**
@@ -206,6 +216,46 @@ export const ADMIN_WORKSPACE_SECTIONS = [
     slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'advanced').map((entry) => entry.slug),
   },
 ] as const satisfies readonly AdminWorkspaceSection[]
+
+/**
+ * Primary navigation destinations for the compact admin rail. Each destination
+ * owns a flyout panel, so adding or moving a collection remains a data change
+ * rather than a second navigation implementation.
+ */
+export const ADMIN_WORKSPACE_NAV_AREAS = [
+  {
+    description: 'Create and manage the content published on the website.',
+    key: 'content',
+    label: 'Content',
+    primaryTaskKey: 'createPost',
+    slugs: ['posts', 'pages', 'media', 'graphic-designs'],
+  },
+  {
+    description: 'Build forms and review the responses they collect.',
+    key: 'forms',
+    label: 'Forms',
+    primaryTaskKey: 'createForm',
+    slugs: ['forms', 'form-submissions'],
+  },
+  {
+    description: 'Create email campaigns, audiences, and contact lists.',
+    key: 'email',
+    label: 'Email',
+    slugs: ['emails', 'email-lists', 'contacts'],
+  },
+  {
+    description: 'Update site-wide identity, navigation, media, and settings.',
+    key: 'website',
+    label: 'Website',
+    slugs: ['rep-info', 'navbars', 'standard-media', 'site-seo', 'header', 'footer'],
+  },
+  {
+    description: 'Supporting records, taxonomy, access, and technical tools.',
+    key: 'advanced',
+    label: 'More',
+    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'advanced').map((entry) => entry.slug),
+  },
+] as const satisfies readonly AdminWorkspaceNavArea[]
 
 const entryBySlug = new Map<string, AdminWorkspaceEntry>(
   ADMIN_WORKSPACE_ENTRIES.map((entry) => [entry.slug, entry]),

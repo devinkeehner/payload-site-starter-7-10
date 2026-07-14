@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 
 import AdminIcon from './brand/Icon'
 import { useActiveTenant } from './hooks/useActiveTenant'
@@ -19,23 +19,10 @@ export interface TenantBreadcrumbBarProps {
 }
 
 export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collectionLabel, collectionHref, docLabel }) => {
-  const { tenant, tenantID } = useActiveTenant()
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  const tenantCrumb: BreadcrumbCrumb | null = tenant || tenantID
-    ? {
-        label: tenant?.name || tenant?.slug || tenantID || 'Site',
-        href: '/admin',
-      }
-    : null
-
+  const { tenantID, tenantName } = useActiveTenant()
   const crumbs: BreadcrumbCrumb[] = []
-  if (mounted && tenantCrumb) crumbs.push(tenantCrumb)
-  if (collectionLabel) {
+  const collectionIsActiveTenant = collectionLabel === tenantName || collectionLabel === tenantID
+  if (collectionLabel && !collectionIsActiveTenant) {
     crumbs.push({ label: collectionLabel, href: collectionHref })
   }
   if (docLabel) {
@@ -47,7 +34,7 @@ export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collec
       <Link aria-label="Admin home" className="hro-admin-header__home" href="/admin">
         <AdminIcon />
       </Link>
-      {mounted && crumbs.map((crumb, index) => {
+      {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1
         const node = crumb.href && !isLast ? (
           <Link className="hro-admin-header__crumb" key={index} href={crumb.href}>

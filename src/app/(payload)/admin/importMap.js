@@ -68,7 +68,6 @@ import { CampaignAdminNav as CampaignAdminNav_5bc56d38891b826e82b7907992abc6a3 }
 import { default as default_d724e3c9fa2fc7ba502c18e1e0541534 } from '@/components/admin/brand/Icon'
 import { default as default_f5b90b1f137d54d2b96fee0d0c4d5b67 } from '@/components/admin/brand/Logo'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
-import { default as default_7bc3a493a5fcf6301e9130ddb791c76c } from '@/components/admin/TenantNavPanel'
 import { TenantSelector as TenantSelector_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { default as default_09b211d7781926302e8e4ca6064e7fcb } from '@/components/admin/theme/AdminPaletteProvider'
 import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/components/admin/TenantSwitchGuard'
@@ -157,7 +156,6 @@ export const importMap = {
   "@/components/admin/brand/Icon#default": default_d724e3c9fa2fc7ba502c18e1e0541534,
   "@/components/admin/brand/Logo#default": default_f5b90b1f137d54d2b96fee0d0c4d5b67,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
-  "@/components/admin/TenantNavPanel#default": default_7bc3a493a5fcf6301e9130ddb791c76c,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelector": TenantSelector_d6d5f193a167989e2ee7d14202901e62,
   "@/components/admin/theme/AdminPaletteProvider#default": default_09b211d7781926302e8e4ca6064e7fcb,
   "@/components/admin/TenantSwitchGuard#default": default_599c1b72b7cec43f5abe1b2ad62dbd85,

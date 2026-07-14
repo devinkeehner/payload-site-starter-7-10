@@ -3,11 +3,11 @@
 import React, { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useAuth, useConfig } from "@payloadcms/ui"
+import { useConfig } from "@payloadcms/ui"
 
 import { TenantBreadcrumbBar } from "./TenantBreadcrumbBar"
+import TenantNavPanel from "./TenantNavPanel"
 import { useActiveTenant } from "./hooks/useActiveTenant"
-import { canUseBuilders } from "@/lib/access/isSuperUser"
 
 import './tenant-admin-header.scss'
 
@@ -111,7 +111,6 @@ const formatVisitHref = (slug?: string | null) => {
 const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ children }) => {
   const pathname = usePathname()
   const { config } = useConfig()
-  const { user } = useAuth()
   const { tenant, tenantID, tenantName } = useActiveTenant()
 
   const [collectionLabel, setCollectionLabel] = useState<string | undefined>(undefined)
@@ -121,13 +120,13 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   const [isHydrated, setIsHydrated] = useState(false)
 
   const collections = useMemo<CollectionConfigShape[]>(() => (config?.collections || []) as CollectionConfigShape[], [config])
+  const isDashboard = (pathname || '').replace(/\/+$/, '') === '/admin'
 
   const tenantSlug = tenant?.slug || tenantID || undefined
   const visitHref = useMemo(() => {
     if (!isHydrated) return undefined
     return formatVisitHref(tenantSlug)
   }, [isHydrated, tenantSlug])
-
   useEffect(() => {
     setIsHydrated(true)
   }, [])
@@ -148,8 +147,6 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   }, [])
 
   useEffect(() => {
-    if (!canUseBuilders(user)) return
-
     const params = new URLSearchParams(window.location.search)
     const requestedTab = params.get('hroTab')?.trim()
     const requestedField = params.get('hroField')?.trim()
@@ -200,7 +197,7 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
       window.clearInterval(timer)
       observer.disconnect()
     }
-  }, [pathname, user])
+  }, [pathname])
 
   useEffect(() => {
     const raw = pathname || ""
@@ -293,17 +290,18 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
     }
   }, [docKey, collections])
 
-  if (!canUseBuilders(user)) return children
-
   return (
     <>
       <div className="hro-admin-header" data-hro-tenant-header="true">
         <div className="hro-admin-header__inner">
-          <TenantBreadcrumbBar
-            collectionLabel={collectionLabel}
-            collectionHref={collectionHref}
-            docLabel={docLabel}
-          />
+          <div className="hro-admin-header__workspace">
+            <TenantBreadcrumbBar
+              collectionLabel={isDashboard ? undefined : collectionLabel}
+              collectionHref={isDashboard ? undefined : collectionHref}
+              docLabel={isDashboard ? undefined : docLabel}
+            />
+            <TenantNavPanel selectedTenantID={tenantID} variant="header" />
+          </div>
           <div className="hro-admin-header__actions">
             {isHydrated && (visitHref || tenantName) && (
               <a

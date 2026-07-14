@@ -1,13 +1,14 @@
 import type { PayloadComponent, PayloadRequest, SanitizedPermissions, ServerProps } from 'payload'
 
-import { DefaultNav } from '@payloadcms/next/rsc'
 import { RenderServerComponent } from '@payloadcms/ui/elements/RenderServerComponent'
 import { EntityType, getVisibleEntities, groupNavItems } from '@payloadcms/ui/shared'
 import React from 'react'
 
 import { getQuickTasks } from '@/components/admin/dashboard/adminDashboardMeta'
-import { ADMIN_WORKSPACE_SECTIONS } from '@/components/admin/adminWorkspace'
-import { canUseBuilders } from '@/lib/access/isSuperUser'
+import {
+  ADMIN_WORKSPACE_NAV_AREAS,
+  type AdminWorkspaceNavAreaKey,
+} from '@/components/admin/adminWorkspace'
 import { canAccessCollection } from '@/lib/access/roles'
 
 import { CampaignAdminNavClient } from './CampaignAdminNavClient'
@@ -30,14 +31,10 @@ export async function CampaignAdminNav(props: Props) {
     beforeNav?: PayloadComponent | PayloadComponent[]
     beforeNavLinks?: PayloadComponent | PayloadComponent[]
   }
-  const { afterNav, afterNavLinks, beforeNav, beforeNavLinks } = adminComponents
+  const { afterNav, afterNavLinks } = adminComponents
   const { collections, globals } = payload.config
 
   const visibleEntities = getVisibleEntities({ req })
-
-  if (!canUseBuilders(req.user)) {
-    return <DefaultNav {...props} visibleEntities={visibleEntities} />
-  }
 
   const payloadGroups = groupNavItems(
     ([
@@ -60,26 +57,41 @@ export async function CampaignAdminNav(props: Props) {
   const visibleNavEntities = payloadGroups.flatMap((group) => group.entities)
   const entityBySlug = new Map(visibleNavEntities.map((entity) => [String(entity.slug), entity]))
   const assignedSlugs = new Set<string>()
-  const groups = ADMIN_WORKSPACE_SECTIONS.map((section) => {
-    const entities = section.slugs
+  const areas: Array<{
+    description: string
+    entities: typeof visibleNavEntities
+    key: AdminWorkspaceNavAreaKey
+    label: string
+    primaryTaskKey?: 'createForm' | 'createPost'
+  }> = ADMIN_WORKSPACE_NAV_AREAS.map((area) => {
+    const entities = area.slugs
       .map((slug) => entityBySlug.get(slug))
       .filter((entity): entity is (typeof visibleNavEntities)[number] => Boolean(entity))
 
     entities.forEach((entity) => assignedSlugs.add(String(entity.slug)))
 
     return {
+      description: area.description,
       entities,
-      label: section.label,
+      key: area.key,
+      label: area.label,
+      primaryTaskKey: 'primaryTaskKey' in area ? area.primaryTaskKey : undefined,
     }
-  }).filter((group) => group.entities.length > 0)
+  }).filter((area) => area.entities.length > 0)
 
   const remainingEntities = visibleNavEntities.filter((entity) => !assignedSlugs.has(String(entity.slug)))
   if (remainingEntities.length > 0) {
-    const advancedGroup = groups.find((group) => group.label === 'Advanced')
-    if (advancedGroup) {
-      advancedGroup.entities.push(...remainingEntities)
+    const advancedArea = areas.find((area) => area.key === 'advanced')
+    if (advancedArea) {
+      advancedArea.entities.push(...remainingEntities)
     } else {
-      groups.push({ entities: remainingEntities, label: 'Advanced' })
+      areas.push({
+        description: 'Supporting records and technical tools.',
+        entities: remainingEntities,
+        key: 'advanced',
+        label: 'More',
+        primaryTaskKey: undefined,
+      })
     }
   }
   const tasks = await getQuickTasks(req)
@@ -112,19 +124,7 @@ export async function CampaignAdminNav(props: Props) {
         importMap: payload.importMap,
         serverProps,
       })}
-      beforeNav={RenderServerComponent({
-        clientProps,
-        Component: beforeNav,
-        importMap: payload.importMap,
-        serverProps,
-      })}
-      beforeNavLinks={RenderServerComponent({
-        clientProps,
-        Component: beforeNavLinks,
-        importMap: payload.importMap,
-        serverProps,
-      })}
-      groups={groups}
+      areas={areas}
       tasks={tasks}
     />
   )
