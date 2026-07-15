@@ -802,6 +802,31 @@ export interface Page {
   id: string;
   tenant?: (string | null) | Tenant;
   title: string;
+  layout: (
+    | CallToActionBlock
+    | ContentBlock
+    | MediaBlock
+    | MediaGalleryBlock
+    | RichTextBlock
+    | ArchiveBlock
+    | FormBlock
+    | BannerBlock
+    | PolicyVoicesBlock
+    | PetitionDriveBlock
+    | LunchComparisonGraphicBlock
+    | SolutionTimelineGraphicBlock
+    | TaxReliefHighlightGraphicBlock
+    | PropertyTaxCreditTableBlock
+    | BudgetPlanFeatureBlock
+  )[];
+  meta?: {
+    title?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (string | null) | Media;
+    description?: string | null;
+  };
   hero?: {
     type?: ('none' | 'highImpact' | 'mediumImpact' | 'lowImpact') | null;
     richText?: {
@@ -863,31 +888,6 @@ export interface Page {
        */
       appearance?: ('default' | 'outline') | null;
     };
-  };
-  layout: (
-    | CallToActionBlock
-    | ContentBlock
-    | MediaBlock
-    | MediaGalleryBlock
-    | RichTextBlock
-    | ArchiveBlock
-    | FormBlock
-    | BannerBlock
-    | PolicyVoicesBlock
-    | PetitionDriveBlock
-    | LunchComparisonGraphicBlock
-    | SolutionTimelineGraphicBlock
-    | TaxReliefHighlightGraphicBlock
-    | PropertyTaxCreditTableBlock
-    | BudgetPlanFeatureBlock
-  )[];
-  meta?: {
-    title?: string | null;
-    /**
-     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
-     */
-    image?: (string | null) | Media;
-    description?: string | null;
   };
   publishedAt?: string | null;
   draftShareToken?: string | null;
@@ -5134,6 +5134,32 @@ export interface PostGridBlockSelect<T extends boolean = true> {
 export interface PagesSelect<T extends boolean = true> {
   tenant?: T;
   title?: T;
+  layout?:
+    | T
+    | {
+        cta?: T | CallToActionBlockSelect<T>;
+        content?: T | ContentBlockSelect<T>;
+        mediaBlock?: T | MediaBlockSelect<T>;
+        mediaGallery?: T | MediaGalleryBlockSelect<T>;
+        richTextBlock?: T | RichTextBlockSelect<T>;
+        archive?: T | ArchiveBlockSelect<T>;
+        formBlock?: T | FormBlockSelect<T>;
+        banner?: T | BannerBlockSelect<T>;
+        policyVoices?: T | PolicyVoicesBlockSelect<T>;
+        petitionDrive?: T | PetitionDriveBlockSelect<T>;
+        lunchComparisonGraphic?: T | LunchComparisonGraphicBlockSelect<T>;
+        solutionTimelineGraphic?: T | SolutionTimelineGraphicBlockSelect<T>;
+        taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
+        propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
+        budgetPlanFeature?: T | BudgetPlanFeatureBlockSelect<T>;
+      };
+  meta?:
+    | T
+    | {
+        title?: T;
+        image?: T;
+        description?: T;
+      };
   hero?:
     | T
     | {
@@ -5165,32 +5191,6 @@ export interface PagesSelect<T extends boolean = true> {
               label?: T;
               appearance?: T;
             };
-      };
-  layout?:
-    | T
-    | {
-        cta?: T | CallToActionBlockSelect<T>;
-        content?: T | ContentBlockSelect<T>;
-        mediaBlock?: T | MediaBlockSelect<T>;
-        mediaGallery?: T | MediaGalleryBlockSelect<T>;
-        richTextBlock?: T | RichTextBlockSelect<T>;
-        archive?: T | ArchiveBlockSelect<T>;
-        formBlock?: T | FormBlockSelect<T>;
-        banner?: T | BannerBlockSelect<T>;
-        policyVoices?: T | PolicyVoicesBlockSelect<T>;
-        petitionDrive?: T | PetitionDriveBlockSelect<T>;
-        lunchComparisonGraphic?: T | LunchComparisonGraphicBlockSelect<T>;
-        solutionTimelineGraphic?: T | SolutionTimelineGraphicBlockSelect<T>;
-        taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
-        propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
-        budgetPlanFeature?: T | BudgetPlanFeatureBlockSelect<T>;
-      };
-  meta?:
-    | T
-    | {
-        title?: T;
-        image?: T;
-        description?: T;
       };
   publishedAt?: T;
   draftShareToken?: T;

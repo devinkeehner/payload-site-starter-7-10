@@ -229,6 +229,7 @@ html:has([data-hro-fullscreen-builder]) {
   }
 
   .template-default {
+    --gutter-h: 0;
     isolation: auto;
     z-index: 10000;
   }

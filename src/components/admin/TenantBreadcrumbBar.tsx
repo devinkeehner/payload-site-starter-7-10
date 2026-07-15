@@ -16,9 +16,15 @@ export interface TenantBreadcrumbBarProps {
   collectionLabel?: string
   collectionHref?: string
   docLabel?: string
+  tenantSelector?: React.ReactNode
 }
 
-export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collectionLabel, collectionHref, docLabel }) => {
+export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({
+  collectionLabel,
+  collectionHref,
+  docLabel,
+  tenantSelector,
+}) => {
   const { tenantID, tenantName } = useActiveTenant()
   const crumbs: BreadcrumbCrumb[] = []
   const collectionIsActiveTenant = collectionLabel === tenantName || collectionLabel === tenantID
@@ -34,6 +40,7 @@ export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collec
       <Link aria-label="Admin home" className="hro-admin-header__home" href="/admin">
         <AdminIcon />
       </Link>
+      {tenantSelector}
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1
         const node = crumb.href && !isLast ? (

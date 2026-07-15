@@ -299,8 +299,8 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
               collectionLabel={isDashboard ? undefined : collectionLabel}
               collectionHref={isDashboard ? undefined : collectionHref}
               docLabel={isDashboard ? undefined : docLabel}
+              tenantSelector={<TenantNavPanel selectedTenantID={tenantID} variant="header" />}
             />
-            <TenantNavPanel selectedTenantID={tenantID} variant="header" />
           </div>
           <div className="hro-admin-header__actions">
             {isHydrated && (visitHref || tenantName) && (

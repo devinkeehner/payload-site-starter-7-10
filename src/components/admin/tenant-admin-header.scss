@@ -26,6 +26,7 @@
 .hro-admin-header__breadcrumbs {
   align-items: center;
   display: flex;
+  flex: 1 1 auto;
   font-size: 0.82rem;
   font-weight: 550;
   gap: 0.42rem;
@@ -160,7 +161,7 @@
 
   .hro-admin-header__breadcrumbs {
     font-size: 0.78rem;
-    flex: 0 1 auto;
+    flex: 1 1 auto;
   }
 
   .hro-admin-header__actions {

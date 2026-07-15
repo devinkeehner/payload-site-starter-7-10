@@ -2,7 +2,7 @@
 
 import type { NavGroupType } from '@payloadcms/ui/shared'
 
-import { Link, useConfig, useNav, useTranslation } from '@payloadcms/ui'
+import { Link, useConfig, useTranslation } from '@payloadcms/ui'
 import { EntityType } from '@payloadcms/ui/shared'
 import { usePathname } from 'next/navigation'
 import { formatAdminURL } from 'payload/shared'
@@ -14,13 +14,6 @@ import {
   getAdminWorkspaceLabel,
 } from '@/components/admin/adminWorkspace'
 import { type AdminTask } from '@/components/admin/dashboard/adminDashboardShared'
-import {
-  applyAdminPalette,
-  getStoredAdminPalette,
-  storeAdminPalette,
-  type AdminPalette,
-} from '@/components/admin/theme/adminPalette'
-
 import './campaign-admin-nav.scss'
 
 type AdminNavArea = {
@@ -184,9 +177,7 @@ export function CampaignAdminNavClient({
 }: Props) {
   const pathname = usePathname()
   const { config } = useConfig()
-  const { navOpen, navRef, hydrated, setNavOpen, shouldAnimate } = useNav()
   const { i18n } = useTranslation()
-  const [adminPalette, setAdminPalette] = React.useState<AdminPalette>('default')
   const [openAreaKey, setOpenAreaKey] = React.useState<AdminWorkspaceNavAreaKey | null>(null)
   const navAreas = React.useMemo(
     () =>
@@ -203,9 +194,8 @@ export function CampaignAdminNavClient({
     baseClass,
     'campaign-admin-nav',
     openAreaKey && 'campaign-admin-nav--panel-open',
-    navOpen && `${baseClass}--nav-open`,
-    shouldAnimate && `${baseClass}--nav-animate`,
-    hydrated && `${baseClass}--nav-hydrated`,
+    `${baseClass}--nav-open`,
+    `${baseClass}--nav-hydrated`,
   ]
     .filter(Boolean)
     .join(' ')
@@ -229,65 +219,27 @@ export function CampaignAdminNavClient({
     : null
 
   React.useEffect(() => {
-    const storedPalette = getStoredAdminPalette()
-    setAdminPalette(storedPalette)
-    applyAdminPalette(storedPalette)
-  }, [])
-
-  React.useEffect(() => {
     setOpenAreaKey(null)
   }, [pathname])
-
-  const toggleAdminPalette = () => {
-    const nextPalette: AdminPalette = adminPalette === 'color' ? 'default' : 'color'
-    setAdminPalette(nextPalette)
-    storeAdminPalette(nextPalette)
-    applyAdminPalette(nextPalette)
-    window.dispatchEvent(new CustomEvent('admin-palette-change', { detail: nextPalette }))
-  }
 
   const closePanel = React.useCallback(() => {
     setOpenAreaKey(null)
   }, [])
 
-  const closeNav = React.useCallback(() => {
-    closePanel()
-    setNavOpen(false)
-  }, [closePanel, setNavOpen])
-
-  const closeNavOnSmallScreen = React.useCallback(() => {
-    closePanel()
-    if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
-      setNavOpen(false)
-    }
-  }, [closePanel, setNavOpen])
-
   React.useEffect(() => {
-    if (!navOpen && !openAreaKey) return
+    if (!openAreaKey) return
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      if (openAreaKey) {
-        closePanel()
-      } else {
-        closeNav()
-      }
+      closePanel()
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [closeNav, closePanel, navOpen, openAreaKey])
+  }, [closePanel, openAreaKey])
 
   return (
     <>
-      <button
-        aria-hidden={!navOpen}
-        className="campaign-admin-nav__scrim"
-        data-open={navOpen ? 'true' : 'false'}
-        onClick={closeNav}
-        tabIndex={navOpen ? 0 : -1}
-        type="button"
-      />
       <button
         aria-hidden={!openArea}
         className="campaign-admin-nav__panel-scrim"
@@ -297,24 +249,15 @@ export function CampaignAdminNavClient({
         type="button"
       />
 
-      <aside className={navClasses} inert={!navOpen ? true : undefined}>
-        <div className="campaign-admin-nav__shell" ref={navRef}>
+      <aside className={navClasses}>
+        <div className="campaign-admin-nav__shell">
           <nav aria-label="Admin workspace" className="campaign-admin-nav__rail">
-            <button
-              aria-label="Close menu"
-              className="campaign-admin-nav__mobile-close"
-              onClick={closeNav}
-              type="button"
-            >
-              <NavGlyph name="close" size={20} />
-            </button>
-
             <div className="campaign-admin-nav__rail-main">
               <Link
                 className="campaign-admin-nav__rail-item"
                 data-active={pathname === homeHref ? 'true' : 'false'}
                 href={homeHref}
-                onClick={closeNavOnSmallScreen}
+                onClick={closePanel}
                 prefetch={false}
               >
                 <NavGlyph name="home" size={25} />
@@ -344,16 +287,6 @@ export function CampaignAdminNavClient({
             </div>
 
             <div className="campaign-admin-nav__rail-footer">
-              <button
-                aria-pressed={adminPalette === 'color'}
-                className="campaign-admin-nav__rail-item"
-                onClick={toggleAdminPalette}
-                title={adminPalette === 'color' ? 'Use the standard palette' : 'Add color accents'}
-                type="button"
-              >
-                <NavGlyph name="palette" size={23} />
-                <span>Colors</span>
-              </button>
               <Link
                 className="campaign-admin-nav__rail-item"
                 href={formatAdminURL({ adminRoute, path: '/logout' })}
@@ -385,7 +318,7 @@ export function CampaignAdminNavClient({
                 <Link
                   className="campaign-admin-nav__primary-action"
                   href={primaryTask.href}
-                  onClick={closeNavOnSmallScreen}
+                  onClick={closePanel}
                   prefetch={false}
                 >
                   <NavGlyph name="plus" size={18} />
@@ -411,7 +344,7 @@ export function CampaignAdminNavClient({
                       href={href}
                       id={`nav-${slug}`}
                       key={`${type}-${slug}`}
-                      onClick={closeNavOnSmallScreen}
+                      onClick={closePanel}
                       prefetch={false}
                     >
                       <span className="campaign-admin-nav__panel-link-icon">
