@@ -160,7 +160,6 @@ const STANDARD_ICONTACT_KEYS = new Set([
   'phone',
   'postalcode',
   'prefix',
-  'street',
   'status',
   'suffix',
   'subscription',
