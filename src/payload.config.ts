@@ -2854,6 +2854,7 @@ const importIContactEmailListsTool = {
               ? await importIContactFolder({
                   clientFolderId,
                   dryRun,
+                  overrideAccess: true,
                   payload,
                   req: scopedReq,
                   tenantId,
@@ -2862,10 +2863,15 @@ const importIContactEmailListsTool = {
                   clientFolderId,
                   dryRun,
                   listId,
+                  overrideAccess: true,
                   payload,
                   req: scopedReq,
                   tenantId,
                 });
+
+          const failedLists =
+            'failedLists' in result && typeof result.failedLists === 'number' ? result.failedLists : 0;
+          const operationFailed = failedLists > 0;
 
           await payload.update({
             collection: 'email-import-jobs',
@@ -2874,8 +2880,12 @@ const importIContactEmailListsTool = {
               errors: result.errors,
               failedContacts: result.failedContacts,
               importedContacts: result.importedContacts,
-              message: dryRun ? 'MCP dry run completed.' : 'MCP import completed.',
-              status: 'completed',
+              message: operationFailed
+                ? `MCP import failed for ${failedLists} list${failedLists === 1 ? '' : 's'}.`
+                : dryRun
+                  ? 'MCP dry run completed.'
+                  : 'MCP import completed.',
+              status: operationFailed ? 'failed' : 'completed',
               statusCounts: result.statusCounts,
               statusDebug: result.statusDebug,
               totalContacts: result.totalContacts,
@@ -2893,7 +2903,7 @@ const importIContactEmailListsTool = {
             tenantSlug,
             tenantName,
             jobId,
-            status: 'completed',
+            status: operationFailed ? 'failed' : 'completed',
             ...result,
           });
         } catch (error) {
