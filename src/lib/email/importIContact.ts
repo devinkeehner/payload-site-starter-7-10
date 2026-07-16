@@ -58,6 +58,7 @@ type ImportIContactListArgs = {
   clientFolderId: string
   dryRun?: boolean
   listId: string
+  overrideAccess?: boolean
   payload: Payload
   req: PayloadRequest
   tenantId: string
@@ -380,11 +381,13 @@ function extractCustomFields(contact: UnknownRecord): CustomFieldRow[] {
 
 async function findFirst({
   collection,
+  overrideAccess = false,
   payload,
   req,
   where,
 }: {
   collection: string
+  overrideAccess?: boolean
   payload: Payload
   req: PayloadRequest
   where: UnknownRecord
@@ -393,7 +396,7 @@ async function findFirst({
     collection: collection as never,
     depth: 0,
     limit: 1,
-    overrideAccess: false,
+    overrideAccess,
     req: getOperationReq(req),
     where: where as Where,
   })
@@ -407,6 +410,7 @@ async function ensureEmailList({
   dryRun,
   list,
   listId,
+  overrideAccess,
   payload,
   req,
   tenantId,
@@ -415,12 +419,14 @@ async function ensureEmailList({
   dryRun: boolean
   list: UnknownRecord | null
   listId: string
+  overrideAccess: boolean
   payload: Payload
   req: PayloadRequest
   tenantId: string
 }): Promise<string | null> {
   const existing = await findFirst({
     collection: 'email-lists',
+    overrideAccess,
     payload,
     req,
     where: {
@@ -445,7 +451,7 @@ async function ensureEmailList({
       tenant: tenantId,
     },
     disableTransaction: true,
-    overrideAccess: false,
+    overrideAccess,
     req: getOperationReq(req),
   })
 
@@ -455,6 +461,7 @@ async function ensureEmailList({
 async function upsertContact({
   contact,
   dryRun,
+  overrideAccess,
   payload,
   req,
   status,
@@ -462,6 +469,7 @@ async function upsertContact({
 }: {
   contact: UnknownRecord
   dryRun: boolean
+  overrideAccess: boolean
   payload: Payload
   req: PayloadRequest
   status: ContactStatus
@@ -474,6 +482,7 @@ async function upsertContact({
 
   const existing = await findFirst({
     collection: 'contacts',
+    overrideAccess,
     payload,
     req,
     where: {
@@ -506,7 +515,7 @@ async function upsertContact({
       data,
       disableTransaction: true,
       id: getId(existing) || '',
-      overrideAccess: false,
+      overrideAccess,
       overrideLock: false,
       req: getOperationReq(req),
     })
@@ -517,7 +526,7 @@ async function upsertContact({
     collection: 'contacts',
     data,
     disableTransaction: true,
-    overrideAccess: false,
+    overrideAccess,
     req: getOperationReq(req),
   } as never)
   return { contactId: getId(created), created: true, updated: false }
@@ -528,6 +537,7 @@ async function upsertMembership({
   dryRun,
   emailListId,
   iContactSubscriptionId,
+  overrideAccess,
   payload,
   req,
   status,
@@ -537,6 +547,7 @@ async function upsertMembership({
   dryRun: boolean
   emailListId: string
   iContactSubscriptionId?: string
+  overrideAccess: boolean
   payload: Payload
   req: PayloadRequest
   status: ContactStatus
@@ -544,6 +555,7 @@ async function upsertMembership({
 }) {
   const existing = await findFirst({
     collection: 'email-list-memberships',
+    overrideAccess,
     payload,
     req,
     where: {
@@ -573,7 +585,7 @@ async function upsertMembership({
       data: membershipData,
       disableTransaction: true,
       id: getId(existing) || '',
-      overrideAccess: true,
+      overrideAccess,
       overrideLock: false,
       req: getOperationReq(req),
     })
@@ -584,7 +596,7 @@ async function upsertMembership({
     collection: 'email-list-memberships',
     data: membershipData,
     disableTransaction: true,
-    overrideAccess: true,
+    overrideAccess,
     req: getOperationReq(req),
   })
 }
@@ -596,6 +608,7 @@ async function importIContactListWithContext({
   dryRun = true,
   list,
   listId,
+  overrideAccess = false,
   payload,
   req,
   tenantId,
@@ -616,6 +629,7 @@ async function importIContactListWithContext({
     dryRun,
     list,
     listId,
+    overrideAccess,
     payload,
     req,
     tenantId,
@@ -646,6 +660,7 @@ async function importIContactListWithContext({
       const result = await upsertContact({
         contact: contactWithSubscription,
         dryRun,
+        overrideAccess,
         payload,
         req,
         status: contactStatus,
@@ -665,6 +680,7 @@ async function importIContactListWithContext({
           dryRun,
           emailListId,
           iContactSubscriptionId: getIContactSubscriptionId(contactWithSubscription, listId),
+          overrideAccess,
           payload,
           req,
           status: listStatus,
@@ -704,6 +720,7 @@ export async function importIContactList({
   clientFolderId,
   dryRun = true,
   listId,
+  overrideAccess = false,
   payload,
   req,
   tenantId,
@@ -723,6 +740,7 @@ export async function importIContactList({
     dryRun,
     list,
     listId,
+    overrideAccess,
     payload,
     req,
     tenantId,
@@ -732,6 +750,7 @@ export async function importIContactList({
 export async function importIContactFolder({
   clientFolderId,
   dryRun = true,
+  overrideAccess = false,
   payload,
   req,
   tenantId,
@@ -781,6 +800,7 @@ export async function importIContactFolder({
         dryRun,
         list,
         listId,
+        overrideAccess,
         payload,
         req,
         tenantId,
