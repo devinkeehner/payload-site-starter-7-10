@@ -2,150 +2,86 @@
 
 import type { NavGroupType } from '@payloadcms/ui/shared'
 
-import { Link, useConfig, useTranslation } from '@payloadcms/ui'
+import { Link, Logout, NavGroup, useConfig, useNav, useTranslation } from '@payloadcms/ui'
 import { EntityType } from '@payloadcms/ui/shared'
+import {
+  Bell,
+  Building2,
+  ClipboardList,
+  Facebook,
+  FileText,
+  FolderTree,
+  Globe2,
+  ImageIcon,
+  Inbox,
+  KeyRound,
+  LayoutTemplate,
+  ListChecks,
+  Mail,
+  PanelBottom,
+  PanelTop,
+  Palette,
+  Route,
+  Search,
+  Tags,
+  UserRoundPlus,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { formatAdminURL } from 'payload/shared'
 import React from 'react'
 
-import type { AdminWorkspaceNavAreaKey } from '@/components/admin/adminWorkspace'
-import {
-  getAdminWorkspaceDescription,
-  getAdminWorkspaceLabel,
-} from '@/components/admin/adminWorkspace'
 import { type AdminTask } from '@/components/admin/dashboard/adminDashboardShared'
-import './campaign-admin-nav.scss'
+import {
+  applyAdminPalette,
+  getStoredAdminPalette,
+  storeAdminPalette,
+  type AdminPalette,
+} from '@/components/admin/theme/adminPalette'
 
-type AdminNavArea = {
-  description: string
-  entities: NavGroupType['entities']
-  key: AdminWorkspaceNavAreaKey
-  label: string
-  primaryTaskKey?: AdminTask['key']
-}
+import './campaign-admin-nav.scss'
 
 type Props = {
   afterNav?: React.ReactNode
   afterNavLinks?: React.ReactNode
-  areas?: AdminNavArea[]
-  tasks?: AdminTask[]
+  beforeNav?: React.ReactNode
+  beforeNavLinks?: React.ReactNode
+  groups: NavGroupType[]
+  tasks: AdminTask[]
 }
 
 const baseClass = 'nav'
 
-type NavGlyphName =
-  | 'archive'
-  | 'clipboard'
-  | 'close'
-  | 'folder'
-  | 'globe'
-  | 'grid'
-  | 'home'
-  | 'image'
-  | 'logout'
-  | 'mail'
-  | 'more'
-  | 'palette'
-  | 'plus'
-  | 'search'
-  | 'settings'
-  | 'users'
-
-function NavGlyph({ name, size = 20 }: { name: NavGlyphName; size?: number }) {
-  let content: React.ReactNode
-
-  switch (name) {
-    case 'archive':
-      content = <><path d="M4 8h16v11H4z" /><path d="M3 4h18v4H3zM9 12h6" /></>
-      break
-    case 'clipboard':
-      content = <><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4V2h6v2M9 9h6M9 13h6M9 17h4" /></>
-      break
-    case 'close':
-      content = <path d="M6 6l12 12M18 6L6 18" />
-      break
-    case 'globe':
-      content = <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" /></>
-      break
-    case 'grid':
-      content = <><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></>
-      break
-    case 'home':
-      content = <><path d="M3 11l9-8 9 8" /><path d="M5 10v11h14V10M9 21v-7h6v7" /></>
-      break
-    case 'image':
-      content = <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="9" r="2" /><path d="M4 17l5-5 4 4 3-3 4 4" /></>
-      break
-    case 'logout':
-      content = <><path d="M10 4H4v16h6M14 8l4 4-4 4M8 12h10" /></>
-      break
-    case 'mail':
-      content = <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M4 7l8 6 8-6" /></>
-      break
-    case 'more':
-      content = <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3" />
-      break
-    case 'palette':
-      content = <><path d="M12 3a9 9 0 100 18h2a2 2 0 000-4h-1a2 2 0 010-4h3a5 5 0 005-5c0-3-4-5-9-5z" /><circle cx="7" cy="10" r="1" fill="currentColor" /><circle cx="9" cy="6" r="1" fill="currentColor" /><circle cx="14" cy="6" r="1" fill="currentColor" /></>
-      break
-    case 'plus':
-      content = <path d="M12 5v14M5 12h14" />
-      break
-    case 'search':
-      content = <><circle cx="10" cy="10" r="6" /><path d="M15 15l6 6" /></>
-      break
-    case 'settings':
-      content = <><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" /></>
-      break
-    case 'users':
-      content = <><circle cx="9" cy="8" r="4" /><path d="M2 21c0-5 3-8 7-8s7 3 7 8M16 5a4 4 0 010 7M17 14c3 1 5 3 5 7" /></>
-      break
-    default:
-      content = <><path d="M3 6h7l2 2h9v12H3z" /><path d="M3 6V4h7l2 2" /></>
-  }
-
-  return (
-    <svg
-      aria-hidden="true"
-      fill="none"
-      height={size}
-      viewBox="0 0 24 24"
-      width={size}
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="1.8"
-    >
-      {content}
-    </svg>
-  )
+const entityIcons: Record<string, LucideIcon> = {
+  alerts: Bell,
+  'api-keys': KeyRound,
+  categories: Tags,
+  contacts: UserRoundPlus,
+  emails: Mail,
+  'email-lists': ListChecks,
+  'facebook-connections': Facebook,
+  'facebook-pages': Facebook,
+  footer: PanelBottom,
+  forms: ClipboardList,
+  'form-submissions': Inbox,
+  header: PanelTop,
+  media: ImageIcon,
+  pages: LayoutTemplate,
+  'payload-mcp-api-keys': KeyRound,
+  posts: FileText,
+  redirects: Route,
+  search: Search,
+  tenants: Building2,
+  users: Users,
 }
 
-const areaIcons: Record<AdminWorkspaceNavAreaKey, NavGlyphName> = {
-  advanced: 'more',
-  content: 'grid',
-  email: 'mail',
-  forms: 'clipboard',
-  website: 'globe',
-}
-
-const entityIcons: Record<string, NavGlyphName> = {
-  contacts: 'users',
-  emails: 'mail',
-  'email-lists': 'users',
-  forms: 'clipboard',
-  'form-submissions': 'archive',
-  'graphic-designs': 'palette',
-  'graphic-templates': 'image',
-  media: 'image',
-  pages: 'grid',
-  posts: 'archive',
-  search: 'search',
-  'site-seo': 'search',
-  'standard-media': 'image',
-  tenants: 'globe',
-  users: 'users',
-  'wordpress-posts': 'archive',
+const taskIcons: Record<AdminTask['key'], LucideIcon> = {
+  createPost: FileText,
+  changeHomePageBanner: ImageIcon,
+  updateSocialMedia: Facebook,
+  editTowns: Building2,
+  editNavbar: PanelTop,
 }
 
 function getEntityLabel(label: unknown, locale?: string): string {
@@ -161,214 +97,161 @@ function getEntityLabel(label: unknown, locale?: string): string {
 }
 
 function getEntityIcon(slug: string, type: EntityType) {
-  if (type !== EntityType.collection) return 'globe' satisfies NavGlyphName
-  return entityIcons[slug] || 'folder'
+  if (type !== EntityType.collection) return Globe2
+  return entityIcons[slug] || FolderTree
 }
 
-function isPathActive(pathname: string, href: string) {
-  return pathname.startsWith(href) && ['/', undefined].includes(pathname[href.length])
+function NavLinkIcon({ Icon }: { Icon: LucideIcon }) {
+  return (
+    <span className="campaign-admin-nav__link-icon">
+      <Icon aria-hidden="true" size={15} strokeWidth={2} />
+    </span>
+  )
 }
 
 export function CampaignAdminNavClient({
   afterNav,
   afterNavLinks,
-  areas = [],
-  tasks = [],
+  beforeNav,
+  beforeNavLinks,
+  groups,
+  tasks,
 }: Props) {
   const pathname = usePathname()
   const { config } = useConfig()
+  const { navOpen, navRef, hydrated, shouldAnimate } = useNav()
   const { i18n } = useTranslation()
-  const [openAreaKey, setOpenAreaKey] = React.useState<AdminWorkspaceNavAreaKey | null>(null)
-  const navAreas = React.useMemo(
-    () =>
-      Array.from(Array.isArray(areas) ? areas : [], (area) => ({
-        ...area,
-        entities: Array.from(Array.isArray(area?.entities) ? area.entities : []),
-      })),
-    [areas],
-  )
-  const navTasks = Array.isArray(tasks) ? tasks : []
+  const [adminPalette, setAdminPalette] = React.useState<AdminPalette>('default')
   const adminRoute = config.routes.admin
-  const homeHref = formatAdminURL({ adminRoute, path: '/' })
   const navClasses = [
     baseClass,
-    'campaign-admin-nav',
-    openAreaKey && 'campaign-admin-nav--panel-open',
-    `${baseClass}--nav-open`,
-    `${baseClass}--nav-hydrated`,
+    navOpen && `${baseClass}--nav-open`,
+    shouldAnimate && `${baseClass}--nav-animate`,
+    hydrated && `${baseClass}--nav-hydrated`,
   ]
     .filter(Boolean)
     .join(' ')
 
-  const activeAreaKey = React.useMemo(
-    () =>
-      navAreas.find((area) =>
-        area.entities.some(({ slug, type }) => {
-          const href =
-            type === EntityType.collection
-              ? formatAdminURL({ adminRoute, path: `/collections/${slug}` })
-              : formatAdminURL({ adminRoute, path: `/globals/${slug}` })
-          return isPathActive(pathname, href)
-        }),
-      )?.key || null,
-    [adminRoute, navAreas, pathname],
-  )
-  const openArea = navAreas.find((area) => area.key === openAreaKey) || null
-  const primaryTask = openArea?.primaryTaskKey
-    ? navTasks.find((task) => task.key === openArea.primaryTaskKey)
-    : null
-
   React.useEffect(() => {
-    setOpenAreaKey(null)
-  }, [pathname])
-
-  const closePanel = React.useCallback(() => {
-    setOpenAreaKey(null)
+    const storedPalette = getStoredAdminPalette()
+    setAdminPalette(storedPalette)
+    applyAdminPalette(storedPalette)
   }, [])
 
-  React.useEffect(() => {
-    if (!openAreaKey) return
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      closePanel()
-    }
-
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [closePanel, openAreaKey])
+  const toggleAdminPalette = () => {
+    const nextPalette: AdminPalette = adminPalette === 'color' ? 'default' : 'color'
+    setAdminPalette(nextPalette)
+    storeAdminPalette(nextPalette)
+    applyAdminPalette(nextPalette)
+    window.dispatchEvent(new CustomEvent('admin-palette-change', { detail: nextPalette }))
+  }
 
   return (
-    <>
-      <button
-        aria-hidden={!openArea}
-        className="campaign-admin-nav__panel-scrim"
-        data-open={openArea ? 'true' : 'false'}
-        onClick={closePanel}
-        tabIndex={openArea ? 0 : -1}
-        type="button"
-      />
+    <aside className={navClasses} inert={!navOpen ? true : undefined}>
+      <div className={`${baseClass}__scroll`} ref={navRef}>
+        {beforeNav}
+        <nav className={`${baseClass}__wrap`}>
+          {beforeNavLinks}
+          <NavGroup isOpen label="Common Tasks">
+            {tasks.map((task) => {
+              const isActive = pathname === task.href
+              const Icon = taskIcons[task.key]
+              const content = (
+                <>
+                  {isActive ? <div className={`${baseClass}__link-indicator`} /> : null}
+                  <NavLinkIcon Icon={Icon} />
+                  <span className={`${baseClass}__link-label campaign-admin-nav__link-label`}>
+                    {task.label}
+                  </span>
+                </>
+              )
 
-      <aside className={navClasses}>
-        <div className="campaign-admin-nav__shell">
-          <nav aria-label="Admin workspace" className="campaign-admin-nav__rail">
-            <div className="campaign-admin-nav__rail-main">
-              <Link
-                className="campaign-admin-nav__rail-item"
-                data-active={pathname === homeHref ? 'true' : 'false'}
-                href={homeHref}
-                onClick={closePanel}
-                prefetch={false}
-              >
-                <NavGlyph name="home" size={25} />
-                <span>Home</span>
-              </Link>
-
-              {Array.from(navAreas, (area) => {
-                const icon = areaIcons[area.key]
-                const isOpen = area.key === openAreaKey
-                const isActive = area.key === activeAreaKey
-
+              if (isActive) {
                 return (
-                  <button
-                    aria-controls={`campaign-admin-nav-panel-${area.key}`}
-                    aria-expanded={isOpen}
-                    className="campaign-admin-nav__rail-item"
-                    data-active={isActive || isOpen ? 'true' : 'false'}
-                    key={area.key}
-                    onClick={() => setOpenAreaKey((current) => (current === area.key ? null : area.key))}
-                    type="button"
-                  >
-                    <NavGlyph name={icon} size={25} />
-                    <span>{area.label}</span>
-                  </button>
+                  <div className={`${baseClass}__link campaign-admin-nav__link`} key={task.key}>
+                    {content}
+                  </div>
                 )
-              })}
-            </div>
+              }
 
-            <div className="campaign-admin-nav__rail-footer">
-              <Link
-                className="campaign-admin-nav__rail-item"
-                href={formatAdminURL({ adminRoute, path: '/logout' })}
-                prefetch={false}
-              >
-                <NavGlyph name="logout" size={23} />
-                <span>Log out</span>
-              </Link>
-            </div>
-          </nav>
-
-          {openArea ? (
-            <section
-              aria-label={`${openArea.label} navigation`}
-              className="campaign-admin-nav__panel"
-              id={`campaign-admin-nav-panel-${openArea.key}`}
-            >
-              <div className="campaign-admin-nav__panel-header">
-                <div>
-                  <h2>{openArea.label}</h2>
-                  <p>{openArea.description}</p>
-                </div>
-                <button aria-label={`Close ${openArea.label} panel`} onClick={closePanel} type="button">
-                  <NavGlyph name="close" size={18} />
-                </button>
-              </div>
-
-              {primaryTask ? (
+              return (
                 <Link
-                  className="campaign-admin-nav__primary-action"
-                  href={primaryTask.href}
-                  onClick={closePanel}
+                  className={`${baseClass}__link campaign-admin-nav__link`}
+                  href={task.href}
+                  key={task.key}
                   prefetch={false}
                 >
-                  <NavGlyph name="plus" size={18} />
-                  <span>{primaryTask.label}</span>
+                  {content}
                 </Link>
-              ) : null}
+              )
+            })}
+          </NavGroup>
 
-              <div className="campaign-admin-nav__panel-links">
-                {Array.from(openArea.entities, ({ slug, type, label: entityLabel }) => {
-                  const entitySlug = String(slug)
+          {groups.map(({ entities, label }) => {
+            return (
+              <NavGroup label={label} key={label}>
+                {entities.map(({ slug, type, label: entityLabel }, index) => {
                   const href =
                     type === EntityType.collection
                       ? formatAdminURL({ adminRoute, path: `/collections/${slug}` })
                       : formatAdminURL({ adminRoute, path: `/globals/${slug}` })
-                  const icon = getEntityIcon(entitySlug, type)
-                  const rawLabel = getEntityLabel(entityLabel, i18n?.language)
-                  const label = getAdminWorkspaceLabel(entitySlug, rawLabel)
+                  const isActive =
+                    pathname.startsWith(href) && ['/', undefined].includes(pathname[href.length])
+                  const Icon = getEntityIcon(String(slug), type)
+                  const content = (
+                    <>
+                      {isActive ? <div className={`${baseClass}__link-indicator`} /> : null}
+                      <NavLinkIcon Icon={Icon} />
+                      <span className={`${baseClass}__link-label campaign-admin-nav__link-label`}>
+                        {getEntityLabel(entityLabel, i18n?.language)}
+                      </span>
+                    </>
+                  )
+
+                  if (pathname === href) {
+                    return (
+                      <div
+                        className={`${baseClass}__link campaign-admin-nav__link`}
+                        id={`nav-${slug}`}
+                        key={`${slug}-${index}`}
+                      >
+                        {content}
+                      </div>
+                    )
+                  }
 
                   return (
                     <Link
-                      className="campaign-admin-nav__panel-link"
-                      data-active={isPathActive(pathname, href) ? 'true' : 'false'}
+                      className={`${baseClass}__link campaign-admin-nav__link`}
                       href={href}
                       id={`nav-${slug}`}
-                      key={`${type}-${slug}`}
-                      onClick={closePanel}
+                      key={`${slug}-${index}`}
                       prefetch={false}
                     >
-                      <span className="campaign-admin-nav__panel-link-icon">
-                        <NavGlyph name={icon} size={19} />
-                      </span>
-                      <span>
-                        <strong>{label}</strong>
-                        <small>{getAdminWorkspaceDescription(entitySlug, `Open ${label}.`)}</small>
-                      </span>
+                      {content}
                     </Link>
                   )
                 })}
-              </div>
-
-              {openArea.key === 'advanced' && (afterNavLinks || afterNav) ? (
-                <div className="campaign-admin-nav__extensions">
-                  {afterNavLinks}
-                  {afterNav}
-                </div>
-              ) : null}
-            </section>
-          ) : null}
-        </div>
-      </aside>
-    </>
+              </NavGroup>
+            )
+          })}
+          {afterNavLinks}
+          <div className={`${baseClass}__controls campaign-admin-nav__controls`}>
+            <button
+              aria-pressed={adminPalette === 'color'}
+              className="campaign-admin-nav__palette-toggle"
+              onClick={toggleAdminPalette}
+              title={adminPalette === 'color' ? 'Use standard admin palette' : 'Use colorful admin palette'}
+              type="button"
+            >
+              <Palette aria-hidden="true" size={16} strokeWidth={2} />
+              <span>{adminPalette === 'color' ? 'Color On' : 'Color Mode'}</span>
+            </button>
+            <Logout />
+          </div>
+        </nav>
+        {afterNav}
+      </div>
+    </aside>
   )
 }

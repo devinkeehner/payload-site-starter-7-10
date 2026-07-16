@@ -1,6 +1,7 @@
 'use client'
 
-import Link from 'next/link'
+import '@puckeditor/core/puck.css'
+
 import {
   createUsePuck,
   Drawer,
@@ -11,24 +12,8 @@ import {
   type Data,
   type Plugin,
 } from '@puckeditor/core'
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  ChevronRight,
-  ExternalLink,
-  GripVertical,
-  Layers3,
-  PanelLeft,
-  Redo2,
-  Search,
-  Undo2,
-  UserRound,
-} from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { useAdminBuilderMode } from '@/components/admin/hooks/useAdminBuilderMode'
-import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import { hydratePuckMedia } from '@/lib/puck/mediaHydration'
 import type { PuckBlockSchema, PuckPageData } from '@/lib/puck/types'
 
@@ -151,8 +136,6 @@ export type VisualDocumentEditorProps<TPayload extends VisualPayload = VisualPay
   autosaveIntervalMs?: number
   blockSchema: PuckBlockSchema[]
   config: Config
-  documentId: string
-  documentTitle: string
   documentType: VisualDocumentType
   externalBusy?: boolean
   externalMessage?: string | null
@@ -189,7 +172,6 @@ export type VisualDocumentEditorProps<TPayload extends VisualPayload = VisualPay
   statusMessage?: (context: VisualDocumentEditorContext<TPayload>) => React.ReactNode
   toolbar?: boolean
   viewports: Array<{ height: number | 'auto'; label: string; width: number }>
-  workspaceLabel?: string
   wrapperStyle?: React.CSSProperties
 }
 
@@ -314,6 +296,14 @@ function VisualPaletteSvgIcon({ icon }: { icon: VisualPaletteIcon }) {
   }
 }
 
+function VisualPaletteTabIcon({ icon }: { icon: 'content' | 'properties' | 'rows' }) {
+  return (
+    <span className={styles.emailPaletteTabIcon}>
+      <VisualPaletteSvgIcon icon={icon === 'content' ? 'text' : icon} />
+    </span>
+  )
+}
+
 function createVisualDrawerItem(paletteItems: Record<string, VisualPaletteItem>, rowPresets: Record<string, VisualRowPreset>) {
   function VisualDrawerItem({ name }: { children?: React.ReactNode; name: string }): React.ReactElement {
     const item = paletteItems[name] || { kind: 'content' as const, label: name, slug: name }
@@ -338,6 +328,7 @@ function createVisualDrawerItem(paletteItems: Record<string, VisualPaletteItem>,
         </span>
       )}
       <span className={styles.emailPaletteLabel}>{item.label}</span>
+      {item.description ? <span className={styles.emailPaletteDescription}>{item.description}</span> : null}
     </div>
   )
   }
@@ -345,65 +336,42 @@ function createVisualDrawerItem(paletteItems: Record<string, VisualPaletteItem>,
   return VisualDrawerItem
 }
 
-type VisualBlockLibraryGroup = {
-  description: string
-  icon: VisualPaletteIcon
-  label: string
-  name: 'content' | 'rows'
-  slugs: string[]
-}
-
-function VisualBlockLibraryDrawer({
-  group,
+function VisualPaletteDrawer({
+  description,
   drawerItem,
+  items,
+  palette,
   paletteItems,
   rowsPlaceholder,
+  title,
 }: {
-  group: VisualBlockLibraryGroup
+  description: string
   drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
+  items: string[]
+  palette: 'content' | 'rows'
   paletteItems: Record<string, VisualPaletteItem>
   rowsPlaceholder?: React.ReactNode
+  title: string
 }) {
-  const [query, setQuery] = useState('')
-  const normalizedQuery = query.trim().toLocaleLowerCase()
-  const matchingSlugs = group.slugs.filter((slug) => {
-    if (!normalizedQuery) return true
-    const item = paletteItems[slug]
-    return `${item?.label || slug} ${item?.description || ''}`.toLocaleLowerCase().includes(normalizedQuery)
-  })
-
   return (
-    <div aria-label={`${group.label}. ${group.description}`} className={styles.blockDrawerPanel} data-palette={group.name}>
-      <div className={styles.blockDrawerHeader}>
-        <strong>{group.label}</strong>
-        <span>{matchingSlugs.length}</span>
+    <div className={styles.emailPalettePanel} data-palette={palette}>
+      <div className={styles.emailPaletteHeader}>
+        <strong>{title}</strong>
+        <span>{description}</span>
       </div>
-      <p className={styles.blockDrawerDescription}>{group.description}</p>
-      <label className={styles.blockDrawerSearch}>
-        <Search aria-hidden="true" />
-        <input
-          aria-label={`Search ${group.label.toLocaleLowerCase()}`}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search blocks"
-          type="search"
-          value={query}
-        />
-      </label>
-      {group.name === 'rows' ? rowsPlaceholder : null}
-      {matchingSlugs.length ? (
-        <Drawer>
-          {matchingSlugs.map((slug) => (
-            <Drawer.Item key={slug} label={paletteItems[slug]?.label || slug} name={slug}>
-              {drawerItem}
-            </Drawer.Item>
-          ))}
-        </Drawer>
-      ) : <p className={styles.blockDrawerEmpty}>No matching blocks.</p>}
+      {palette === 'rows' ? rowsPlaceholder : null}
+      <Drawer>
+        {items.map((slug) => (
+          <Drawer.Item key={slug} label={paletteItems[slug]?.label || slug} name={slug}>
+            {drawerItem}
+          </Drawer.Item>
+        ))}
+      </Drawer>
     </div>
   )
 }
 
-function VisualBlockLibraryPanel({
+function createVisualPlugins({
   contentDescription,
   contentSlugs,
   contentTitle,
@@ -416,355 +384,47 @@ function VisualBlockLibraryPanel({
 }: VisualDocumentEditorProps['palette'] & {
   drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
   paletteItems: Record<string, VisualPaletteItem>
-}) {
-  const groups = useMemo<VisualBlockLibraryGroup[]>(() => [
-    {
-      description: contentDescription,
-      icon: 'text',
-      label: contentTitle,
-      name: 'content',
-      slugs: contentSlugs,
-    },
-    {
-      description: rowDescription,
-      icon: 'rows',
-      label: rowTitle,
-      name: 'rows',
-      slugs: rowSlugs,
-    },
-  ], [contentDescription, contentSlugs, contentTitle, rowDescription, rowSlugs, rowTitle])
-  const [activeName, setActiveName] = useState<VisualBlockLibraryGroup['name']>('content')
-  const activeGroup = groups.find((group) => group.name === activeName) || groups[0]!
-
-  return (
-    <div className={styles.blockLibraryPanel}>
-      <div aria-label="Block categories" className={styles.blockLibraryTabs} role="tablist">
-        {groups.map((group) => (
-          <button
-            aria-selected={group.name === activeGroup.name}
-            key={group.name}
-            onClick={() => setActiveName(group.name)}
-            role="tab"
-            title={group.label}
-            type="button"
-          >
-            <span className={styles.blockPaletteTabIcon}><VisualPaletteSvgIcon icon={group.icon} /></span>
-            <span>{group.label}</span>
-          </button>
-        ))}
-      </div>
-      <VisualBlockLibraryDrawer
-        drawerItem={drawerItem}
-        group={activeGroup}
-        key={activeGroup.name}
-        paletteItems={paletteItems}
-        rowsPlaceholder={rowsPlaceholder}
-      />
-    </div>
-  )
-}
-
-function createVisualPlugins(props: VisualDocumentEditorProps['palette'] & {
-  drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
-  paletteItems: Record<string, VisualPaletteItem>
 }): Plugin[] {
+  const propertiesPlugin = fieldsPlugin({ desktopSideBar: 'left' }) as Plugin
+
   return [
     {
-      icon: <span className={styles.blockPaletteTabIcon}><VisualPaletteSvgIcon icon="text" /></span>,
-      label: 'Blocks',
+      icon: <VisualPaletteTabIcon icon="content" />,
+      label: 'Content',
       name: 'blocks',
-      render: () => <VisualBlockLibraryPanel {...props} />,
+      render: () => (
+        <VisualPaletteDrawer
+          description={contentDescription}
+          drawerItem={drawerItem}
+          items={contentSlugs}
+          palette="content"
+          paletteItems={paletteItems}
+          title={contentTitle}
+        />
+      ),
     },
-    fieldsPlugin({ desktopSideBar: 'left' }) as Plugin,
+    {
+      icon: <VisualPaletteTabIcon icon="rows" />,
+      label: 'Rows',
+      name: 'rows',
+      render: () => (
+        <VisualPaletteDrawer
+          description={rowDescription}
+          drawerItem={drawerItem}
+          items={rowSlugs}
+          palette="rows"
+          paletteItems={paletteItems}
+          rowsPlaceholder={rowsPlaceholder}
+          title={rowTitle}
+        />
+      ),
+    },
+    {
+      ...propertiesPlugin,
+      icon: <VisualPaletteTabIcon icon="properties" />,
+      label: 'Properties',
+    },
   ]
-}
-
-function VisualBuilderWorkspaceHeader({
-  actions,
-  documentId,
-  documentTitle,
-  documentType,
-  workspaceLabel,
-}: {
-  actions: React.ReactNode
-  documentId: string
-  documentTitle: string
-  documentType: VisualDocumentType
-  workspaceLabel?: string
-}) {
-  const { tenant, tenantID, tenantName } = useActiveTenant()
-  const dispatch = useVisualDocumentPuck((state) => state.dispatch)
-  const history = useVisualDocumentPuck((state) => state.history)
-  const leftSideBarVisible = useVisualDocumentPuck((state) => state.appState.ui.leftSideBarVisible)
-  const collectionSlug = documentType === 'email' ? 'emails' : documentType === 'form' ? 'forms' : 'posts'
-  const editHref = `/admin/collections/${collectionSlug}/${encodeURIComponent(documentId)}`
-  const label = workspaceLabel || `${documentType[0]?.toUpperCase()}${documentType.slice(1)} Builder`
-  const tenantSlug = tenant?.slug || tenantID || ''
-  const tenantLabel = tenantName || tenant?.name || tenantSlug
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL
-  const visitHref = tenantSlug
-    ? `${serverUrl ? serverUrl.replace(/\/$/, '') : ''}/${tenantSlug}`
-    : null
-
-  return (
-    <header className={styles.builderWorkspaceHeader}>
-      <div className={styles.builderWorkspaceIdentity}>
-        <Link aria-label={`Back to ${documentType} editor`} className={styles.builderWorkspaceIconButton} href={editHref} title={`Back to ${documentType} editor`}>
-          <ArrowLeft aria-hidden="true" />
-        </Link>
-        <button
-          aria-label={leftSideBarVisible ? 'Hide builder panel' : 'Show builder panel'}
-          aria-pressed={leftSideBarVisible}
-          className={styles.builderWorkspaceIconButton}
-          onClick={() => dispatch({
-            type: 'setUi',
-            ui: {
-              leftSideBarVisible: !leftSideBarVisible,
-              rightSideBarVisible: false,
-            },
-          })}
-          title={leftSideBarVisible ? 'Hide builder panel' : 'Show builder panel'}
-          type="button"
-        >
-          <PanelLeft aria-hidden="true" />
-        </button>
-        <div className={styles.builderWorkspaceTitle}>
-          <span>{label}</span>
-          <strong>{documentTitle}</strong>
-        </div>
-      </div>
-
-      <div className={styles.builderWorkspaceTools}>
-        {tenantLabel ? (
-          <span className={styles.builderWorkspaceTenant} title={tenantSlug || tenantLabel}>
-            {tenantLabel}
-          </span>
-        ) : null}
-        {visitHref ? (
-          <a
-            aria-label={`Visit ${tenantLabel || tenantSlug} site`}
-            className={styles.builderWorkspaceIconButton}
-            href={visitHref}
-            rel="noreferrer"
-            target="_blank"
-            title="Visit site"
-          >
-            <ExternalLink aria-hidden="true" />
-          </a>
-        ) : null}
-        <Link
-          aria-label="Open account"
-          className={styles.builderWorkspaceIconButton}
-          href="/admin/account"
-          title="Account"
-        >
-          <UserRound aria-hidden="true" />
-        </Link>
-        <button aria-label="Undo" className={styles.builderWorkspaceIconButton} disabled={!history.hasPast} onClick={() => history.back()} title="Undo" type="button">
-          <Undo2 aria-hidden="true" />
-        </button>
-        <button aria-label="Redo" className={styles.builderWorkspaceIconButton} disabled={!history.hasFuture} onClick={() => history.forward()} title="Redo" type="button">
-          <Redo2 aria-hidden="true" />
-        </button>
-        <div className={styles.builderWorkspaceActions}>{actions}</div>
-        <Link className={styles.builderWorkspaceBackButton} href={editHref}>
-          <ArrowLeft aria-hidden="true" />
-          <span>Back to Payload</span>
-        </Link>
-      </div>
-    </header>
-  )
-}
-
-function getOutlineRecord(item: unknown) {
-  const record = item && typeof item === 'object' ? item as Record<string, unknown> : {}
-  const props = record.props && typeof record.props === 'object' ? record.props as Record<string, unknown> : {}
-  return { props, record }
-}
-
-function getOutlineItemId(item: unknown) {
-  const { props, record } = getOutlineRecord(item)
-  if (typeof props.id === 'string' && props.id) return props.id
-  if (typeof record.id === 'string' && record.id) return record.id
-  return null
-}
-
-function getOutlineItemType(item: unknown) {
-  const { record } = getOutlineRecord(item)
-  return typeof record.type === 'string' ? record.type : null
-}
-
-function getOutlineLabel(item: unknown, index: number, paletteItems: Record<string, VisualPaletteItem>) {
-  const { props, record } = getOutlineRecord(item)
-  const label = props.heading || props.title || props.label || props.name || props.text
-  if (typeof label === 'string' && label.trim()) return label
-  if (typeof record.type === 'string') return paletteItems[record.type]?.label || record.type
-  return `Block ${index + 1}`
-}
-
-function VisualCompactOutline({ paletteItems }: { paletteItems: Record<string, VisualPaletteItem> }) {
-  const data = useVisualDocumentPuck((state) => state.appState.data)
-  const dispatch = useVisualDocumentPuck((state) => state.dispatch)
-  const getSelectorForId = useVisualDocumentPuck((state) => state.getSelectorForId)
-  const selectedItem = useVisualDocumentPuck((state) => state.selectedItem)
-  const content = useMemo(() => (Array.isArray(data.content) ? data.content : []), [data.content])
-  const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
-  const [dropTarget, setDropTarget] = useState<{ index: number; position: 'after' | 'before' } | null>(null)
-  const selectedId = getOutlineItemId(selectedItem)
-
-  const selectItem = useCallback((id: string | null) => {
-    if (!id) return
-    const selector = getSelectorForId(id)
-    if (!selector) return
-    dispatch({
-      type: 'setUi',
-      ui: {
-        itemSelector: selector,
-        leftSideBarVisible: true,
-        plugin: { current: 'fields' },
-        rightSideBarVisible: false,
-      },
-    })
-  }, [dispatch, getSelectorForId])
-
-  const move = useCallback((sourceIndex: number, destinationIndex: number) => {
-    if (sourceIndex === destinationIndex || sourceIndex < 0 || destinationIndex < 0 || sourceIndex >= content.length || destinationIndex >= content.length) return
-    const movedId = getOutlineItemId(content[sourceIndex])
-    dispatch({
-      type: 'setData',
-      data: (previous: Data) => {
-        const previousContent = Array.isArray(previous.content) ? previous.content : []
-        const nextContent = [...previousContent]
-        const [item] = nextContent.splice(sourceIndex, 1)
-        if (!item) return previous
-        nextContent.splice(destinationIndex, 0, item)
-        return { ...previous, content: nextContent }
-      },
-    })
-    if (movedId) window.requestAnimationFrame(() => selectItem(movedId))
-  }, [content, dispatch, selectItem])
-
-  return (
-    <div className={styles.compactOutline}>
-      <div className={styles.compactOutlineHeader}>
-        <span><Layers3 aria-hidden="true" /> Layers</span>
-        <strong>{content.length}</strong>
-      </div>
-      {content.length === 0 ? <p>No blocks yet.</p> : (
-        <ol>
-          {content.map((item, index) => {
-            const id = getOutlineItemId(item)
-            const type = getOutlineItemType(item)
-            const paletteItem = type ? paletteItems[type] : null
-            const label = getOutlineLabel(item, index, paletteItems)
-            return (
-              <li
-                data-dragging={draggingIndex === index ? 'true' : undefined}
-                data-drop-position={dropTarget?.index === index && draggingIndex !== index ? dropTarget.position : undefined}
-                data-drop-target={dropTarget?.index === index && draggingIndex !== index ? 'true' : undefined}
-                data-selected={id && selectedId === id ? 'true' : undefined}
-                key={id || `${type || 'block'}-${index}`}
-                onDragOver={(event) => {
-                  if (draggingIndex == null) return
-                  event.preventDefault()
-                  const rect = event.currentTarget.getBoundingClientRect()
-                  setDropTarget({ index, position: event.clientY >= rect.top + rect.height / 2 ? 'after' : 'before' })
-                }}
-                onDrop={(event) => {
-                  event.preventDefault()
-                  const sourceIndex = draggingIndex ?? Number(event.dataTransfer.getData('text/plain'))
-                  if (Number.isFinite(sourceIndex)) {
-                    let destinationIndex = index + (dropTarget?.index === index && dropTarget.position === 'after' ? 1 : 0)
-                    if (sourceIndex < destinationIndex) destinationIndex -= 1
-                    move(sourceIndex, Math.min(content.length - 1, destinationIndex))
-                  }
-                  setDraggingIndex(null)
-                  setDropTarget(null)
-                }}
-              >
-                <button
-                  aria-label={`Move ${label}`}
-                  className={styles.compactOutlineDragHandle}
-                  draggable
-                  onClick={(event) => event.stopPropagation()}
-                  onDragEnd={() => { setDraggingIndex(null); setDropTarget(null) }}
-                  onDragStart={(event) => {
-                    setDraggingIndex(index)
-                    setDropTarget(null)
-                    event.dataTransfer.effectAllowed = 'move'
-                    event.dataTransfer.setData('text/plain', String(index))
-                  }}
-                  title="Drag to reorder"
-                  type="button"
-                >
-                  <GripVertical aria-hidden="true" />
-                </button>
-                <button aria-current={id && selectedId === id ? 'true' : undefined} className={styles.compactOutlineSelect} onClick={() => selectItem(id)} type="button">
-                  <span className={styles.compactOutlineIcon}><VisualPaletteSvgIcon icon={paletteItem?.icon || 'text'} /></span>
-                  <span>{label}</span>
-                </button>
-                <div className={styles.compactOutlineActions}>
-                  <button aria-label={`Move ${label} up`} disabled={index === 0} onClick={() => move(index, index - 1)} title="Move up" type="button"><ArrowUp aria-hidden="true" /></button>
-                  <button aria-label={`Move ${label} down`} disabled={index === content.length - 1} onClick={() => move(index, index + 1)} title="Move down" type="button"><ArrowDown aria-hidden="true" /></button>
-                </div>
-              </li>
-            )
-          })}
-        </ol>
-      )}
-    </div>
-  )
-}
-
-type VisualInspectorGroup = 'advanced' | 'content' | 'design'
-
-function getVisualInspectorGroup(key: React.Key | null): VisualInspectorGroup {
-  const name = String(key || '').replace(/^\.\$?/, '').replace(/^\$/, '').toLocaleLowerCase()
-  if (/(^|\.)(id|key|slug)$|json|legacy|html|css|url|href|target|anchor/.test(name)) return 'advanced'
-  if (/color|background|align|layout|width|height|size|spacing|margin|padding|border|font|variant|style/.test(name)) return 'design'
-  return 'content'
-}
-
-function VisualInspectorSection({ children, defaultOpen, title }: { children: React.ReactNode[]; defaultOpen?: boolean; title: string }) {
-  const [isOpen, setIsOpen] = useState(Boolean(defaultOpen))
-
-  if (!children.length) return null
-
-  return (
-    <details
-      className={styles.inspectorSection}
-      onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      open={isOpen}
-    >
-      <summary><ChevronRight aria-hidden="true" /><span>{title}</span><small>{children.length}</small></summary>
-      <div className={styles.inspectorSectionBody}>{children}</div>
-    </details>
-  )
-}
-
-function VisualInspectorFields({ children, isLoading, paletteItems }: { children: React.ReactNode; isLoading: boolean; paletteItems: Record<string, VisualPaletteItem> }) {
-  const selectedItem = useVisualDocumentPuck((state) => state.selectedItem)
-  const selectedType = getOutlineItemType(selectedItem)
-  const selectedLabel = getOutlineLabel(selectedItem, 0, paletteItems)
-  const groups = React.Children.toArray(children).reduce<Record<VisualInspectorGroup, React.ReactNode[]>>((result, child) => {
-    const key = React.isValidElement(child) ? child.key : null
-    result[getVisualInspectorGroup(key)].push(child)
-    return result
-  }, { advanced: [], content: [], design: [] })
-
-  return (
-    <div className={styles.inspectorFields} data-loading={isLoading ? 'true' : undefined}>
-      <div className={styles.inspectorHeader}>
-        <span className={styles.inspectorHeaderIcon}>
-          {selectedItem ? <VisualPaletteSvgIcon icon={(selectedType && paletteItems[selectedType]?.icon) || 'text'} /> : <Layers3 aria-hidden="true" />}
-        </span>
-        <div><span>{selectedItem ? 'Editing block' : 'Document settings'}</span><strong>{selectedItem ? selectedLabel : 'Canvas'}</strong></div>
-      </div>
-      <VisualInspectorSection defaultOpen title="Content">{groups.content}</VisualInspectorSection>
-      <VisualInspectorSection defaultOpen title="Design">{groups.design}</VisualInspectorSection>
-      <VisualInspectorSection title="Advanced">{groups.advanced}</VisualInspectorSection>
-    </div>
-  )
 }
 
 function VisualEditorStartClosed({ enabled }: { enabled?: boolean }) {
@@ -827,84 +487,15 @@ function VisualEditorPuckShell({ children, startSidebarClosed }: { children?: Re
   )
 }
 
-type FrontendPreviewAssets = {
-  bodyStyle?: string
-  hrefs: string[]
-}
-
-let cachedFrontendPreviewAssets: FrontendPreviewAssets | null = null
-
-async function getFrontendPreviewAssets(): Promise<FrontendPreviewAssets> {
-  if (cachedFrontendPreviewAssets) return cachedFrontendPreviewAssets
-  try {
-    const response = await fetch('/api/puck/frontend-preview-assets', { cache: 'no-store', credentials: 'include' })
-    if (!response.ok) return { hrefs: [] }
-    const assets = await response.json() as FrontendPreviewAssets
-    cachedFrontendPreviewAssets = { bodyStyle: assets.bodyStyle, hrefs: Array.isArray(assets.hrefs) ? assets.hrefs : [] }
-    return cachedFrontendPreviewAssets
-  } catch {
-    return { hrefs: [] }
-  }
-}
-
-function syncFrontendPreviewAssets(iframeDocument: Document, assets: FrontendPreviewAssets) {
-  const existingLinks = new Set(
-    Array.from(iframeDocument.querySelectorAll<HTMLLinkElement>('link[data-hro-frontend-style][href]')).map((link) => link.href),
-  )
-
-  assets.hrefs.forEach((href) => {
-    if (existingLinks.has(href)) return
-    const link = iframeDocument.createElement('link')
-    link.dataset.hroFrontendStyle = 'true'
-    link.href = href
-    link.rel = 'stylesheet'
-    iframeDocument.head.appendChild(link)
-  })
-
-  let style = iframeDocument.getElementById('hro-puck-preview-theme') as HTMLStyleElement | null
-  if (!style) {
-    style = iframeDocument.createElement('style')
-    style.id = 'hro-puck-preview-theme'
-    iframeDocument.head.appendChild(style)
-  }
-  style.textContent = `
-:root, body, [data-hro-puck-preview-root] { ${assets.bodyStyle || ''} }
-  body { margin: 0; }
-  `
-}
-
 function VisualPreviewIframe({
   children,
-  document: iframeDocument,
-  documentType,
   previewFrameStyle,
 }: {
   children: React.ReactNode
-  document?: Document
-  documentType: VisualDocumentType
   previewFrameStyle?: React.CSSProperties
 }) {
-  useEffect(() => {
-    if (!iframeDocument || documentType !== 'post') return
-    let cancelled = false
-    const timeouts: number[] = []
-
-    const ensureStyles = () => {
-      void getFrontendPreviewAssets().then((assets) => {
-        if (!cancelled) syncFrontendPreviewAssets(iframeDocument, assets)
-      })
-    }
-
-    ensureStyles()
-    ;[350, 1200, 2800].forEach((delay) => timeouts.push(window.setTimeout(ensureStyles, delay)))
-    return () => {
-      cancelled = true
-      timeouts.forEach((timeout) => window.clearTimeout(timeout))
-    }
-  }, [documentType, iframeDocument])
-
   return (
-    <div className={styles.previewFrameRoot} data-hro-puck-preview-root style={previewFrameStyle}>
+    <div className={styles.previewFrameRoot} style={previewFrameStyle}>
       {children}
     </div>
   )
@@ -1110,8 +701,6 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   autosaveIntervalMs = DEFAULT_AUTOSAVE_INTERVAL_MS,
   blockSchema,
   config,
-  documentId,
-  documentTitle,
   documentType,
   externalBusy = false,
   externalMessage,
@@ -1139,11 +728,8 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   statusMessage,
   toolbar = false,
   viewports,
-  workspaceLabel,
   wrapperStyle,
 }: VisualDocumentEditorProps<TPayload>) {
-  useAdminBuilderMode(documentType)
-
   const resolveDataFromPayload = useMemo(
     () => getDataFromPayload || ((payload: TPayload) => defaultGetDataFromPayload(payload)),
     [getDataFromPayload],
@@ -1172,18 +758,9 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   const overrides = useMemo(
     () => ({
       drawerItem,
-      fields: (props: { children: React.ReactNode; isLoading: boolean }) => (
-        <VisualInspectorFields {...props} paletteItems={paletteItemMap} />
-      ),
-      header: (props: { actions: React.ReactNode }) => (
+      header: (props: { actions: React.ReactNode; children: React.ReactNode }) => (
         <div className={styles.builderHeaderShell}>
-          <VisualBuilderWorkspaceHeader
-            actions={props.actions}
-            documentId={documentId}
-            documentTitle={documentTitle}
-            documentType={documentType}
-            workspaceLabel={workspaceLabel}
-          />
+          {props.children}
           {toolbar ? (
             <div
               className={styles.builderHeaderRichTextToolbar}
@@ -1192,15 +769,14 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
           ) : null}
         </div>
       ),
-      iframe: (props: { children: React.ReactNode; document?: Document }) => (
-        <VisualPreviewIframe {...props} documentType={documentType} previewFrameStyle={previewFrameStyle} />
+      iframe: (props: { children: React.ReactNode }) => (
+        <VisualPreviewIframe {...props} previewFrameStyle={previewFrameStyle} />
       ),
-      outline: () => <VisualCompactOutline paletteItems={paletteItemMap} />,
       puck: (props: { children?: React.ReactNode }) => (
         <VisualEditorPuckShell {...props} startSidebarClosed={startSidebarClosed} />
       ),
     }),
-    [documentId, documentTitle, documentType, drawerItem, paletteItemMap, previewFrameStyle, startSidebarClosed, toolbar, workspaceLabel],
+    [drawerItem, previewFrameStyle, startSidebarClosed, toolbar],
   )
   const [data, setData] = useState<PuckPageData | null>(null)
   const [status, setStatus] = useState<VisualDocumentStatus>('idle')
@@ -1433,12 +1009,7 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   )
 
   return (
-    <div
-      className={styles.wrapper}
-      data-document-type={documentType}
-      data-hro-fullscreen-builder={documentType}
-      style={wrapperStyle}
-    >
+    <div className={styles.wrapper} data-document-type={documentType} style={wrapperStyle}>
       {toolbar ? (
         <PuckRichTextToolbarProvider target={richTextToolbarTarget}>
           {puck}

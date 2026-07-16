@@ -2028,10 +2028,9 @@ export const plugins: Plugin[] = [
   multiTenantPlugin({
     tenantsSlug: 'tenants', // identify the Tenants collection
     tenantSelectorLabel: undefined,
-    // The Sites collection defines its own access rules. Applying the selected-tenant
-    // constraints here creates a circular selector with no options on first load.
-    useTenantsCollectionAccess: false,
-    useTenantsListFilter: false,
+    // disable tenant-based access constraints for admins
+    useTenantsCollectionAccess: true,
+    useTenantsListFilter: true,
     // Filter by a user's assigned tenants
     useUsersTenantFilter: true,
     debug: true,

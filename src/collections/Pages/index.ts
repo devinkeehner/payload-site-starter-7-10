@@ -95,6 +95,10 @@ export const Pages: CollectionConfig<'pages'> = {
       type: 'tabs',
       tabs: [
         {
+          fields: [HeroConfig],
+          label: 'Hero',
+        },
+        {
           fields: [
             {
               name: 'layout',
@@ -147,10 +151,6 @@ export const Pages: CollectionConfig<'pages'> = {
               descriptionPath: 'meta.description',
             }),
           ],
-        },
-        {
-          fields: [HeroConfig],
-          label: 'Hero',
         },
         {
           label: 'Share',

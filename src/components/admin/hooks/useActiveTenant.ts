@@ -65,7 +65,7 @@ export const getSelectedTenantID = (): string | undefined => {
   return readSelectedTenantIDFromStorage() || readSelectedTenantIDFromCookies()
 }
 
-const tenantCache = new Map<string, TenantInfo>()
+const tenantCache = new Map<string, TenantInfo | null>()
 
 const fetchTenantInfo = async (id: string | undefined, signal: AbortSignal): Promise<TenantInfo | null> => {
   if (!id) return null
@@ -79,6 +79,7 @@ const fetchTenantInfo = async (id: string | undefined, signal: AbortSignal): Pro
     return json
   } catch (err) {
     if ((err as Error).name === 'AbortError') return null
+    tenantCache.set(id, null)
     return null
   }
 }
@@ -105,10 +106,9 @@ export const useActiveTenant = () => {
 
   useEffect(() => {
     let cancelled = false
-    let retryTimer: number | undefined
     const controller = new AbortController()
 
-    const resolve = async (id: string | undefined, attempt = 0) => {
+    const resolve = async (id: string | undefined) => {
       if (cancelled) return
       if (!id) {
         setTenant(null)
@@ -119,17 +119,8 @@ export const useActiveTenant = () => {
       setLoading(true)
       const info = await fetchTenantInfo(id, controller.signal)
       if (!cancelled) {
-        if (info) {
-          setTenant(info)
-          setLoading(false)
-          return
-        }
-
-        setTenant(null)
-        retryTimer = window.setTimeout(
-          () => void resolve(id, attempt + 1),
-          Math.min(10_000, 750 * 2 ** attempt),
-        )
+        setTenant(info)
+        setLoading(false)
       }
     }
 
@@ -137,7 +128,6 @@ export const useActiveTenant = () => {
 
     return () => {
       cancelled = true
-      if (retryTimer !== undefined) window.clearTimeout(retryTimer)
       controller.abort()
     }
   }, [tenantID])

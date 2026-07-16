@@ -3,11 +3,9 @@ import type { CollectionConfig } from 'payload'
 import { authenticated } from '@/lib/access/authenticated'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
-import { createDefaultGraphicScene as createDefaultGraphicStudioScene } from '@/lib/graphics/studioTypes'
 
 export const GraphicDesigns: CollectionConfig = {
   slug: 'graphic-designs',
-  defaultSort: '-updatedAt',
   labels: {
     singular: 'Graphic Design',
     plural: 'Graphic Designs',
@@ -16,25 +14,8 @@ export const GraphicDesigns: CollectionConfig = {
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'sourcePost', 'updatedAt'],
-    description: 'Create and manage Post social and SEO graphics.',
+    description: 'Editable generated graphics linked to posts and reusable templates.',
     hidden: ({ user }) => !isSuperUser(user),
-    components: {
-      views: {
-        edit: {
-          default: {
-            Component: '@/components/admin/graphics/GraphicDesignDefaultView',
-            tab: { label: 'Design Studio', order: 0 },
-          },
-          studio: {
-            path: '/studio',
-            Component: '@/components/admin/graphics/GraphicDesignStudioView',
-          },
-        },
-        list: {
-          Component: '@/components/admin/graphics/GraphicDesignGalleryListView',
-        },
-      },
-    },
   },
   access: {
     create: authenticated,
@@ -97,25 +78,9 @@ export const GraphicDesigns: CollectionConfig = {
     },
     {
       name: 'scene',
-      label: 'Legacy Post Graphic Scene',
       type: 'json',
       required: true,
       defaultValue: defaultGraphicScene,
-      admin: {
-        description: 'Preserved for existing Post graphics. New studio edits are stored separately below.',
-        readOnly: true,
-      },
-    },
-    {
-      name: 'studioScene',
-      label: 'Design Studio Scene',
-      type: 'json',
-      required: true,
-      defaultValue: createDefaultGraphicStudioScene,
-      admin: {
-        description: 'Open the Design Studio to edit this graphic visually.',
-        readOnly: true,
-      },
     },
     {
       name: 'exportedMedia',
@@ -130,10 +95,6 @@ export const GraphicDesigns: CollectionConfig = {
       required: false,
     },
   ],
-  versions: {
-    drafts: { autosave: { interval: 1000 } },
-    maxPerDoc: 25,
-  },
 }
 
 export default GraphicDesigns

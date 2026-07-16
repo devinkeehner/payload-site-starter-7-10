@@ -254,7 +254,7 @@ export interface Post {
     [k: string]: unknown;
   };
   /**
-   * Optional. Leave this closed to publish the rich-text article above exactly as before.
+   * Optional visual post layout. Leave empty to render the Content rich text exactly as before.
    */
   layout?:
     | (
@@ -277,36 +277,36 @@ export interface Post {
   graphicDesign?: (string | null) | GraphicDesign;
   meta: {
     /**
-     * The headline shown in search results. Aim for a clear title between 50 and 60 characters.
+     * Primary SEO headline. The publishing assistant can draft this, but editors should refine it for clarity and clicks.
      */
     title: string;
     /**
-     * A concise summary for search results. Aim for 120 to 160 characters.
-     */
-    description: string;
-    /**
-     * Used when this post is shared on social platforms. Recommended size: 1200 × 630 pixels.
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
     image: string | Media;
+    /**
+     * One-sentence search description. Review after generation and approve only once it reads cleanly.
+     */
+    description: string;
     descriptionApproved: boolean;
   };
   /**
-   * Four short lines used for packaging and sharing. New assistant output resets approval.
+   * Use one best-fit primary category. The publishing assistant drafts this selection, but editors can adjust it.
+   */
+  categories: (string | Category)[];
+  /**
+   * Four short headline-style lines used for packaging and sharing. New assistant output resets approval.
    */
   keyTakeaways: {
     point: string;
     id?: string | null;
   }[];
   /**
-   * Confirm tone, accuracy, and readability before publishing.
+   * Check this only after reviewing the generated or edited takeaways for tone, accuracy, and readability.
    */
   keyTakeawaysApproved: boolean;
   /**
-   * Choose the best-fit category for this post.
-   */
-  categories: (string | Category)[];
-  /**
-   * Choose the type that best describes this post.
+   * Choose the best-fit article type for the post. The publishing assistant drafts this as part of the SEO package.
    */
   articleType: string | ArticleType;
   publishedAt?: string | null;
@@ -325,13 +325,16 @@ export interface Tenant {
   id: string;
   name: string;
   slug: string;
+  /**
+   * Preselects the post graphic template for new posts in this tenant.
+   */
   defaultGraphicTemplate?: (string | null) | GraphicTemplate;
   archived?: boolean | null;
   updatedAt: string;
   createdAt: string;
 }
 /**
- * Legacy graphic templates retained for existing Post graphics.
+ * Reusable graphics templates shared across all tenants.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "graphic-templates".
@@ -715,7 +718,7 @@ export interface PostGridBlock {
   blockType: 'postGrid';
 }
 /**
- * Create and manage Post social and SEO graphics.
+ * Editable generated graphics linked to posts and reusable templates.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "graphic-designs".
@@ -731,22 +734,7 @@ export interface GraphicDesign {
   secondaryTenant?: (string | null) | Tenant;
   backgroundImage?: (string | null) | Media;
   titleOverride?: string | null;
-  /**
-   * Preserved for existing Post graphics. New studio edits are stored separately below.
-   */
   scene:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Open the Design Studio to edit this graphic visually.
-   */
-  studioScene:
     | {
         [k: string]: unknown;
       }
@@ -759,7 +747,6 @@ export interface GraphicDesign {
   notes?: string | null;
   updatedAt: string;
   createdAt: string;
-  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -802,31 +789,6 @@ export interface Page {
   id: string;
   tenant?: (string | null) | Tenant;
   title: string;
-  layout: (
-    | CallToActionBlock
-    | ContentBlock
-    | MediaBlock
-    | MediaGalleryBlock
-    | RichTextBlock
-    | ArchiveBlock
-    | FormBlock
-    | BannerBlock
-    | PolicyVoicesBlock
-    | PetitionDriveBlock
-    | LunchComparisonGraphicBlock
-    | SolutionTimelineGraphicBlock
-    | TaxReliefHighlightGraphicBlock
-    | PropertyTaxCreditTableBlock
-    | BudgetPlanFeatureBlock
-  )[];
-  meta?: {
-    title?: string | null;
-    /**
-     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
-     */
-    image?: (string | null) | Media;
-    description?: string | null;
-  };
   hero?: {
     type?: ('none' | 'highImpact' | 'mediumImpact' | 'lowImpact') | null;
     richText?: {
@@ -888,6 +850,31 @@ export interface Page {
        */
       appearance?: ('default' | 'outline') | null;
     };
+  };
+  layout: (
+    | CallToActionBlock
+    | ContentBlock
+    | MediaBlock
+    | MediaGalleryBlock
+    | RichTextBlock
+    | ArchiveBlock
+    | FormBlock
+    | BannerBlock
+    | PolicyVoicesBlock
+    | PetitionDriveBlock
+    | LunchComparisonGraphicBlock
+    | SolutionTimelineGraphicBlock
+    | TaxReliefHighlightGraphicBlock
+    | PropertyTaxCreditTableBlock
+    | BudgetPlanFeatureBlock
+  )[];
+  meta?: {
+    title?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (string | null) | Media;
+    description?: string | null;
   };
   publishedAt?: string | null;
   draftShareToken?: string | null;
@@ -2722,8 +2709,6 @@ export interface Author {
   createdAt: string;
 }
 /**
- * Identity, towns, social profiles, and email defaults for each website.
- *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "rep-info".
  */
@@ -2733,16 +2718,13 @@ export interface RepInfo {
   officeTitle: string;
   name: string;
   districtNumber: number;
-  /**
-   * Add each represented town and its optional public details.
-   */
   towns?:
     | {
         town: string;
         currentEcsEntitlement?: number | null;
         houseGopStrapAid?: number | null;
         /**
-         * Optional. Include https:// so the link can open correctly.
+         * Optional: paste the town website URL, including https:// (opens in a new tab).
          */
         url?: string | null;
         id?: string | null;
@@ -2750,42 +2732,19 @@ export interface RepInfo {
     | null;
   form?: (string | null) | Form;
   /**
-   * Choose where approved key takeaways appear on posts for this website.
-   */
-  postTakeawaysPlacement?: ('featured' | 'footer') | null;
-  facebook?: string | null;
-  instagram?: string | null;
-  youtube?: string | null;
-  x?: string | null;
-  flickrTag?: string | null;
-  flickrURL?: string | null;
-  facebookConnectionStatus?: ('disconnected' | 'connected' | 'error') | null;
-  facebookPageName?: string | null;
-  facebookPageId?: string | null;
-  facebookConnectedAt?: string | null;
-  facebookConnectedBy?: (string | null) | User;
-  facebookLastError?: string | null;
-  facebookPageAccessToken?: string | null;
-  facebookPageTasks?:
-    | {
-        task: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Used when an email does not specify a different sender name.
+   * Used as the From name for this tenant when sending campaign emails.
    */
   emailFromName?: string | null;
   /**
-   * Must be allowed by the authenticated sending domain.
+   * Used as the From email for this tenant. Must be allowed by the authenticated sending domain.
    */
   emailFromEmail?: string | null;
   /**
-   * Used when an email does not specify a different reply-to address.
+   * Used when an email does not set its own reply-to address.
    */
   emailReplyTo?: string | null;
   /**
-   * Physical mailing address shown in email footers.
+   * Physical mailing address used in campaign email footers for compliance.
    */
   mailingAddress?: string | null;
   mailingAddressLine1?: string | null;
@@ -2793,6 +2752,35 @@ export interface RepInfo {
   mailingAddressCity?: string | null;
   mailingAddressState?: string | null;
   mailingAddressPostalCode?: string | null;
+  facebook?: string | null;
+  youtube?: string | null;
+  instagram?: string | null;
+  x?: string | null;
+  flickrTag?: string | null;
+  flickrURL?: string | null;
+  /**
+   * Controls where approved post takeaways appear on this representative site. Takeaways remain required for publishing; the bottom option tucks them into expandable post details.
+   */
+  postTakeawaysPlacement?: ('featured' | 'footer') | null;
+  /**
+   * Numeric page ID selected through the Facebook connection flow.
+   */
+  facebookPageId?: string | null;
+  facebookPageName?: string | null;
+  /**
+   * Stored from the Facebook connection flow. Keep this field secure.
+   */
+  facebookPageAccessToken?: string | null;
+  facebookPageTasks?:
+    | {
+        task: string;
+        id?: string | null;
+      }[]
+    | null;
+  facebookConnectionStatus?: ('disconnected' | 'connected' | 'error') | null;
+  facebookConnectedAt?: string | null;
+  facebookConnectedBy?: (string | null) | User;
+  facebookLastError?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3146,12 +3134,8 @@ export interface Contact {
         id?: string | null;
       }[]
     | null;
-  notes?: string | null;
-  consentSource?: ('form' | 'manual' | 'icontact' | 'elastic' | 'unknown') | null;
-  consentAt?: string | null;
-  sourceDetails?: string | null;
   /**
-   * Key/value fields imported from iContact or other email platforms.
+   * Imported key/value fields from iContact or other email platforms.
    */
   customFields?:
     | {
@@ -3161,9 +3145,13 @@ export interface Contact {
         id?: string | null;
       }[]
     | null;
+  consentSource?: ('form' | 'manual' | 'icontact' | 'elastic' | 'unknown') | null;
+  consentAt?: string | null;
+  sourceDetails?: string | null;
   elasticContactId?: string | null;
   iContactContactId?: string | null;
   lastSyncedToElasticAt?: string | null;
+  notes?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -4881,10 +4869,11 @@ export interface PostsSelect<T extends boolean = true> {
     | T
     | {
         title?: T;
-        description?: T;
         image?: T;
+        description?: T;
         descriptionApproved?: T;
       };
+  categories?: T;
   keyTakeaways?:
     | T
     | {
@@ -4892,7 +4881,6 @@ export interface PostsSelect<T extends boolean = true> {
         id?: T;
       };
   keyTakeawaysApproved?: T;
-  categories?: T;
   articleType?: T;
   publishedAt?: T;
   draftShareToken?: T;
@@ -5134,32 +5122,6 @@ export interface PostGridBlockSelect<T extends boolean = true> {
 export interface PagesSelect<T extends boolean = true> {
   tenant?: T;
   title?: T;
-  layout?:
-    | T
-    | {
-        cta?: T | CallToActionBlockSelect<T>;
-        content?: T | ContentBlockSelect<T>;
-        mediaBlock?: T | MediaBlockSelect<T>;
-        mediaGallery?: T | MediaGalleryBlockSelect<T>;
-        richTextBlock?: T | RichTextBlockSelect<T>;
-        archive?: T | ArchiveBlockSelect<T>;
-        formBlock?: T | FormBlockSelect<T>;
-        banner?: T | BannerBlockSelect<T>;
-        policyVoices?: T | PolicyVoicesBlockSelect<T>;
-        petitionDrive?: T | PetitionDriveBlockSelect<T>;
-        lunchComparisonGraphic?: T | LunchComparisonGraphicBlockSelect<T>;
-        solutionTimelineGraphic?: T | SolutionTimelineGraphicBlockSelect<T>;
-        taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
-        propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
-        budgetPlanFeature?: T | BudgetPlanFeatureBlockSelect<T>;
-      };
-  meta?:
-    | T
-    | {
-        title?: T;
-        image?: T;
-        description?: T;
-      };
   hero?:
     | T
     | {
@@ -5191,6 +5153,32 @@ export interface PagesSelect<T extends boolean = true> {
               label?: T;
               appearance?: T;
             };
+      };
+  layout?:
+    | T
+    | {
+        cta?: T | CallToActionBlockSelect<T>;
+        content?: T | ContentBlockSelect<T>;
+        mediaBlock?: T | MediaBlockSelect<T>;
+        mediaGallery?: T | MediaGalleryBlockSelect<T>;
+        richTextBlock?: T | RichTextBlockSelect<T>;
+        archive?: T | ArchiveBlockSelect<T>;
+        formBlock?: T | FormBlockSelect<T>;
+        banner?: T | BannerBlockSelect<T>;
+        policyVoices?: T | PolicyVoicesBlockSelect<T>;
+        petitionDrive?: T | PetitionDriveBlockSelect<T>;
+        lunchComparisonGraphic?: T | LunchComparisonGraphicBlockSelect<T>;
+        solutionTimelineGraphic?: T | SolutionTimelineGraphicBlockSelect<T>;
+        taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
+        propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
+        budgetPlanFeature?: T | BudgetPlanFeatureBlockSelect<T>;
+      };
+  meta?:
+    | T
+    | {
+        title?: T;
+        image?: T;
+        description?: T;
       };
   publishedAt?: T;
   draftShareToken?: T;
@@ -5948,12 +5936,10 @@ export interface GraphicDesignsSelect<T extends boolean = true> {
   backgroundImage?: T;
   titleOverride?: T;
   scene?: T;
-  studioScene?: T;
   exportedMedia?: T;
   notes?: T;
   updatedAt?: T;
   createdAt?: T;
-  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -5994,26 +5980,6 @@ export interface RepInfoSelect<T extends boolean = true> {
         id?: T;
       };
   form?: T;
-  postTakeawaysPlacement?: T;
-  facebook?: T;
-  instagram?: T;
-  youtube?: T;
-  x?: T;
-  flickrTag?: T;
-  flickrURL?: T;
-  facebookConnectionStatus?: T;
-  facebookPageName?: T;
-  facebookPageId?: T;
-  facebookConnectedAt?: T;
-  facebookConnectedBy?: T;
-  facebookLastError?: T;
-  facebookPageAccessToken?: T;
-  facebookPageTasks?:
-    | T
-    | {
-        task?: T;
-        id?: T;
-      };
   emailFromName?: T;
   emailFromEmail?: T;
   emailReplyTo?: T;
@@ -6023,6 +5989,26 @@ export interface RepInfoSelect<T extends boolean = true> {
   mailingAddressCity?: T;
   mailingAddressState?: T;
   mailingAddressPostalCode?: T;
+  facebook?: T;
+  youtube?: T;
+  instagram?: T;
+  x?: T;
+  flickrTag?: T;
+  flickrURL?: T;
+  postTakeawaysPlacement?: T;
+  facebookPageId?: T;
+  facebookPageName?: T;
+  facebookPageAccessToken?: T;
+  facebookPageTasks?:
+    | T
+    | {
+        task?: T;
+        id?: T;
+      };
+  facebookConnectionStatus?: T;
+  facebookConnectedAt?: T;
+  facebookConnectedBy?: T;
+  facebookLastError?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -7083,10 +7069,6 @@ export interface ContactsSelect<T extends boolean = true> {
         tag?: T;
         id?: T;
       };
-  notes?: T;
-  consentSource?: T;
-  consentAt?: T;
-  sourceDetails?: T;
   customFields?:
     | T
     | {
@@ -7095,9 +7077,13 @@ export interface ContactsSelect<T extends boolean = true> {
         source?: T;
         id?: T;
       };
+  consentSource?: T;
+  consentAt?: T;
+  sourceDetails?: T;
   elasticContactId?: T;
   iContactContactId?: T;
   lastSyncedToElasticAt?: T;
+  notes?: T;
   updatedAt?: T;
   createdAt?: T;
 }

@@ -215,17 +215,13 @@ export const Posts: CollectionConfig<'posts'> = {
         edit: {
           default: {
             Component: '@/components/admin/live-preview/ResponsiveEditView#default',
-            tab: {
-              label: 'Editor',
-              order: 10,
-            },
           },
           visual: {
             path: '/visual',
             Component: '@/components/admin/post/PuckPostBuilderView',
             tab: {
               href: '/visual',
-              label: 'Visual Builder',
+              label: 'Builder',
               order: 75,
               condition: ({ req }) => canUseBuilders(req.user),
             },
@@ -1054,7 +1050,6 @@ export const Posts: CollectionConfig<'posts'> = {
   fields: [
     {
       name: 'title',
-      label: 'Post title',
       type: 'text',
       required: true,
     },
@@ -1067,15 +1062,15 @@ export const Posts: CollectionConfig<'posts'> = {
               name: 'heroSource',
               type: 'radio',
               options: [
-                { label: 'Upload from Media', value: 'upload' },
-                { label: 'Use a link', value: 'link' },
+                { label: 'Upload', value: 'upload' },
+                { label: 'Link', value: 'link' },
               ],
               defaultValue: 'upload',
               admin: { layout: 'horizontal' },
             },
             {
               name: 'heroImage',
-              label: 'Featured image or video',
+              label: 'Hero Image/Video',
               type: 'upload',
               relationTo: 'media',
               admin: {
@@ -1084,7 +1079,7 @@ export const Posts: CollectionConfig<'posts'> = {
             },
             {
               name: 'heroExternalURL',
-              label: 'Image or video URL',
+              label: 'External Image/Video URL',
               type: 'text',
               admin: {
                 condition: (_data, siblingData) => siblingData?.heroSource === 'link',
@@ -1117,29 +1112,28 @@ export const Posts: CollectionConfig<'posts'> = {
                   ]
                 },
               }),
-              label: 'Post content',
+              label: false,
               required: true,
             },
             {
               name: 'layout',
-              label: 'Optional visual layout',
               type: 'blocks',
               admin: {
-                description: 'Optional. Leave this closed to publish the rich-text article above exactly as before.',
+                description: 'Optional visual post layout. Leave empty to render the Content rich text exactly as before.',
                 initCollapsed: true,
               },
               blocks: POST_LAYOUT_BLOCKS,
             },
           ],
-          label: 'Write',
+          label: 'Content',
         },
         {
-          label: 'Search & Social',
+          label: 'Meta & SEO',
           fields: [
             {
               name: 'publishingAssistant',
               type: 'ui',
-              label: 'Search & Social Assistant',
+              label: 'SEO & Meta Assistant',
               admin: {
                 components: {
                   Field: {
@@ -1175,31 +1169,20 @@ export const Posts: CollectionConfig<'posts'> = {
               fields: [
                 MetaTitleField({
                   overrides: {
-                    label: 'Search title',
                     required: true,
                     admin: {
                       description:
-                        'The headline shown in search results. Aim for a clear title between 50 and 60 characters.',
+                        'Primary SEO headline. The publishing assistant can draft this, but editors should refine it for clarity and clicks.',
                     },
                   },
                 }),
+                MetaImageField({ relationTo: 'media', overrides: { required: true } }),
                 MetaDescriptionField({
                   overrides: {
-                    label: 'Search description',
                     required: true,
                     admin: {
                       description:
-                        'A concise summary for search results. Aim for 120 to 160 characters.',
-                    },
-                  },
-                }),
-                MetaImageField({
-                  relationTo: 'media',
-                  overrides: {
-                    label: 'Social image',
-                    required: true,
-                    admin: {
-                      description: 'Used when this post is shared on social platforms. Recommended size: 1200 × 630 pixels.',
+                        'One-sentence search description. Review after generation and approve only once it reads cleanly.',
                     },
                   },
                 }),
@@ -1217,39 +1200,53 @@ export const Posts: CollectionConfig<'posts'> = {
               ],
             },
             {
-              type: 'collapsible',
-              label: 'Key takeaways & approval',
+              name: 'categories',
+              type: 'relationship',
+              relationTo: 'categories',
+              hasMany: true,
+              required: true,
               admin: {
-                initCollapsed: true,
+                description:
+                  'Use one best-fit primary category. The publishing assistant drafts this selection, but editors can adjust it.',
+              },
+            },
+            {
+              name: 'keyTakeaways',
+              label: 'Key Takeaways / TL;DR',
+              type: 'array',
+              required: true,
+              admin: {
+                description:
+                  'Four short headline-style lines used for packaging and sharing. New assistant output resets approval.',
               },
               fields: [
                 {
-                  name: 'keyTakeaways',
-                  label: 'Key takeaways / TL;DR',
-                  type: 'array',
+                  name: 'point',
+                  type: 'text',
                   required: true,
-                  admin: {
-                    description: 'Four short lines used for packaging and sharing. New assistant output resets approval.',
-                  },
-                  fields: [
-                    {
-                      name: 'point',
-                      type: 'text',
-                      required: true,
-                    },
-                  ],
-                },
-                {
-                  name: 'keyTakeawaysApproved',
-                  label: 'I reviewed these takeaways',
-                  type: 'checkbox',
-                  required: true,
-                  admin: {
-                    description: 'Confirm tone, accuracy, and readability before publishing.',
-                  },
-                  validate: validateKeyTakeawaysApproval,
                 },
               ],
+            },
+            {
+              name: 'keyTakeawaysApproved',
+              label: 'Key Takeaways Approved',
+              type: 'checkbox',
+              required: true,
+              admin: {
+                description:
+                  'Check this only after reviewing the generated or edited takeaways for tone, accuracy, and readability.',
+              },
+              validate: validateKeyTakeawaysApproval,
+            },
+            {
+              name: 'articleType',
+              type: 'relationship',
+              relationTo: 'article-types',
+              required: true,
+              admin: {
+                description:
+                  'Choose the best-fit article type for the post. The publishing assistant drafts this as part of the SEO package.',
+              },
             },
           ],
         },
@@ -1273,31 +1270,7 @@ export const Posts: CollectionConfig<'posts'> = {
       ],
     },
     {
-      name: 'categories',
-      label: 'Category',
-      type: 'relationship',
-      relationTo: 'categories',
-      hasMany: true,
-      required: true,
-      admin: {
-        description: 'Choose the best-fit category for this post.',
-        position: 'sidebar',
-      },
-    },
-    {
-      name: 'articleType',
-      label: 'Article type',
-      type: 'relationship',
-      relationTo: 'article-types',
-      required: true,
-      admin: {
-        description: 'Choose the type that best describes this post.',
-        position: 'sidebar',
-      },
-    },
-    {
       name: 'publishedAt',
-      label: 'Publish date',
       type: 'date',
       admin: {
         date: {

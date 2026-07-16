@@ -1,11 +1,7 @@
-import React, { Suspense } from 'react'
+import React from 'react'
 
-import { PostGraphicEditorLauncher } from '@/components/admin/graphics/PostGraphicEditorLauncher'
+import { GraphicTemplateEditor } from '@/components/admin/GraphicTemplateEditor'
 
 export default function GraphicsEditorStandalonePage() {
-  return (
-    <Suspense fallback={null}>
-      <PostGraphicEditorLauncher />
-    </Suspense>
-  )
+  return <GraphicTemplateEditor />
 }

@@ -1,9 +1,10 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { useTheme } from '@payloadcms/ui'
 
-import AdminIcon from './brand/Icon'
 import { useActiveTenant } from './hooks/useActiveTenant'
 
 export type BreadcrumbCrumb = {
@@ -12,45 +13,98 @@ export type BreadcrumbCrumb = {
   current?: boolean
 }
 
+const getTenantColor = (theme: 'light' | 'dark') => (theme === 'dark' ? '#facc15' : '#dc2626')
+
 export interface TenantBreadcrumbBarProps {
   collectionLabel?: string
   collectionHref?: string
   docLabel?: string
-  tenantSelector?: React.ReactNode
 }
 
-export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({
-  collectionLabel,
-  collectionHref,
-  docLabel,
-  tenantSelector,
-}) => {
-  const { tenantID, tenantName } = useActiveTenant()
+export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({ collectionLabel, collectionHref, docLabel }) => {
+  const { theme } = useTheme()
+  const { tenant, tenantID } = useActiveTenant()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const tenantCrumb: BreadcrumbCrumb | null = tenant || tenantID
+    ? {
+        label: tenant?.name || tenant?.slug || tenantID || 'Site',
+        href: '/admin',
+      }
+    : null
+
   const crumbs: BreadcrumbCrumb[] = []
-  const collectionIsActiveTenant = collectionLabel === tenantName || collectionLabel === tenantID
-  if (collectionLabel && !collectionIsActiveTenant) {
+  if (mounted && tenantCrumb) crumbs.push(tenantCrumb)
+  if (collectionLabel) {
     crumbs.push({ label: collectionLabel, href: collectionHref })
   }
   if (docLabel) {
     crumbs.push({ label: docLabel, current: true })
   }
 
+  const tenantColor = getTenantColor(theme === 'dark' ? 'dark' : 'light')
+
   return (
-    <nav aria-label="Breadcrumb" className="hro-admin-header__breadcrumbs">
-      <Link aria-label="Admin home" className="hro-admin-header__home" href="/admin">
-        <AdminIcon />
+    <nav
+      aria-label="breadcrumb"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '0.65rem',
+        fontSize: '1.05rem',
+        fontWeight: 600,
+      }}
+    >
+      <Link
+        href="/admin"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+          textDecoration: 'none',
+          color: 'var(--theme-text)',
+        }}
+      >
+        <Image
+          src="/brand/icon-light.svg"
+          alt="Admin Home"
+          width={40}
+          height={40}
+          style={{
+            borderRadius: '50%',
+            objectFit: 'contain',
+            background: 'var(--theme-elevation-50)',
+            padding: '0.4rem',
+          }}
+        />
       </Link>
-      {tenantSelector}
-      {crumbs.map((crumb, index) => {
+      {mounted && crumbs.map((crumb, index) => {
+        const isTenant = index === 0
         const isLast = index === crumbs.length - 1
+        const color = isTenant ? tenantColor : 'var(--theme-text)'
         const node = crumb.href && !isLast ? (
-          <Link className="hro-admin-header__crumb" key={index} href={crumb.href}>
+          <Link
+            key={index}
+            href={crumb.href}
+            style={{
+              color,
+              fontWeight: isTenant || isLast ? 700 : 500,
+              textDecoration: 'none',
+            }}
+          >
             {crumb.label}
           </Link>
         ) : (
           <span
-            className="hro-admin-header__crumb hro-admin-header__crumb--current"
             key={index}
+            style={{
+              color,
+              fontWeight: isTenant || isLast ? 700 : 500,
+            }}
           >
             {crumb.label}
           </span>
@@ -58,7 +112,7 @@ export const TenantBreadcrumbBar: React.FC<TenantBreadcrumbBarProps> = ({
 
         return (
           <React.Fragment key={`crumb-${index}`}>
-            {index > 0 && <span aria-hidden="true" className="hro-admin-header__separator">/</span>}
+            {index > 0 && <span style={{ opacity: 0.5 }}>›</span>}
             {node}
           </React.Fragment>
         )

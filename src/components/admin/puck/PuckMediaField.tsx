@@ -122,7 +122,6 @@ async function getUploadError(res: Response): Promise<string> {
 
 export function PuckMediaField({
   chooseLabel,
-  display = 'default',
   uploadAccept = 'image/*',
   uploadLabel,
   value,
@@ -130,7 +129,6 @@ export function PuckMediaField({
   readOnly,
 }: {
   chooseLabel?: string
-  display?: 'compact' | 'default' | 'gallery'
   uploadAccept?: string
   uploadLabel?: string
   value: unknown
@@ -297,7 +295,7 @@ export function PuckMediaField({
   }
 
   return (
-    <div className={styles.mediaField} data-display={display}>
+    <div className={styles.mediaField}>
       {currentMedia ? (
         <div className={styles.mediaFieldCurrent}>
           {isVideoMedia(currentMedia) ? (
@@ -403,7 +401,7 @@ export function PuckMediaField({
                         src={thumbnailURL}
                         alt={item.label}
                         fill
-                        sizes={display === 'gallery' ? '240px' : '120px'}
+                        sizes="120px"
                         unoptimized
                       />
                     </span>

@@ -20,7 +20,6 @@ import { link } from '@/collections/fields/link'
 export const HeroConfig: Field = {
   name: 'hero',
   type: 'group',
-  required: false,
   fields: [
     {
       name: 'type',
@@ -71,12 +70,10 @@ export const HeroConfig: Field = {
         },
       }),
       label: false,
-      required: false,
     },
     linkGroup({
       overrides: {
         maxRows: 2,
-        required: false,
       },
     }),
     {
@@ -89,7 +86,7 @@ export const HeroConfig: Field = {
       required: false,
     },
     link({
-      overrides: { name: 'callToAction', required: false },
+      overrides: { name: 'callToAction' },
     }),
   ],
   label: false,

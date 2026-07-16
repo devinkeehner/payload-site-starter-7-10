@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Button, useDocumentInfo, useField, useForm, useFormFields } from '@payloadcms/ui'
+import { Button, useAuth, useDocumentInfo, useField, useForm, useFormFields } from '@payloadcms/ui'
 
 import {
   DEFAULT_SEO_ASSISTANT_SETTINGS,
@@ -36,6 +36,11 @@ type FieldState = {
 
 type FormFields = Record<string, FieldState | undefined> & {
   _id?: FieldState
+}
+
+type TenantDoc = {
+  defaultGraphicTemplate?: unknown
+  id?: string
 }
 
 type Notice = {
@@ -82,6 +87,12 @@ const readRelationshipField = (fields: unknown, path: string): string | undefine
   return readRelationshipID(current)
 }
 
+const hasSuperRole = (value: unknown) => {
+  if (!value || typeof value !== 'object') return false
+  const roles = (value as { roles?: unknown }).roles
+  return Array.isArray(roles) && roles.includes('super')
+}
+
 const deriveIdFromPath = (): string | undefined => {
   if (typeof window === 'undefined') return undefined
 
@@ -96,28 +107,33 @@ const deriveIdFromPath = (): string | undefined => {
   return undefined
 }
 
+const tenantDefaultGraphicTemplateCache = new Map<string, string | null>()
+
 export const PostPublishingAssistant: React.FC = () => {
   const { dispatchFields } = useForm()
+  const { user } = useAuth()
   const docInfo = useDocumentInfo() as { id?: string } | null
   const documentID = useFormFields(([fields]) => readIdField(fields)) || docInfo?.id || deriveIdFromPath()
-  const designID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicDesign'))
-  const templateID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicTemplate'))
   const tenantID = useFormFields(([fields]) => readRelationshipField(fields, 'tenant'))
-  const { setValue: setTemplateValue } = useField<string | null>({ path: 'graphicTemplate' })
+  const templateID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicTemplate'))
+  const designID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicDesign'))
   const slugFromForm = useFormFields(([fields]) => {
     const slug = asFormFields(fields).slug?.value
     return typeof slug === 'string' ? slug : undefined
   })
+  const { setValue: setTemplateValue } = useField<string | null>({ path: 'graphicTemplate' })
   const [assistantSettings, setAssistantSettings] = useState<SeoAssistantSettings>(
     DEFAULT_SEO_ASSISTANT_SETTINGS,
   )
   const [tone, setTone] = useState<SeoAssistantTone>(DEFAULT_SEO_ASSISTANT_SETTINGS.defaultTone)
   const [additionalInstructions, setAdditionalInstructions] = useState('')
+  const [tenantDefaultTemplateID, setTenantDefaultTemplateID] = useState<string | null>(null)
   const [generateLoading, setGenerateLoading] = useState(false)
   const [configLoading, setConfigLoading] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
-  const [tenantDefaultTemplateID, setTenantDefaultTemplateID] = useState<string | null>(null)
   const toneTouchedRef = useRef(false)
+  const isSuperAdmin = hasSuperRole(user)
+  const effectiveTemplateID = templateID || tenantDefaultTemplateID || undefined
 
   useEffect(() => {
     let ignore = false
@@ -157,38 +173,43 @@ export const PostPublishingAssistant: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!tenantID || templateID) {
-      setTenantDefaultTemplateID(null)
+    if (!tenantID || templateID) return
+
+    const cached = tenantDefaultGraphicTemplateCache.get(tenantID)
+    if (cached !== undefined) {
+      setTenantDefaultTemplateID(cached)
+      if (cached) setTemplateValue(cached)
       return
     }
 
     let ignore = false
 
-    const loadDefaultGraphicTemplate = async () => {
+    const loadDefaultTemplate = async () => {
       try {
-        const response = await fetch(`/api/tenants/${encodeURIComponent(tenantID)}?depth=1`, {
-          credentials: 'include',
-        })
-        if (!response.ok) throw new Error(`Failed to load the Site graphic template (${response.status})`)
-        const tenant = (await response.json()) as { defaultGraphicTemplate?: unknown }
-        const defaultTemplateID = readRelationshipID(tenant.defaultGraphicTemplate) || null
+        const response = await fetch(`/api/tenants/${tenantID}?depth=1`, { credentials: 'include' })
+        if (!response.ok) throw new Error(`Failed to load tenant default template (${response.status})`)
+
+        const json = (await response.json()) as TenantDoc
+        const defaultID = readRelationshipID(json.defaultGraphicTemplate) ?? null
+        tenantDefaultGraphicTemplateCache.set(tenantID, defaultID)
+
         if (ignore) return
-        setTenantDefaultTemplateID(defaultTemplateID)
-        if (defaultTemplateID) setTemplateValue(defaultTemplateID)
+
+        setTenantDefaultTemplateID(defaultID)
+        if (defaultID) setTemplateValue(defaultID)
       } catch (error) {
-        console.error('[PostPublishingAssistant] Failed to load the Site graphic template', error)
+        console.error('[PostPublishingAssistant] Failed to load tenant default graphic template', error)
+        tenantDefaultGraphicTemplateCache.set(tenantID, null)
         if (!ignore) setTenantDefaultTemplateID(null)
       }
     }
 
-    void loadDefaultGraphicTemplate()
+    void loadDefaultTemplate()
 
     return () => {
       ignore = true
     }
   }, [setTemplateValue, tenantID, templateID])
-
-  const effectiveTemplateID = templateID || tenantDefaultTemplateID || undefined
 
   const launchGraphicEditor = (params: URLSearchParams) => {
     if (typeof window === 'undefined') return
@@ -203,6 +224,13 @@ export const PostPublishingAssistant: React.FC = () => {
     launchGraphicEditor(params)
   }
 
+  const openTemplateEditor = () => {
+    const params = new URLSearchParams({ collection: 'posts' })
+    if (documentID) params.set('docId', documentID)
+    if (effectiveTemplateID) params.set('templateId', effectiveTemplateID)
+    launchGraphicEditor(params)
+  }
+
   const openDesignEditor = () => {
     if (!designID) return
     const params = new URLSearchParams({ collection: 'posts' })
@@ -210,6 +238,11 @@ export const PostPublishingAssistant: React.FC = () => {
     params.set('designId', designID)
     if (effectiveTemplateID) params.set('templateId', effectiveTemplateID)
     launchGraphicEditor(params)
+  }
+
+  const openExperimentalTownGraphic = () => {
+    if (typeof window === 'undefined') return
+    window.location.assign('/graphics-editor-experimental')
   }
 
   const resolveIdFromSlug = async () => {
@@ -337,82 +370,123 @@ export const PostPublishingAssistant: React.FC = () => {
     <div className="post-publishing-assistant">
       <div className="post-publishing-assistant__header">
         <div className="post-publishing-assistant__heading">
-          <h3>Search &amp; Social Assistant</h3>
-          <p>Create a starting draft from the post, then review the fields below before publishing.</p>
+          <h3>SEO &amp; Meta Assistant</h3>
         </div>
-        <Button
-          onClick={handleGenerateSeo}
-          disabled={generateLoading}
-          buttonStyle="primary"
-        >
-          {generateLoading ? 'Drafting search details…' : 'Draft search details'}
-        </Button>
       </div>
 
-      <details className="post-publishing-assistant__details">
-        <summary>Adjust AI draft <span>Optional</span></summary>
-        <div className="post-publishing-assistant__details-body">
-          <label className="post-publishing-assistant__control">
-            <span>Tone</span>
-            <select
-              className="post-publishing-assistant__input"
-              value={tone}
-              onChange={(event) => {
-                toneTouchedRef.current = true
-                setTone(event.target.value as SeoAssistantTone)
-              }}
+      <div className="post-publishing-assistant__grid">
+        <div className="post-publishing-assistant__seo-group">
+          <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--requests">
+            <div className="post-publishing-assistant__section-copy">
+              <h4>Additional requests</h4>
+              <p className="post-publishing-assistant__subtle">
+                Optional. Anything entered here takes priority for this run.
+              </p>
+            </div>
+
+            <div className="post-publishing-assistant__controls">
+              <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
+                <textarea
+                  className="post-publishing-assistant__input post-publishing-assistant__textarea"
+                  value={additionalInstructions}
+                  placeholder="Optional author instructions for this run."
+                  rows={4}
+                  onChange={(event) => {
+                    setAdditionalInstructions(event.target.value)
+                  }}
+                />
+              </label>
+            </div>
+          </section>
+
+          <section className="post-publishing-assistant__section post-publishing-assistant__section--seo">
+            <div className="post-publishing-assistant__section-copy">
+              <h4>SEO Generation</h4>
+              <p className="post-publishing-assistant__subtle">{activeModelSummary}</p>
+              {tenantID && !templateID && tenantDefaultTemplateID ? (
+                <p className="post-publishing-assistant__subtle">Tenant default template loaded</p>
+              ) : null}
+            </div>
+
+            <div className="post-publishing-assistant__controls">
+              <label className="post-publishing-assistant__control">
+                <span>Tone</span>
+                <select
+                  className="post-publishing-assistant__input"
+                  value={tone}
+                  onChange={(event) => {
+                    toneTouchedRef.current = true
+                    setTone(event.target.value as SeoAssistantTone)
+                  }}
+                >
+                  {SEO_ASSISTANT_TONE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="post-publishing-assistant__actions">
+              <Button
+                onClick={handleGenerateSeo}
+                disabled={generateLoading}
+                buttonStyle="primary"
+              >
+                {generateLoading ? 'Generating SEO…' : 'Generate SEO Draft'}
+              </Button>
+            </div>
+          </section>
+        </div>
+
+        <section className="post-publishing-assistant__section post-publishing-assistant__section--compact post-publishing-assistant__section--graphics">
+          <div className="post-publishing-assistant__section-copy">
+            <h4>Social Graphics</h4>
+          </div>
+
+          <div className="post-publishing-assistant__actions post-publishing-assistant__actions--compact post-publishing-assistant__actions--stack">
+            <Button
+              onClick={openPostGraphicEditor}
+              disabled={!documentID}
+              buttonStyle="secondary"
             >
-              {SEO_ASSISTANT_TONE_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="post-publishing-assistant__control post-publishing-assistant__control--wide">
-            <span>Additional requests</span>
-            <textarea
-              className="post-publishing-assistant__input post-publishing-assistant__textarea"
-              value={additionalInstructions}
-              placeholder="For example: emphasize the public meeting date and accessibility details."
-              rows={3}
-              onChange={(event) => setAdditionalInstructions(event.target.value)}
-            />
-          </label>
-          <p className="post-publishing-assistant__subtle">{activeModelSummary}</p>
-          {assistantSettings.defaultInstructions ? (
-            <details className="post-publishing-assistant__saved-defaults">
-              <summary>Saved default instructions</summary>
-              <div>{assistantSettings.defaultInstructions}</div>
-            </details>
-          ) : null}
-        </div>
-      </details>
-
-      <div className="post-publishing-assistant__graphics">
-        <div>
-          <h4>Social image</h4>
-          <p>
-            Create the SEO/social image in the visual builder or continue editing the linked design.
-            {effectiveTemplateID ? ' The saved Site template will be used as the starting point.' : ''}
-          </p>
-        </div>
-        <div className="post-publishing-assistant__actions">
-          <Button onClick={openPostGraphicEditor} disabled={!documentID} buttonStyle="secondary">
-            Create SEO/social image
-          </Button>
-          {designID ? (
-            <Button onClick={openDesignEditor} buttonStyle="secondary">
-              Edit saved graphic
+              Open Post Graphic Editor
             </Button>
-          ) : null}
-        </div>
+            {isSuperAdmin ? (
+              <Button
+                onClick={openTemplateEditor}
+                disabled={!effectiveTemplateID}
+                buttonStyle="secondary"
+              >
+                Edit Template
+              </Button>
+            ) : null}
+            <Button
+              onClick={openDesignEditor}
+              disabled={!designID}
+              buttonStyle="secondary"
+            >
+              Edit Saved Graphic
+            </Button>
+          </div>
+        </section>
       </div>
 
-      {!documentID ? (
-        <p className="post-publishing-assistant__hint">Save this post once to enable drafting and social graphics.</p>
-      ) : null}
-      {configLoading ? <p className="post-publishing-assistant__hint">Loading assistant defaults…</p> : null}
+      <div className="post-publishing-assistant__footer">
+        {!documentID ? (
+          <p>Save the post once to enable SEO generation and the main post graphic editor.</p>
+        ) : null}
+        {configLoading ? <p>Loading assistant defaults…</p> : null}
+        {assistantSettings.defaultInstructions ? (
+          <details className="post-publishing-assistant__details">
+            <summary>Saved default instructions</summary>
+            <div className="post-publishing-assistant__details-body">
+              {assistantSettings.defaultInstructions}
+            </div>
+          </details>
+        ) : null}
+      </div>
 
       {notice ? (
         <div

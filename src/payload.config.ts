@@ -5171,6 +5171,7 @@ export default buildConfig({
         '@/components/admin/TenantSwitchGuard#default',
         '@/components/admin/TenantHeaderIndicator#default',
       ],
+      beforeNavLinks: ['@/components/admin/TenantNavPanel#default'],
       graphics: {
         Icon: '@/components/admin/brand/Icon#default',
         Logo: '@/components/admin/brand/Logo#default',
@@ -5210,9 +5211,7 @@ export default buildConfig({
     dashboard: {
       defaultLayout: [
         { widgetSlug: 'quickTasks', width: 'full' },
-        { widgetSlug: 'websiteShortcuts', width: 'full' },
-        { widgetSlug: 'homepageBanner', width: 'medium' },
-        { widgetSlug: 'siteManagement', width: 'medium' },
+        { widgetSlug: 'iconCollectionLauncher', width: 'full' },
       ],
       widgets: [
         {
@@ -5226,36 +5225,6 @@ export default buildConfig({
           ComponentPath: '@/components/admin/dashboard/DashboardWidgets#IconCollectionLauncherWidget',
           label: 'Collections',
           minWidth: 'full',
-        },
-        {
-          slug: 'recentActivity',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#RecentActivityWidget',
-          label: 'Recent Activity',
-          minWidth: 'full',
-        },
-        {
-          slug: 'drafts',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#DraftsWidget',
-          label: 'Drafts',
-          minWidth: 'full',
-        },
-        {
-          slug: 'websiteShortcuts',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#WebsiteShortcutsWidget',
-          label: 'Website Shortcuts',
-          minWidth: 'full',
-        },
-        {
-          slug: 'homepageBanner',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#HomepageBannerWidget',
-          label: 'Website Images',
-          minWidth: 'medium',
-        },
-        {
-          slug: 'siteManagement',
-          ComponentPath: '@/components/admin/dashboard/DashboardWidgets#SiteManagementWidget',
-          label: 'Site Management',
-          minWidth: 'medium',
         },
       ],
     },

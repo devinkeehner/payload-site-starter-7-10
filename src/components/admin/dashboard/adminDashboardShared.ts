@@ -1,8 +1,5 @@
 export type AdminTaskKey =
   | 'createPost'
-  | 'createForm'
-  | 'uploadMedia'
-  | 'createPage'
   | 'changeHomePageBanner'
   | 'updateSocialMedia'
   | 'editTowns'
@@ -44,9 +41,6 @@ export const navGroupHelperText: Record<string, string> = {
 
 export const quickTaskDescriptions: Record<AdminTaskKey, string> = {
   createPost: 'Draft a new news update or announcement.',
-  createForm: 'Build a signup, contact, volunteer, or RSVP form.',
-  uploadMedia: 'Add an image, video, document, or other reusable file.',
-  createPage: 'Create a new website page and open its editor.',
   changeHomePageBanner: 'Update the homepage hero image, video, and default social images.',
   updateSocialMedia: 'Update representative social media links and Facebook connection settings.',
   editTowns: 'Update towns, town URLs, and district aid details.',

@@ -301,8 +301,6 @@ export function PuckEmailBuilderEditor({
       autosave
       blockSchema={blockSchema}
       config={config}
-      documentId={emailId}
-      documentTitle={title}
       documentType="email"
       externalBusy={emailStatus === 'checkingLinks' || emailStatus === 'sending'}
       externalMessage={emailStatus === 'checkingLinks'
@@ -345,7 +343,7 @@ export function PuckEmailBuilderEditor({
               {context.status === 'saving' ? 'Saving...' : 'Save'}
             </button>
             <button
-              className={`${styles.saveButton} ${styles.builderWorkspaceSecondaryAction}`}
+              className={styles.saveButton}
               disabled={busy}
               type="button"
               onClick={() => void checkLinks(context)}
@@ -353,7 +351,7 @@ export function PuckEmailBuilderEditor({
               {emailStatus === 'checkingLinks' ? 'Checking Links...' : 'Check Links'}
             </button>
             <button
-              className={`${styles.saveButton} ${styles.builderWorkspaceSecondaryAction}`}
+              className={styles.saveButton}
               disabled={busy}
               type="button"
               onClick={() => {

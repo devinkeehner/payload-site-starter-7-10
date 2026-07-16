@@ -26,6 +26,7 @@ import { BlockquoteFeatureClient as BlockquoteFeatureClient_e70f5e05f09f93e00b99
 import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { TextColorFeatureClient as TextColorFeatureClient_c99717c5f8781434005d4490da54eff9 } from '../../../lib/rich-text/client'
 import { PostPublishingAssistant as PostPublishingAssistant_dd305d4164f2b06dc948157a3b51365c } from '../../../components/admin/PostPublishingAssistant'
+import { MetaImageComponent as MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { ShareCopyField as ShareCopyField_beaba85f0ccf15f13c89f620a863758e } from '@/components/admin/ShareCopyField'
 import { DraftShareField as DraftShareField_b8b20b8fa8917c47596a0044ca795a6a } from '@/components/admin/DraftShareField'
@@ -34,14 +35,10 @@ import { default as default_29087ce7dedec9320d020e334482d0a4 } from '@/component
 import { default as default_a9e6f4b757e17e9c9c3058c92eaf3fff } from '@/components/admin/post/PuckPostBuilderView'
 import { OverviewComponent as OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MetaTitleComponent as MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
-import { MetaImageComponent as MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MetaDescriptionComponent as MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { GenerateSEOButton as GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae } from '../../../components/admin/GenerateSEOButton'
 import { default as default_ba1864c9a769a36011f463d5faeeb745 } from '@/components/admin/media/MediaGalleryListView'
 import { MediaCanvasField as MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07 } from '@/components/admin/MediaCanvasField'
-import { default as default_37461efde84e27dbdd00177f6b8a1329 } from '@/components/admin/graphics/GraphicDesignDefaultView'
-import { default as default_2d682d98f90fd2c18ebb1d4d5c0fcb05 } from '@/components/admin/graphics/GraphicDesignStudioView'
-import { default as default_6a1a3f7f0fa75e58b07b878e7a315d5c } from '@/components/admin/graphics/GraphicDesignGalleryListView'
 import { FacebookConnectionField as FacebookConnectionField_0cb92cbece99572909a34da846678f78 } from '@/components/admin/FacebookConnectionField'
 import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/components/site/navbar/row-label'
 import { FormShareField as FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f } from '@/components/admin/FormShareField'
@@ -68,6 +65,7 @@ import { CampaignAdminNav as CampaignAdminNav_5bc56d38891b826e82b7907992abc6a3 }
 import { default as default_d724e3c9fa2fc7ba502c18e1e0541534 } from '@/components/admin/brand/Icon'
 import { default as default_f5b90b1f137d54d2b96fee0d0c4d5b67 } from '@/components/admin/brand/Logo'
 import { GlobalViewRedirect as GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
+import { default as default_7bc3a493a5fcf6301e9130ddb791c76c } from '@/components/admin/TenantNavPanel'
 import { TenantSelector as TenantSelector_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { default as default_09b211d7781926302e8e4ca6064e7fcb } from '@/components/admin/theme/AdminPaletteProvider'
 import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/components/admin/TenantSwitchGuard'
@@ -78,11 +76,6 @@ import { default as default_1a60547ff0383fa586cb898a7f7ad4a3 } from '@/component
 import { default as default_9f1b385a792e6f20bbc6f2fff4efda7b } from '@/components/admin/email-imports/IContactImportView'
 import { QuickTasksWidget as QuickTasksWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
 import { IconCollectionLauncherWidget as IconCollectionLauncherWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
-import { RecentActivityWidget as RecentActivityWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
-import { DraftsWidget as DraftsWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
-import { WebsiteShortcutsWidget as WebsiteShortcutsWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
-import { HomepageBannerWidget as HomepageBannerWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
-import { SiteManagementWidget as SiteManagementWidget_3d6cbd98ae16a4b532b4ea54743c8203 } from '@/components/admin/dashboard/DashboardWidgets'
 import { CollectionCards as CollectionCards_ab83ff7e88da8d3530831f296ec4756a } from '@payloadcms/ui/rsc'
 
 export const importMap = {
@@ -114,6 +107,7 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UploadFeatureClient": UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./lib/rich-text/client#TextColorFeatureClient": TextColorFeatureClient_c99717c5f8781434005d4490da54eff9,
   "./components/admin/PostPublishingAssistant#PostPublishingAssistant": PostPublishingAssistant_dd305d4164f2b06dc948157a3b51365c,
+  "@payloadcms/plugin-seo/client#MetaImageComponent": MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#PreviewComponent": PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@/components/admin/ShareCopyField#ShareCopyField": ShareCopyField_beaba85f0ccf15f13c89f620a863758e,
   "@/components/admin/DraftShareField#DraftShareField": DraftShareField_b8b20b8fa8917c47596a0044ca795a6a,
@@ -122,14 +116,10 @@ export const importMap = {
   "@/components/admin/post/PuckPostBuilderView#default": default_a9e6f4b757e17e9c9c3058c92eaf3fff,
   "@payloadcms/plugin-seo/client#OverviewComponent": OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#MetaTitleComponent": MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c0860,
-  "@payloadcms/plugin-seo/client#MetaImageComponent": MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#MetaDescriptionComponent": MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "./components/admin/GenerateSEOButton#GenerateSEOButton": GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae,
   "@/components/admin/media/MediaGalleryListView#default": default_ba1864c9a769a36011f463d5faeeb745,
   "@/components/admin/MediaCanvasField#MediaCanvasField": MediaCanvasField_fa2ba671846bcd9c3499c8e43b275f07,
-  "@/components/admin/graphics/GraphicDesignDefaultView#default": default_37461efde84e27dbdd00177f6b8a1329,
-  "@/components/admin/graphics/GraphicDesignStudioView#default": default_2d682d98f90fd2c18ebb1d4d5c0fcb05,
-  "@/components/admin/graphics/GraphicDesignGalleryListView#default": default_6a1a3f7f0fa75e58b07b878e7a315d5c,
   "@/components/admin/FacebookConnectionField#FacebookConnectionField": FacebookConnectionField_0cb92cbece99572909a34da846678f78,
   "@/components/site/navbar/row-label#RowLabel": RowLabel_049f819b8cc5e95a74082f1d6b1ff31a,
   "@/components/admin/FormShareField#FormShareField": FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f,
@@ -156,6 +146,7 @@ export const importMap = {
   "@/components/admin/brand/Icon#default": default_d724e3c9fa2fc7ba502c18e1e0541534,
   "@/components/admin/brand/Logo#default": default_f5b90b1f137d54d2b96fee0d0c4d5b67,
   "@payloadcms/plugin-multi-tenant/rsc#GlobalViewRedirect": GlobalViewRedirect_d6d5f193a167989e2ee7d14202901e62,
+  "@/components/admin/TenantNavPanel#default": default_7bc3a493a5fcf6301e9130ddb791c76c,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelector": TenantSelector_d6d5f193a167989e2ee7d14202901e62,
   "@/components/admin/theme/AdminPaletteProvider#default": default_09b211d7781926302e8e4ca6064e7fcb,
   "@/components/admin/TenantSwitchGuard#default": default_599c1b72b7cec43f5abe1b2ad62dbd85,
@@ -166,10 +157,5 @@ export const importMap = {
   "@/components/admin/email-imports/IContactImportView#default": default_9f1b385a792e6f20bbc6f2fff4efda7b,
   "@/components/admin/dashboard/DashboardWidgets#QuickTasksWidget": QuickTasksWidget_3d6cbd98ae16a4b532b4ea54743c8203,
   "@/components/admin/dashboard/DashboardWidgets#IconCollectionLauncherWidget": IconCollectionLauncherWidget_3d6cbd98ae16a4b532b4ea54743c8203,
-  "@/components/admin/dashboard/DashboardWidgets#RecentActivityWidget": RecentActivityWidget_3d6cbd98ae16a4b532b4ea54743c8203,
-  "@/components/admin/dashboard/DashboardWidgets#DraftsWidget": DraftsWidget_3d6cbd98ae16a4b532b4ea54743c8203,
-  "@/components/admin/dashboard/DashboardWidgets#WebsiteShortcutsWidget": WebsiteShortcutsWidget_3d6cbd98ae16a4b532b4ea54743c8203,
-  "@/components/admin/dashboard/DashboardWidgets#HomepageBannerWidget": HomepageBannerWidget_3d6cbd98ae16a4b532b4ea54743c8203,
-  "@/components/admin/dashboard/DashboardWidgets#SiteManagementWidget": SiteManagementWidget_3d6cbd98ae16a4b532b4ea54743c8203,
   "@payloadcms/ui/rsc#CollectionCards": CollectionCards_ab83ff7e88da8d3530831f296ec4756a
 }

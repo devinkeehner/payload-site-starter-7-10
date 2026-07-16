@@ -4,19 +4,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmationModal, useAuth, useModal, useTranslation } from '@payloadcms/ui'
 import ReactSelect, { type GroupBase, type OptionsOrGroups, type SingleValue, type StylesConfig } from 'react-select'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
-import { useActiveTenant } from './hooks/useActiveTenant'
 
 const confirmSwitchTenantSlug = 'custom-tenant-selector-confirm-switch'
 const confirmLeaveWithoutSavingSlug = 'custom-tenant-selector-confirm-leave'
 
-export type TenantOption = {
+type TenantOption = {
   label: string
   value: string
-}
-
-type Props = {
-  optionsOverride?: TenantOption[]
-  selectedTenantIDOverride?: string
 }
 
 type TenantAssignment = {
@@ -33,30 +27,8 @@ const toOption = (candidate: unknown): TenantOption | undefined => {
   }
 }
 
-const toTenantID = (candidate: unknown): string | undefined => {
-  if (typeof candidate === 'string' || typeof candidate === 'number') {
-    const value = String(candidate).trim()
-    return value || undefined
-  }
-  if (!candidate || typeof candidate !== 'object') return undefined
-
-  const relation = candidate as { id?: unknown; value?: unknown }
-  return toTenantID(relation.id ?? relation.value)
-}
-
-const setTenantCookieFallback = (tenantID?: string) => {
-  const value = tenantID ? encodeURIComponent(tenantID) : ''
-  const maxAge = tenantID ? 60 * 60 * 24 * 365 : -1
-  document.cookie = `payload-tenant=${value}; path=/; max-age=${maxAge}; samesite=lax`
-  window.location.reload()
-}
-
-const TenantDropdown: React.FC<Props> = ({
-  optionsOverride = [],
-  selectedTenantIDOverride,
-}) => {
+const TenantDropdown: React.FC = () => {
   const { entityType, modified, options = [], selectedTenantID, setTenant } = useTenantSelection()
-  const { tenantID: activeTenantID } = useActiveTenant()
   const { user } = useAuth()
   const { openModal, closeModal } = useModal()
   const { t } = useTranslation()
@@ -83,18 +55,11 @@ const TenantDropdown: React.FC<Props> = ({
     normalizedOptions: TenantOption[]
     groupedOptions: OptionsOrGroups<TenantOption, GroupBase<TenantOption>>
   }>(() => {
-    const sourceOptions =
-      Array.isArray(optionsOverride) && optionsOverride.length > 1
-        ? optionsOverride
-        : Array.isArray(options)
-          ? options
-          : []
-
-    if (!Array.isArray(sourceOptions)) {
+    if (!Array.isArray(options)) {
       return { normalizedOptions: [], groupedOptions: [] }
     }
 
-    const entries = sourceOptions
+    const entries = options
       .map((option) => toOption(option))
       .filter((option): option is TenantOption => Boolean(option))
       .map((option) => ({
@@ -123,10 +88,9 @@ const TenantDropdown: React.FC<Props> = ({
       normalizedOptions: sorted,
       groupedOptions: grouped,
     }
-  }, [assignedTenantIDs, options, optionsOverride])
+  }, [options, assignedTenantIDs])
 
-  const pluginSelectedValue = toTenantID(selectedTenantID) || ''
-  const selectedValue = pluginSelectedValue || selectedTenantIDOverride || activeTenantID
+  const selectedValue = selectedTenantID == null ? undefined : String(selectedTenantID)
   const currentOption = useMemo(
     () => normalizedOptions.find((option) => option.value === selectedValue),
     [normalizedOptions, selectedValue],
@@ -148,22 +112,13 @@ const TenantDropdown: React.FC<Props> = ({
   const switchTenant = useCallback(
     (option: TenantOption | undefined) => {
       setPendingSelection(undefined)
-      const pluginOptionIDs = Array.isArray(options)
-        ? options.map((candidate) => toOption(candidate)?.value).filter(Boolean)
-        : []
-
-      if (pluginOptionIDs.length === 0) {
-        setTenantCookieFallback(option?.value)
-        return
-      }
-
       if (option?.value) {
         setTenant({ id: option.value, refresh: true })
       } else {
         setTenant({ id: undefined, refresh: true })
       }
     },
-    [options, setTenant],
+    [setTenant],
   )
 
   const attemptTenantChange = useCallback(
@@ -277,7 +232,10 @@ const TenantDropdown: React.FC<Props> = ({
   if (normalizedOptions.length <= 1) return null
 
   return (
-    <div className="tenant-selector tenant-selector--custom">
+    <div
+      className="tenant-selector tenant-selector--custom"
+      style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', marginBottom: '1.5rem' }}
+    >
       <label className="tenant-selector--custom__label" htmlFor="tenant-selector__input">
         {translateLabel()}
       </label>
