@@ -99,6 +99,7 @@ const CUSTOM_WRITE_TOOLS = new Set([
   'reorderContactFormTailFields',
   'bulkConfigureIContactForms',
   'backfillIContactUnsynced',
+  'importIContactEmailLists',
   'updateGlobal',
   'shareDocumentToTenants',
   'upsertPageWithBlocks',

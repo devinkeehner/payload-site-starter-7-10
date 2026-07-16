@@ -60,6 +60,7 @@ import {
   syncSubmissionToIContact,
 } from '@/lib/icontact';
 import { shareDocumentToTenants } from '@/lib/mcp-tenant-shares';
+import { importIContactFolder, importIContactList } from '@/lib/email/importIContact';
 import {
   DEFAULT_SEO_ASSISTANT_SETTINGS,
   SEO_ASSISTANT_MODEL_OPTIONS,
@@ -2711,6 +2712,246 @@ const listIContactListsTool = {
   },
 };
 
+const importIContactEmailListsTool = {
+  name: 'importIContactEmailLists',
+  description:
+    'Import one iContact list or every list in a folder into one or more explicitly selected tenants. Defaults to dry-run and creates an email import job for each tenant.',
+  parameters: {
+    clientFolderId: z.string().min(1).describe('Required iContact client folder ID.'),
+    scope: z
+      .enum(['list', 'folder'])
+      .optional()
+      .default('list')
+      .describe('Import one list or every list in the folder.'),
+    listId: z.string().optional().describe('Required when scope is `list`.'),
+    tenantIds: z
+      .array(z.union([z.string(), z.number()]))
+      .optional()
+      .describe('Explicit tenant IDs to import into.'),
+    tenantSlugs: z.array(z.string()).optional().describe('Explicit tenant slugs to import into.'),
+    dryRun: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe('When true, calculate and report the import without writing contacts or memberships.'),
+  },
+  handler: async (args: Record<string, unknown>, req: PayloadRequest) => {
+    const payload = req.payload;
+    const clientFolderId = typeof args.clientFolderId === 'string' ? args.clientFolderId.trim() : '';
+    const scope = args.scope === 'folder' ? 'folder' : 'list';
+    const listId = typeof args.listId === 'string' ? args.listId.trim() : '';
+    const dryRun = typeof args.dryRun === 'boolean' ? args.dryRun : true;
+    const rawTenantIds = Array.isArray(args.tenantIds)
+      ? args.tenantIds.map((id) => (id == null ? '' : String(id).trim())).filter(Boolean)
+      : [];
+    const rawTenantSlugs = Array.isArray(args.tenantSlugs)
+      ? args.tenantSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim() : ''))
+          .filter(Boolean)
+      : [];
+
+    if (!clientFolderId) {
+      return { content: [{ type: 'text' as const, text: 'Error: `clientFolderId` is required.' }] };
+    }
+    if (scope === 'list' && !listId) {
+      return { content: [{ type: 'text' as const, text: 'Error: `listId` is required when scope is `list`.' }] };
+    }
+    if (!rawTenantIds.length && !rawTenantSlugs.length) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Error: provide at least one explicit tenant in `tenantIds` or `tenantSlugs`.',
+          },
+        ],
+      };
+    }
+
+    try {
+      const tenantById = new Map<string, Record<string, unknown>>();
+
+      if (rawTenantIds.length) {
+        const tenants = await payload.find({
+          collection: 'tenants',
+          depth: 0,
+          limit: Math.max(rawTenantIds.length, 100),
+          overrideAccess: true,
+          req,
+          where: { id: { in: rawTenantIds } },
+        });
+        for (const tenant of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenant.id != null) tenantById.set(String(tenant.id), tenant);
+        }
+      }
+
+      if (rawTenantSlugs.length) {
+        const tenants = await payload.find({
+          collection: 'tenants',
+          depth: 0,
+          limit: Math.max(rawTenantSlugs.length, 100),
+          overrideAccess: true,
+          req,
+          where: { slug: { in: rawTenantSlugs } },
+        });
+        for (const tenant of tenants.docs as unknown as Array<Record<string, unknown>>) {
+          if (tenant.id != null) tenantById.set(String(tenant.id), tenant);
+        }
+      }
+
+      const tenants = Array.from(tenantById.values());
+      const foundIds = new Set(tenants.map((tenant) => String(tenant.id)));
+      const foundSlugs = new Set(
+        tenants.map((tenant) => (typeof tenant.slug === 'string' ? tenant.slug : '')).filter(Boolean),
+      );
+      const missingTenantIds = rawTenantIds.filter((id) => !foundIds.has(id));
+      const missingTenantSlugs = rawTenantSlugs.filter((slug) => !foundSlugs.has(slug));
+
+      if (!tenants.length) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: JSON.stringify({ error: 'No matching tenants found.', missingTenantIds, missingTenantSlugs }, null, 2),
+            },
+          ],
+        };
+      }
+
+      const results: Array<Record<string, unknown>> = [];
+
+      for (const tenant of tenants) {
+        const tenantId = String(tenant.id);
+        const tenantSlug = typeof tenant.slug === 'string' ? tenant.slug : null;
+        const tenantName = typeof tenant.name === 'string' ? tenant.name : null;
+        const scopedReq = { ...req, tenant: tenantId } as PayloadRequest & {
+          tenant: string;
+          transactionID?: unknown;
+        };
+        delete scopedReq.transactionID;
+
+        let jobId: string | null = null;
+        try {
+          const startedAt = new Date().toISOString();
+          const job = await payload.create({
+            collection: 'email-import-jobs',
+            data: {
+              dryRun,
+              iContactClientFolderId: clientFolderId,
+              iContactListId: scope === 'folder' ? 'all' : listId,
+              source: 'icontact',
+              startedAt,
+              status: 'running',
+              tenant: tenantId,
+            },
+            disableTransaction: true,
+            overrideAccess: true,
+            req: scopedReq,
+          });
+          jobId = String(job.id);
+
+          const result =
+            scope === 'folder'
+              ? await importIContactFolder({
+                  clientFolderId,
+                  dryRun,
+                  payload,
+                  req: scopedReq,
+                  tenantId,
+                })
+              : await importIContactList({
+                  clientFolderId,
+                  dryRun,
+                  listId,
+                  payload,
+                  req: scopedReq,
+                  tenantId,
+                });
+
+          await payload.update({
+            collection: 'email-import-jobs',
+            data: {
+              completedAt: new Date().toISOString(),
+              errors: result.errors,
+              failedContacts: result.failedContacts,
+              importedContacts: result.importedContacts,
+              message: dryRun ? 'MCP dry run completed.' : 'MCP import completed.',
+              status: 'completed',
+              statusCounts: result.statusCounts,
+              statusDebug: result.statusDebug,
+              totalContacts: result.totalContacts,
+              updatedContacts: result.updatedContacts,
+            },
+            disableTransaction: true,
+            id: jobId,
+            overrideAccess: true,
+            overrideLock: false,
+            req: scopedReq,
+          });
+
+          results.push({
+            tenantId,
+            tenantSlug,
+            tenantName,
+            jobId,
+            status: 'completed',
+            ...result,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'iContact import failed';
+          if (jobId) {
+            await payload
+              .update({
+                collection: 'email-import-jobs',
+                data: {
+                  completedAt: new Date().toISOString(),
+                  message,
+                  status: 'failed',
+                },
+                disableTransaction: true,
+                id: jobId,
+                overrideAccess: true,
+                overrideLock: false,
+                req: scopedReq,
+              })
+              .catch(() => undefined);
+          }
+          results.push({ tenantId, tenantSlug, tenantName, jobId, status: 'failed', error: message });
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                clientFolderId,
+                listId: scope === 'list' ? listId : null,
+                scope,
+                dryRun,
+                requestedTenantCount: new Set([...rawTenantIds, ...rawTenantSlugs]).size,
+                processedTenantCount: results.length,
+                completedTenantCount: results.filter((result) => result.status === 'completed').length,
+                failedTenantCount: results.filter((result) => result.status === 'failed').length,
+                missingTenantIds,
+                missingTenantSlugs,
+                results,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        content: [{ type: 'text' as const, text: `Error importing iContact email lists: ${message}` }],
+      };
+    }
+  },
+};
+
 const bulkConfigureIContactFormsTool = {
   name: 'bulkConfigureIContactForms',
   description:
@@ -5092,6 +5333,7 @@ export default buildConfig({
           refreshIContactCacheTool,
           listIContactFoldersTool,
           listIContactListsTool,
+          importIContactEmailListsTool,
           bulkConfigureIContactFormsTool,
           backfillIContactUnsyncedTool,
           describeEntityShapeTool,
