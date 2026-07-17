@@ -107,7 +107,7 @@ async function readJson<T>(response: Response, fallbackMessage: string): Promise
 }
 
 function openStudio(designId: string) {
-  window.location.replace(`/admin/collections/graphic-designs/${encodeURIComponent(designId)}/studio`)
+  window.location.replace(`/admin/collections/graphic-designs/${encodeURIComponent(designId)}`)
 }
 
 export function PostGraphicEditorLauncher() {

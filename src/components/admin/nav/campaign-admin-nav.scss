@@ -219,6 +219,8 @@
   min-height: 3.65rem;
   padding: 0.6rem;
   text-decoration: none;
+  text-align: left;
+  width: 100%;
 }
 
 .campaign-admin-nav__panel-link:hover,
@@ -242,6 +244,15 @@
   height: 2.35rem;
   justify-content: center;
   width: 2.35rem;
+}
+
+.campaign-admin-nav__panel-link--shortcut {
+  min-height: 3.2rem;
+}
+
+.campaign-admin-nav__panel-link--shortcut .campaign-admin-nav__panel-link-icon {
+  background: var(--theme-success-100, var(--theme-elevation-100));
+  color: var(--hro-nav-accent);
 }
 
 .campaign-admin-nav__panel-link > span:last-child {

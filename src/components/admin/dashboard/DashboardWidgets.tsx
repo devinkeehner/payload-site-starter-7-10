@@ -35,17 +35,13 @@ import {
 import {
   DashboardBannerWidgetClient,
   type DashboardMediaAsset,
-} from '@/components/admin/dashboard/DashboardBannerWidgetClient'
+} from '@/components/admin/dashboard/DashboardWebsiteImagesWidgetClient'
 import {
   MySitesWidgetClient,
   type DashboardSiteOption,
 } from '@/components/admin/dashboard/MySitesWidgetClient'
 
-import {
-  collectionHelperText,
-  getQuickTasks,
-  getSelectedTenantID,
-} from './adminDashboardMeta'
+import { collectionHelperText, getQuickTasks, getSelectedTenantID } from './adminDashboardMeta'
 import type { AdminTask } from './adminDashboardShared'
 
 import './dashboard-widgets.scss'
@@ -187,7 +183,9 @@ function getSelectedCollectionSlugs(props: WidgetServerProps) {
   const selected = props.widgetData?.collections
   if (!Array.isArray(selected)) return new Set(getDashboardWorkspaceSlugs())
 
-  const slugs = selected.filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+  const slugs = selected.filter(
+    (value): value is string => typeof value === 'string' && value.trim().length > 0,
+  )
   return slugs.length ? new Set(slugs) : null
 }
 
@@ -246,7 +244,10 @@ async function findRecentActivity(props: WidgetServerProps): Promise<ActivityIte
           })
 
           return result.docs.map((doc) => {
-            const item = doc as unknown as Record<string, unknown> & { id: string | number; updatedAt?: string }
+            const item = doc as unknown as Record<string, unknown> & {
+              id: string | number
+              updatedAt?: string
+            }
             return {
               collection,
               href: adminURL(req, `/collections/${collection}/${item.id}`),
@@ -299,7 +300,10 @@ async function findDrafts(props: WidgetServerProps): Promise<ActivityItem[]> {
           })
 
           return result.docs.map((doc) => {
-            const item = doc as unknown as Record<string, unknown> & { id: string | number; updatedAt?: string }
+            const item = doc as unknown as Record<string, unknown> & {
+              id: string | number
+              updatedAt?: string
+            }
             return {
               collection,
               href: adminURL(req, `/collections/${collection}/${item.id}`),
@@ -440,7 +444,12 @@ export async function IconCollectionLauncherWidget(props: WidgetServerProps) {
           <h2>Workspace Areas</h2>
           <p>Common content and communication areas. Technical records stay in Advanced.</p>
         </div>
-        <BookOpen aria-hidden className="campaign-dashboard-widget__header-icon" size={30} strokeWidth={1.8} />
+        <BookOpen
+          aria-hidden
+          className="campaign-dashboard-widget__header-icon"
+          size={30}
+          strokeWidth={1.8}
+        />
       </div>
       {collections.length ? (
         <div className="campaign-dashboard-widget__icon-grid">
@@ -593,7 +602,7 @@ async function findAssignedSites(props: WidgetServerProps): Promise<DashboardSit
       req: props.req,
     })
     const rows = Array.isArray((user as { tenants?: unknown }).tenants)
-      ? ((user as { tenants: unknown[] }).tenants)
+      ? (user as { tenants: unknown[] }).tenants
       : []
     const relations = rows
       .map((row) => (isRecord(row) ? row.tenant : null))
@@ -857,7 +866,9 @@ export async function NavbarLinksWidget(props: WidgetServerProps) {
           ))}
         </ul>
       ) : (
-        <EmptyState>{doc?.id ? 'This navbar has no links yet.' : 'No navbar has been created for this site.'}</EmptyState>
+        <EmptyState>
+          {doc?.id ? 'This navbar has no links yet.' : 'No navbar has been created for this site.'}
+        </EmptyState>
       )}
     </section>
   )
@@ -891,10 +902,7 @@ export async function MySitesWidget(props: WidgetServerProps) {
 }
 
 export async function SiteManagementWidget(props: WidgetServerProps) {
-  const [navbarLinks, mySites] = await Promise.all([
-    NavbarLinksWidget(props),
-    MySitesWidget(props),
-  ])
+  const [navbarLinks, mySites] = await Promise.all([NavbarLinksWidget(props), MySitesWidget(props)])
 
   if (!navbarLinks && !mySites) return null
 
@@ -930,7 +938,9 @@ export async function WebsiteShortcutsWidget(props: WidgetServerProps) {
                 <strong>{task.label}</strong>
                 <small>{task.description}</small>
               </span>
-              <span aria-hidden className="campaign-dashboard-widget__shortcut-arrow">→</span>
+              <span aria-hidden className="campaign-dashboard-widget__shortcut-arrow">
+                →
+              </span>
             </a>
           )
         })}

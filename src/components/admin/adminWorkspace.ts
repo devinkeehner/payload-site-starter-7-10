@@ -1,6 +1,14 @@
 export type AdminWorkspaceSectionKey = 'publishing' | 'engagement' | 'website' | 'advanced'
 
-export type AdminWorkspaceNavAreaKey = 'advanced' | 'content' | 'email' | 'forms' | 'website'
+export type AdminWorkspaceNavAreaKey =
+  | 'advanced'
+  | 'canvas'
+  | 'email'
+  | 'forms'
+  | 'media'
+  | 'pages'
+  | 'posts'
+  | 'website'
 
 export type AdminWorkspaceSection = {
   defaultOpen: boolean
@@ -22,7 +30,8 @@ export type AdminWorkspaceNavArea = {
   description: string
   key: AdminWorkspaceNavAreaKey
   label: string
-  primaryTaskKey?: 'createForm' | 'createPost'
+  primaryTaskKey?: 'createForm' | 'createPage' | 'createPost' | 'uploadMedia'
+  suppressEntityLinks?: boolean
   slugs: readonly string[]
 }
 
@@ -192,28 +201,36 @@ export const ADMIN_WORKSPACE_SECTIONS = [
     description: 'Create and publish website content.',
     key: 'publishing',
     label: 'Publishing',
-    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'publishing').map((entry) => entry.slug),
+    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'publishing').map(
+      (entry) => entry.slug,
+    ),
   },
   {
     defaultOpen: true,
     description: 'Forms, email, lists, and contacts.',
     key: 'engagement',
     label: 'Engagement',
-    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'engagement').map((entry) => entry.slug),
+    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'engagement').map(
+      (entry) => entry.slug,
+    ),
   },
   {
     defaultOpen: true,
     description: 'Website-wide content and settings.',
     key: 'website',
     label: 'Website',
-    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'website').map((entry) => entry.slug),
+    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'website').map(
+      (entry) => entry.slug,
+    ),
   },
   {
     defaultOpen: false,
     description: 'Supporting records and technical tools.',
     key: 'advanced',
     label: 'Advanced',
-    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'advanced').map((entry) => entry.slug),
+    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'advanced').map(
+      (entry) => entry.slug,
+    ),
   },
 ] as const satisfies readonly AdminWorkspaceSection[]
 
@@ -224,11 +241,34 @@ export const ADMIN_WORKSPACE_SECTIONS = [
  */
 export const ADMIN_WORKSPACE_NAV_AREAS = [
   {
-    description: 'Create and manage the content published on the website.',
-    key: 'content',
-    label: 'Content',
+    description: 'Draft, review, and publish website news and updates.',
+    key: 'posts',
+    label: 'Posts',
     primaryTaskKey: 'createPost',
-    slugs: ['posts', 'pages', 'media', 'graphic-designs'],
+    slugs: ['posts'],
+    suppressEntityLinks: true,
+  },
+  {
+    description: 'Create pages and jump to your common site pages.',
+    key: 'pages',
+    label: 'Pages',
+    primaryTaskKey: 'createPage',
+    slugs: ['pages'],
+    suppressEntityLinks: true,
+  },
+  {
+    description: 'Browse, add, and bulk-upload reusable website media.',
+    key: 'media',
+    label: 'Media',
+    primaryTaskKey: 'uploadMedia',
+    slugs: ['media'],
+    suppressEntityLinks: true,
+  },
+  {
+    description: 'Create reusable visual assets, templates, and social graphics.',
+    key: 'canvas',
+    label: 'Canvas',
+    slugs: ['graphic-designs', 'graphic-templates', 'media-canvas'],
   },
   {
     description: 'Build forms and review the responses they collect.',
@@ -253,7 +293,9 @@ export const ADMIN_WORKSPACE_NAV_AREAS = [
     description: 'Supporting records, taxonomy, access, and technical tools.',
     key: 'advanced',
     label: 'More',
-    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'advanced').map((entry) => entry.slug),
+    slugs: ADMIN_WORKSPACE_ENTRIES.filter((entry) => entry.section === 'advanced').map(
+      (entry) => entry.slug,
+    ),
   },
 ] as const satisfies readonly AdminWorkspaceNavArea[]
 
@@ -270,6 +312,6 @@ export const getAdminWorkspaceDescription = (slug: string, fallback: string) =>
   getAdminWorkspaceEntry(slug)?.description || fallback
 
 export const getDashboardWorkspaceSlugs = () =>
-  ADMIN_WORKSPACE_ENTRIES.filter(
-    (entry) => 'dashboard' in entry && entry.dashboard === true,
-  ).map((entry) => entry.slug)
+  ADMIN_WORKSPACE_ENTRIES.filter((entry) => 'dashboard' in entry && entry.dashboard === true).map(
+    (entry) => entry.slug,
+  )

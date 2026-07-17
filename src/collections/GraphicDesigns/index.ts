@@ -17,7 +17,6 @@ export const GraphicDesigns: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'sourcePost', 'updatedAt'],
     description: 'Create and manage Post social and SEO graphics.',
-    hidden: ({ user }) => !isSuperUser(user),
     components: {
       views: {
         edit: {

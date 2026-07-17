@@ -29,6 +29,11 @@ type GenerateSeoResponse = {
   }
 }
 
+type GraphicTemplateOption = {
+  id: string
+  title: string
+}
+
 type FieldState = {
   initialValue?: unknown
   value?: unknown
@@ -44,7 +49,7 @@ type Notice = {
 }
 
 const asFormFields = (fields: unknown): FormFields =>
-  (typeof fields === 'object' && fields !== null ? (fields as FormFields) : {})
+  typeof fields === 'object' && fields !== null ? (fields as FormFields) : {}
 
 const readIdField = (fields: unknown): string | undefined => {
   const map = asFormFields(fields)
@@ -99,7 +104,8 @@ const deriveIdFromPath = (): string | undefined => {
 export const PostPublishingAssistant: React.FC = () => {
   const { dispatchFields } = useForm()
   const docInfo = useDocumentInfo() as { id?: string } | null
-  const documentID = useFormFields(([fields]) => readIdField(fields)) || docInfo?.id || deriveIdFromPath()
+  const documentID =
+    useFormFields(([fields]) => readIdField(fields)) || docInfo?.id || deriveIdFromPath()
   const designID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicDesign'))
   const templateID = useFormFields(([fields]) => readRelationshipField(fields, 'graphicTemplate'))
   const tenantID = useFormFields(([fields]) => readRelationshipField(fields, 'tenant'))
@@ -117,6 +123,9 @@ export const PostPublishingAssistant: React.FC = () => {
   const [configLoading, setConfigLoading] = useState(true)
   const [notice, setNotice] = useState<Notice | null>(null)
   const [tenantDefaultTemplateID, setTenantDefaultTemplateID] = useState<string | null>(null)
+  const [graphicTemplates, setGraphicTemplates] = useState<GraphicTemplateOption[]>([])
+  const [templatesLoading, setTemplatesLoading] = useState(true)
+  const [templateChoiceTouched, setTemplateChoiceTouched] = useState(false)
   const toneTouchedRef = useRef(false)
 
   useEffect(() => {
@@ -141,7 +150,8 @@ export const PostPublishingAssistant: React.FC = () => {
         if (!toneTouchedRef.current) setTone(settings.defaultTone)
       } catch (error) {
         if (!ignore) {
-          const message = error instanceof Error ? error.message : 'Failed to load assistant defaults.'
+          const message =
+            error instanceof Error ? error.message : 'Failed to load assistant defaults.'
           setNotice({ kind: 'info', text: `${message} Using fallback defaults.` })
         }
       } finally {
@@ -157,7 +167,47 @@ export const PostPublishingAssistant: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    if (!tenantID || templateID) {
+    let ignore = false
+
+    const loadGraphicTemplates = async () => {
+      setTemplatesLoading(true)
+      try {
+        const query = new URLSearchParams({
+          depth: '0',
+          limit: '100',
+          pagination: 'false',
+          sort: 'title',
+          'where[sourceCollection][equals]': 'posts',
+        })
+        const response = await fetch(`/api/graphic-templates?${query.toString()}`, {
+          credentials: 'include',
+        })
+        if (!response.ok) throw new Error(`Failed to load graphic templates (${response.status})`)
+        const result = (await response.json()) as {
+          docs?: Array<{ id?: unknown; title?: unknown }>
+        }
+        if (ignore) return
+        setGraphicTemplates(
+          (Array.isArray(result.docs) ? result.docs : [])
+            .filter((doc): doc is { id: string; title?: unknown } => typeof doc.id === 'string')
+            .map((doc) => ({ id: doc.id, title: String(doc.title || 'Untitled template') })),
+        )
+      } catch (error) {
+        console.error('[PostPublishingAssistant] Failed to load graphic templates', error)
+        if (!ignore) setGraphicTemplates([])
+      } finally {
+        if (!ignore) setTemplatesLoading(false)
+      }
+    }
+
+    void loadGraphicTemplates()
+    return () => {
+      ignore = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!tenantID) {
       setTenantDefaultTemplateID(null)
       return
     }
@@ -169,12 +219,12 @@ export const PostPublishingAssistant: React.FC = () => {
         const response = await fetch(`/api/tenants/${encodeURIComponent(tenantID)}?depth=1`, {
           credentials: 'include',
         })
-        if (!response.ok) throw new Error(`Failed to load the Site graphic template (${response.status})`)
+        if (!response.ok)
+          throw new Error(`Failed to load the Site graphic template (${response.status})`)
         const tenant = (await response.json()) as { defaultGraphicTemplate?: unknown }
         const defaultTemplateID = readRelationshipID(tenant.defaultGraphicTemplate) || null
         if (ignore) return
         setTenantDefaultTemplateID(defaultTemplateID)
-        if (defaultTemplateID) setTemplateValue(defaultTemplateID)
       } catch (error) {
         console.error('[PostPublishingAssistant] Failed to load the Site graphic template', error)
         if (!ignore) setTenantDefaultTemplateID(null)
@@ -186,9 +236,10 @@ export const PostPublishingAssistant: React.FC = () => {
     return () => {
       ignore = true
     }
-  }, [setTemplateValue, tenantID, templateID])
+  }, [tenantID])
 
-  const effectiveTemplateID = templateID || tenantDefaultTemplateID || undefined
+  const effectiveTemplateID =
+    templateID || (!templateChoiceTouched ? tenantDefaultTemplateID : null) || undefined
 
   const launchGraphicEditor = (params: URLSearchParams) => {
     if (typeof window === 'undefined') return
@@ -235,7 +286,10 @@ export const PostPublishingAssistant: React.FC = () => {
   const handleGenerateSeo = async () => {
     const finalId = documentID || (await resolveIdFromSlug())
     if (!finalId) {
-      setNotice({ kind: 'info', text: 'Save the post first to generate SEO fields and launch the main post graphic editor.' })
+      setNotice({
+        kind: 'info',
+        text: 'Save the post first to generate SEO fields and launch the main post graphic editor.',
+      })
       return
     }
 
@@ -338,19 +392,19 @@ export const PostPublishingAssistant: React.FC = () => {
       <div className="post-publishing-assistant__header">
         <div className="post-publishing-assistant__heading">
           <h3>Search &amp; Social Assistant</h3>
-          <p>Create a starting draft from the post, then review the fields below before publishing.</p>
+          <p>
+            Create a starting draft from the post, then review the fields below before publishing.
+          </p>
         </div>
-        <Button
-          onClick={handleGenerateSeo}
-          disabled={generateLoading}
-          buttonStyle="primary"
-        >
+        <Button onClick={handleGenerateSeo} disabled={generateLoading} buttonStyle="primary">
           {generateLoading ? 'Drafting search details…' : 'Draft search details'}
         </Button>
       </div>
 
       <details className="post-publishing-assistant__details">
-        <summary>Adjust AI draft <span>Optional</span></summary>
+        <summary>
+          Adjust AI draft <span>Optional</span>
+        </summary>
         <div className="post-publishing-assistant__details-body">
           <label className="post-publishing-assistant__control">
             <span>Tone</span>
@@ -394,8 +448,32 @@ export const PostPublishingAssistant: React.FC = () => {
           <h4>Social image</h4>
           <p>
             Create the SEO/social image in the visual builder or continue editing the linked design.
-            {effectiveTemplateID ? ' The saved Site template will be used as the starting point.' : ''}
+            {effectiveTemplateID
+              ? ' The saved Site template will be used as the starting point.'
+              : ''}
           </p>
+          <label className="post-publishing-assistant__control post-publishing-assistant__template-control">
+            <span>Starting design</span>
+            <select
+              className="post-publishing-assistant__input"
+              disabled={templatesLoading}
+              value={templateID || (!templateChoiceTouched ? tenantDefaultTemplateID || '' : '')}
+              onChange={(event) => {
+                setTemplateChoiceTouched(true)
+                setTemplateValue(event.target.value || null)
+              }}
+            >
+              <option value="">
+                {templatesLoading ? 'Loading existing templates…' : 'Start without a template'}
+              </option>
+              {graphicTemplates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.title}
+                  {tenantDefaultTemplateID === template.id ? ' (Site default)' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
         <div className="post-publishing-assistant__actions">
           <Button onClick={openPostGraphicEditor} disabled={!documentID} buttonStyle="secondary">
@@ -410,9 +488,13 @@ export const PostPublishingAssistant: React.FC = () => {
       </div>
 
       {!documentID ? (
-        <p className="post-publishing-assistant__hint">Save this post once to enable drafting and social graphics.</p>
+        <p className="post-publishing-assistant__hint">
+          Save this post once to enable drafting and social graphics.
+        </p>
       ) : null}
-      {configLoading ? <p className="post-publishing-assistant__hint">Loading assistant defaults…</p> : null}
+      {configLoading ? (
+        <p className="post-publishing-assistant__hint">Loading assistant defaults…</p>
+      ) : null}
 
       {notice ? (
         <div

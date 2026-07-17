@@ -7,10 +7,7 @@ import {
   ADMIN_WORKSPACE_ENTRIES,
   getAdminWorkspaceDescription,
 } from '@/components/admin/adminWorkspace'
-import {
-  quickTaskDescriptions,
-  type AdminTask,
-} from './adminDashboardShared'
+import { quickTaskDescriptions, type AdminTask } from './adminDashboardShared'
 
 export const collectionHelperText: Record<string, string> = {
   pages: 'Build pages and edit tenant homepages.',
@@ -48,7 +45,10 @@ export const collectionHelperText: Record<string, string> = {
 }
 
 for (const entry of ADMIN_WORKSPACE_ENTRIES) {
-  collectionHelperText[entry.slug] = getAdminWorkspaceDescription(entry.slug, collectionHelperText[entry.slug] || '')
+  collectionHelperText[entry.slug] = getAdminWorkspaceDescription(
+    entry.slug,
+    collectionHelperText[entry.slug] || '',
+  )
 }
 
 export const navGroupHelperText: Record<string, string> = {
@@ -99,7 +99,10 @@ function adminURL(req: PayloadRequest, path: `/${string}`) {
   })
 }
 
-async function findTenantDocument(req: PayloadRequest, collection: 'navbars' | 'rep-info' | 'standard-media' | 'site-seo') {
+async function findTenantDocument(
+  req: PayloadRequest,
+  collection: 'navbars' | 'rep-info' | 'standard-media' | 'site-seo',
+) {
   const tenantID = getSelectedTenantID(req)
   if (!tenantID) return null
 
@@ -153,13 +156,13 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
       description: quickTaskDescriptions.createForm,
       href: appendTenantQuery(adminURL(req, '/collections/forms/create'), tenantID),
       key: 'createForm',
-      label: 'Build a Form',
+      label: 'Create a Form',
     },
     {
       description: quickTaskDescriptions.uploadMedia,
       href: appendTenantQuery(adminURL(req, '/collections/media/create'), tenantID),
       key: 'uploadMedia',
-      label: 'Upload Media',
+      label: 'Add Media',
     },
     {
       description: quickTaskDescriptions.createPage,
@@ -175,13 +178,21 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
     },
     {
       description: quickTaskDescriptions.updateSocialMedia,
-      href: appendEditTarget(await singletonTaskURL(req, 'rep-info'), 'Social & Facebook', 'field-facebook'),
+      href: appendEditTarget(
+        await singletonTaskURL(req, 'rep-info'),
+        'Social & Facebook',
+        'field-facebook',
+      ),
       key: 'updateSocialMedia',
       label: 'Update Social Media',
     },
     {
       description: quickTaskDescriptions.editTowns,
-      href: appendEditTarget(await singletonTaskURL(req, 'rep-info'), 'Profile & Towns', 'field-towns'),
+      href: appendEditTarget(
+        await singletonTaskURL(req, 'rep-info'),
+        'Profile & Towns',
+        'field-towns',
+      ),
       key: 'editTowns',
       label: 'Edit Towns',
     },
@@ -209,5 +220,7 @@ export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
 
 export function getRoleCollectionSlugs(user: PayloadRequest['user']) {
   if (!user) return []
-  return CONTENT_EDITOR_COLLECTIONS.filter((slug) => canAccessCollection(user as DashboardUser, slug))
+  return CONTENT_EDITOR_COLLECTIONS.filter((slug) =>
+    canAccessCollection(user as DashboardUser, slug),
+  )
 }

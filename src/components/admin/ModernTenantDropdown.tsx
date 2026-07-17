@@ -2,7 +2,12 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmationModal, useAuth, useModal, useTranslation } from '@payloadcms/ui'
-import ReactSelect, { type GroupBase, type OptionsOrGroups, type SingleValue, type StylesConfig } from 'react-select'
+import ReactSelect, {
+  type GroupBase,
+  type OptionsOrGroups,
+  type SingleValue,
+  type StylesConfig,
+} from 'react-select'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import { useActiveTenant } from './hooks/useActiveTenant'
 
@@ -51,15 +56,44 @@ const setTenantCookieFallback = (tenantID?: string) => {
   window.location.reload()
 }
 
-const TenantDropdown: React.FC<Props> = ({
-  optionsOverride = [],
-  selectedTenantIDOverride,
-}) => {
+const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantIDOverride }) => {
   const { entityType, modified, options = [], selectedTenantID, setTenant } = useTenantSelection()
   const { tenantID: activeTenantID } = useActiveTenant()
   const { user } = useAuth()
   const { openModal, closeModal } = useModal()
   const { t } = useTranslation()
+
+  const openAssignedSites = useCallback((event: React.SyntheticEvent) => {
+    event.preventDefault()
+    event.stopPropagation()
+    window.location.hash = 'my-sites'
+    window.requestAnimationFrame(() => {
+      document.getElementById('my-sites')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [])
+
+  const formatTenantGroupLabel = useCallback(
+    (group: GroupBase<TenantOption>) => {
+      const isAssignedSites = group.label === 'Assigned Sites'
+
+      return (
+        <span className="tenant-selector--custom__group-heading">
+          <span>{group.label}</span>
+          {isAssignedSites ? (
+            <a
+              aria-label="Edit assigned sites"
+              href="/admin#my-sites"
+              onClick={openAssignedSites}
+              onPointerDownCapture={openAssignedSites}
+            >
+              Edit assigned
+            </a>
+          ) : null}
+        </span>
+      )
+    },
+    [openAssignedSites],
+  )
 
   const assignedTenantIDs = useMemo(() => {
     const ids = new Set<string>()
@@ -72,7 +106,9 @@ const TenantDropdown: React.FC<Props> = ({
         return
       }
       if (typeof relation === 'object') {
-        const relationID = (relation as { id?: unknown; value?: unknown }).id ?? (relation as { value?: unknown }).value
+        const relationID =
+          (relation as { id?: unknown; value?: unknown }).id ??
+          (relation as { value?: unknown }).value
         if (relationID != null) ids.add(String(relationID))
       }
     })
@@ -203,13 +239,15 @@ const TenantDropdown: React.FC<Props> = ({
     () => ({
       control: (base, state) => ({
         ...base,
-        minHeight: 44,
-        borderRadius: '0.65rem',
-        borderColor: state.isFocused ? 'var(--theme-elevation-250)' : 'var(--theme-elevation-150)',
-        boxShadow: state.isFocused ? '0 0 0 2px var(--theme-elevation-150)' : base.boxShadow,
-        backgroundColor: 'var(--theme-elevation-100)',
+        minHeight: 42,
+        borderRadius: '0.75rem',
+        borderColor: state.isFocused ? 'var(--theme-elevation-400)' : 'var(--theme-elevation-200)',
+        boxShadow: state.isFocused
+          ? '0 0 0 3px var(--theme-elevation-100)'
+          : '0 1px 2px rgba(15, 23, 42, 0.06)',
+        backgroundColor: 'var(--theme-elevation-0)',
         '&:hover': {
-          borderColor: 'var(--theme-elevation-250)',
+          borderColor: 'var(--theme-elevation-400)',
         },
       }),
       valueContainer: (base) => ({
@@ -232,26 +270,32 @@ const TenantDropdown: React.FC<Props> = ({
       }),
       option: (base, state) => ({
         ...base,
-        fontWeight: state.isSelected || state.isFocused ? 600 : 500,
+        borderRadius: '0.5rem',
+        fontWeight: state.isSelected || state.isFocused ? 650 : 500,
+        margin: '0.08rem 0.4rem',
+        padding: '0.58rem 0.7rem',
+        width: 'calc(100% - 0.8rem)',
         backgroundColor: state.isSelected
-          ? 'var(--theme-elevation-250)'
+          ? 'var(--theme-elevation-200)'
           : state.isFocused
-            ? 'var(--theme-elevation-200)'
-            : 'var(--theme-elevation-100)',
+            ? 'var(--theme-elevation-100)'
+            : 'transparent',
         color: 'var(--theme-text)',
       }),
       menu: (base) => ({
         ...base,
-        backgroundColor: 'var(--theme-elevation-100)',
+        backgroundColor: 'var(--theme-elevation-0)',
         border: '1px solid var(--theme-elevation-200)',
-        boxShadow: '0 10px 24px rgba(0, 0, 0, 0.25)',
+        borderRadius: '0.85rem',
+        boxShadow: '0 18px 46px rgba(15, 23, 42, 0.2)',
+        minWidth: '22rem',
         overflow: 'hidden',
         zIndex: 60,
       }),
       menuList: (base) => ({
         ...base,
-        backgroundColor: 'var(--theme-elevation-100)',
-        padding: '0.35rem 0',
+        backgroundColor: 'var(--theme-elevation-0)',
+        padding: '0.35rem 0 0.5rem',
       }),
       menuPortal: (base) => ({
         ...base,
@@ -259,11 +303,15 @@ const TenantDropdown: React.FC<Props> = ({
       }),
       groupHeading: (base) => ({
         ...base,
+        borderTop: '1px solid var(--theme-elevation-150)',
+        color: 'var(--theme-elevation-600)',
+        fontSize: '0.7rem',
+        fontWeight: 700,
+        letterSpacing: '0.055em',
+        margin: '0.45rem 0 0.25rem',
+        padding: '0.65rem 0.75rem 0.25rem',
         textTransform: 'uppercase',
-        fontSize: '0.65rem',
-        letterSpacing: '0.08em',
-        fontWeight: 600,
-        opacity: 0.65,
+        width: '100%',
       }),
     }),
     [],
@@ -284,6 +332,7 @@ const TenantDropdown: React.FC<Props> = ({
       <ReactSelect
         className="tenant-selector--custom__select"
         classNamePrefix="rs"
+        formatGroupLabel={formatTenantGroupLabel}
         inputId="tenant-selector__input"
         isClearable={false}
         options={groupedOptions}

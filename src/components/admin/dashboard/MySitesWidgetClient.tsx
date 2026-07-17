@@ -30,9 +30,7 @@ export function MySitesWidgetClient({
   const assignedSites = assignedIDs
     .map((id) => sitesByID.get(id))
     .filter((site): site is DashboardSiteOption => Boolean(site))
-  const availableSites = sites.filter(
-    (site) => !site.archived && !assignedIDs.includes(site.id),
-  )
+  const availableSites = sites.filter((site) => !site.archived && !assignedIDs.includes(site.id))
   const changed = JSON.stringify(assignedIDs) !== JSON.stringify(savedIDs)
 
   const clearStatus = () => {
@@ -63,9 +61,10 @@ export function MySitesWidgetClient({
         headers: { 'Content-Type': 'application/json' },
         method: 'PATCH',
       })
-      const result = (await response.json().catch(() => null)) as
-        | { error?: string; siteIds?: string[] }
-        | null
+      const result = (await response.json().catch(() => null)) as {
+        error?: string
+        siteIds?: string[]
+      } | null
       if (!response.ok) throw new Error(result?.error || 'Site assignments could not be saved.')
 
       const persistedIDs = Array.isArray(result?.siteIds) ? result.siteIds : assignedIDs
@@ -80,7 +79,10 @@ export function MySitesWidgetClient({
   }
 
   return (
-    <section className="campaign-dashboard-widget campaign-dashboard-widget--site-panel">
+    <section
+      className="campaign-dashboard-widget campaign-dashboard-widget--site-panel"
+      id="my-sites"
+    >
       <div className="campaign-dashboard-widget__header">
         <h2>My Sites</h2>
         <p>Add or remove the websites assigned to your account.</p>
@@ -133,7 +135,11 @@ export function MySitesWidgetClient({
       )}
 
       <div className="campaign-dashboard-widget__media-actions">
-        <button disabled={!changed || status === 'saving'} onClick={() => void save()} type="button">
+        <button
+          disabled={!changed || status === 'saving'}
+          onClick={() => void save()}
+          type="button"
+        >
           {status === 'saving' ? 'Saving…' : 'Save site assignments'}
         </button>
         {message ? <span data-status={status}>{message}</span> : null}

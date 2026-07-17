@@ -1,0 +1,5 @@
+/* Keep a distinct module in the admin CSS graph so substantial shell updates
+ * receive a fresh development asset URL instead of reusing stale Turbopack CSS. */
+:root {
+  --hro-admin-style-revision: 2;
+}

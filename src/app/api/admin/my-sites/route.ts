@@ -5,13 +5,38 @@ import configPromise from '@payload-config'
 
 export const runtime = 'nodejs'
 
+export async function GET(req: NextRequest) {
+  const payload = await getPayload({ config: configPromise })
+  const { user } = await payload.auth({
+    headers: req.headers,
+    req: req as unknown as PayloadRequest,
+  })
+  if (!user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const result = await payload.find({
+    collection: 'tenants',
+    depth: 0,
+    limit: 500,
+    overrideAccess: true,
+    pagination: false,
+    sort: 'name',
+    where: {
+      archived: { not_equals: true },
+    },
+  })
+
+  return NextResponse.json({ sites: result.docs })
+}
+
 function getSiteIDs(value: unknown) {
   if (!Array.isArray(value)) return null
 
   return Array.from(
     new Set(
       value
-        .filter((item): item is number | string => typeof item === 'number' || typeof item === 'string')
+        .filter(
+          (item): item is number | string => typeof item === 'number' || typeof item === 'string',
+        )
         .map((item) => String(item).trim())
         .filter(Boolean),
     ),
@@ -43,19 +68,20 @@ export async function PATCH(req: NextRequest) {
       collection: 'tenants',
       depth: 0,
       limit: siteIDs.length,
-      overrideAccess: false,
+      // Any authenticated creator may add a site to their quick-access list.
+      overrideAccess: true,
       pagination: false,
       req: req as unknown as PayloadRequest,
       where: {
-        and: [
-          { id: { in: siteIDs } },
-          { archived: { not_equals: true } },
-        ],
+        and: [{ id: { in: siteIDs } }, { archived: { not_equals: true } }],
       },
     })
     const validIDs = new Set(sites.docs.map((site) => String(site.id)))
     if (siteIDs.some((id) => !validIDs.has(id))) {
-      return NextResponse.json({ error: 'One or more selected sites are unavailable.' }, { status: 400 })
+      return NextResponse.json(
+        { error: 'One or more selected sites are unavailable.' },
+        { status: 400 },
+      )
     }
   }
 

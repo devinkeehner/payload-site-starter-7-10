@@ -96,9 +96,35 @@
 }
 
 .tenant-nav-panel[data-variant='header'] {
-  flex: 0 1 16rem;
-  min-width: 11rem;
-  width: clamp(11rem, 19vw, 16rem);
+  flex: 0 1 20rem;
+  min-width: 15rem;
+  width: clamp(15rem, 24vw, 20rem);
+}
+
+.tenant-nav-panel__status {
+  align-items: center;
+  background: var(--theme-elevation-50);
+  border: 1px solid var(--theme-elevation-150);
+  border-radius: 0.55rem;
+  color: var(--theme-elevation-650);
+  display: flex;
+  font-size: 0.76rem;
+  gap: 0.5rem;
+  justify-content: space-between;
+  min-height: 2.3rem;
+  padding: 0.35rem 0.55rem;
+  width: 100%;
+}
+
+.tenant-nav-panel__status button {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 0.38rem;
+  color: var(--theme-text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 650;
+  padding: 0.22rem 0.45rem;
 }
 
 .tenant-selector--custom {
@@ -120,12 +146,71 @@
 }
 
 .tenant-nav-panel[data-variant='header'] .rs__control {
-  border-radius: 5px !important;
-  min-height: 2.1rem !important;
+  background: var(--theme-elevation-50) !important;
+  border-color: var(--theme-elevation-175, var(--theme-elevation-150)) !important;
+  border-radius: 0.55rem !important;
+  box-shadow: none !important;
+  min-height: 2.3rem !important;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.tenant-nav-panel[data-variant='header'] .rs__control:hover,
+.tenant-nav-panel[data-variant='header'] .rs__control--is-focused {
+  background: var(--theme-elevation-0) !important;
+  border-color: var(--theme-elevation-350) !important;
+  box-shadow: 0 0 0 2px var(--theme-elevation-100) !important;
 }
 
 .tenant-nav-panel[data-variant='header'] .rs__value-container {
   padding-block: 0 !important;
+  padding-inline-start: 0.7rem !important;
+}
+
+.tenant-nav-panel[data-variant='header'] .rs__single-value,
+.tenant-nav-panel[data-variant='header'] .rs__input-container {
+  font-size: 0.78rem;
+}
+
+.tenant-nav-panel[data-variant='header'] .rs__menu {
+  border-radius: 0.7rem !important;
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.18) !important;
+  margin-top: 0.45rem !important;
+}
+
+.tenant-selector--custom__group-heading {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.tenant-selector--custom__group-heading a {
+  background: var(--theme-elevation-100);
+  border: 1px solid var(--theme-elevation-200);
+  border-radius: 999px;
+  color: var(--theme-link);
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  padding: 0.38rem 0.58rem;
+  pointer-events: auto;
+  text-decoration: none;
+  text-transform: none;
+}
+
+.tenant-selector--custom__group-heading a:hover,
+.tenant-selector--custom__group-heading a:focus-visible {
+  background: var(--theme-elevation-200);
+  border-color: var(--theme-elevation-350);
+  outline: 2px solid var(--theme-elevation-250);
+  outline-offset: 1px;
 }
 
 .hro-admin-header__action {

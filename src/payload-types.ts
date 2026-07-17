@@ -4373,6 +4373,10 @@ export interface PayloadMcpApiKey {
      */
     listIContactLists?: boolean | null;
     /**
+     * Import one iContact list or every list in a folder into one or more explicitly selected tenants. Defaults to dry-run and creates an email import job for each tenant.
+     */
+    importIContactEmailLists?: boolean | null;
+    /**
      * Bulk assign iContact sync settings to forms by title and optional tenant filters, including folder/list IDs and field mapping.
      */
     bulkConfigureIContactForms?: boolean | null;
@@ -7441,6 +7445,7 @@ export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
         refreshIContactCache?: T;
         listIContactFolders?: T;
         listIContactLists?: T;
+        importIContactEmailLists?: T;
         bulkConfigureIContactForms?: T;
         backfillIContactUnsynced?: T;
         describeEntityShape?: T;

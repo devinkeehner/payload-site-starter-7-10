@@ -1,9 +1,7 @@
 'use client'
 
-import Image from 'next/image'
-import { type ReactNode, useMemo, useState } from 'react'
-
-import { PuckMediaField, getMediaResource } from '@/components/admin/puck/PuckMediaField'
+import { UploadInput, useConfig } from '@payloadcms/ui'
+import { useMemo, useState } from 'react'
 
 export type DashboardMediaAsset = {
   alt?: string | null
@@ -22,65 +20,43 @@ type BannerSettings = {
 
 function getMediaId(value: unknown): string | null {
   if (typeof value === 'string' || typeof value === 'number') return String(value)
-  const resource = getMediaResource(value)
-  return resource?.id == null ? null : String(resource.id)
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const resource = value as { id?: number | string; value?: number | string }
+  const id = resource.id ?? resource.value
+  return id == null ? null : String(id)
 }
 
-function DashboardImageCard({
-  children,
-  chooseLabel,
+function DashboardImageField({
+  api,
   description,
-  objectPosition,
   onChange,
-  portrait = false,
+  path,
+  serverURL,
   title,
-  uploadLabel,
   value,
 }: {
-  children?: ReactNode
-  chooseLabel: string
+  api: string
   description: string
-  objectPosition?: string
-  onChange: (value: unknown) => void
-  portrait?: boolean
+  onChange: (value: string | null) => void
+  path: string
+  serverURL?: string
   title: string
-  uploadLabel: string
-  value: unknown
+  value: string | null
 }) {
-  const resource = getMediaResource(value)
-
   return (
-    <article className="campaign-dashboard-widget__media-card">
-      <div
-        className={`campaign-dashboard-widget__media-preview${portrait ? ' campaign-dashboard-widget__media-preview--portrait' : ''}`}
-      >
-        {resource?.url ? (
-          <Image
-            alt={String(resource.alt || resource.filename || title)}
-            fill
-            sizes="(max-width: 768px) 100vw, 33vw"
-            src={resource.url}
-            style={{ objectFit: 'cover', objectPosition }}
-            unoptimized
-          />
-        ) : (
-          <span>No image selected</span>
-        )}
-      </div>
-      <div className="campaign-dashboard-widget__media-card-controls">
-        <div className="campaign-dashboard-widget__media-card-header">
-          <h3>{title}</h3>
-          <p>{description}</p>
-        </div>
-        <PuckMediaField
-          chooseLabel={chooseLabel}
-          display="compact"
-          onChange={onChange}
-          uploadLabel={uploadLabel}
-          value={value}
-        />
-        {children}
-      </div>
+    <article className="campaign-dashboard-widget__native-media-field">
+      <UploadInput
+        allowCreate
+        api={api}
+        description={description}
+        displayPreview
+        label={title}
+        onChange={(nextValue) => onChange(getMediaId(nextValue))}
+        path={path}
+        relationTo="media"
+        serverURL={serverURL}
+        value={value ?? undefined}
+      />
     </article>
   )
 }
@@ -102,11 +78,19 @@ export function DashboardBannerWidgetClient({
   initialSettings: BannerSettings
   tenantId: string | null
 }) {
-  const [banner, setBanner] = useState<unknown>(initialBanner)
-  const [defaultFeaturedImage, setDefaultFeaturedImage] = useState<unknown>(
-    initialDefaultFeaturedImage,
+  const {
+    config: {
+      routes: { api },
+      serverURL,
+    },
+  } = useConfig()
+  const [banner, setBanner] = useState<string | null>(() => getMediaId(initialBanner))
+  const [defaultFeaturedImage, setDefaultFeaturedImage] = useState<string | null>(() =>
+    getMediaId(initialDefaultFeaturedImage),
   )
-  const [mobileHeadshot, setMobileHeadshot] = useState<unknown>(initialMobileHeadshot)
+  const [mobileHeadshot, setMobileHeadshot] = useState<string | null>(() =>
+    getMediaId(initialMobileHeadshot),
+  )
   const [settings, setSettings] = useState(initialSettings)
   const [savedSnapshot, setSavedSnapshot] = useState(() =>
     JSON.stringify({
@@ -121,16 +105,19 @@ export function DashboardBannerWidgetClient({
   const currentSnapshot = useMemo(
     () =>
       JSON.stringify({
-        bannerImage: getMediaId(banner),
-        defaultFeaturedImage: getMediaId(defaultFeaturedImage),
-        mobileHeadshot: getMediaId(mobileHeadshot),
+        bannerImage: banner,
+        defaultFeaturedImage,
+        mobileHeadshot,
         ...settings,
       }),
     [banner, defaultFeaturedImage, mobileHeadshot, settings],
   )
   const changed = currentSnapshot !== savedSnapshot
 
-  const updateSetting = <Key extends keyof BannerSettings>(key: Key, value: BannerSettings[Key]) => {
+  const updateSetting = <Key extends keyof BannerSettings>(
+    key: Key,
+    value: BannerSettings[Key],
+  ) => {
     setSettings((current) => ({ ...current, [key]: value }))
     setStatus('idle')
     setMessage(null)
@@ -138,8 +125,8 @@ export function DashboardBannerWidgetClient({
 
   const save = async () => {
     const bannerImage = getMediaId(banner)
-    const defaultFeaturedImageId = getMediaId(defaultFeaturedImage)
-    const mobileHeadshotId = getMediaId(mobileHeadshot)
+    const defaultFeaturedImageId = defaultFeaturedImage
+    const mobileHeadshotId = mobileHeadshot
     if (!bannerImage || !defaultFeaturedImageId || !mobileHeadshotId) {
       setStatus('error')
       setMessage('Choose all three website images before saving.')
@@ -150,23 +137,26 @@ export function DashboardBannerWidgetClient({
     setMessage(null)
 
     try {
-      const response = await fetch(`/api/standard-media/${encodeURIComponent(documentId)}?depth=0`, {
-        body: JSON.stringify({
-          bannerImage,
-          defaultFeaturedImage: defaultFeaturedImageId,
-          mobileHeadshot: mobileHeadshotId,
-          ...settings,
-        }),
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(tenantId ? { 'X-Payload-Tenant': tenantId } : {}),
+      const response = await fetch(
+        `/api/standard-media/${encodeURIComponent(documentId)}?depth=0`,
+        {
+          body: JSON.stringify({
+            bannerImage,
+            defaultFeaturedImage: defaultFeaturedImageId,
+            mobileHeadshot: mobileHeadshotId,
+            ...settings,
+          }),
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tenantId ? { 'X-Payload-Tenant': tenantId } : {}),
+          },
+          method: 'PATCH',
         },
-        method: 'PATCH',
-      })
+      )
 
       if (!response.ok) {
-        const result = await response.json().catch(() => null) as { message?: string } | null
+        const result = (await response.json().catch(() => null)) as { message?: string } | null
         throw new Error(result?.message || 'The website images could not be saved.')
       }
 
@@ -186,28 +176,34 @@ export function DashboardBannerWidgetClient({
           <h2>Website Images</h2>
           <p>Preview and replace the primary images used throughout this website.</p>
         </div>
-        <a href={editHref}>Full settings</a>
+        <a className="campaign-dashboard-widget__primary-button" href={editHref}>
+          Edit website images
+        </a>
       </div>
 
       <div className="campaign-dashboard-widget__media-grid">
-        <DashboardImageCard
-          chooseLabel="Choose another banner"
+        <DashboardImageField
+          api={api}
           description="Homepage hero image and its common display controls."
-          objectPosition={`${settings.heroImageHorizontalAlign} ${settings.heroImageVerticalAlign}`}
-          onChange={(value) => {
-            setBanner(value)
-            setStatus('idle')
-            setMessage(null)
-          }}
+          onChange={setBanner}
+          path="dashboardBannerImage"
+          serverURL={serverURL}
           title="Homepage Banner"
-          uploadLabel="Upload banner"
           value={banner}
-        >
+        />
+
+        <details className="campaign-dashboard-widget__banner-settings">
+          <summary>Banner placement and text</summary>
           <div className="campaign-dashboard-widget__banner-controls">
             <label>
               <span>Image position</span>
               <select
-                onChange={(event) => updateSetting('heroImageHorizontalAlign', event.target.value as BannerSettings['heroImageHorizontalAlign'])}
+                onChange={(event) =>
+                  updateSetting(
+                    'heroImageHorizontalAlign',
+                    event.target.value as BannerSettings['heroImageHorizontalAlign'],
+                  )
+                }
                 value={settings.heroImageHorizontalAlign}
               >
                 <option value="left">Left</option>
@@ -218,7 +214,12 @@ export function DashboardBannerWidgetClient({
             <label>
               <span>Vertical crop</span>
               <select
-                onChange={(event) => updateSetting('heroImageVerticalAlign', event.target.value as BannerSettings['heroImageVerticalAlign'])}
+                onChange={(event) =>
+                  updateSetting(
+                    'heroImageVerticalAlign',
+                    event.target.value as BannerSettings['heroImageVerticalAlign'],
+                  )
+                }
                 value={settings.heroImageVerticalAlign}
               >
                 <option value="top">Top</option>
@@ -229,7 +230,12 @@ export function DashboardBannerWidgetClient({
             <label>
               <span>Text side</span>
               <select
-                onChange={(event) => updateSetting('heroTextAlign', event.target.value as BannerSettings['heroTextAlign'])}
+                onChange={(event) =>
+                  updateSetting(
+                    'heroTextAlign',
+                    event.target.value as BannerSettings['heroTextAlign'],
+                  )
+                }
                 value={settings.heroTextAlign}
               >
                 <option value="left">Left</option>
@@ -239,7 +245,12 @@ export function DashboardBannerWidgetClient({
             <label>
               <span>Text size</span>
               <select
-                onChange={(event) => updateSetting('heroTextSize', event.target.value as BannerSettings['heroTextSize'])}
+                onChange={(event) =>
+                  updateSetting(
+                    'heroTextSize',
+                    event.target.value as BannerSettings['heroTextSize'],
+                  )
+                }
                 value={settings.heroTextSize}
               >
                 <option value="small">Small</option>
@@ -248,39 +259,36 @@ export function DashboardBannerWidgetClient({
               </select>
             </label>
           </div>
-        </DashboardImageCard>
+        </details>
 
-        <DashboardImageCard
-          chooseLabel="Choose another headshot"
+        <DashboardImageField
+          api={api}
           description="Portrait used in compact and mobile website layouts."
-          onChange={(value) => {
-            setMobileHeadshot(value)
-            setStatus('idle')
-            setMessage(null)
-          }}
-          portrait
+          onChange={setMobileHeadshot}
+          path="dashboardMobileHeadshot"
+          serverURL={serverURL}
           title="Mobile Headshot"
-          uploadLabel="Upload headshot"
           value={mobileHeadshot}
         />
 
-        <DashboardImageCard
-          chooseLabel="Choose another featured image"
+        <DashboardImageField
+          api={api}
           description="Fallback image used when a post does not have its own featured image."
-          onChange={(value) => {
-            setDefaultFeaturedImage(value)
-            setStatus('idle')
-            setMessage(null)
-          }}
+          onChange={setDefaultFeaturedImage}
+          path="dashboardDefaultFeaturedImage"
+          serverURL={serverURL}
           title="Default Featured Image"
-          uploadLabel="Upload featured image"
           value={defaultFeaturedImage}
         />
       </div>
 
       <div className="campaign-dashboard-widget__media-actions">
-        <button disabled={!changed || status === 'saving'} onClick={() => void save()} type="button">
-          {status === 'saving' ? 'Saving…' : 'Save image changes'}
+        <button
+          disabled={!changed || status === 'saving'}
+          onClick={() => void save()}
+          type="button"
+        >
+          {status === 'saving' ? 'Saving…' : 'Save banner settings'}
         </button>
         {message ? <span data-status={status}>{message}</span> : null}
       </div>

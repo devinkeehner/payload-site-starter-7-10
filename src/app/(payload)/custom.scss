@@ -164,6 +164,11 @@
   gap: 0.2rem;
 }
 
+.post-publishing-assistant__template-control {
+  margin-top: 0.45rem;
+  max-width: 24rem;
+}
+
 .post-publishing-assistant__actions {
   align-items: center;
   display: flex;
@@ -455,7 +460,9 @@ html[data-hro-visual-builder]:has([data-hro-puck-preview-root]) {
         var(--doc-controls-height) + ((100vh - var(--doc-controls-height)) / 2)
       );
       inset-inline-start: calc(
-        var(--responsive-live-preview-handle-left) - var(--responsive-live-preview-handle-editor-overlap)
+        var(--responsive-live-preview-handle-left) - var(
+            --responsive-live-preview-handle-editor-overlap
+          )
       );
       z-index: 40;
       display: inline-flex;
@@ -484,7 +491,6 @@ html[data-hro-visual-builder]:has([data-hro-puck-preview-root]) {
       outline: 2px solid var(--theme-link);
       outline-offset: 2px;
     }
-
   }
 
   html[data-theme='dark'] {
@@ -508,7 +514,9 @@ html[data-hro-visual-builder]:has([data-hro-puck-preview-root]) {
     gap: 0.35rem;
     padding: 0.5rem 0.75rem;
     border-radius: 0.5rem;
-    transition: background 0.15s ease, box-shadow 0.15s ease;
+    transition:
+      background 0.15s ease,
+      box-shadow 0.15s ease;
   }
 
   .tenant-selector--custom .tenant-option--assigned {
@@ -538,5 +546,4 @@ html[data-hro-visual-builder]:has([data-hro-puck-preview-root]) {
   .tenant-selector--custom .rs__option {
     border-radius: 0.5rem !important;
   }
-
 }
