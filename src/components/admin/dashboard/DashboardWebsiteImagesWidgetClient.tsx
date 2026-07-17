@@ -176,9 +176,7 @@ export function DashboardBannerWidgetClient({
           <h2>Website Images</h2>
           <p>Preview and replace the primary images used throughout this website.</p>
         </div>
-        <a className="campaign-dashboard-widget__primary-button" href={editHref}>
-          Edit website images
-        </a>
+        <a href={editHref}>Edit website images</a>
       </div>
 
       <div className="campaign-dashboard-widget__media-grid">

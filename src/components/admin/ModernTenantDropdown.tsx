@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConfirmationModal, useAuth, useModal, useTranslation } from '@payloadcms/ui'
+import Link from 'next/link'
 import ReactSelect, {
   type GroupBase,
   type OptionsOrGroups,
@@ -66,10 +67,7 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantI
   const openAssignedSites = useCallback((event: React.SyntheticEvent) => {
     event.preventDefault()
     event.stopPropagation()
-    window.location.hash = 'my-sites'
-    window.requestAnimationFrame(() => {
-      document.getElementById('my-sites')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
+    window.location.assign('/admin#my-sites')
   }, [])
 
   const formatTenantGroupLabel = useCallback(
@@ -80,14 +78,14 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantI
         <span className="tenant-selector--custom__group-heading">
           <span>{group.label}</span>
           {isAssignedSites ? (
-            <a
+            <Link
               aria-label="Edit assigned sites"
               href="/admin#my-sites"
               onClick={openAssignedSites}
               onPointerDownCapture={openAssignedSites}
             >
               Edit assigned
-            </a>
+            </Link>
           ) : null}
         </span>
       )
@@ -256,7 +254,9 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantI
       }),
       singleValue: (base) => ({
         ...base,
+        fontSize: '0.95rem',
         fontWeight: 600,
+        lineHeight: 1.2,
         color: 'var(--theme-text)',
       }),
       placeholder: (base) => ({
