@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { multiTenantPlugin } from '@payloadcms/plugin-multi-tenant'
-import { payloadCloudPlugin } from '@payloadcms/payload-cloud'
 import { formBuilderPlugin } from '@payloadcms/plugin-form-builder'
 import { nestedDocsPlugin } from '@payloadcms/plugin-nested-docs'
 import { redirectsPlugin } from '@payloadcms/plugin-redirects'
@@ -25,6 +24,13 @@ import {
 
 import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
+
+// Payload Cloud's package is unusually expensive to load on Windows. It only
+// has an effect when PAYLOAD_CLOUD=true, so keep it out of local config startup.
+const payloadCloud =
+  process.env.PAYLOAD_CLOUD === 'true'
+    ? (await import('@payloadcms/payload-cloud')).payloadCloudPlugin()
+    : null
 
 const generateTitle: GenerateTitle<Post | Page> = ({ doc }) => {
   return doc?.title ? `${doc.title} | ${config.name}` : config.name
@@ -2023,7 +2029,7 @@ export const plugins: Plugin[] = [
       },
     },
   }),
-  payloadCloudPlugin(),
+  ...(payloadCloud ? [payloadCloud] : []),
   // Multi-tenant must run first so other plugins respect tenant scoping
   multiTenantPlugin({
     tenantsSlug: 'tenants', // identify the Tenants collection

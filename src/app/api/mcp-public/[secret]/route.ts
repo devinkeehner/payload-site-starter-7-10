@@ -148,10 +148,10 @@ function requireEnabled() {
   return null
 }
 
-type RouteContext = { params: { secret: string } | Promise<{ secret: string }> }
+type RouteContext = { params: Promise<{ secret: string }> }
 
 async function resolveSecretFromContext(context: RouteContext) {
-  const params = await Promise.resolve(context.params)
+  const params = await context.params
   return params?.secret || ''
 }
 

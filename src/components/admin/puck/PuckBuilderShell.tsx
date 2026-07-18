@@ -1,5 +1,7 @@
 'use client'
 
+import '@puckeditor/core/puck.css'
+
 import Link from 'next/link'
 import {
   createUsePuck,

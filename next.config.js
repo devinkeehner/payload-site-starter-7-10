@@ -1,6 +1,10 @@
 import { withPayload } from '@payloadcms/next/withPayload'
+import { dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import redirects from './redirects.js'
+
+const PROJECT_ROOT = dirname(fileURLToPath(import.meta.url))
 
 const NEXT_PUBLIC_SERVER_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
@@ -9,6 +13,7 @@ const NEXT_PUBLIC_SERVER_URL = process.env.VERCEL_PROJECT_PRODUCTION_URL
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
+    qualities: [75, 100],
     remotePatterns: [
       ...[NEXT_PUBLIC_SERVER_URL /* 'https://example.com' */].map((item) => {
         const url = new URL(item)
@@ -26,6 +31,9 @@ const nextConfig = {
     ],
   },
   reactStrictMode: true,
+  turbopack: {
+    root: PROJECT_ROOT,
+  },
   headers: async () => {
     return [
       {
@@ -34,15 +42,6 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          },
-        ],
-      },
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
