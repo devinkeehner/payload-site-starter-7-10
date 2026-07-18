@@ -268,7 +268,7 @@ export const ADMIN_WORKSPACE_NAV_AREAS = [
     description: 'Create reusable visual assets, templates, and social graphics.',
     key: 'canvas',
     label: 'Canvas',
-    slugs: ['graphic-designs', 'graphic-templates', 'media-canvas'],
+    slugs: ['graphic-designs', 'graphic-templates'],
   },
   {
     description: 'Build forms and review the responses they collect.',

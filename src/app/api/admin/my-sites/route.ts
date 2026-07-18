@@ -5,29 +5,6 @@ import configPromise from '@payload-config'
 
 export const runtime = 'nodejs'
 
-export async function GET(req: NextRequest) {
-  const payload = await getPayload({ config: configPromise })
-  const { user } = await payload.auth({
-    headers: req.headers,
-    req: req as unknown as PayloadRequest,
-  })
-  if (!user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const result = await payload.find({
-    collection: 'tenants',
-    depth: 0,
-    limit: 500,
-    overrideAccess: true,
-    pagination: false,
-    sort: 'name',
-    where: {
-      archived: { not_equals: true },
-    },
-  })
-
-  return NextResponse.json({ sites: result.docs })
-}
-
 function getSiteIDs(value: unknown) {
   if (!Array.isArray(value)) return null
 

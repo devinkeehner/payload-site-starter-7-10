@@ -1,5 +1,6 @@
 'use client'
 
+// Shared Payload-schema-to-Puck field adapters used by every visual builder.
 import type { Field } from '@puckeditor/core'
 import React, { useEffect, useState } from 'react'
 

@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import type { Page, Post } from '@/payload-types'
 
 import { mergeOpenGraph } from './mergeOpenGraph'
-import { config } from '@/site.config'
+import { siteConfig as config } from '@/site.config'
 
 export const generateMeta = async (args: {
   doc: Partial<Page> | Partial<Post> | null

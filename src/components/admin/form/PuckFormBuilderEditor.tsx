@@ -3,11 +3,11 @@
 import React, { useMemo } from 'react'
 
 import {
-  createVisualDocumentConfig,
-  VisualDocumentEditor,
+  createPuckBuilderConfig,
+  PuckBuilderShell,
   type VisualPaletteItem,
   type VisualRowPreset,
-} from '@/components/admin/puck/VisualDocumentEditor'
+} from '@/components/admin/puck/PuckBuilderShell'
 import styles from '@/components/admin/puck/puck-page-builder.module.css'
 import type { PuckBlockSchema, PuckFormDoc, PuckPageData } from '@/lib/puck/types'
 
@@ -102,7 +102,7 @@ export function PuckFormBuilderEditor({
 }: PuckFormBuilderProps) {
   const paletteSlugs = useMemo(() => getPaletteSlugs(blockSchema), [blockSchema])
   const config = useMemo(
-    () => createVisualDocumentConfig({
+    () => createPuckBuilderConfig({
       blockSchema,
       contentSlugs: paletteSlugs,
       dropzoneMinHeight: 94,
@@ -135,7 +135,7 @@ export function PuckFormBuilderEditor({
   )
 
   return (
-    <VisualDocumentEditor<PuckFormPayload>
+    <PuckBuilderShell<PuckFormPayload>
       apiPath={`/api/puck/forms/${formId}`}
       blockSchema={blockSchema}
       config={config}

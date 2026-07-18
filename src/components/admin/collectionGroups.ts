@@ -4,6 +4,5 @@ export const CONTENT_COLLECTIONS = [
   { slug: 'pages', label: 'Pages' },
   { slug: 'bad-bills', label: 'Bad Bills' },
   { slug: 'media', label: 'Media' },
-  { slug: 'media-canvas', label: 'Canvas' },
   { slug: 'wordpress-posts', label: 'Wordpress Archive' },
 ];

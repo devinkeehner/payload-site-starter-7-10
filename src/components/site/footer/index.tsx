@@ -6,7 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 import { getCachedGlobal } from '@/lib/utilities/getGlobals'
-import { config } from '@/site.config'
+import { siteConfig as config } from '@/site.config'
 
 import type { Footer } from '@/payload-types'
 

@@ -32,7 +32,7 @@ import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import { hydratePuckMedia } from '@/lib/puck/mediaHydration'
 import type { PuckBlockSchema, PuckPageData } from '@/lib/puck/types'
 
-import { buildDefaults, buildFields } from './PuckPageBuilderEditor'
+import { buildDefaults, buildFields } from './PuckFieldFactory'
 import { PuckRichTextToolbarProvider } from './PuckLexicalTextEditor'
 import styles from './puck-page-builder.module.css'
 
@@ -40,7 +40,7 @@ const DEFAULT_AUTOSAVE_INTERVAL_MS = 1000
 const EMPTY_BLOCK_SCHEMA: PuckBlockSchema[] = []
 const useVisualDocumentPuck = createUsePuck()
 
-export type VisualDocumentType = 'email' | 'form' | 'post'
+export type PuckBuilderDocumentType = 'email' | 'form' | 'graphic-design' | 'page' | 'post'
 
 export type VisualPaletteIcon =
   | 'article'
@@ -113,20 +113,20 @@ type VisualPayload = {
   [key: string]: unknown
 }
 
-export type VisualDocumentEditorContext<TPayload extends VisualPayload = VisualPayload> = {
+export type PuckBuilderContext<TPayload extends VisualPayload = VisualPayload> = {
   data: PuckPageData
   isDirty: boolean
   lastPayload: TPayload | null
   save: (nextData: Data) => Promise<boolean>
   saveLatestData: () => Promise<boolean>
   setMessage: (message: string | null) => void
-  setStatus: (status: VisualDocumentStatus) => void
-  status: VisualDocumentStatus
+  setStatus: (status: PuckBuilderStatus) => void
+  status: PuckBuilderStatus
 }
 
-export type VisualDocumentStatus = 'error' | 'idle' | 'loading' | 'saved' | 'saving'
+export type PuckBuilderStatus = 'error' | 'idle' | 'loading' | 'saved' | 'saving'
 
-export type VisualDocumentConfigInput = {
+export type PuckBuilderConfigInput = {
   blockSchema: PuckBlockSchema[]
   contentSlugs: string[]
   defaultPropsBySlug?: Record<string, Record<string, unknown>>
@@ -145,7 +145,7 @@ export type VisualDocumentConfigInput = {
   rows: VisualRowPreset[]
 }
 
-export type VisualDocumentEditorProps<TPayload extends VisualPayload = VisualPayload> = {
+export type PuckBuilderShellProps<TPayload extends VisualPayload = VisualPayload> = {
   apiPath: string
   autosave?: boolean
   autosaveIntervalMs?: number
@@ -153,7 +153,7 @@ export type VisualDocumentEditorProps<TPayload extends VisualPayload = VisualPay
   config: Config
   documentId: string
   documentTitle: string
-  documentType: VisualDocumentType
+  documentType: PuckBuilderDocumentType
   externalBusy?: boolean
   externalMessage?: string | null
   externalStatus?: string | null
@@ -178,15 +178,15 @@ export type VisualDocumentEditorProps<TPayload extends VisualPayload = VisualPay
     rowsPlaceholder?: React.ReactNode
   }
   previewFrameStyle?: React.CSSProperties
-  renderHeaderActions?: (context: VisualDocumentEditorContext<TPayload>) => React.ReactNode
+  renderHeaderActions?: (context: PuckBuilderContext<TPayload>) => React.ReactNode
   rows: VisualRowPreset[]
   saveButtonLabel?: string
   saveErrorMessage: string
   savedMessage: string
   savingMessage: string
-  sidePanel?: (context: VisualDocumentEditorContext<TPayload>) => React.ReactNode
+  sidePanel?: (context: PuckBuilderContext<TPayload>) => React.ReactNode
   startSidebarClosed?: boolean
-  statusMessage?: (context: VisualDocumentEditorContext<TPayload>) => React.ReactNode
+  statusMessage?: (context: PuckBuilderContext<TPayload>) => React.ReactNode
   toolbar?: boolean
   viewports: Array<{ height: number | 'auto'; label: string; width: number }>
   workspaceLabel?: string
@@ -413,7 +413,7 @@ function VisualBlockLibraryPanel({
   rowSlugs,
   rowTitle,
   rowsPlaceholder,
-}: VisualDocumentEditorProps['palette'] & {
+}: PuckBuilderShellProps['palette'] & {
   drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
   paletteItems: Record<string, VisualPaletteItem>
 }) {
@@ -464,7 +464,7 @@ function VisualBlockLibraryPanel({
   )
 }
 
-function createVisualPlugins(props: VisualDocumentEditorProps['palette'] & {
+function createVisualPlugins(props: PuckBuilderShellProps['palette'] & {
   drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
   paletteItems: Record<string, VisualPaletteItem>
 }): Plugin[] {
@@ -489,7 +489,7 @@ function VisualBuilderWorkspaceHeader({
   actions: React.ReactNode
   documentId: string
   documentTitle: string
-  documentType: VisualDocumentType
+  documentType: PuckBuilderDocumentType
   workspaceLabel?: string
 }) {
   const { tenant, tenantID, tenantName } = useActiveTenant()
@@ -881,7 +881,7 @@ function VisualPreviewIframe({
 }: {
   children: React.ReactNode
   document?: Document
-  documentType: VisualDocumentType
+  documentType: PuckBuilderDocumentType
   previewFrameStyle?: React.CSSProperties
 }) {
   useEffect(() => {
@@ -914,7 +914,7 @@ function DefaultHeaderActions<TPayload extends VisualPayload>({
   context,
   label,
 }: {
-  context: VisualDocumentEditorContext<TPayload>
+  context: PuckBuilderContext<TPayload>
   label?: string
 }) {
   return (
@@ -929,7 +929,7 @@ function DefaultHeaderActions<TPayload extends VisualPayload>({
   )
 }
 
-export function createVisualDocumentConfig({
+export function createPuckBuilderConfig({
   blockSchema,
   contentSlugs,
   defaultPropsBySlug,
@@ -942,7 +942,7 @@ export function createVisualDocumentConfig({
   previewRenderer,
   rootRenderer,
   rows,
-}: VisualDocumentConfigInput): Config {
+}: PuckBuilderConfigInput): Config {
   const rowSlugs = rows.filter((row) => !row.hiddenFromPalette).map((row) => row.slug)
   const paletteItemMap = getPaletteItemMap(paletteItems)
   const allowedNestedSlugs = nestedContentSlugs || contentSlugs
@@ -1104,7 +1104,7 @@ export function SavedRowPlaceholder() {
   )
 }
 
-export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayload>({
+export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>({
   apiPath,
   autosave = false,
   autosaveIntervalMs = DEFAULT_AUTOSAVE_INTERVAL_MS,
@@ -1141,7 +1141,7 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
   viewports,
   workspaceLabel,
   wrapperStyle,
-}: VisualDocumentEditorProps<TPayload>) {
+}: PuckBuilderShellProps<TPayload>) {
   useAdminBuilderMode(documentType)
 
   const resolveDataFromPayload = useMemo(
@@ -1203,7 +1203,7 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
     [documentId, documentTitle, documentType, drawerItem, paletteItemMap, previewFrameStyle, startSidebarClosed, toolbar, workspaceLabel],
   )
   const [data, setData] = useState<PuckPageData | null>(null)
-  const [status, setStatus] = useState<VisualDocumentStatus>('idle')
+  const [status, setStatus] = useState<PuckBuilderStatus>('idle')
   const [message, setMessage] = useState<string | null>(initialMessage)
   const [isDirty, setIsDirty] = useState(false)
   const [lastPayload, setLastPayload] = useState<TPayload | null>(null)
@@ -1375,7 +1375,7 @@ export function VisualDocumentEditor<TPayload extends VisualPayload = VisualPayl
     return <div className={styles.loading}>{loadingLabel}</div>
   }
 
-  const context: VisualDocumentEditorContext<TPayload> = {
+  const context: PuckBuilderContext<TPayload> = {
     data,
     isDirty,
     lastPayload,

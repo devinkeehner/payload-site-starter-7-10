@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { config } from '@/site.config'
+import { siteConfig as config } from '@/site.config'
 
 const defaultOpenGraph: Metadata['openGraph'] = {
   type: 'website',

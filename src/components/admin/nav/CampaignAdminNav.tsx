@@ -5,7 +5,10 @@ import { EntityType, getVisibleEntities, groupNavItems } from '@payloadcms/ui/sh
 import { formatAdminURL } from 'payload/shared'
 import React from 'react'
 
-import { getQuickTasks, getSelectedTenantID } from '@/components/admin/dashboard/adminDashboardMeta'
+import {
+  getPrimaryQuickTasks,
+  getSelectedTenantID,
+} from '@/components/admin/dashboard/adminDashboardMeta'
 import {
   ADMIN_WORKSPACE_NAV_AREAS,
   type AdminWorkspaceNavAreaKey,
@@ -62,6 +65,10 @@ async function getSidebarQuickLinks(
           limit: 3,
           pagination: false,
           req,
+          select: {
+            slug: true,
+            title: true,
+          },
           sort: '-updatedAt',
           where: tenantID ? { tenant: { equals: tenantID } } : undefined,
         })
@@ -73,6 +80,9 @@ async function getSidebarQuickLinks(
           limit: 1,
           pagination: false,
           req,
+          select: {
+            slug: true,
+          },
           where: tenantID
             ? { and: [{ tenant: { equals: tenantID } }, { slug: { equals: 'about' } }] }
             : { slug: { equals: 'about' } },
@@ -85,6 +95,9 @@ async function getSidebarQuickLinks(
           limit: 1,
           pagination: false,
           req,
+          select: {
+            slug: true,
+          },
           where: tenantID
             ? { and: [{ tenant: { equals: tenantID } }, { slug: { equals: 'contact' } }] }
             : { slug: { equals: 'contact' } },
@@ -229,7 +242,7 @@ export async function CampaignAdminNav(props: Props) {
       })
     }
   }
-  const tasks = await getQuickTasks(req)
+  const tasks = getPrimaryQuickTasks(req)
   const serverProps = {
     i18n,
     locale,

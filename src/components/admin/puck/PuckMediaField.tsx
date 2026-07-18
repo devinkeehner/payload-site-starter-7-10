@@ -264,7 +264,7 @@ export function PuckMediaField({
     setError(null)
 
     try {
-      const res = await fetch('/api/media-canvas/upload', {
+      const res = await fetch('/api/media/upload', {
         method: 'POST',
         body: formData,
         credentials: 'same-origin',

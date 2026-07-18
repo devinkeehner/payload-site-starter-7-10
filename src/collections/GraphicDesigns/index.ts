@@ -117,6 +117,16 @@ export const GraphicDesigns: CollectionConfig = {
       },
     },
     {
+      name: 'puckData',
+      label: 'Puck Graphic Document',
+      type: 'json',
+      admin: {
+        description: 'Transition mirror for opening fixed-position graphics in the shared Puck builder.',
+        hidden: true,
+        readOnly: true,
+      },
+    },
+    {
       name: 'exportedMedia',
       label: 'Exported Media',
       type: 'relationship',

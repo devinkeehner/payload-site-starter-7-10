@@ -3,13 +3,13 @@
 import React, { useMemo, useState } from 'react'
 
 import {
-  createVisualDocumentConfig,
+  createPuckBuilderConfig,
+  PuckBuilderShell,
   SavedRowPlaceholder,
-  VisualDocumentEditor,
-  type VisualDocumentEditorContext,
+  type PuckBuilderContext,
   type VisualPaletteItem,
   type VisualRowPreset,
-} from '@/components/admin/puck/VisualDocumentEditor'
+} from '@/components/admin/puck/PuckBuilderShell'
 import styles from '@/components/admin/puck/puck-page-builder.module.css'
 import type { PuckBlockSchema, PuckEmailDoc, PuckPageData } from '@/lib/puck/types'
 
@@ -136,7 +136,7 @@ export function PuckEmailBuilderEditor({
   const contentPaletteSlugs = useMemo(() => getContentPaletteSlugs(blockSchema), [blockSchema])
   const rowPaletteSlugs = useMemo(() => getRowPaletteSlugs(blockSchema), [blockSchema])
   const config = useMemo(
-    () => createVisualDocumentConfig({
+    () => createPuckBuilderConfig({
       blockSchema,
       contentSlugs: contentPaletteSlugs,
       dropzoneMinHeight: EMAIL_ROW_DROPZONE_MIN_HEIGHT,
@@ -191,7 +191,7 @@ export function PuckEmailBuilderEditor({
     setTestEmailRecipient((current) => current || recipientEmail)
   }
 
-  async function checkLinks(context: VisualDocumentEditorContext<EmailPayload>): Promise<boolean> {
+  async function checkLinks(context: PuckBuilderContext<EmailPayload>): Promise<boolean> {
     const saved = await context.saveLatestData()
     if (!saved) return false
 
@@ -225,7 +225,7 @@ export function PuckEmailBuilderEditor({
     }
   }
 
-  async function sendTestEmail(context: VisualDocumentEditorContext<EmailPayload>, recipientEmail: string) {
+  async function sendTestEmail(context: PuckBuilderContext<EmailPayload>, recipientEmail: string) {
     const trimmedRecipient = recipientEmail.trim()
     if (!trimmedRecipient) {
       setTestEmailError('Enter a test recipient email.')
@@ -261,7 +261,7 @@ export function PuckEmailBuilderEditor({
     }
   }
 
-  async function confirmLink(context: VisualDocumentEditorContext<EmailPayload>, link: LinkCheck) {
+  async function confirmLink(context: PuckBuilderContext<EmailPayload>, link: LinkCheck) {
     setEmailStatus('checkingLinks')
     setEmailMessage(null)
 
@@ -285,7 +285,7 @@ export function PuckEmailBuilderEditor({
     }
   }
 
-  function continueToAudience(context: VisualDocumentEditorContext<EmailPayload>) {
+  function continueToAudience(context: PuckBuilderContext<EmailPayload>) {
     void context.saveLatestData().then((saved) => {
       if (saved) window.location.href = `/admin/collections/emails/${emailId}/audience`
     })
@@ -296,7 +296,7 @@ export function PuckEmailBuilderEditor({
   const reviewLinks = getReviewLinks(links)
 
   return (
-    <VisualDocumentEditor<EmailPayload>
+    <PuckBuilderShell<EmailPayload>
       apiPath={`/api/puck/emails/${emailId}`}
       autosave
       blockSchema={blockSchema}

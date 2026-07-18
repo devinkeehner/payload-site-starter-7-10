@@ -64,7 +64,6 @@ export type SupportedTimezones =
 export interface Config {
   auth: {
     users: UserAuthOperations;
-    'payload-mcp-api-keys': PayloadMcpApiKeyAuthOperations;
   };
   blocks: {};
   collections: {
@@ -72,7 +71,6 @@ export interface Config {
     pages: Page;
     'bad-bills': BadBill;
     media: Media;
-    'media-canvas': MediaCanva;
     'graphic-templates': GraphicTemplate;
     'graphic-designs': GraphicDesign;
     'wordpress-posts': WordpressPost;
@@ -102,7 +100,6 @@ export interface Config {
     'chatgpt-oauth-tokens': ChatgptOauthToken;
     'sitemap-artifacts': SitemapArtifact;
     'facebook-oauth-sessions': FacebookOauthSession;
-    'payload-mcp-api-keys': PayloadMcpApiKey;
     redirects: Redirect;
     search: Search;
     'payload-kv': PayloadKv;
@@ -117,7 +114,6 @@ export interface Config {
     pages: PagesSelect<false> | PagesSelect<true>;
     'bad-bills': BadBillsSelect<false> | BadBillsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
-    'media-canvas': MediaCanvasSelect<false> | MediaCanvasSelect<true>;
     'graphic-templates': GraphicTemplatesSelect<false> | GraphicTemplatesSelect<true>;
     'graphic-designs': GraphicDesignsSelect<false> | GraphicDesignsSelect<true>;
     'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
@@ -147,7 +143,6 @@ export interface Config {
     'chatgpt-oauth-tokens': ChatgptOauthTokensSelect<false> | ChatgptOauthTokensSelect<true>;
     'sitemap-artifacts': SitemapArtifactsSelect<false> | SitemapArtifactsSelect<true>;
     'facebook-oauth-sessions': FacebookOauthSessionsSelect<false> | FacebookOauthSessionsSelect<true>;
-    'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     redirects: RedirectsSelect<false> | RedirectsSelect<true>;
     search: SearchSelect<false> | SearchSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
@@ -173,13 +168,9 @@ export interface Config {
     'seo-generator-settings': SeoGeneratorSettingsSelect<false> | SeoGeneratorSettingsSelect<true>;
   };
   locale: null;
-  user:
-    | (User & {
-        collection: 'users';
-      })
-    | (PayloadMcpApiKey & {
-        collection: 'payload-mcp-api-keys';
-      });
+  user: User & {
+    collection: 'users';
+  };
   jobs: {
     tasks: {
       schedulePublish: TaskSchedulePublish;
@@ -192,24 +183,6 @@ export interface Config {
   };
 }
 export interface UserAuthOperations {
-  forgotPassword: {
-    email: string;
-    password: string;
-  };
-  login: {
-    email: string;
-    password: string;
-  };
-  registerFirstUser: {
-    email: string;
-    password: string;
-  };
-  unlock: {
-    email: string;
-    password: string;
-  };
-}
-export interface PayloadMcpApiKeyAuthOperations {
   forgotPassword: {
     email: string;
     password: string;
@@ -747,6 +720,18 @@ export interface GraphicDesign {
    * Open the Design Studio to edit this graphic visually.
    */
   studioScene:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Transition mirror for opening fixed-position graphics in the shared Puck builder.
+   */
+  puckData?:
     | {
         [k: string]: unknown;
       }
@@ -2585,101 +2570,6 @@ export interface BadBill {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media-canvas".
- */
-export interface MediaCanva {
-  id: string;
-  tenant?: (string | null) | Tenant;
-  title: string;
-  /**
-   * Upload or select an image to compose into a 1200×630 canvas
-   */
-  image: string | Media;
-  /**
-   * Optional. If selected, the editor can pull the post title into the main headline area automatically.
-   */
-  sourcePost?: (string | null) | Post;
-  /**
-   * Legacy field. No longer used by the current canvas editor.
-   */
-  richText?: {
-    root: {
-      type: string;
-      children: {
-        type: any;
-        version: number;
-        [k: string]: unknown;
-      }[];
-      direction: ('ltr' | 'rtl') | null;
-      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
-      indent: number;
-      version: number;
-    };
-    [k: string]: unknown;
-  } | null;
-  heading?: string | null;
-  /**
-   * Leave blank to use the selected Source Post title in the main headline area.
-   */
-  subheading?: string | null;
-  posX?: number | null;
-  posY?: number | null;
-  scale?: number | null;
-  headingX?: number | null;
-  headingY?: number | null;
-  subheadingX?: number | null;
-  subheadingY?: number | null;
-  headingWidth?: number | null;
-  subheadingWidth?: number | null;
-  /**
-   * Legacy auto-managed positions for older Lexical-based canvas content.
-   */
-  rtLayout?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Auto-managed editor selection and layer locks
-   */
-  editorState?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  /**
-   * Auto-managed by the canvas editor.
-   */
-  textBlocks?:
-    | {
-        id?: string | null;
-        label?: string | null;
-        source?: ('manual' | 'postTitle') | null;
-        text?: string | null;
-        x?: number | null;
-        y?: number | null;
-        width?: number | null;
-        font?: string | null;
-        color?: string | null;
-        lineHeight?: number | null;
-        align?: ('left' | 'center' | 'right') | null;
-        stylePreset?: string | null;
-        locked?: boolean | null;
-      }[]
-    | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "wordpress-posts".
  */
 export interface WordpressPost {
@@ -3818,668 +3708,6 @@ export interface FacebookOauthSession {
   createdAt: string;
 }
 /**
- * API keys control which collections, resources, tools, and prompts MCP clients can access
- *
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "payload-mcp-api-keys".
- */
-export interface PayloadMcpApiKey {
-  id: string;
-  /**
-   * The user that the API key is associated with.
-   */
-  user: string | User;
-  /**
-   * A useful label for the API key.
-   */
-  label?: string | null;
-  /**
-   * The purpose of the API key.
-   */
-  description?: string | null;
-  posts?: {
-    /**
-     * Allow clients to find posts.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create posts.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update posts.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete posts.
-     */
-    delete?: boolean | null;
-  };
-  pages?: {
-    /**
-     * Allow clients to find pages.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create pages.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update pages.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete pages.
-     */
-    delete?: boolean | null;
-  };
-  badBills?: {
-    /**
-     * Allow clients to find bad-bills.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create bad-bills.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update bad-bills.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete bad-bills.
-     */
-    delete?: boolean | null;
-  };
-  forms?: {
-    /**
-     * Allow clients to find forms.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create forms.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update forms.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete forms.
-     */
-    delete?: boolean | null;
-  };
-  formSubmissions?: {
-    /**
-     * Allow clients to find form-submissions.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create form-submissions.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update form-submissions.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete form-submissions.
-     */
-    delete?: boolean | null;
-  };
-  media?: {
-    /**
-     * Allow clients to find media.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create media.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update media.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete media.
-     */
-    delete?: boolean | null;
-  };
-  categories?: {
-    /**
-     * Allow clients to find categories.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create categories.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update categories.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete categories.
-     */
-    delete?: boolean | null;
-  };
-  articleTypes?: {
-    /**
-     * Allow clients to find article-types.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create article-types.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update article-types.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete article-types.
-     */
-    delete?: boolean | null;
-  };
-  authors?: {
-    /**
-     * Allow clients to find authors.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create authors.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update authors.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete authors.
-     */
-    delete?: boolean | null;
-  };
-  tags?: {
-    /**
-     * Allow clients to find tags.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create tags.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update tags.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete tags.
-     */
-    delete?: boolean | null;
-  };
-  siteSeo?: {
-    /**
-     * Allow clients to find site-seo.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create site-seo.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update site-seo.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete site-seo.
-     */
-    delete?: boolean | null;
-  };
-  repInfo?: {
-    /**
-     * Allow clients to find rep-info.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create rep-info.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update rep-info.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete rep-info.
-     */
-    delete?: boolean | null;
-  };
-  standardMedia?: {
-    /**
-     * Allow clients to find standard-media.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create standard-media.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update standard-media.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete standard-media.
-     */
-    delete?: boolean | null;
-  };
-  mediaCanvas?: {
-    /**
-     * Allow clients to find media-canvas.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create media-canvas.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update media-canvas.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete media-canvas.
-     */
-    delete?: boolean | null;
-  };
-  graphicTemplates?: {
-    /**
-     * Allow clients to find graphic-templates.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create graphic-templates.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update graphic-templates.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete graphic-templates.
-     */
-    delete?: boolean | null;
-  };
-  graphicDesigns?: {
-    /**
-     * Allow clients to find graphic-designs.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create graphic-designs.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update graphic-designs.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete graphic-designs.
-     */
-    delete?: boolean | null;
-  };
-  icontactFolders?: {
-    /**
-     * Allow clients to find icontact-folders.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create icontact-folders.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update icontact-folders.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete icontact-folders.
-     */
-    delete?: boolean | null;
-  };
-  icontactLists?: {
-    /**
-     * Allow clients to find icontact-lists.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create icontact-lists.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update icontact-lists.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete icontact-lists.
-     */
-    delete?: boolean | null;
-  };
-  tenants?: {
-    /**
-     * Allow clients to find tenants.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create tenants.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update tenants.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete tenants.
-     */
-    delete?: boolean | null;
-  };
-  wordpressPosts?: {
-    /**
-     * Allow clients to find wordpress-posts.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create wordpress-posts.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update wordpress-posts.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete wordpress-posts.
-     */
-    delete?: boolean | null;
-  };
-  sitemapArtifacts?: {
-    /**
-     * Allow clients to find sitemap-artifacts.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create sitemap-artifacts.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update sitemap-artifacts.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete sitemap-artifacts.
-     */
-    delete?: boolean | null;
-  };
-  navbars?: {
-    /**
-     * Allow clients to find navbars.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create navbars.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update navbars.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete navbars.
-     */
-    delete?: boolean | null;
-  };
-  emails?: {
-    /**
-     * Allow clients to find emails.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create emails.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update emails.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete emails.
-     */
-    delete?: boolean | null;
-  };
-  emailLists?: {
-    /**
-     * Allow clients to find email-lists.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create email-lists.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update email-lists.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete email-lists.
-     */
-    delete?: boolean | null;
-  };
-  emailListMemberships?: {
-    /**
-     * Allow clients to find email-list-memberships.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create email-list-memberships.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update email-list-memberships.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete email-list-memberships.
-     */
-    delete?: boolean | null;
-  };
-  emailSendEvents?: {
-    /**
-     * Allow clients to find email-send-events.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create email-send-events.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update email-send-events.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete email-send-events.
-     */
-    delete?: boolean | null;
-  };
-  emailSendJobs?: {
-    /**
-     * Allow clients to find email-send-jobs.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create email-send-jobs.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update email-send-jobs.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete email-send-jobs.
-     */
-    delete?: boolean | null;
-  };
-  emailImportJobs?: {
-    /**
-     * Allow clients to find email-import-jobs.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create email-import-jobs.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update email-import-jobs.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete email-import-jobs.
-     */
-    delete?: boolean | null;
-  };
-  contacts?: {
-    /**
-     * Allow clients to find contacts.
-     */
-    find?: boolean | null;
-    /**
-     * Allow clients to create contacts.
-     */
-    create?: boolean | null;
-    /**
-     * Allow clients to update contacts.
-     */
-    update?: boolean | null;
-    /**
-     * Allow clients to delete contacts.
-     */
-    delete?: boolean | null;
-  };
-  'payload-mcp-tool'?: {
-    /**
-     * Refresh local iContact folder/list cache collections from the live iContact account.
-     */
-    refreshIContactCache?: boolean | null;
-    /**
-     * List iContact client folders for the configured account.
-     */
-    listIContactFolders?: boolean | null;
-    /**
-     * List iContact lists for a specific client folder.
-     */
-    listIContactLists?: boolean | null;
-    /**
-     * Import one iContact list or every list in a folder into one or more explicitly selected tenants. Defaults to dry-run and creates an email import job for each tenant.
-     */
-    importIContactEmailLists?: boolean | null;
-    /**
-     * Bulk assign iContact sync settings to forms by title and optional tenant filters, including folder/list IDs and field mapping.
-     */
-    bulkConfigureIContactForms?: boolean | null;
-    /**
-     * Sync unsynced form submissions to iContact for forms matching a title, optionally filtered to specific tenants.
-     */
-    backfillIContactUnsynced?: boolean | null;
-    /**
-     * Inspect a collection or global field schema as normalized JSON so MCP clients can work without the admin UI.
-     */
-    describeEntityShape?: boolean | null;
-    /**
-     * List tenant records for targeting, filtering, and share workflows.
-     */
-    listTenants?: boolean | null;
-    /**
-     * Find user records and include current tenant assignments.
-     */
-    findUsers?: boolean | null;
-    /**
-     * Update a user record by id or email, including adding or removing tenant assignments for multi-tenant access.
-     */
-    updateUsers?: boolean | null;
-    /**
-     * Read a global document by slug.
-     */
-    getGlobal?: boolean | null;
-    /**
-     * Update a global document with draft-first behavior.
-     */
-    updateGlobal?: boolean | null;
-    /**
-     * Clone a post, form, or email into selected tenants, preserving nested media, nested forms, and tenant scoping.
-     */
-    shareDocumentToTenants?: boolean | null;
-    /**
-     * Create or update a page with raw hero/layout JSON. Use this when createPages/updatePages fail on block layout validation. Prefer draft unless publish is explicitly requested.
-     */
-    upsertPageWithBlocks?: boolean | null;
-    /**
-     * List blocks on a page with ids, types, indices, and compact field summaries. If pageId is omitted, provide slug and tenant.
-     */
-    listPageBlocks?: boolean | null;
-    /**
-     * Return editable field schema for one block type or all page block types.
-     */
-    getBlockShape?: boolean | null;
-    /**
-     * Update any page block fields using path operations. Supports nested arrays/objects with dot and [index] syntax. Default behavior writes to draft.
-     */
-    updateBlockFields?: boolean | null;
-    /**
-     * Publish a draft page or post. Returns document status and metadata suitable for a UI confirm step/button.
-     */
-    publishDocument?: boolean | null;
-    /**
-     * List Lexical rich-text nodes from a document path with node keys, types, and parent relationships.
-     */
-    listRichTextNodes?: boolean | null;
-    /**
-     * Tree-aware Lexical updates by node key/type/text matching. Supports setProps, replaceText, removeNode, and insertChild.
-     */
-    updateRichTextNodes?: boolean | null;
-    /**
-     * Return preferred editing conventions for this CMS workspace (tenant targeting, slug interpretation, and draft-first publishing behavior).
-     */
-    getEditingDefaults?: boolean | null;
-    /**
-     * Update only speech bubbles (and their custom #anchor links) for a policyVoices block on a page.
-     */
-    updatePolicyVoicesSpeechBubbles?: boolean | null;
-    /**
-     * Update only card links for a policyVoices block using entry selectors (anchorId, entryId, or title).
-     */
-    updatePolicyVoicesCardLinks?: boolean | null;
-    /**
-     * Update all forms that match a title across tenants and return changed, unchanged, and failed items.
-     */
-    bulkUpdateFormsByTitle?: boolean | null;
-    /**
-     * List email routing configured on forms that match an exact title, including tenant metadata and bcc values.
-     */
-    listFormRecipientsByTitle?: boolean | null;
-    /**
-     * Read-only lookup for form submission records by form id/title, tenant, submitter email, and createdAt window.
-     */
-    listFormSubmissions?: boolean | null;
-    /**
-     * Bulk normalize Contact Form fields across tenants: rename mobile->phone, ensure Street Address/Town/ZIP required, and add missing Town/ZIP fields.
-     */
-    bulkNormalizeContactForms?: boolean | null;
-    /**
-     * For contact forms, move the `other` textarea and `image-select` field into the final two positions in a configurable order across tenants.
-     */
-    reorderContactFormTailFields?: boolean | null;
-  };
-  updatedAt: string;
-  createdAt: string;
-  enableAPIKey?: boolean | null;
-  apiKey?: string | null;
-  apiKeyIndex?: string | null;
-}
-/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "redirects".
  */
@@ -4668,10 +3896,6 @@ export interface PayloadLockedDocument {
         value: string | Media;
       } | null)
     | ({
-        relationTo: 'media-canvas';
-        value: string | MediaCanva;
-      } | null)
-    | ({
         relationTo: 'graphic-templates';
         value: string | GraphicTemplate;
       } | null)
@@ -4788,10 +4012,6 @@ export interface PayloadLockedDocument {
         value: string | FacebookOauthSession;
       } | null)
     | ({
-        relationTo: 'payload-mcp-api-keys';
-        value: string | PayloadMcpApiKey;
-      } | null)
-    | ({
         relationTo: 'redirects';
         value: string | Redirect;
       } | null)
@@ -4800,15 +4020,10 @@ export interface PayloadLockedDocument {
         value: string | Search;
       } | null);
   globalSlug?: string | null;
-  user:
-    | {
-        relationTo: 'users';
-        value: string | User;
-      }
-    | {
-        relationTo: 'payload-mcp-api-keys';
-        value: string | PayloadMcpApiKey;
-      };
+  user: {
+    relationTo: 'users';
+    value: string | User;
+  };
   updatedAt: string;
   createdAt: string;
 }
@@ -4818,15 +4033,10 @@ export interface PayloadLockedDocument {
  */
 export interface PayloadPreference {
   id: string;
-  user:
-    | {
-        relationTo: 'users';
-        value: string | User;
-      }
-    | {
-        relationTo: 'payload-mcp-api-keys';
-        value: string | PayloadMcpApiKey;
-      };
+  user: {
+    relationTo: 'users';
+    value: string | User;
+  };
   key?: string | null;
   value?:
     | {
@@ -5883,49 +5093,6 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "media-canvas_select".
- */
-export interface MediaCanvasSelect<T extends boolean = true> {
-  tenant?: T;
-  title?: T;
-  image?: T;
-  sourcePost?: T;
-  richText?: T;
-  heading?: T;
-  subheading?: T;
-  posX?: T;
-  posY?: T;
-  scale?: T;
-  headingX?: T;
-  headingY?: T;
-  subheadingX?: T;
-  subheadingY?: T;
-  headingWidth?: T;
-  subheadingWidth?: T;
-  rtLayout?: T;
-  editorState?: T;
-  textBlocks?:
-    | T
-    | {
-        id?: T;
-        label?: T;
-        source?: T;
-        text?: T;
-        x?: T;
-        y?: T;
-        width?: T;
-        font?: T;
-        color?: T;
-        lineHeight?: T;
-        align?: T;
-        stylePreset?: T;
-        locked?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "graphic-templates_select".
  */
 export interface GraphicTemplatesSelect<T extends boolean = true> {
@@ -5953,6 +5120,7 @@ export interface GraphicDesignsSelect<T extends boolean = true> {
   titleOverride?: T;
   scene?: T;
   studioScene?: T;
+  puckData?: T;
   exportedMedia?: T;
   notes?: T;
   updatedAt?: T;
@@ -7198,284 +6366,6 @@ export interface FacebookOauthSessionsSelect<T extends boolean = true> {
       };
   updatedAt?: T;
   createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "payload-mcp-api-keys_select".
- */
-export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
-  user?: T;
-  label?: T;
-  description?: T;
-  posts?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  pages?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  badBills?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  forms?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  formSubmissions?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  media?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  categories?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  articleTypes?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  authors?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  tags?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  siteSeo?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  repInfo?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  standardMedia?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  mediaCanvas?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  graphicTemplates?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  graphicDesigns?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  icontactFolders?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  icontactLists?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  tenants?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  wordpressPosts?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  sitemapArtifacts?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  navbars?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  emails?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  emailLists?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  emailListMemberships?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  emailSendEvents?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  emailSendJobs?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  emailImportJobs?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  contacts?:
-    | T
-    | {
-        find?: T;
-        create?: T;
-        update?: T;
-        delete?: T;
-      };
-  'payload-mcp-tool'?:
-    | T
-    | {
-        refreshIContactCache?: T;
-        listIContactFolders?: T;
-        listIContactLists?: T;
-        importIContactEmailLists?: T;
-        bulkConfigureIContactForms?: T;
-        backfillIContactUnsynced?: T;
-        describeEntityShape?: T;
-        listTenants?: T;
-        findUsers?: T;
-        updateUsers?: T;
-        getGlobal?: T;
-        updateGlobal?: T;
-        shareDocumentToTenants?: T;
-        upsertPageWithBlocks?: T;
-        listPageBlocks?: T;
-        getBlockShape?: T;
-        updateBlockFields?: T;
-        publishDocument?: T;
-        listRichTextNodes?: T;
-        updateRichTextNodes?: T;
-        getEditingDefaults?: T;
-        updatePolicyVoicesSpeechBubbles?: T;
-        updatePolicyVoicesCardLinks?: T;
-        bulkUpdateFormsByTitle?: T;
-        listFormRecipientsByTitle?: T;
-        listFormSubmissions?: T;
-        bulkNormalizeContactForms?: T;
-        reorderContactFormTailFields?: T;
-      };
-  updatedAt?: T;
-  createdAt?: T;
-  enableAPIKey?: T;
-  apiKey?: T;
-  apiKeyIndex?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

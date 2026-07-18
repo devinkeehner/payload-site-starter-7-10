@@ -28,7 +28,6 @@ export const collectionHelperText: Record<string, string> = {
   'site-seo': 'Configure tenant SEO metadata.',
   'rep-info': 'Manage representative profile details.',
   'standard-media': 'Manage standard tenant media assets.',
-  'media-canvas': 'Manage saved media canvas scenes.',
   'graphic-templates': 'Manage reusable graphics templates.',
   'graphic-designs': 'Manage saved graphics designs.',
   'icontact-folders': 'Review cached iContact folders.',
@@ -142,80 +141,119 @@ async function singletonTaskURL(
   return appendTenantQuery(adminURL(req, `/collections/${collection}/create`), tenantID)
 }
 
-export async function getQuickTasks(req: PayloadRequest): Promise<AdminTask[]> {
+export function getPrimaryQuickTasks(req: PayloadRequest): AdminTask[] {
   const tenantID = getSelectedTenantID(req)
+  const user = req.user as DashboardUser
+  const canCreatePost = canAccessCollection(user, 'posts')
+  const canCreateForm = canAccessCollection(user, 'forms')
+  const canUploadMedia = canAccessCollection(user, 'media')
+  const canCreatePage = canAccessCollection(user, 'pages')
 
-  const tasks: AdminTask[] = [
-    {
-      description: quickTaskDescriptions.createPost,
-      href: appendTenantQuery(adminURL(req, '/collections/posts/create'), tenantID),
-      key: 'createPost',
-      label: 'Create Post',
-    },
-    {
-      description: quickTaskDescriptions.createForm,
-      href: appendTenantQuery(adminURL(req, '/collections/forms/create'), tenantID),
-      key: 'createForm',
-      label: 'Create a Form',
-    },
-    {
-      description: quickTaskDescriptions.uploadMedia,
-      href: appendTenantQuery(adminURL(req, '/collections/media/create'), tenantID),
-      key: 'uploadMedia',
-      label: 'Add Media',
-    },
-    {
-      description: quickTaskDescriptions.createPage,
-      href: appendTenantQuery(adminURL(req, '/collections/pages/create'), tenantID),
-      key: 'createPage',
-      label: 'Create Page',
-    },
-    {
-      description: quickTaskDescriptions.changeHomePageBanner,
-      href: `${await singletonTaskURL(req, 'standard-media')}#field-bannerImage`,
-      key: 'changeHomePageBanner',
-      label: 'Change Home Page Banner',
-    },
-    {
-      description: quickTaskDescriptions.updateSocialMedia,
-      href: appendEditTarget(
-        await singletonTaskURL(req, 'rep-info'),
-        'Social & Facebook',
-        'field-facebook',
-      ),
-      key: 'updateSocialMedia',
-      label: 'Update Social Media',
-    },
-    {
-      description: quickTaskDescriptions.editTowns,
-      href: appendEditTarget(
-        await singletonTaskURL(req, 'rep-info'),
-        'Profile & Towns',
-        'field-towns',
-      ),
-      key: 'editTowns',
-      label: 'Edit Towns',
-    },
-    {
-      description: quickTaskDescriptions.editNavbar,
-      href: await singletonTaskURL(req, 'navbars'),
-      key: 'editNavbar',
-      label: 'Edit Navbar',
-    },
+  return [
+    ...(canCreatePost
+      ? [
+          {
+            description: quickTaskDescriptions.createPost,
+            href: appendTenantQuery(adminURL(req, '/collections/posts/create'), tenantID),
+            key: 'createPost' as const,
+            label: 'Create Post',
+          },
+        ]
+      : []),
+    ...(canCreateForm
+      ? [
+          {
+            description: quickTaskDescriptions.createForm,
+            href: appendTenantQuery(adminURL(req, '/collections/forms/create'), tenantID),
+            key: 'createForm' as const,
+            label: 'Create a Form',
+          },
+        ]
+      : []),
+    ...(canUploadMedia
+      ? [
+          {
+            description: quickTaskDescriptions.uploadMedia,
+            href: appendTenantQuery(adminURL(req, '/collections/media/create'), tenantID),
+            key: 'uploadMedia' as const,
+            label: 'Add Media',
+          },
+        ]
+      : []),
+    ...(canCreatePage
+      ? [
+          {
+            description: quickTaskDescriptions.createPage,
+            href: appendTenantQuery(adminURL(req, '/collections/pages/create'), tenantID),
+            key: 'createPage' as const,
+            label: 'Create Page',
+          },
+        ]
+      : []),
   ]
+}
 
-  return tasks.filter((task) => {
-    const user = req.user as DashboardUser
-    if (task.key === 'createPost') return canAccessCollection(user, 'posts')
-    if (task.key === 'createForm') return canAccessCollection(user, 'forms')
-    if (task.key === 'uploadMedia') return canAccessCollection(user, 'media')
-    if (task.key === 'createPage') return canAccessCollection(user, 'pages')
-    if (task.key === 'changeHomePageBanner') return canAccessCollection(user, 'standard-media')
-    if (task.key === 'updateSocialMedia') return canAccessCollection(user, 'rep-info')
-    if (task.key === 'editTowns') return canAccessCollection(user, 'rep-info')
-    if (task.key === 'editNavbar') return canAccessCollection(user, 'navbars')
-    return false
-  })
+const websiteShortcutTasksByRequest = new WeakMap<PayloadRequest, Promise<AdminTask[]>>()
+
+async function buildWebsiteShortcutTasks(req: PayloadRequest): Promise<AdminTask[]> {
+  const user = req.user as DashboardUser
+  const canChangeHomePageBanner = canAccessCollection(user, 'standard-media')
+  const canUpdateRepInfo = canAccessCollection(user, 'rep-info')
+  const canEditNavbar = canAccessCollection(user, 'navbars')
+
+  const [standardMediaURL, repInfoURL, navbarURL] = await Promise.all([
+    canChangeHomePageBanner ? singletonTaskURL(req, 'standard-media') : null,
+    canUpdateRepInfo ? singletonTaskURL(req, 'rep-info') : null,
+    canEditNavbar ? singletonTaskURL(req, 'navbars') : null,
+  ])
+
+  return [
+    ...(standardMediaURL
+      ? [
+          {
+            description: quickTaskDescriptions.changeHomePageBanner,
+            href: `${standardMediaURL}#field-bannerImage`,
+            key: 'changeHomePageBanner' as const,
+            label: 'Change Home Page Banner',
+          },
+        ]
+      : []),
+    ...(repInfoURL
+      ? [
+          {
+            description: quickTaskDescriptions.updateSocialMedia,
+            href: appendEditTarget(repInfoURL, 'Social & Facebook', 'field-facebook'),
+            key: 'updateSocialMedia' as const,
+            label: 'Update Social Media',
+          },
+          {
+            description: quickTaskDescriptions.editTowns,
+            href: appendEditTarget(repInfoURL, 'Profile & Towns', 'field-towns'),
+            key: 'editTowns' as const,
+            label: 'Edit Towns',
+          },
+        ]
+      : []),
+    ...(navbarURL
+      ? [
+          {
+            description: quickTaskDescriptions.editNavbar,
+            href: navbarURL,
+            key: 'editNavbar' as const,
+            label: 'Edit Navbar',
+          },
+        ]
+      : []),
+  ]
+}
+
+export function getWebsiteShortcutTasks(req: PayloadRequest): Promise<AdminTask[]> {
+  const existing = websiteShortcutTasksByRequest.get(req)
+  if (existing) return existing
+
+  const tasks = buildWebsiteShortcutTasks(req)
+  websiteShortcutTasksByRequest.set(req, tasks)
+  return tasks
 }
 
 export function getRoleCollectionSlugs(user: PayloadRequest['user']) {

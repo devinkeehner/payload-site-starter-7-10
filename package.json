@@ -7,6 +7,7 @@
   "scripts": {
     "build": "cross-env NODE_OPTIONS=--no-deprecation next build",
     "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev --turbo",
+    "dev:mcp": "cross-env PAYLOAD_ENABLE_MCP=true NODE_OPTIONS=--no-deprecation next dev --turbo",
     "dev:webpack": "cross-env NODE_OPTIONS=--no-deprecation next dev",
     "dev:prod": "cross-env NODE_OPTIONS=--no-deprecation rm -rf .next && pnpm build && pnpm start",
     "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
@@ -48,7 +49,6 @@
     "@react-email/components": "1.0.12",
     "@react-email/markdown": "0.0.18",
     "@react-email/render": "2.0.7",
-    "@types/react-select": "^5.0.1",
     "@vercel/analytics": "^1.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

@@ -41,7 +41,12 @@ import {
   type DashboardSiteOption,
 } from '@/components/admin/dashboard/MySitesWidgetClient'
 
-import { collectionHelperText, getQuickTasks, getSelectedTenantID } from './adminDashboardMeta'
+import {
+  collectionHelperText,
+  getPrimaryQuickTasks,
+  getSelectedTenantID,
+  getWebsiteShortcutTasks,
+} from './adminDashboardMeta'
 import type { AdminTask } from './adminDashboardShared'
 
 import './dashboard-widgets.scss'
@@ -465,10 +470,7 @@ export async function IconCollectionLauncherWidget(props: WidgetServerProps) {
 }
 
 export async function QuickTasksWidget(props: WidgetServerProps) {
-  const tasks = await getQuickTasks(props.req)
-  const primaryTasks = tasks.filter((task) =>
-    ['createPost', 'createForm', 'uploadMedia', 'createPage'].includes(task.key),
-  )
+  const primaryTasks = getPrimaryQuickTasks(props.req)
 
   return (
     <section className="campaign-dashboard-widget campaign-dashboard-widget--tasks campaign-dashboard-widget--welcome">
@@ -915,10 +917,7 @@ export async function SiteManagementWidget(props: WidgetServerProps) {
 }
 
 export async function WebsiteShortcutsWidget(props: WidgetServerProps) {
-  const tasks = await getQuickTasks(props.req)
-  const shortcuts = tasks.filter((task) =>
-    ['changeHomePageBanner', 'updateSocialMedia', 'editTowns', 'editNavbar'].includes(task.key),
-  )
+  const shortcuts = await getWebsiteShortcutTasks(props.req)
 
   return (
     <section className="campaign-dashboard-widget campaign-dashboard-widget--shortcuts">

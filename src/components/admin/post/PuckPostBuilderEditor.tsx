@@ -3,11 +3,11 @@
 import React, { useMemo, useState } from 'react'
 
 import {
-  createVisualDocumentConfig,
-  VisualDocumentEditor,
+  createPuckBuilderConfig,
+  PuckBuilderShell,
   type VisualPaletteItem,
   type VisualRowPreset,
-} from '@/components/admin/puck/VisualDocumentEditor'
+} from '@/components/admin/puck/PuckBuilderShell'
 import type { PuckBlockSchema, PuckPageData, PuckPostDoc } from '@/lib/puck/types'
 
 import { PuckPostBlockPreview } from './PuckPostBlockPreview'
@@ -144,7 +144,7 @@ export function PuckPostBuilderEditor({
     initialThemeStyle ? (initialThemeStyle as React.CSSProperties) : undefined,
   )
   const config = useMemo(
-    () => createVisualDocumentConfig({
+    () => createPuckBuilderConfig({
       blockSchema,
       contentSlugs: contentPaletteSlugs,
       defaultPropsBySlug: {
@@ -197,7 +197,7 @@ export function PuckPostBuilderEditor({
   }
 
   return (
-    <VisualDocumentEditor<PuckPostPayload>
+    <PuckBuilderShell<PuckPostPayload>
       apiPath={`/api/puck/posts/${postId}`}
       blockSchema={blockSchema}
       config={config}

@@ -10,15 +10,14 @@ import ReactSelect, {
   type StylesConfig,
 } from 'react-select'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
+import {
+  type TenantOption,
+  useActiveTenantOptions,
+} from './TenantOptionsContext'
 import { useActiveTenant } from './hooks/useActiveTenant'
 
 const confirmSwitchTenantSlug = 'custom-tenant-selector-confirm-switch'
 const confirmLeaveWithoutSavingSlug = 'custom-tenant-selector-confirm-leave'
-
-export type TenantOption = {
-  label: string
-  value: string
-}
 
 type Props = {
   optionsOverride?: TenantOption[]
@@ -57,8 +56,9 @@ const setTenantCookieFallback = (tenantID?: string) => {
   window.location.reload()
 }
 
-const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantIDOverride }) => {
+const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOverride }) => {
   const { entityType, modified, options = [], selectedTenantID, setTenant } = useTenantSelection()
+  const activeTenantOptions = useActiveTenantOptions()
   const { tenantID: activeTenantID } = useActiveTenant()
   const { user } = useAuth()
   const { openModal, closeModal } = useModal()
@@ -117,12 +117,9 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantI
     normalizedOptions: TenantOption[]
     groupedOptions: OptionsOrGroups<TenantOption, GroupBase<TenantOption>>
   }>(() => {
-    const sourceOptions =
-      Array.isArray(optionsOverride) && optionsOverride.length > 1
-        ? optionsOverride
-        : Array.isArray(options)
-          ? options
-          : []
+    const sourceOptions = Array.isArray(optionsOverride)
+      ? optionsOverride
+      : activeTenantOptions ?? (Array.isArray(options) ? options : [])
 
     if (!Array.isArray(sourceOptions)) {
       return { normalizedOptions: [], groupedOptions: [] }
@@ -157,7 +154,7 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride = [], selectedTenantI
       normalizedOptions: sorted,
       groupedOptions: grouped,
     }
-  }, [assignedTenantIDs, options, optionsOverride])
+  }, [activeTenantOptions, assignedTenantIDs, options, optionsOverride])
 
   const pluginSelectedValue = toTenantID(selectedTenantID) || ''
   const selectedValue = pluginSelectedValue || selectedTenantIDOverride || activeTenantID

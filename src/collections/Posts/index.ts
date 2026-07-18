@@ -40,7 +40,6 @@ import {
   type SeoAssistantTone,
   normalizeSeoAssistantSettings,
 } from '@/lib/seo/assistantConfig'
-import { generatePostSeo } from '@/lib/seo/generatePostSeo'
 
 type UnknownRecord = Record<string, unknown>
 type TenantLike = string | { id?: string | null } | null | undefined
@@ -391,6 +390,7 @@ export const Posts: CollectionConfig<'posts'> = {
 
           let generated
           try {
+            const { generatePostSeo } = await import('@/lib/seo/generatePostSeo')
             generated = await generatePostSeo({
               additionalInstructions,
               apiKey,

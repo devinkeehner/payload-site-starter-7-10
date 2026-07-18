@@ -60,6 +60,7 @@ import {
   type GraphicShapeLayer,
   type GraphicTextLayer,
 } from '@/lib/graphics/studioTypes'
+import { graphicSceneToPuckData } from '@/lib/puck/graphicAdapter'
 
 import styles from './graphic-design-studio.module.css'
 
@@ -279,7 +280,11 @@ export function GraphicDesignStudioEditor({
     setSaveError(null)
     try {
       const response = await fetch(`/api/graphic-designs/${encodeURIComponent(designId)}?draft=true`, {
-        body: JSON.stringify({ studioScene: sceneRef.current, title: titleRef.current.trim() || 'Untitled design' }),
+        body: JSON.stringify({
+          puckData: graphicSceneToPuckData(sceneRef.current),
+          studioScene: sceneRef.current,
+          title: titleRef.current.trim() || 'Untitled design',
+        }),
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
@@ -713,7 +718,7 @@ export function GraphicDesignStudioEditor({
       formData.append('alt', designTitle || 'Post social graphic')
       formData.append('tenant', tenantId)
 
-      const uploadResponse = await fetch('/api/media-canvas/upload', {
+      const uploadResponse = await fetch('/api/media/upload', {
         body: formData,
         credentials: 'include',
         headers: { 'X-Payload-Tenant': tenantId },
@@ -734,7 +739,12 @@ export function GraphicDesignStudioEditor({
 
       const [designResponse, updatePostResponse] = await Promise.all([
         fetch(`/api/graphic-designs/${encodeURIComponent(designId)}?draft=true`, {
-          body: JSON.stringify({ exportedMedia: mediaId, studioScene: sceneRef.current, title: titleRef.current.trim() || 'Untitled design' }),
+          body: JSON.stringify({
+            exportedMedia: mediaId,
+            puckData: graphicSceneToPuckData(sceneRef.current),
+            studioScene: sceneRef.current,
+            title: titleRef.current.trim() || 'Untitled design',
+          }),
           credentials: 'include',
           headers: { 'Content-Type': 'application/json', 'X-Payload-Tenant': tenantId },
           method: 'PATCH',

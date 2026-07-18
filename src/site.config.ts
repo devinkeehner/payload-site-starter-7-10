@@ -9,7 +9,7 @@ type Config = {
   }
 }
 
-export const config: Config = {
+export const siteConfig: Config = {
   name: 'Connecticut House Republicans',
   url: 'https://payload-site-starter.vercel.app',
   description: 'Opinionated starter for building websites with Payload and Next.js',

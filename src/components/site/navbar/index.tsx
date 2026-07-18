@@ -4,7 +4,7 @@ import { NavbarNav } from './nav'
 import Link from 'next/link'
 import Image from 'next/image'
 
-import { config } from '@/site.config'
+import { siteConfig as config } from '@/site.config'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
 import type { Navbar as NavbarType } from '@/payload-types'

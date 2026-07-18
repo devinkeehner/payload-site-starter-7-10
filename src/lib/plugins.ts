@@ -11,7 +11,7 @@ import { revalidateRedirects } from '@/lib/hooks/revalidateRedirects'
 import { GenerateTitle, GenerateURL } from '@payloadcms/plugin-seo/types'
 import { searchFields } from '@/lib/search/fieldOverrides'
 import { beforeSyncWithSearch } from '@/lib/search/beforeSync'
-import { config } from '@/site.config'
+import { siteConfig as config } from '@/site.config'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import {
   defaultIContactFieldMap,
@@ -2044,7 +2044,6 @@ export const plugins: Plugin[] = [
       pages: {},
       'bad-bills': {},
       media: {},
-      'media-canvas': {},
       'graphic-designs': {},
       'standard-media': { isGlobal: true },
       'rep-info': {},

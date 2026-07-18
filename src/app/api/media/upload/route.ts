@@ -16,7 +16,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     user = await payload.auth({ req: req as unknown as PayloadRequest, headers: req.headers })
   } catch (err) {
-    payload.logger.error({ err }, 'Auth error while uploading Media Canvas')
+    payload.logger.error({ err }, 'Auth error while uploading admin media')
     return new Response('Unauthorized', { status: 401 })
   }
   if (!user) return new Response('Unauthorized', { status: 401 })
@@ -44,7 +44,7 @@ export async function POST(req: Request): Promise<Response> {
     // ignore, we'll rely on flat fields
   }
 
-  const alt = (data?.alt as string) || rawAlt || 'Media Canvas'
+  const alt = (data?.alt as string) || rawAlt || 'Uploaded media'
 
   // caption can be stringified JSON or pre-built Lexical JSON
   let caption: unknown = data.caption
@@ -62,7 +62,7 @@ export async function POST(req: Request): Promise<Response> {
   // no canvas linking in this route
 
   // Build filename (keep the original if provided)
-  let originalName = file.name || 'media-canvas.png'
+  let originalName = file.name || 'uploaded-media.png'
   if (!/\.[a-z0-9]+$/i.test(originalName)) originalName = `${originalName}.png`
 
   // Convert File to Buffer
@@ -101,7 +101,7 @@ export async function POST(req: Request): Promise<Response> {
       headers: { 'content-type': 'application/json' },
     })
   } catch (err: unknown) {
-    payload.logger.error({ err, meta: { originalName, type: file.type, size } }, 'Error creating media from Media Canvas')
+    payload.logger.error({ err, meta: { originalName, type: file.type, size } }, 'Error creating uploaded admin media')
     const errRecord = getObject(err)
     const message = typeof errRecord?.message === 'string' ? errRecord.message : 'Upload failed'
     const stack = typeof errRecord?.stack === 'string' ? errRecord.stack : undefined
