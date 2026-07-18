@@ -2,7 +2,7 @@
 
 import { Banner, Button, Gutter, Pill, useConfig } from '@payloadcms/ui'
 import { formatAdminURL } from 'payload/shared'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import './email-center.scss'
 
@@ -57,6 +57,51 @@ type Report = {
   topLinks: Array<{ count: number; url: string }>
 }
 
+type WorkflowData = {
+  emailPreview: EmailPreview
+  postPreview: PostPreview
+  readiness: Readiness
+  report: Report | null
+}
+
+const workflowRequests = new Map<string, Promise<WorkflowData>>()
+
+async function fetchWorkflowData(emailId: string, forceFresh = false): Promise<WorkflowData> {
+  if (forceFresh) workflowRequests.delete(emailId)
+
+  let request = workflowRequests.get(emailId)
+
+  if (!request) {
+    request = (async () => {
+      const [readinessRes, previewRes, postRes, reportRes] = await Promise.all([
+        fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' }),
+        fetch(`/api/emails/${emailId}/preview`, { cache: 'no-store' }),
+        fetch(`/api/emails/${emailId}/post-preview`, { cache: 'no-store' }),
+        fetch(`/api/emails/${emailId}/report`, { cache: 'no-store' }),
+      ])
+      if (!readinessRes.ok) throw new Error(await readinessRes.text())
+      if (!previewRes.ok) throw new Error(await previewRes.text())
+      if (!postRes.ok) throw new Error(await postRes.text())
+
+      return {
+        emailPreview: (await previewRes.json()) as EmailPreview,
+        postPreview: (await postRes.json()) as PostPreview,
+        readiness: (await readinessRes.json()) as Readiness,
+        report: reportRes.ok ? ((await reportRes.json()) as Report) : null,
+      }
+    })()
+    workflowRequests.set(emailId, request)
+  }
+
+  try {
+    return await request
+  } finally {
+    if (workflowRequests.get(emailId) === request) {
+      workflowRequests.delete(emailId)
+    }
+  }
+}
+
 export function EmailWorkflowViewClient({
   emailId,
   title,
@@ -76,6 +121,7 @@ export function EmailWorkflowViewClient({
   const [status, setStatus] = useState<'creatingPost' | 'error' | 'idle' | 'loading' | 'processingQueue' | 'sending' | 'sendingTest' | 'sent'>('loading')
   const [message, setMessage] = useState<string | null>(null)
   const [testRecipient, setTestRecipient] = useState('')
+  const loadVersionRef = useRef(0)
   const editURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
   const builderURL = `${editURL}/visual`
   const audienceURL = `${editURL}/audience`
@@ -105,26 +151,26 @@ export function EmailWorkflowViewClient({
   )
   const isQueuedForSending = Boolean(sendStatusItem?.message.toLowerCase().includes('queued'))
 
-  const loadWorkflow = useCallback(async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
+  const loadWorkflow = useCallback(async ({
+    clearMessage = true,
+    forceFresh = false,
+  }: {
+    clearMessage?: boolean
+    forceFresh?: boolean
+  } = {}) => {
+    const loadVersion = ++loadVersionRef.current
     setStatus('loading')
     if (clearMessage) setMessage(null)
     try {
-      const [readinessRes, previewRes, postRes, reportRes] = await Promise.all([
-        fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' }),
-        fetch(`/api/emails/${emailId}/preview`, { cache: 'no-store' }),
-        fetch(`/api/emails/${emailId}/post-preview`, { cache: 'no-store' }),
-        fetch(`/api/emails/${emailId}/report`, { cache: 'no-store' }),
-      ])
-      if (!readinessRes.ok) throw new Error(await readinessRes.text())
-      if (!previewRes.ok) throw new Error(await previewRes.text())
-      if (!postRes.ok) throw new Error(await postRes.text())
-
-      setReadiness((await readinessRes.json()) as Readiness)
-      setEmailPreview((await previewRes.json()) as EmailPreview)
-      setPostPreview((await postRes.json()) as PostPreview)
-      setReport(reportRes.ok ? ((await reportRes.json()) as Report) : null)
+      const data = await fetchWorkflowData(emailId, forceFresh)
+      if (loadVersion !== loadVersionRef.current) return
+      setReadiness(data.readiness)
+      setEmailPreview(data.emailPreview)
+      setPostPreview(data.postPreview)
+      setReport(data.report)
       setStatus('idle')
     } catch (error) {
+      if (loadVersion !== loadVersionRef.current) return
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to load review')
     }
@@ -170,7 +216,7 @@ export function EmailWorkflowViewClient({
       const payload = (await res.json()) as { message?: string; recipientEmail?: string }
       setStatus('sent')
       setMessage(payload.message || `Test email sent${payload.recipientEmail ? ` to ${payload.recipientEmail}` : ''}.`)
-      void loadWorkflow({ clearMessage: false })
+      void loadWorkflow({ clearMessage: false, forceFresh: true })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to send test email')
@@ -194,7 +240,7 @@ export function EmailWorkflowViewClient({
       })
       if (!res.ok) throw new Error(await res.text())
       setMessage('Link confirmed.')
-      void loadWorkflow({ clearMessage: false })
+      void loadWorkflow({ clearMessage: false, forceFresh: true })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to confirm link')
@@ -216,7 +262,7 @@ export function EmailWorkflowViewClient({
       const payload = (await res.json()) as { message?: string; jobId?: string | null; status?: string }
       setStatus('sent')
       setMessage(payload.message || 'Campaign queued for sending.')
-      void loadWorkflow({ clearMessage: false })
+      void loadWorkflow({ clearMessage: false, forceFresh: true })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to send campaign')
@@ -252,7 +298,7 @@ export function EmailWorkflowViewClient({
           ? 'Queued campaign processed. Elastic should show delivery activity shortly.'
           : 'No pending queued send was processed. It may already be running or completed.',
       )
-      void loadWorkflow({ clearMessage: false })
+      void loadWorkflow({ clearMessage: false, forceFresh: true })
     } catch (error) {
       setStatus('error')
       setMessage(error instanceof Error ? error.message : 'Unable to process queued send')
@@ -354,7 +400,7 @@ export function EmailWorkflowViewClient({
             <Button buttonStyle={blockingLinks.length ? 'primary' : 'secondary'} el="link" to={builderURL} type="button">
               Open Builder
             </Button>
-            <Button buttonStyle="secondary" onClick={() => void loadWorkflow()} type="button">
+            <Button buttonStyle="secondary" onClick={() => void loadWorkflow({ forceFresh: true })} type="button">
               Recheck
             </Button>
           </div>
@@ -368,7 +414,7 @@ export function EmailWorkflowViewClient({
         <Button buttonStyle="secondary" el="link" to={audienceURL} type="button">
           Audience
         </Button>
-        <Button buttonStyle="secondary" onClick={() => void loadWorkflow()} type="button">
+        <Button buttonStyle="secondary" onClick={() => void loadWorkflow({ forceFresh: true })} type="button">
           Refresh
         </Button>
       </section>

@@ -66,17 +66,55 @@ export const getSelectedTenantID = (): string | undefined => {
 }
 
 const tenantCache = new Map<string, TenantInfo>()
+const tenantRequests = new Map<string, Promise<TenantInfo>>()
+
+const waitForTenantRequest = (
+  request: Promise<TenantInfo>,
+  signal: AbortSignal,
+): Promise<TenantInfo | null> => {
+  if (signal.aborted) return Promise.resolve(null)
+
+  return new Promise((resolve, reject) => {
+    const handleAbort = () => {
+      resolve(null)
+    }
+
+    signal.addEventListener('abort', handleAbort, { once: true })
+    request.then(
+      (tenant) => {
+        signal.removeEventListener('abort', handleAbort)
+        resolve(tenant)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', handleAbort)
+        reject(error)
+      },
+    )
+  })
+}
 
 const fetchTenantInfo = async (id: string | undefined, signal: AbortSignal): Promise<TenantInfo | null> => {
   if (!id) return null
   if (tenantCache.has(id)) return tenantCache.get(id) ?? null
 
+  let request = tenantRequests.get(id)
+  if (!request) {
+    request = (async () => {
+      try {
+        const res = await fetch(`/api/tenants/${id}`, { credentials: 'include' })
+        if (!res.ok) throw new Error('Failed to load tenant')
+        const json = (await res.json()) as TenantInfo
+        tenantCache.set(id, json)
+        return json
+      } finally {
+        tenantRequests.delete(id)
+      }
+    })()
+    tenantRequests.set(id, request)
+  }
+
   try {
-    const res = await fetch(`/api/tenants/${id}`, { credentials: 'include', signal })
-    if (!res.ok) throw new Error('Failed to load tenant')
-    const json = (await res.json()) as TenantInfo
-    tenantCache.set(id, json)
-    return json
+    return await waitForTenantRequest(request, signal)
   } catch (err) {
     if ((err as Error).name === 'AbortError') return null
     return null

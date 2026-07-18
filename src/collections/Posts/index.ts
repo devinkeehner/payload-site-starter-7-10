@@ -8,7 +8,6 @@ import {
   InlineToolbarFeature,
   lexicalEditor,
 } from '@payloadcms/richtext-lexical'
-import { convertLexicalToHTML } from '@payloadcms/richtext-lexical/html'
 
 import { authenticated } from '../../lib/access/authenticated'
 import { authenticatedOrPublished } from '../../lib/access/authenticatedOrPublished'
@@ -353,10 +352,15 @@ export const Posts: CollectionConfig<'posts'> = {
           const userId = getString(userRecord.id)
           const userEmail = getString(userRecord.email)
           const content = post?.content
-          const contentHTML =
-            typeof content === 'string'
-              ? content
-              : convertLexicalToHTML({ data: Array.isArray(content) ? content : content || {} })
+          let contentHTML: string
+          if (typeof content === 'string') {
+            contentHTML = content
+          } else {
+            const { convertLexicalToHTML } = await import('@payloadcms/richtext-lexical/html')
+            contentHTML = convertLexicalToHTML({
+              data: Array.isArray(content) ? content : content || {},
+            })
+          }
 
           // Gather options the model must choose from
           const [categories, articleTypes, assistantSettings] = await Promise.all([

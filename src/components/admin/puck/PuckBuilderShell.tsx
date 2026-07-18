@@ -30,7 +30,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useAdminBuilderMode } from '@/components/admin/hooks/useAdminBuilderMode'
-import { useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
+import { getSelectedTenantID, useActiveTenant } from '@/components/admin/hooks/useActiveTenant'
 import { hydratePuckMedia } from '@/lib/puck/mediaHydration'
 import type { PuckBlockSchema, PuckPageData } from '@/lib/puck/types'
 
@@ -835,17 +835,95 @@ type FrontendPreviewAssets = {
 }
 
 let cachedFrontendPreviewAssets: FrontendPreviewAssets | null = null
+let frontendPreviewAssetsRequest: Promise<FrontendPreviewAssets> | null = null
+const INITIAL_PUCK_REQUEST_GRACE_MS = 5_000
+type InitialPuckPayloadRequest = {
+  apiPath: string
+  expiresAt: number
+  promise: Promise<unknown>
+}
+const initialPuckPayloadRequests = new Map<string, InitialPuckPayloadRequest>()
+
+type InitialPuckPayloadResult<TPayload> = {
+  payload: TPayload
+  source: 'network' | 'settled-cache'
+}
+
+function getInitialPuckRequestKey(apiPath: string): string {
+  return `${getSelectedTenantID() || 'no-tenant'}::${apiPath}`
+}
+
+function invalidateInitialPuckPayload(apiPath: string): void {
+  for (const [requestKey, request] of initialPuckPayloadRequests) {
+    if (request.apiPath === apiPath) initialPuckPayloadRequests.delete(requestKey)
+  }
+}
+
+function getInitialPuckPayload<TPayload>(apiPath: string): Promise<InitialPuckPayloadResult<TPayload>> {
+  const requestKey = getInitialPuckRequestKey(apiPath)
+  const existingRequest = initialPuckPayloadRequests.get(requestKey)
+  if (existingRequest && existingRequest.expiresAt > Date.now()) {
+    const source = Number.isFinite(existingRequest.expiresAt) ? 'settled-cache' : 'network'
+    return (existingRequest.promise as Promise<TPayload>).then((payload) => ({ payload, source }))
+  }
+  if (existingRequest) initialPuckPayloadRequests.delete(requestKey)
+
+  const request = (async () => {
+    const response = await fetch(apiPath, { cache: 'no-store' })
+    if (!response.ok) throw new Error(await response.text())
+    return await response.json() as TPayload
+  })()
+  const entry: InitialPuckPayloadRequest = {
+    apiPath,
+    expiresAt: Number.POSITIVE_INFINITY,
+    promise: request,
+  }
+  initialPuckPayloadRequests.set(requestKey, entry)
+  void request
+    .then(() => {
+      if (initialPuckPayloadRequests.get(requestKey) !== entry) return
+      entry.expiresAt = Date.now() + INITIAL_PUCK_REQUEST_GRACE_MS
+      window.setTimeout(() => {
+        if (
+          initialPuckPayloadRequests.get(requestKey) === entry &&
+          entry.expiresAt <= Date.now()
+        ) {
+          initialPuckPayloadRequests.delete(requestKey)
+        }
+      }, INITIAL_PUCK_REQUEST_GRACE_MS)
+    }, () => {
+      if (initialPuckPayloadRequests.get(requestKey) === entry) {
+        initialPuckPayloadRequests.delete(requestKey)
+      }
+    })
+  return request.then((payload) => ({ payload, source: 'network' }))
+}
 
 async function getFrontendPreviewAssets(): Promise<FrontendPreviewAssets> {
   if (cachedFrontendPreviewAssets) return cachedFrontendPreviewAssets
+
+  if (!frontendPreviewAssetsRequest) {
+    frontendPreviewAssetsRequest = (async () => {
+      const response = await fetch('/api/puck/frontend-preview-assets', { cache: 'no-store', credentials: 'include' })
+      if (!response.ok) throw new Error('Failed to load frontend preview assets')
+      const assets = await response.json() as FrontendPreviewAssets
+      cachedFrontendPreviewAssets = {
+        bodyStyle: assets.bodyStyle,
+        hrefs: Array.isArray(assets.hrefs) ? assets.hrefs : [],
+      }
+      return cachedFrontendPreviewAssets
+    })()
+  }
+
+  const request = frontendPreviewAssetsRequest
   try {
-    const response = await fetch('/api/puck/frontend-preview-assets', { cache: 'no-store', credentials: 'include' })
-    if (!response.ok) return { hrefs: [] }
-    const assets = await response.json() as FrontendPreviewAssets
-    cachedFrontendPreviewAssets = { bodyStyle: assets.bodyStyle, hrefs: Array.isArray(assets.hrefs) ? assets.hrefs : [] }
-    return cachedFrontendPreviewAssets
+    return await request
   } catch {
     return { hrefs: [] }
+  } finally {
+    if (frontendPreviewAssetsRequest === request) {
+      frontendPreviewAssetsRequest = null
+    }
   }
 }
 
@@ -1245,31 +1323,62 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
     async function loadLatest() {
       setStatus('loading')
       setMessage(null)
+
+      const payloadResultPromise = getInitialPuckPayload<TPayload>(apiPath).then(
+        ({ payload, source }) => ({ payload, source, status: 'fulfilled' as const }),
+        (error: unknown) => ({ error, status: 'rejected' as const }),
+      )
+
+      let fallbackData = initialData
       try {
-        const res = await fetch(apiPath, { cache: 'no-store' })
-        if (!res.ok) throw new Error(await res.text())
-        const payload = (await res.json()) as TPayload
+        fallbackData = await hydrateData(initialData)
+      } catch {
+        // The server-provided data is still usable when optional media hydration fails.
+      }
+
+      if (cancelled) return
+
+      const fallbackSnapshot = serializePuckData(fallbackData)
+      savedDataSnapshotRef.current = fallbackSnapshot
+      latestDataSnapshotRef.current = fallbackSnapshot
+      setData(fallbackData)
+      setIsDirty(false)
+      onDataChangeRef.current?.(fallbackData)
+
+      const payloadResult = await payloadResultPromise
+      if (payloadResult.status === 'rejected') {
+        if (!cancelled) {
+          setStatus('error')
+          setMessage(payloadResult.error instanceof Error ? payloadResult.error.message : loadingLabel)
+        }
+        return
+      }
+
+      try {
+        const payload = payloadResult.payload
         const nextData = await hydrateData(getDataFromPayloadRef.current(payload))
         if (!cancelled) {
-          const nextSnapshot = serializePuckData(nextData)
-          savedDataSnapshotRef.current = nextSnapshot
-          latestDataSnapshotRef.current = nextSnapshot
-          setData(nextData)
-          setIsDirty(false)
+          const canApplyNetworkData =
+            payloadResult.source === 'network' &&
+            !isSavingRef.current &&
+            latestDataSnapshotRef.current === fallbackSnapshot
+
           setLastPayload(payload)
-          onLoadPayloadRef.current?.(payload, nextData)
-          onDataChangeRef.current?.(nextData)
+          onLoadPayloadRef.current?.(payload, canApplyNetworkData ? nextData : fallbackData)
+
+          if (canApplyNetworkData) {
+            const nextSnapshot = serializePuckData(nextData)
+            savedDataSnapshotRef.current = nextSnapshot
+            latestDataSnapshotRef.current = nextSnapshot
+            setData(nextData)
+            setIsDirty(false)
+            onDataChangeRef.current?.(nextData)
+          }
+
           setStatus('idle')
         }
       } catch (error) {
-        const fallbackData = await hydrateData(initialData)
         if (!cancelled) {
-          const fallbackSnapshot = serializePuckData(fallbackData)
-          savedDataSnapshotRef.current = fallbackSnapshot
-          latestDataSnapshotRef.current = fallbackSnapshot
-          setData(fallbackData)
-          setIsDirty(false)
-          onDataChangeRef.current?.(fallbackData)
           setStatus('error')
           setMessage(error instanceof Error ? error.message : loadingLabel)
         }
@@ -1296,6 +1405,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
     setStatus('saving')
     setMessage(null)
     const submittedSnapshot = serializePuckData(nextData)
+    invalidateInitialPuckPayload(apiPath)
 
     try {
       const res = await fetch(apiPath, {
@@ -1308,6 +1418,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
 
       if (!res.ok) throw new Error(await res.text())
       const payload = (await res.json()) as TPayload
+      invalidateInitialPuckPayload(apiPath)
       const savedData = await hydrateData(getDataFromPayloadRef.current(payload, nextData))
       const savedSnapshot = serializePuckData(savedData)
       savedDataSnapshotRef.current = savedSnapshot

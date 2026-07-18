@@ -3,8 +3,6 @@ import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug, Pa
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
-import { buildDefaultEmailLayout } from '@/lib/email/defaultEmailLayout'
-import { shareDocumentToTenants } from '@/lib/mcp-tenant-shares'
 
 const EMAIL_LISTS_COLLECTION = 'email-lists' as CollectionSlug
 
@@ -53,6 +51,8 @@ const syncDefaultSubject: CollectionBeforeValidateHook = ({ data, operation, ori
 const populateDefaultLayout: CollectionBeforeValidateHook = async ({ data, operation, req }) => {
   if (operation !== 'create' || !data) return data
   if (Array.isArray(data.layout) && data.layout.length > 0) return data
+
+  const { buildDefaultEmailLayout } = await import('@/lib/email/defaultEmailLayout')
 
   return {
     ...data,
@@ -295,6 +295,7 @@ export const Emails: CollectionConfig<'emails'> = {
             : tenantIDs.filter((tenantID) => getUserTenantIDs(req.user).includes(tenantID))
           if (!allowedTenantIDs.length) return send(403, { error: 'You do not have access to the selected tenants' })
 
+          const { shareDocumentToTenants } = await import('@/lib/mcp-tenant-shares')
           const shareResult = await shareDocumentToTenants({
             collection: 'emails',
             docId: id,

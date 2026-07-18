@@ -6,9 +6,10 @@
   "type": "module",
   "scripts": {
     "build": "cross-env NODE_OPTIONS=--no-deprecation next build",
-    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev --turbopack",
-    "dev:mcp": "cross-env PAYLOAD_ENABLE_MCP=true NODE_OPTIONS=--no-deprecation next dev --turbopack",
-    "dev:webpack": "cross-env NODE_OPTIONS=--no-deprecation next dev --webpack",
+    "dev": "cross-env NODE_COMPILE_CACHE=node_modules/.cache/node-compile-cache NODE_OPTIONS=--no-deprecation next dev --turbopack",
+    "dev:fast": "cross-env DISABLE_PAYLOAD_HMR=true NODE_COMPILE_CACHE=node_modules/.cache/node-compile-cache NODE_OPTIONS=--no-deprecation next dev --turbopack",
+    "dev:mcp": "cross-env PAYLOAD_ENABLE_MCP=true NODE_COMPILE_CACHE=node_modules/.cache/node-compile-cache NODE_OPTIONS=--no-deprecation next dev --turbopack",
+    "dev:webpack": "cross-env NODE_COMPILE_CACHE=node_modules/.cache/node-compile-cache NODE_OPTIONS=--no-deprecation next dev --webpack",
     "dev:prod": "cross-env NODE_OPTIONS=--no-deprecation rm -rf .next && pnpm build && pnpm start",
     "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
     "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",

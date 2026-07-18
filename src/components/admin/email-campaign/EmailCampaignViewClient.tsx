@@ -16,6 +16,29 @@ type Readiness = {
   warnings: number
 }
 
+const readinessRequests = new Map<string, Promise<Readiness>>()
+
+async function fetchReadiness(emailId: string): Promise<Readiness> {
+  let request = readinessRequests.get(emailId)
+
+  if (!request) {
+    request = (async () => {
+      const res = await fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' })
+      if (!res.ok) throw new Error(await res.text())
+      return (await res.json()) as Readiness
+    })()
+    readinessRequests.set(emailId, request)
+  }
+
+  try {
+    return await request
+  } finally {
+    if (readinessRequests.get(emailId) === request) {
+      readinessRequests.delete(emailId)
+    }
+  }
+}
+
 export function EmailCampaignViewClient({
   emailId,
   title,
@@ -38,9 +61,7 @@ export function EmailCampaignViewClient({
   const loadReadiness = useCallback(async () => {
     setMessage(null)
     try {
-      const res = await fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' })
-      if (!res.ok) throw new Error(await res.text())
-      setReadiness((await res.json()) as Readiness)
+      setReadiness(await fetchReadiness(emailId))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to load campaign status')
     }
