@@ -1,6 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+import {
+  clearAdminUnsavedChanges,
+  setAdminUnsavedChanges,
+} from '@/components/admin/adminUnsavedChanges'
 
 export type DashboardSiteOption = {
   archived: boolean
@@ -32,6 +37,12 @@ export function MySitesWidgetClient({
     .filter((site): site is DashboardSiteOption => Boolean(site))
   const availableSites = sites.filter((site) => !site.archived && !assignedIDs.includes(site.id))
   const changed = JSON.stringify(assignedIDs) !== JSON.stringify(savedIDs)
+  const unsavedSource = 'dashboard-my-sites'
+
+  useEffect(() => {
+    setAdminUnsavedChanges(unsavedSource, changed)
+    return () => clearAdminUnsavedChanges(unsavedSource)
+  }, [changed, unsavedSource])
 
   const clearStatus = () => {
     setStatus('idle')
@@ -83,9 +94,27 @@ export function MySitesWidgetClient({
       className="campaign-dashboard-widget campaign-dashboard-widget--site-panel"
       id="my-sites"
     >
-      <div className="campaign-dashboard-widget__header">
-        <h2>My Sites</h2>
-        <p>Add or remove the websites assigned to your account.</p>
+      <div className="campaign-dashboard-widget__header campaign-dashboard-widget__header--media">
+        <div>
+          <h2>My Sites</h2>
+          <p>Add or remove the websites assigned to your account.</p>
+        </div>
+        <button
+          className="campaign-dashboard-widget__save-button"
+          disabled={!changed || status === 'saving'}
+          onClick={() => void save()}
+          type="button"
+        >
+          {status === 'saving' ? 'Saving…' : 'Save sites'}
+        </button>
+      </div>
+      <div
+        aria-live="polite"
+        className="campaign-dashboard-widget__save-status"
+        data-status={status}
+        role="status"
+      >
+        {message}
       </div>
 
       <div className="campaign-dashboard-widget__site-assignment-controls">
@@ -110,10 +139,7 @@ export function MySitesWidgetClient({
           {assignedSites.map((site) => (
             <article className="campaign-dashboard-widget__site-card" key={site.id}>
               <div className="campaign-dashboard-widget__site-card-heading">
-                <div>
-                  <strong>{site.name}</strong>
-                  <span>/{site.slug}</span>
-                </div>
+                <strong>{site.name}</strong>
                 {selectedTenantID === site.id ? <small>Current</small> : null}
                 {site.archived ? <small data-status="archived">Archived</small> : null}
               </div>
@@ -133,17 +159,6 @@ export function MySitesWidgetClient({
       ) : (
         <p className="campaign-dashboard-widget__empty">No sites are assigned to this account.</p>
       )}
-
-      <div className="campaign-dashboard-widget__media-actions">
-        <button
-          disabled={!changed || status === 'saving'}
-          onClick={() => void save()}
-          type="button"
-        >
-          {status === 'saving' ? 'Saving…' : 'Save site assignments'}
-        </button>
-        {message ? <span data-status={status}>{message}</span> : null}
-      </div>
     </section>
   )
 }

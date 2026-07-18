@@ -124,7 +124,7 @@
 .campaign-admin-nav__panel button:focus-visible,
 .campaign-admin-nav__panel-link:focus-visible,
 .campaign-admin-nav__primary-action:focus-visible {
-  outline: 2px solid var(--theme-text);
+  outline: 3px solid var(--hro-focus-ring, rgba(199, 43, 50, 0.2));
   outline-offset: 2px;
 }
 
@@ -187,8 +187,8 @@
 
 .campaign-admin-nav__primary-action {
   align-items: center;
-  background: var(--theme-text);
-  border: 1px solid var(--theme-text);
+  background: var(--hro-brand-red, #c72b32);
+  border: 1px solid var(--hro-brand-red, #c72b32);
   border-radius: 6px;
   color: var(--theme-bg);
   display: flex;
@@ -204,7 +204,7 @@
 
 .campaign-admin-nav__panel-links {
   display: grid;
-  gap: 0.42rem;
+  gap: 0.25rem;
 }
 
 .campaign-admin-nav__panel-link {
@@ -246,13 +246,48 @@
   width: 2.35rem;
 }
 
-.campaign-admin-nav__panel-link--shortcut {
+.campaign-admin-nav__panel-link--action {
   min-height: 3.2rem;
 }
 
-.campaign-admin-nav__panel-link--shortcut .campaign-admin-nav__panel-link-icon {
-  background: var(--theme-success-100, var(--theme-elevation-100));
-  color: var(--hro-nav-accent);
+.campaign-admin-nav__panel-link--action .campaign-admin-nav__panel-link-icon {
+  background: var(--hro-brand-red-soft, var(--theme-elevation-100));
+  color: var(--hro-brand-red, #c72b32);
+}
+
+.campaign-admin-nav__panel-link--collection {
+  margin-bottom: 0.25rem;
+  min-height: 3.2rem;
+}
+
+.campaign-admin-nav__panel-link--document {
+  display: block;
+  min-height: 2.3rem;
+  padding: 0.48rem 0.65rem;
+}
+
+.campaign-admin-nav__panel-link--document > span:last-child {
+  display: block;
+}
+
+.campaign-admin-nav__panel-link--document strong {
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 580;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.campaign-admin-nav__panel-section-label {
+  color: var(--theme-elevation-550);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.055em;
+  margin: 0.35rem 0 0.1rem;
+  padding: 0 0.65rem;
+  text-transform: uppercase;
 }
 
 .campaign-admin-nav__panel-link > span:last-child {

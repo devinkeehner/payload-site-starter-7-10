@@ -52,8 +52,10 @@ import { WatchTenantCollection as WatchTenantCollection_1d0591e3cf4f332c83a86da1
 import { default as default_b18c0b724d0dce8da9c53137701d03b3 } from '@/components/admin/email-campaign/EmailCampaignView'
 import { default as default_cf0eff6def9d4b9008d87c30c920528f } from '@/components/admin/email-campaign/EmailWorkflowRedirectView'
 import { default as default_2c6c4dbbe998d6eebbc446155e65ba4b } from '@/components/admin/email/PuckEmailBuilderView'
-import { default as default_a0e436fe38b7e307ce9fcc9be2ba7933 } from '@/components/admin/email-audience/EmailAudienceView'
-import { default as default_72de4d3084d953a792e9d63a0b6b8d64 } from '@/components/admin/email-center/EmailWorkflowView'
+import { default as default_cd273ac907da88d9828e040426a3daa4 } from '@/components/admin/email-workflow/EmailAudienceStageView'
+import { default as default_b63ad787315473c237e2194e5b32ff84 } from '@/components/admin/email-workflow/EmailReviewStageView'
+import { default as default_f7c5899ee7a687e7124dcb9ba6b18a98 } from '@/components/admin/email-workflow/EmailDeliveryStageView'
+import { default as default_0a91633c3e431b83ce6d39f2d3973a60 } from '@/components/admin/email-workflow/EmailResultsStageView'
 import { default as default_7df001b233165cf0fc71cbd5e6837a9a } from '@/components/admin/email-center/EmailCenterListView'
 import { default as default_2581c95fe82b5364a75dc1a485d10390 } from '@/components/admin/email-list-profile/EmailListProfileView'
 import { default as default_e9c85fbc18f581556516c52117c510c3 } from '@/components/admin/email-list-profile/EmailListListView'
@@ -140,8 +142,10 @@ export const importMap = {
   "@/components/admin/email-campaign/EmailCampaignView#default": default_b18c0b724d0dce8da9c53137701d03b3,
   "@/components/admin/email-campaign/EmailWorkflowRedirectView#default": default_cf0eff6def9d4b9008d87c30c920528f,
   "@/components/admin/email/PuckEmailBuilderView#default": default_2c6c4dbbe998d6eebbc446155e65ba4b,
-  "@/components/admin/email-audience/EmailAudienceView#default": default_a0e436fe38b7e307ce9fcc9be2ba7933,
-  "@/components/admin/email-center/EmailWorkflowView#default": default_72de4d3084d953a792e9d63a0b6b8d64,
+  "@/components/admin/email-workflow/EmailAudienceStageView#default": default_cd273ac907da88d9828e040426a3daa4,
+  "@/components/admin/email-workflow/EmailReviewStageView#default": default_b63ad787315473c237e2194e5b32ff84,
+  "@/components/admin/email-workflow/EmailDeliveryStageView#default": default_f7c5899ee7a687e7124dcb9ba6b18a98,
+  "@/components/admin/email-workflow/EmailResultsStageView#default": default_0a91633c3e431b83ce6d39f2d3973a60,
   "@/components/admin/email-center/EmailCenterListView#default": default_7df001b233165cf0fc71cbd5e6837a9a,
   "@/components/admin/email-list-profile/EmailListProfileView#default": default_2581c95fe82b5364a75dc1a485d10390,
   "@/components/admin/email-list-profile/EmailListListView#default": default_e9c85fbc18f581556516c52117c510c3,

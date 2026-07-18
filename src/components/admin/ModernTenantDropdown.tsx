@@ -10,10 +10,8 @@ import ReactSelect, {
   type StylesConfig,
 } from 'react-select'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
-import {
-  type TenantOption,
-  useActiveTenantOptions,
-} from './TenantOptionsContext'
+import { type TenantOption, useActiveTenantOptions } from './TenantOptionsContext'
+import { hasAdminUnsavedChanges } from './adminUnsavedChanges'
 import { useActiveTenant } from './hooks/useActiveTenant'
 
 const confirmSwitchTenantSlug = 'custom-tenant-selector-confirm-switch'
@@ -119,7 +117,7 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOver
   }>(() => {
     const sourceOptions = Array.isArray(optionsOverride)
       ? optionsOverride
-      : activeTenantOptions ?? (Array.isArray(options) ? options : [])
+      : (activeTenantOptions ?? (Array.isArray(options) ? options : []))
 
     if (!Array.isArray(sourceOptions)) {
       return { normalizedOptions: [], groupedOptions: [] }
@@ -206,6 +204,12 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOver
 
       if (parsed.value === selectedValue) return
 
+      if (hasAdminUnsavedChanges()) {
+        setPendingSelection(parsed)
+        openModal(confirmLeaveWithoutSavingSlug)
+        return
+      }
+
       if (entityType === 'document') {
         setPendingSelection(parsed)
         openModal(confirmSwitchTenantSlug)
@@ -235,10 +239,10 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOver
       control: (base, state) => ({
         ...base,
         minHeight: 42,
-        borderRadius: '0.75rem',
+        borderRadius: '0.625rem',
         borderColor: state.isFocused ? 'var(--theme-elevation-400)' : 'var(--theme-elevation-200)',
         boxShadow: state.isFocused
-          ? '0 0 0 3px var(--theme-elevation-100)'
+          ? '0 0 0 3px var(--hro-focus-ring, rgba(199, 43, 50, 0.18))'
           : '0 1px 2px rgba(15, 23, 42, 0.06)',
         backgroundColor: 'var(--theme-elevation-0)',
         '&:hover': {
@@ -251,10 +255,10 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOver
       }),
       singleValue: (base) => ({
         ...base,
-        fontSize: '0.95rem',
-        fontWeight: 600,
+        fontSize: '1rem',
+        fontWeight: 700,
         lineHeight: 1.2,
-        color: 'var(--theme-text)',
+        color: 'var(--hro-brand-red-text, #c72b32)',
       }),
       placeholder: (base) => ({
         ...base,

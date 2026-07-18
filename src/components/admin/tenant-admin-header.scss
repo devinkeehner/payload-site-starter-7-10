@@ -146,11 +146,11 @@
 }
 
 .tenant-nav-panel[data-variant='header'] .rs__control {
-  background: var(--theme-elevation-50) !important;
+  background: var(--theme-elevation-0) !important;
   border-color: var(--theme-elevation-175, var(--theme-elevation-150)) !important;
-  border-radius: 0.55rem !important;
-  box-shadow: none !important;
-  min-height: 2.3rem !important;
+  border-radius: var(--hro-control-radius, 8px) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.07) !important;
+  min-height: 2.625rem !important;
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
@@ -161,7 +161,7 @@
 .tenant-nav-panel[data-variant='header'] .rs__control--is-focused {
   background: var(--theme-elevation-0) !important;
   border-color: var(--theme-elevation-350) !important;
-  box-shadow: 0 0 0 2px var(--theme-elevation-100) !important;
+  box-shadow: 0 0 0 3px var(--hro-focus-ring, rgba(199, 43, 50, 0.2)) !important;
 }
 
 .tenant-nav-panel[data-variant='header'] .rs__value-container {
@@ -171,7 +171,12 @@
 
 .tenant-nav-panel[data-variant='header'] .rs__single-value,
 .tenant-nav-panel[data-variant='header'] .rs__input-container {
-  font-size: 0.78rem;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+}
+
+.tenant-nav-panel[data-variant='header'] .rs__single-value {
+  color: var(--hro-brand-red-text, #c72b32) !important;
 }
 
 .tenant-nav-panel[data-variant='header'] .rs__menu {

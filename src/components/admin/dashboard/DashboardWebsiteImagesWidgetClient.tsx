@@ -1,7 +1,12 @@
 'use client'
 
 import { UploadInput, useConfig } from '@payloadcms/ui'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+
+import {
+  clearAdminUnsavedChanges,
+  setAdminUnsavedChanges,
+} from '@/components/admin/adminUnsavedChanges'
 
 export type DashboardMediaAsset = {
   alt?: string | null
@@ -113,6 +118,18 @@ export function DashboardBannerWidgetClient({
     [banner, defaultFeaturedImage, mobileHeadshot, settings],
   )
   const changed = currentSnapshot !== savedSnapshot
+  const unsavedSource = `dashboard-website-images-${documentId}`
+
+  useEffect(() => {
+    setAdminUnsavedChanges(unsavedSource, changed)
+    return () => clearAdminUnsavedChanges(unsavedSource)
+  }, [changed, unsavedSource])
+
+  const updateImage = (setter: (value: string | null) => void, value: string | null) => {
+    setter(value)
+    setStatus('idle')
+    setMessage(null)
+  }
 
   const updateSetting = <Key extends keyof BannerSettings>(
     key: Key,
@@ -176,14 +193,32 @@ export function DashboardBannerWidgetClient({
           <h2>Website Images</h2>
           <p>Preview and replace the primary images used throughout this website.</p>
         </div>
-        <a href={editHref}>Edit website images</a>
+        <div className="campaign-dashboard-widget__header-actions">
+          <a href={editHref}>Edit website images</a>
+          <button
+            className="campaign-dashboard-widget__save-button"
+            disabled={!changed || status === 'saving'}
+            onClick={() => void save()}
+            type="button"
+          >
+            {status === 'saving' ? 'Saving…' : 'Save images'}
+          </button>
+        </div>
+      </div>
+      <div
+        aria-live="polite"
+        className="campaign-dashboard-widget__save-status"
+        data-status={status}
+        role="status"
+      >
+        {message}
       </div>
 
       <div className="campaign-dashboard-widget__media-grid">
         <DashboardImageField
           api={api}
           description="Homepage hero image and its common display controls."
-          onChange={setBanner}
+          onChange={(value) => updateImage(setBanner, value)}
           path="dashboardBannerImage"
           serverURL={serverURL}
           title="Homepage Banner"
@@ -262,7 +297,7 @@ export function DashboardBannerWidgetClient({
         <DashboardImageField
           api={api}
           description="Portrait used in compact and mobile website layouts."
-          onChange={setMobileHeadshot}
+          onChange={(value) => updateImage(setMobileHeadshot, value)}
           path="dashboardMobileHeadshot"
           serverURL={serverURL}
           title="Mobile Headshot"
@@ -272,23 +307,12 @@ export function DashboardBannerWidgetClient({
         <DashboardImageField
           api={api}
           description="Fallback image used when a post does not have its own featured image."
-          onChange={setDefaultFeaturedImage}
+          onChange={(value) => updateImage(setDefaultFeaturedImage, value)}
           path="dashboardDefaultFeaturedImage"
           serverURL={serverURL}
           title="Default Featured Image"
           value={defaultFeaturedImage}
         />
-      </div>
-
-      <div className="campaign-dashboard-widget__media-actions">
-        <button
-          disabled={!changed || status === 'saving'}
-          onClick={() => void save()}
-          type="button"
-        >
-          {status === 'saving' ? 'Saving…' : 'Save banner settings'}
-        </button>
-        {message ? <span data-status={status}>{message}</span> : null}
       </div>
     </section>
   )

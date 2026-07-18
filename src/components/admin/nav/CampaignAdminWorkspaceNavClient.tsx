@@ -8,7 +8,10 @@ import { usePathname } from 'next/navigation'
 import { formatAdminURL } from 'payload/shared'
 import React from 'react'
 
-import type { AdminWorkspaceNavAreaKey } from '@/components/admin/adminWorkspace'
+import type {
+  AdminWorkspaceFlyoutEntryKind,
+  AdminWorkspaceNavAreaKey,
+} from '@/components/admin/adminWorkspace'
 import {
   getAdminWorkspaceDescription,
   getAdminWorkspaceLabel,
@@ -25,8 +28,11 @@ type AdminNavArea = {
   quickLinks?: Array<{
     action?: 'bulkUpload'
     description?: string
+    heading?: string
     href: string
+    kind: AdminWorkspaceFlyoutEntryKind
     label: string
+    slug?: string
   }>
   suppressEntityLinks?: boolean
 }
@@ -254,6 +260,9 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
   const { config } = useConfig()
   const { i18n } = useTranslation()
   const [openAreaKey, setOpenAreaKey] = React.useState<AdminWorkspaceNavAreaKey | null>(null)
+  const railButtonRefs = React.useRef<
+    Partial<Record<AdminWorkspaceNavAreaKey, HTMLButtonElement | null>>
+  >({})
   const navAreas = React.useMemo(
     () =>
       Array.from(Array.isArray(areas) ? areas : [], (area) => ({
@@ -297,9 +306,16 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
     setOpenAreaKey(null)
   }, [pathname])
 
-  const closePanel = React.useCallback(() => {
-    setOpenAreaKey(null)
-  }, [])
+  const closePanel = React.useCallback(
+    (returnFocus = false) => {
+      const areaToFocus = openAreaKey
+      setOpenAreaKey(null)
+      if (returnFocus && areaToFocus) {
+        window.requestAnimationFrame(() => railButtonRefs.current[areaToFocus]?.focus())
+      }
+    },
+    [openAreaKey],
+  )
 
   const openMediaBulkUpload = React.useCallback(
     (event?: React.SyntheticEvent) => {
@@ -361,7 +377,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
-      closePanel()
+      closePanel(true)
     }
 
     window.addEventListener('keydown', onKeyDown)
@@ -371,10 +387,11 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
   return (
     <>
       <button
+        aria-label="Close navigation panel"
         aria-hidden={!openArea}
         className="campaign-admin-nav__panel-scrim"
         data-open={openArea ? 'true' : 'false'}
-        onClick={closePanel}
+        onClick={() => closePanel(true)}
         tabIndex={openArea ? 0 : -1}
         type="button"
       />
@@ -387,7 +404,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
                 className="campaign-admin-nav__rail-item"
                 data-active={pathname === homeHref ? 'true' : 'false'}
                 href={homeHref}
-                onClick={closePanel}
+                onClick={() => closePanel()}
                 prefetch={false}
               >
                 <NavGlyph name="home" size={25} />
@@ -409,6 +426,9 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
                     onClick={() =>
                       setOpenAreaKey((current) => (current === area.key ? null : area.key))
                     }
+                    ref={(element) => {
+                      railButtonRefs.current[area.key] = element
+                    }}
                     type="button"
                   >
                     <NavGlyph name={icon} size={25} />
@@ -443,7 +463,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
                 </div>
                 <button
                   aria-label={`Close ${openArea.label} panel`}
-                  onClick={closePanel}
+                  onClick={() => closePanel(true)}
                   type="button"
                 >
                   <NavGlyph name="close" size={18} />
@@ -454,7 +474,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
                 <Link
                   className="campaign-admin-nav__primary-action"
                   href={primaryTask.href}
-                  onClick={closePanel}
+                  onClick={() => closePanel()}
                   prefetch={false}
                 >
                   <NavGlyph name="plus" size={18} />
@@ -463,41 +483,62 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
               ) : null}
 
               <div className="campaign-admin-nav__panel-links">
-                {openArea.quickLinks?.map((link) =>
-                  link.action === 'bulkUpload' ? (
-                    <button
-                      className="campaign-admin-nav__panel-link campaign-admin-nav__panel-link--shortcut"
-                      key={`${link.href}-${link.action}`}
-                      onClick={openMediaBulkUpload}
-                      onPointerDownCapture={openMediaBulkUpload}
-                      type="button"
-                    >
-                      <span className="campaign-admin-nav__panel-link-icon">
-                        <NavGlyph name="plus" size={17} />
-                      </span>
+                {openArea.quickLinks?.map((link) => {
+                  const className = [
+                    'campaign-admin-nav__panel-link',
+                    `campaign-admin-nav__panel-link--${link.kind}`,
+                  ].join(' ')
+                  const icon =
+                    link.kind === 'collection'
+                      ? getEntityIcon(link.slug || '', EntityType.collection)
+                      : 'plus'
+                  const content = (
+                    <>
+                      {link.kind !== 'document' ? (
+                        <span className="campaign-admin-nav__panel-link-icon">
+                          <NavGlyph name={icon} size={link.kind === 'collection' ? 19 : 17} />
+                        </span>
+                      ) : null}
                       <span>
                         <strong>{link.label}</strong>
                         {link.description ? <small>{link.description}</small> : null}
                       </span>
-                    </button>
-                  ) : (
-                    <Link
-                      className="campaign-admin-nav__panel-link campaign-admin-nav__panel-link--shortcut"
-                      href={link.href}
-                      key={link.href}
-                      onClick={closePanel}
-                      prefetch={false}
-                    >
-                      <span className="campaign-admin-nav__panel-link-icon">
-                        <NavGlyph name="plus" size={17} />
-                      </span>
-                      <span>
-                        <strong>{link.label}</strong>
-                        {link.description ? <small>{link.description}</small> : null}
-                      </span>
-                    </Link>
-                  ),
-                )}
+                    </>
+                  )
+
+                  return (
+                    <React.Fragment key={`${link.kind}-${link.href}-${link.label}`}>
+                      {link.heading ? (
+                        <p className="campaign-admin-nav__panel-section-label">{link.heading}</p>
+                      ) : null}
+                      {link.action === 'bulkUpload' ? (
+                        <button
+                          className={className}
+                          onClick={openMediaBulkUpload}
+                          onPointerDownCapture={openMediaBulkUpload}
+                          type="button"
+                        >
+                          {content}
+                        </button>
+                      ) : (
+                        <Link
+                          className={className}
+                          data-active={
+                            link.kind === 'collection' &&
+                            isPathActive(pathname, link.href.split('?')[0] || link.href)
+                              ? 'true'
+                              : 'false'
+                          }
+                          href={link.href}
+                          onClick={() => closePanel()}
+                          prefetch={false}
+                        >
+                          {content}
+                        </Link>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
 
                 {!openArea.suppressEntityLinks &&
                   Array.from(openArea.entities, ({ slug, type, label: entityLabel }) => {
@@ -517,7 +558,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
                         href={href}
                         id={`nav-${slug}`}
                         key={`${type}-${slug}`}
-                        onClick={closePanel}
+                        onClick={() => closePanel()}
                         prefetch={false}
                       >
                         <span className="campaign-admin-nav__panel-link-icon">

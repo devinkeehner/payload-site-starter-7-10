@@ -1,4 +1,22 @@
 /* Payload admin header overrides */
+:root {
+  --hro-brand-red: #c72b32;
+  --hro-brand-red-hover: #aa2229;
+  --hro-brand-red-soft: #fbedee;
+  --hro-brand-red-text: #c72b32;
+  --hro-control-radius: 8px;
+  --hro-panel-radius: 10px;
+  --hro-focus-ring: rgba(199, 43, 50, 0.2);
+  --hro-panel-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme='dark'] {
+  --hro-brand-red-soft: rgba(255, 122, 128, 0.12);
+  --hro-brand-red-text: #ff8a8f;
+  --hro-focus-ring: rgba(255, 138, 143, 0.3);
+  --hro-panel-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
 .step-nav {
   display: none !important;
 }

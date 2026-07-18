@@ -1,172 +1,18 @@
-import type { Payload, PayloadRequest, Where } from 'payload'
+import type { Payload, PayloadRequest } from 'payload'
 
-import { isValidEmailAddress, normalizeEmailAddress } from './contactNormalization'
 import { sendElasticBulkMarketingEmail } from './elasticEmail'
-import { prepareEmailLayoutForRender } from './footerContext'
-import { renderEmail } from './renderEmail'
-import { getTenantEmailSenderSettings } from './sender'
-import { getEmailWebVersionUrl } from './webVersion'
+import {
+  assertEmailAudienceTenantMatch,
+  resolveEmailAudience,
+} from './recipients'
+import {
+  getEmailSnapshotJob,
+  getEmailSnapshotRecipients,
+} from './snapshot'
+import { suppressIneligibleSnapshotRecipients } from './suppression'
 
-type UnknownRecord = Record<string, unknown>
-
-type CampaignRecipient = {
-  contactId?: string
-  email: string
-  firstName?: string
-  lastName?: string
-  phone?: string
-  postalCode?: string
-}
-
-const ELIGIBLE_STATUSES = new Set(['subscribed'])
-const BLOCKED_STATUSES = new Set(['unsubscribed', 'inactive', 'bounced', 'doNotContact'])
-
-function isRecord(value: unknown): value is UnknownRecord {
-  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function getString(value: unknown): string {
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function getId(value: unknown): string | null {
-  if (typeof value === 'string' || typeof value === 'number') return String(value)
-  if (!isRecord(value)) return null
-  const id = value.id ?? value._id ?? value.value
-  return typeof id === 'string' || typeof id === 'number' ? String(id) : null
-}
-
-function getRequestOrigin(req: Request): string {
-  const forwardedHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
-  const host = forwardedHost || req.headers.get('host')?.split(',')[0]?.trim()
-  const forwardedProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim()
-  const requestUrl = new URL(req.url)
-  const protocol = forwardedProto || requestUrl.protocol.replace(':', '') || 'https'
-
-  return host ? `${protocol}://${host}` : requestUrl.origin
-}
-
-function getTenantSlug(value: unknown): string {
-  return isRecord(value) ? getString(value.slug) : ''
-}
-
-function getContactRecipient(value: unknown): CampaignRecipient | null {
-  if (!isRecord(value)) return null
-  const status = getString(value.status) || 'subscribed'
-  if (BLOCKED_STATUSES.has(status)) return null
-
-  const email = normalizeEmailAddress(value.email || value.normalizedEmail)
-  if (!isValidEmailAddress(email)) return null
-
-  return {
-    contactId: getId(value) || undefined,
-    email,
-    firstName: getString(value.firstName) || undefined,
-    lastName: getString(value.lastName) || undefined,
-    phone: getString(value.phone) || undefined,
-    postalCode: getString(value.postalCode) || undefined,
-  }
-}
-
-async function findAll({
-  collection,
-  depth = 0,
-  limit = 100,
-  overrideAccess = false,
-  payload,
-  req,
-  where,
-}: {
-  collection: string
-  depth?: number
-  limit?: number
-  overrideAccess?: boolean
-  payload: Payload
-  req: PayloadRequest
-  where: UnknownRecord
-}): Promise<UnknownRecord[]> {
-  const docs: UnknownRecord[] = []
-  let page = 1
-
-  while (true) {
-    const result = await payload.find({
-      collection: collection as never,
-      depth,
-      limit,
-      overrideAccess,
-      page,
-      req,
-      where: where as Where,
-    })
-
-    docs.push(...((result.docs || []) as UnknownRecord[]))
-    if (!result.hasNextPage) break
-    page += 1
-  }
-
-  return docs
-}
-
-async function getListRecipients({
-  emailList,
-  overrideAccess = false,
-  payload,
-  req,
-}: {
-  emailList: UnknownRecord
-  overrideAccess?: boolean
-  payload: Payload
-  req: PayloadRequest
-}): Promise<CampaignRecipient[]> {
-  const recipients = new Map<string, CampaignRecipient>()
-  const listId = getId(emailList)
-
-  const addRecipient = (recipient: CampaignRecipient | null) => {
-    if (!recipient) return
-    recipients.set(recipient.email, recipient)
-  }
-
-  if (listId) {
-    const memberships = await findAll({
-      collection: 'email-list-memberships',
-      depth: 2,
-      overrideAccess,
-      payload,
-      req,
-      where: {
-        and: [
-          { emailList: { equals: listId } },
-          { status: { equals: 'subscribed' } },
-          ...(emailList.tenant ? [{ tenant: { equals: getId(emailList.tenant) } }] : []),
-        ],
-      },
-    })
-
-    memberships.forEach((membership) => {
-      const status = getString(membership.status)
-      if (!ELIGIBLE_STATUSES.has(status || 'subscribed')) return
-      addRecipient(getContactRecipient(membership.contact))
-    })
-  }
-
-  const legacyContacts = Array.isArray(emailList.contacts) ? emailList.contacts : []
-  legacyContacts.forEach((contact) => addRecipient(getContactRecipient(contact)))
-
-  return Array.from(recipients.values())
-}
-
-function getRequiredString(value: unknown, label: string): string {
-  const text = getString(value)
-  if (!text) throw new Error(`${label} is required.`)
-  return text
-}
-
-function hasSendableLayout(value: unknown): value is Array<UnknownRecord> {
-  return Array.isArray(value) && value.some((block) => isRecord(block))
-}
-
-function getElasticSendChannelName(emailId: string): string {
-  return `hro-email-${emailId}-${Date.now()}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80)
+function getElasticSendChannelName(jobId: string): string {
+  return `hro-email-job-${jobId}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80)
 }
 
 function getErrorMessage(error: unknown): string {
@@ -181,110 +27,62 @@ async function runElasticStep<T>(label: string, action: () => Promise<T>): Promi
   }
 }
 
-export async function sendProductionEmailCampaign({
-  allowSendingStatus = false,
-  emailId,
+export async function sendProductionEmailSnapshotJob({
+  beforeProviderDispatch,
+  jobId,
   overrideAccess = false,
   payload,
-  request,
   req,
-  userId,
 }: {
-  allowSendingStatus?: boolean
-  emailId: string
+  beforeProviderDispatch?: () => Promise<void>
+  jobId: string
   overrideAccess?: boolean
   payload: Payload
-  request: Request
   req: PayloadRequest
-  userId?: string | null
 }) {
-  const email = (await payload.findByID({
-    collection: 'emails',
-    depth: 2,
-    draft: true,
-    id: emailId,
-    overrideAccess,
-    req,
-  })) as unknown as UnknownRecord
-
-  const subject = getRequiredString(email.subject, 'Subject')
-  const currentStatus = getString(email.status) || 'draft'
-  if (currentStatus === 'sent' || (currentStatus === 'sending' && !allowSendingStatus)) {
-    throw new Error(`This email is already ${currentStatus}. Duplicate it before sending again.`)
-  }
-  const emailListId = getId(email.emailList)
-  if (!emailListId) throw new Error('Audience list is required before sending.')
-
-  if (!hasSendableLayout(email.layout)) {
-    throw new Error('Email content is required before sending.')
-  }
-
-  const emailList = (await payload.findByID({
-    collection: 'email-lists',
-    depth: 2,
-    id: emailListId,
-    overrideAccess,
-    req,
-  })) as unknown as UnknownRecord
-  const listStatus = getString(emailList.status)
-  if (listStatus && listStatus !== 'active') {
-    throw new Error('Audience list must be active before sending.')
-  }
-
-  const recipients = await getListRecipients({ emailList, overrideAccess, payload, req })
-  if (!recipients.length) throw new Error('Audience list has no subscribed recipients.')
-
-  const tenantSlug = getTenantSlug(email.tenant) || getTenantSlug(emailList.tenant)
-  const preheader = getString(email.preheader)
-  const senderSettings = await getTenantEmailSenderSettings({
-    email,
-    emailList,
+  const { snapshot } = await getEmailSnapshotJob({
+    jobId,
     overrideAccess,
     payload,
     req,
   })
-  const replyTo = getString(email.replyTo) || senderSettings.replyTo || undefined
-
-  const prepared = await prepareEmailLayoutForRender({
-    email,
-    emailList,
+  const snapshotRecipients = await getEmailSnapshotRecipients({
+    jobId,
     overrideAccess,
     payload,
     req,
   })
-  const { html, text } = await renderEmail({
-    layout: prepared.layout,
-    origin: getRequestOrigin(request),
-    preheader,
-    subject,
-    webVersionUrl: getEmailWebVersionUrl(emailId, getRequestOrigin(request)),
-  })
+  if (!snapshotRecipients.length) {
+    throw new Error('Email send job has no approved recipient snapshot.')
+  }
 
-  await payload.update({
-    collection: 'emails',
-    data: {
-      sendSummary: {
-        approvedAt: new Date().toISOString(),
-        approvedBy: userId || undefined,
-        recipientCount: recipients.length,
-      },
-      status: 'sending',
-    },
-    draft: true,
-    id: emailId,
+  const currentAudience = await resolveEmailAudience({
+    listId: snapshot.audienceListId,
     overrideAccess,
-    overrideLock: false,
+    payload,
     req,
   })
+  assertEmailAudienceTenantMatch({
+    audienceTenant: currentAudience.list.tenant,
+    campaignTenant: snapshot.tenantId,
+  })
+  const suppression = suppressIneligibleSnapshotRecipients(
+    snapshotRecipients,
+    currentAudience.recipients,
+  )
+  if (!suppression.recipients.length) {
+    throw new Error('Every approved recipient is now suppressed; no email was sent.')
+  }
 
-  const sendChannelName = getElasticSendChannelName(emailId)
+  const channelName = getElasticSendChannelName(jobId)
+  await beforeProviderDispatch?.()
   const elasticSend = await runElasticStep('Elastic bulk send failed', () =>
     sendElasticBulkMarketingEmail({
-      channelName: sendChannelName,
-      fromEmail: senderSettings.fromEmail,
-      fromName: senderSettings.fromName,
-      html,
-      recipients: recipients.map((recipient) => ({
+      channelName,
+      fromEmail: snapshot.fromEmail,
+      fromName: snapshot.fromName,
+      html: snapshot.html,
+      recipients: suppression.recipients.map((recipient) => ({
         Email: recipient.email,
         Fields: {
           contactId: recipient.contactId || '',
@@ -294,50 +92,30 @@ export async function sendProductionEmailCampaign({
           lastName: recipient.lastName || '',
           phone: recipient.phone || '',
           postalCode: recipient.postalCode || '',
-          tenant: tenantSlug,
+          tenant: snapshot.tenantSlug || '',
         },
       })),
-      replyTo,
-      subject,
-      text,
+      replyTo: snapshot.replyTo,
+      subject: snapshot.subject,
+      text: snapshot.text,
     }),
   )
-  const sentAt = new Date().toISOString()
 
   await payload.update({
     collection: 'email-lists',
     data: {
-      activeContactCount: recipients.length,
+      activeContactCount: suppression.recipients.length,
     },
-    id: emailListId,
-    overrideAccess,
-    overrideLock: false,
-    req,
-  })
-
-  await payload.update({
-    collection: 'emails',
-    data: {
-      sendSummary: {
-        approvedAt: sentAt,
-        approvedBy: userId || undefined,
-        elasticCampaignId: elasticSend.id || sendChannelName,
-        recipientCount: recipients.length,
-        sendError: undefined,
-        sentAt,
-      },
-      status: 'sent',
-    },
-    draft: true,
-    id: emailId,
+    id: snapshot.audienceListId,
     overrideAccess,
     overrideLock: false,
     req,
   })
 
   return {
-    elasticCampaignId: elasticSend.id || sendChannelName,
+    elasticCampaignId: elasticSend.id || channelName,
     message: elasticSend.message,
-    recipientCount: recipients.length,
+    recipientCount: suppression.recipients.length,
+    suppressedRecipientCount: suppression.suppressedCount,
   }
 }

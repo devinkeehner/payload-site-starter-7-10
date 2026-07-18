@@ -11,6 +11,7 @@ import {
 } from '@/components/admin/dashboard/adminDashboardMeta'
 import {
   ADMIN_WORKSPACE_NAV_AREAS,
+  type AdminWorkspaceFlyoutEntryKind,
   type AdminWorkspaceNavAreaKey,
 } from '@/components/admin/adminWorkspace'
 import { canAccessCollection } from '@/lib/access/roles'
@@ -33,8 +34,11 @@ type NavDocument = {
 type NavQuickLink = {
   action?: 'bulkUpload'
   description?: string
+  heading?: string
   href: string
+  kind: AdminWorkspaceFlyoutEntryKind
   label: string
+  slug?: string
 }
 
 const adminURL = (req: PayloadRequest, path: `/${string}`) =>
@@ -48,6 +52,9 @@ const withTenant = (href: string, tenantID: string | null) => {
   return `${href}${href.includes('?') ? '&' : '?'}tenant=${encodeURIComponent(tenantID)}`
 }
 
+const withSlugFilter = (href: string, slug: string) =>
+  `${href}${href.includes('?') ? '&' : '?'}where[slug][equals]=${encodeURIComponent(slug)}`
+
 async function getSidebarQuickLinks(
   req: PayloadRequest,
 ): Promise<Partial<Record<AdminWorkspaceNavAreaKey, NavQuickLink[]>>> {
@@ -55,7 +62,9 @@ async function getSidebarQuickLinks(
   const canReadPosts = canAccessCollection(req.user, 'posts')
   const canReadPages = canAccessCollection(req.user, 'pages')
   const mediaHref = withTenant(adminURL(req, '/collections/media'), tenantID)
+  const mediaCreateHref = withTenant(adminURL(req, '/collections/media/create'), tenantID)
   const pagesHref = withTenant(adminURL(req, '/collections/pages'), tenantID)
+  const postsHref = withTenant(adminURL(req, '/collections/posts'), tenantID)
 
   const [recentPostsResult, aboutResult, contactResult] = await Promise.all([
     canReadPosts
@@ -113,35 +122,49 @@ async function getSidebarQuickLinks(
 
   return {
     media: [
-      { href: mediaHref, label: 'Media Gallery' },
+      { href: mediaHref, kind: 'collection', label: 'Media Gallery', slug: 'media' },
       {
         action: 'bulkUpload',
         description: 'Add several images or files at once.',
         href: mediaHref,
+        kind: 'action',
         label: 'Bulk Upload',
+      },
+      {
+        description: 'Upload a PDF or other document.',
+        href: mediaCreateHref,
+        kind: 'action',
+        label: 'Upload PDF',
       },
     ],
     pages: [
-      { href: pagesHref, label: 'Pages' },
+      { href: pagesHref, kind: 'collection', label: 'Pages', slug: 'pages' },
       {
         href: aboutPage?.id
           ? withTenant(adminURL(req, `/collections/pages/${aboutPage.id}`), tenantID)
-          : `${pagesHref}?where[slug][equals]=about`,
+          : withSlugFilter(pagesHref, 'about'),
+        kind: 'document',
         label: 'About Page',
       },
       {
         href: contactPage?.id
           ? withTenant(adminURL(req, `/collections/pages/${contactPage.id}`), tenantID)
-          : `${pagesHref}?where[slug][equals]=contact`,
+          : withSlugFilter(pagesHref, 'contact'),
+        kind: 'document',
         label: 'Contact Page',
       },
     ],
-    posts: recentPosts.map((post) => ({
-      href: post.id
-        ? withTenant(adminURL(req, `/collections/posts/${post.id}`), tenantID)
-        : withTenant(adminURL(req, '/collections/posts'), tenantID),
-      label: String(post.title || post.slug || 'Untitled post'),
-    })),
+    posts: [
+      { href: postsHref, kind: 'collection', label: 'Posts', slug: 'posts' },
+      ...recentPosts.map((post, index) => ({
+        heading: index === 0 ? 'Recent posts' : undefined,
+        href: post.id
+          ? withTenant(adminURL(req, `/collections/posts/${post.id}`), tenantID)
+          : postsHref,
+        kind: 'document' as const,
+        label: String(post.title || post.slug || 'Untitled post'),
+      })),
+    ],
   }
 }
 

@@ -20,7 +20,10 @@
     "postdeploy:sitemaps": "node ./scripts/trigger-sitemap-rebuild.mjs",
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "reinstall": "cross-env NODE_OPTIONS=--no-deprecation rm -rf node_modules && rm pnpm-lock.yaml && pnpm --ignore-workspace install",
-    "start": "cross-env NODE_OPTIONS=--no-deprecation next start"
+    "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@lexical/selection": "0.41.0",
@@ -80,6 +83,7 @@
     "zod": "3.25.76"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.1.8",
     "@tailwindcss/typography": "^0.5.16",
     "@types/escape-html": "^1.0.4",
@@ -98,7 +102,8 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.5",
-    "typescript": "5.7.3"
+    "typescript": "5.7.3",
+    "vitest": "^4.1.10"
   },
   "packageManager": "pnpm@10.29.3",
   "engines": {

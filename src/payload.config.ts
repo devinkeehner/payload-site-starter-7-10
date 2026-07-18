@@ -27,6 +27,7 @@ import { EmailLists } from './collections/EmailLists';
 import { EmailListMemberships } from './collections/EmailListMemberships';
 import { EmailSendEvents } from './collections/EmailSendEvents';
 import { EmailSendJobs } from './collections/EmailSendJobs';
+import { EmailSendRecipientChunks } from './collections/EmailSendRecipientChunks';
 import { EmailImportJobs } from './collections/EmailImportJobs';
 import { Contacts } from './collections/Contacts';
 import { ChatgptOAuthClients } from './collections/ChatgptOAuthClients';
@@ -327,6 +328,7 @@ export default buildConfig({
     EmailListMemberships,
     EmailSendEvents,
     EmailSendJobs,
+    EmailSendRecipientChunks,
     EmailImportJobs,
     Contacts,
     ChatgptOAuthClients,

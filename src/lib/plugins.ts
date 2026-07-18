@@ -2060,6 +2060,8 @@ export const plugins: Plugin[] = [
       'email-lists': {},
       'email-list-memberships': {},
       'email-send-events': {},
+      'email-send-jobs': {},
+      'email-send-recipient-chunks': {},
       'email-import-jobs': {},
       contacts: {},
     } as any,

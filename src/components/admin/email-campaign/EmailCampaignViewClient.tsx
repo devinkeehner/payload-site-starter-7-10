@@ -1,43 +1,13 @@
 'use client'
 
-import { Banner, Button, Gutter, Pill, useConfig } from '@payloadcms/ui'
-import { formatAdminURL } from 'payload/shared'
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { useConfig } from '@payloadcms/ui'
+import React, { useEffect } from 'react'
 
-import '../email-center/email-center.scss'
-
-type Readiness = {
-  audience?: {
-    active: number
-    listName: string
-  }
-  canSend: boolean
-  failures: number
-  warnings: number
-}
-
-const readinessRequests = new Map<string, Promise<Readiness>>()
-
-async function fetchReadiness(emailId: string): Promise<Readiness> {
-  let request = readinessRequests.get(emailId)
-
-  if (!request) {
-    request = (async () => {
-      const res = await fetch(`/api/emails/${emailId}/readiness`, { cache: 'no-store' })
-      if (!res.ok) throw new Error(await res.text())
-      return (await res.json()) as Readiness
-    })()
-    readinessRequests.set(emailId, request)
-  }
-
-  try {
-    return await request
-  } finally {
-    if (readinessRequests.get(emailId) === request) {
-      readinessRequests.delete(emailId)
-    }
-  }
-}
+import {
+  EmailCampaignShell,
+  getCampaignStageURL,
+} from '@/components/admin/email-workflow/EmailCampaignShell'
+import { useEmailWorkflow } from '@/components/admin/email-workflow/useEmailWorkflow'
 
 export function EmailCampaignViewClient({
   emailId,
@@ -51,62 +21,32 @@ export function EmailCampaignViewClient({
       routes: { admin: adminRoute },
     },
   } = useConfig()
-  const [readiness, setReadiness] = useState<Readiness | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
-  const baseURL = useMemo(() => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }), [adminRoute, emailId])
-  const builderURL = `${baseURL}/visual`
-  const audienceURL = `${baseURL}/audience`
-  const reviewURL = `${baseURL}/review`
-
-  const loadReadiness = useCallback(async () => {
-    setMessage(null)
-    try {
-      setReadiness(await fetchReadiness(emailId))
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Unable to load campaign status')
-    }
-  }, [emailId])
+  const { error, isLoading, workflow } = useEmailWorkflow(emailId)
 
   useEffect(() => {
-    void loadReadiness()
-  }, [loadReadiness])
+    if (!workflow) return
+
+    window.location.replace(getCampaignStageURL({
+      adminRoute,
+      emailId,
+      phase: workflow.phase,
+    }))
+  }, [adminRoute, emailId, workflow])
 
   return (
-    <Gutter className="email-flow">
-      <div className="email-flow__header">
-        <p className="email-flow__eyebrow">Email</p>
-        <h1>{title}</h1>
-        <p>Use these steps when preparing an email. Advanced fields remain available for unusual edits.</p>
+    <EmailCampaignShell
+      activeStage={workflow?.phase || 'compose'}
+      description="Opening the next incomplete step in this campaign."
+      emailId={emailId}
+      error={error}
+      isLoading={isLoading}
+      title={title}
+      workflow={workflow}
+    >
+      <div aria-live="polite" className="email-campaign__loading">
+        <span aria-hidden="true" />
+        Opening campaign workspace…
       </div>
-
-      {message ? <Banner type="error">{message}</Banner> : null}
-
-      <section className="email-flow__steps">
-        <article className="email-flow__step">
-          <Pill pillStyle="light-gray">1</Pill>
-          <h2>Build the email</h2>
-          <p>Create the content and layout.</p>
-          <Button buttonStyle="secondary" el="link" to={builderURL} type="button">
-            Open builder
-          </Button>
-        </article>
-        <article className="email-flow__step">
-          <Pill pillStyle={readiness?.audience?.active ? 'success' : 'warning'}>2</Pill>
-          <h2>Choose the audience</h2>
-          <p>{readiness?.audience?.active ? `${readiness.audience.active} active recipients in ${readiness.audience.listName}.` : 'Select a list before sending.'}</p>
-          <Button buttonStyle="secondary" el="link" to={audienceURL} type="button">
-            Audience settings
-          </Button>
-        </article>
-        <article className="email-flow__step">
-          <Pill pillStyle={readiness?.canSend ? 'success' : 'warning'}>3</Pill>
-          <h2>Review and send</h2>
-          <p>{readiness ? `${readiness.failures} failures and ${readiness.warnings} warnings.` : 'Loading readiness.'}</p>
-          <Button buttonStyle="primary" el="link" to={reviewURL} type="button">
-            Review & Send
-          </Button>
-        </article>
-      </section>
-    </Gutter>
+    </EmailCampaignShell>
   )
 }

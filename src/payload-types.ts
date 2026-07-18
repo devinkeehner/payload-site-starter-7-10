@@ -93,6 +93,7 @@ export interface Config {
     'email-list-memberships': EmailListMembership;
     'email-send-events': EmailSendEvent;
     'email-send-jobs': EmailSendJob;
+    'email-send-recipient-chunks': EmailSendRecipientChunk;
     'email-import-jobs': EmailImportJob;
     contacts: Contact;
     'chatgpt-oauth-clients': ChatgptOauthClient;
@@ -136,6 +137,7 @@ export interface Config {
     'email-list-memberships': EmailListMembershipsSelect<false> | EmailListMembershipsSelect<true>;
     'email-send-events': EmailSendEventsSelect<false> | EmailSendEventsSelect<true>;
     'email-send-jobs': EmailSendJobsSelect<false> | EmailSendJobsSelect<true>;
+    'email-send-recipient-chunks': EmailSendRecipientChunksSelect<false> | EmailSendRecipientChunksSelect<true>;
     'email-import-jobs': EmailImportJobsSelect<false> | EmailImportJobsSelect<true>;
     contacts: ContactsSelect<false> | ContactsSelect<true>;
     'chatgpt-oauth-clients': ChatgptOauthClientsSelect<false> | ChatgptOauthClientsSelect<true>;
@@ -2932,7 +2934,10 @@ export interface Email {
    */
   emailList?: (string | null) | EmailList;
   replyTo?: string | null;
-  status: 'draft' | 'approved' | 'scheduled' | 'queued' | 'sending' | 'sent' | 'failed';
+  status: 'draft' | 'scheduled' | 'queued' | 'sending' | 'sent' | 'failed';
+  /**
+   * Use the campaign delivery controls to schedule or reschedule.
+   */
   scheduledAt?: string | null;
   /**
    * Build this email in the Builder tab.
@@ -2959,9 +2964,20 @@ export interface Email {
     | EmailCalloutBlock
     | EmailFooterOneColumnBlock
   )[];
+  contentRevision?: string | null;
+  deliveryConfirmedAt?: string | null;
+  deliveryConfirmedBy?: (string | null) | User;
+  deliveryContentRevision?: string | null;
+  deliveryJob?: (string | null) | EmailSendJob;
+  deliveryTimeZone?: string | null;
+  legacyScheduleNeedsReview?: boolean | null;
+  relatedPost?: (string | null) | Post;
   sendSummary?: {
     elasticCampaignId?: string | null;
     recipientCount?: number | null;
+    suppressedRecipientCount?: number | null;
+    sendJob?: (string | null) | EmailSendJob;
+    contentRevision?: string | null;
     approvedAt?: string | null;
     approvedBy?: (string | null) | User;
     sentAt?: string | null;
@@ -2972,6 +2988,7 @@ export interface Email {
     recipientEmail?: string | null;
     sentAt?: string | null;
     message?: string | null;
+    contentRevision?: string | null;
   };
   /**
    * Links that were reviewed and confirmed after a remote checker warning.
@@ -3471,6 +3488,47 @@ export interface EmailFooterOneColumnBlock {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-send-jobs".
+ */
+export interface EmailSendJob {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  email: string | Email;
+  status: 'preparing' | 'scheduled' | 'pending' | 'running' | 'completed' | 'failed' | 'delivery_unknown' | 'cancelled';
+  activeKey?: string | null;
+  claimToken?: string | null;
+  kind: 'manual' | 'scheduled';
+  requestedBy?: (string | null) | User;
+  requestedAt: string;
+  scheduledFor?: string | null;
+  contentRevision: string;
+  snapshot:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  recipientChunkCount: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  attempts?: number | null;
+  providerAttemptedAt?: string | null;
+  reconciliationPending?: boolean | null;
+  lockedAt?: string | null;
+  lockExpiresAt?: string | null;
+  recipientCount?: number | null;
+  sentRecipientCount?: number | null;
+  suppressedRecipientCount?: number | null;
+  elasticCampaignId?: string | null;
+  message?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "email-list-memberships".
  */
 export interface EmailListMembership {
@@ -3525,24 +3583,25 @@ export interface EmailSendEvent {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "email-send-jobs".
+ * via the `definition` "email-send-recipient-chunks".
  */
-export interface EmailSendJob {
+export interface EmailSendRecipientChunk {
   id: string;
-  email: string | Email;
   tenant?: (string | null) | Tenant;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  kind: 'manual' | 'scheduled';
-  requestedBy?: (string | null) | User;
-  requestedAt: string;
-  startedAt?: string | null;
-  completedAt?: string | null;
-  attempts?: number | null;
-  lockedAt?: string | null;
-  lockExpiresAt?: string | null;
-  recipientCount?: number | null;
-  elasticCampaignId?: string | null;
-  message?: string | null;
+  chunkKey: string;
+  job: string | EmailSendJob;
+  email: string | Email;
+  chunkIndex: number;
+  recipientCount: number;
+  recipients:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3991,6 +4050,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'email-send-jobs';
         value: string | EmailSendJob;
+      } | null)
+    | ({
+        relationTo: 'email-send-recipient-chunks';
+        value: string | EmailSendRecipientChunk;
       } | null)
     | ({
         relationTo: 'email-import-jobs';
@@ -5720,11 +5783,22 @@ export interface EmailsSelect<T extends boolean = true> {
         emailCallout?: T | EmailCalloutBlockSelect<T>;
         emailFooterOneColumn?: T | EmailFooterOneColumnBlockSelect<T>;
       };
+  contentRevision?: T;
+  deliveryConfirmedAt?: T;
+  deliveryConfirmedBy?: T;
+  deliveryContentRevision?: T;
+  deliveryJob?: T;
+  deliveryTimeZone?: T;
+  legacyScheduleNeedsReview?: T;
+  relatedPost?: T;
   sendSummary?:
     | T
     | {
         elasticCampaignId?: T;
         recipientCount?: T;
+        suppressedRecipientCount?: T;
+        sendJob?: T;
+        contentRevision?: T;
         approvedAt?: T;
         approvedBy?: T;
         sentAt?: T;
@@ -5737,6 +5811,7 @@ export interface EmailsSelect<T extends boolean = true> {
         recipientEmail?: T;
         sentAt?: T;
         message?: T;
+        contentRevision?: T;
       };
   linkReviewOverrides?:
     | T
@@ -6172,20 +6247,45 @@ export interface EmailSendEventsSelect<T extends boolean = true> {
  * via the `definition` "email-send-jobs_select".
  */
 export interface EmailSendJobsSelect<T extends boolean = true> {
-  email?: T;
   tenant?: T;
+  email?: T;
   status?: T;
+  activeKey?: T;
+  claimToken?: T;
   kind?: T;
   requestedBy?: T;
   requestedAt?: T;
+  scheduledFor?: T;
+  contentRevision?: T;
+  snapshot?: T;
+  recipientChunkCount?: T;
   startedAt?: T;
   completedAt?: T;
   attempts?: T;
+  providerAttemptedAt?: T;
+  reconciliationPending?: T;
   lockedAt?: T;
   lockExpiresAt?: T;
   recipientCount?: T;
+  sentRecipientCount?: T;
+  suppressedRecipientCount?: T;
   elasticCampaignId?: T;
   message?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "email-send-recipient-chunks_select".
+ */
+export interface EmailSendRecipientChunksSelect<T extends boolean = true> {
+  tenant?: T;
+  chunkKey?: T;
+  job?: T;
+  email?: T;
+  chunkIndex?: T;
+  recipientCount?: T;
+  recipients?: T;
   updatedAt?: T;
   createdAt?: T;
 }

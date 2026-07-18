@@ -6,6 +6,7 @@ import {
   BookOpen,
   Building2,
   ClipboardList,
+  ExternalLink,
   Facebook,
   FileText,
   FolderTree,
@@ -43,11 +44,16 @@ import {
 
 import {
   collectionHelperText,
-  getPrimaryQuickTasks,
+  getDashboardQuickTasks,
   getSelectedTenantID,
   getWebsiteShortcutTasks,
 } from './adminDashboardMeta'
 import type { AdminTask } from './adminDashboardShared'
+import {
+  flattenDashboardNavbarItems,
+  getDashboardPublicSiteBase,
+  type DashboardNavbarLink,
+} from './dashboardNavbarLinks'
 
 import './dashboard-widgets.scss'
 
@@ -99,6 +105,7 @@ const collectionIcons: Record<string, LucideIcon> = {
 
 const taskIcons: Record<AdminTask['key'], LucideIcon> = {
   createPost: FileText,
+  viewPosts: FileText,
   createForm: ClipboardList,
   uploadMedia: ImageIcon,
   createPage: LayoutTemplate,
@@ -470,22 +477,17 @@ export async function IconCollectionLauncherWidget(props: WidgetServerProps) {
 }
 
 export async function QuickTasksWidget(props: WidgetServerProps) {
-  const primaryTasks = getPrimaryQuickTasks(props.req)
+  const primaryTasks = getDashboardQuickTasks(props.req)
 
   return (
-    <section className="campaign-dashboard-widget campaign-dashboard-widget--tasks campaign-dashboard-widget--welcome">
-      <div className="campaign-dashboard-widget__header campaign-dashboard-widget__header--launcher">
-        <div>
-          <h1>Welcome back</h1>
-          <p>Choose a common task to start working on this website.</p>
-        </div>
-        <ClipboardList
-          aria-hidden
-          className="campaign-dashboard-widget__header-icon"
-          size={30}
-          strokeWidth={1.8}
-        />
-      </div>
+    <section
+      aria-labelledby="campaign-dashboard-quick-actions"
+      className="campaign-dashboard-widget campaign-dashboard-widget--tasks campaign-dashboard-widget--quick-actions"
+    >
+      <h1 className="campaign-dashboard-widget__sr-only">Dashboard</h1>
+      <h2 className="campaign-dashboard-widget__sr-only" id="campaign-dashboard-quick-actions">
+        Quick actions
+      </h2>
       <div className="campaign-dashboard-widget__task-grid">
         {primaryTasks.map((task) => (
           <TaskCard key={task.key} task={task} />
@@ -513,17 +515,11 @@ type DashboardSite = {
   slug: string
 }
 
-type DashboardNavbarLink = {
-  depth: number
-  id: string
-  label: string
-  target: string
-}
-
 type DashboardNavbarDoc = {
   id?: number | string
   name?: unknown
   navItems?: unknown
+  tenant?: unknown
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -549,48 +545,6 @@ function normalizeDashboardSite(value: unknown): DashboardSite | null {
   }
 }
 
-function describeNavbarLink(value: unknown) {
-  if (!isRecord(value)) return { label: 'Untitled link', target: 'No destination' }
-
-  const label = getString(value.label)
-  const url = getString(value.url)
-  if (url) return { label: label || url, target: url }
-
-  const reference = isRecord(value.reference) ? value.reference : null
-  const relationTo = getString(reference?.relationTo)
-  const referencedValue = reference?.value
-  const referencedDoc = isRecord(referencedValue) ? referencedValue : null
-  const referenceLabel =
-    getString(referencedDoc?.title) ||
-    getString(referencedDoc?.name) ||
-    getString(referencedDoc?.pageName) ||
-    getString(referencedDoc?.slug) ||
-    getString(referencedValue)
-
-  if (referenceLabel) {
-    const kind = relationTo === 'posts' ? 'Post' : relationTo === 'pages' ? 'Page' : 'Content'
-    return { label: label || referenceLabel, target: `${kind} · ${referenceLabel}` }
-  }
-
-  return { label: label || 'Untitled link', target: 'No destination' }
-}
-
-function flattenNavbarItems(items: unknown, depth = 0, prefix = 'nav'): DashboardNavbarLink[] {
-  if (!Array.isArray(items)) return []
-
-  return items.flatMap((item, index) => {
-    if (!isRecord(item)) return []
-    const link = describeNavbarLink(item.link)
-    const id = String(item.id || `${prefix}-${index}`)
-    const children = [
-      ...flattenNavbarItems(item.subNav, depth + 1, `${id}-sub`),
-      ...flattenNavbarItems(item.subSubNav, depth + 1, `${id}-tertiary`),
-    ]
-
-    return [{ ...link, depth, id }, ...children]
-  })
-}
-
 async function findAssignedSites(props: WidgetServerProps): Promise<DashboardSite[]> {
   const userID = (props.req.user as { id?: unknown } | null)?.id
   if (typeof userID !== 'number' && typeof userID !== 'string') return []
@@ -603,9 +557,8 @@ async function findAssignedSites(props: WidgetServerProps): Promise<DashboardSit
       overrideAccess: false,
       req: props.req,
     })
-    const rows = Array.isArray((user as { tenants?: unknown }).tenants)
-      ? (user as { tenants: unknown[] }).tenants
-      : []
+    const tenantAssignments = (user as unknown as { tenants?: unknown }).tenants
+    const rows = Array.isArray(tenantAssignments) ? tenantAssignments : []
     const relations = rows
       .map((row) => (isRecord(row) ? row.tenant : null))
       .filter((tenant): tenant is NonNullable<typeof tenant> => tenant != null)
@@ -669,28 +622,43 @@ async function findNavbarForDashboard(props: WidgetServerProps) {
   if (!tenantID) return { doc: null, links: [], tenantID }
 
   try {
-    const result = await props.req.payload.find({
-      collection: 'navbars',
-      depth: 2,
-      limit: 1,
-      overrideAccess: false,
-      pagination: false,
-      req: props.req,
-      where: { tenant: { equals: tenantID } },
-    })
+    const [result, tenant] = await Promise.all([
+      props.req.payload.find({
+        collection: 'navbars',
+        depth: 2,
+        limit: 1,
+        overrideAccess: false,
+        pagination: false,
+        req: props.req,
+        where: { tenant: { equals: tenantID } },
+      }),
+      props.req.payload
+        .findByID({
+          collection: 'tenants',
+          depth: 0,
+          id: tenantID,
+          overrideAccess: false,
+          req: props.req,
+        })
+        .catch(() => null),
+    ])
     const doc = (result.docs[0] || null) as DashboardNavbarDoc | null
-    return { doc, links: flattenNavbarItems(doc?.navItems), tenantID }
+    const navbarTenant = isRecord(doc?.tenant) ? doc.tenant : null
+    const tenantSlug =
+      (isRecord(tenant) ? getString(tenant.slug) : null) || getString(navbarTenant?.slug)
+    const links: DashboardNavbarLink[] = flattenDashboardNavbarItems(doc?.navItems, {
+      publicSiteBase: getDashboardPublicSiteBase(),
+      tenantSlug,
+    })
+    return { doc, links, tenantID }
   } catch {
     return { doc: null, links: [], tenantID }
   }
 }
 
 function getPublicSiteURL(slug: string) {
-  const base =
-    process.env.NEXT_PUBLIC_SERVER_URL ||
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.FRONTEND_SERVER_URL
-  return base ? `${base.replace(/\/$/u, '')}/${slug}` : `/${slug}`
+  const base = getDashboardPublicSiteBase()
+  return slug === 'main' ? base : `${base}/${slug}`
 }
 
 function normalizeDashboardMedia(value: unknown): DashboardMediaAsset | null {
@@ -798,10 +766,10 @@ export async function HomepageBannerWidget(props: WidgetServerProps) {
     )
   }
 
-  const editHref = `${withTenant(
+  const editHref = withTenant(
     adminURL(props.req, `/collections/standard-media/${doc.id}`),
     tenantID,
-  )}#field-bannerImage`
+  )
 
   return (
     <DashboardBannerWidgetClient
@@ -860,10 +828,27 @@ export async function NavbarLinksWidget(props: WidgetServerProps) {
             <li
               className="campaign-dashboard-widget__navbar-link"
               data-depth={Math.min(link.depth, 2)}
+              data-state={link.state}
               key={link.id}
             >
-              <strong>{link.label}</strong>
-              <span>{link.target}</span>
+              {link.href ? (
+                <a
+                  aria-label={`${link.label}: ${link.displayHref} (opens in a new tab)`}
+                  href={link.href}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  title={link.displayHref}
+                >
+                  <strong>{link.label}</strong>
+                  <span title={link.displayHref}>{link.displayHref}</span>
+                  <ExternalLink aria-hidden size={15} strokeWidth={1.9} />
+                </a>
+              ) : (
+                <div aria-disabled="true" title={link.displayHref}>
+                  <strong>{link.label}</strong>
+                  <span>{link.displayHref}</span>
+                </div>
+              )}
             </li>
           ))}
         </ul>

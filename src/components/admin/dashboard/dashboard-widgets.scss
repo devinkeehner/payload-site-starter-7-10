@@ -1,21 +1,34 @@
 .campaign-dashboard-widget {
-  --hro-dashboard-primary: var(--theme-error-600, #c72b32);
+  --hro-dashboard-primary: var(--hro-brand-red, #c72b32);
   background: var(--theme-elevation-0);
-  border: 1px solid var(--theme-elevation-150);
-  border-radius: 6px;
+  border: 1px solid var(--theme-elevation-175, var(--theme-elevation-150));
+  border-radius: var(--hro-panel-radius, 10px);
+  box-shadow: var(--hro-panel-shadow, 0 8px 24px rgba(15, 23, 42, 0.06));
   height: 100%;
   padding: clamp(1rem, 2vw, 1.35rem);
 }
 
-.campaign-dashboard-widget--welcome {
+.campaign-dashboard-widget--quick-actions {
   background: transparent;
   border: 0;
-  padding: 0.2rem 0 0.5rem;
+  box-shadow: none;
+  height: auto;
+  padding: 0;
   position: relative;
 }
 
+.campaign-dashboard-widget__sr-only {
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
 .campaign-dashboard-widget__header {
-  margin-bottom: 0.85rem;
+  margin-bottom: 1rem;
 }
 
 .campaign-dashboard-widget__header--launcher {
@@ -43,7 +56,9 @@
 }
 
 .campaign-dashboard-widget__header h2 {
-  font-size: 1.12rem;
+  font-size: clamp(1.25rem, 1.6vw, 1.34rem);
+  font-weight: 730;
+  letter-spacing: -0.018em;
 }
 
 .campaign-dashboard-widget__header p,
@@ -68,7 +83,7 @@
   align-items: center;
   background: var(--theme-elevation-0);
   border: 1px solid var(--theme-elevation-200);
-  border-radius: 6px;
+  border-radius: var(--hro-control-radius, 8px);
   color: var(--theme-text);
   display: grid;
   gap: 0.65rem;
@@ -94,6 +109,15 @@
   background: var(--theme-elevation-50);
   border-color: var(--theme-elevation-400);
   transform: translateY(-1px);
+}
+
+.campaign-dashboard-widget__task:focus-visible,
+.campaign-dashboard-widget__shortcut:focus-visible,
+.campaign-dashboard-widget__navbar-link > a:focus-visible,
+.campaign-dashboard-widget__save-button:focus-visible,
+.campaign-dashboard-widget__header-actions a:focus-visible {
+  outline: 3px solid var(--hro-focus-ring, rgba(199, 43, 50, 0.2));
+  outline-offset: 2px;
 }
 
 .campaign-dashboard-widget__task:first-child:hover,
@@ -323,6 +347,7 @@
 }
 
 .campaign-dashboard-widget__header--media > a,
+.campaign-dashboard-widget__header-actions a,
 .campaign-dashboard-widget__primary-link {
   color: var(--theme-text);
   flex: 0 0 auto;
@@ -331,6 +356,13 @@
   text-decoration: underline;
   text-decoration-color: var(--theme-elevation-300);
   text-underline-offset: 0.2rem;
+}
+
+.campaign-dashboard-widget__header-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.75rem;
 }
 
 .campaign-dashboard-widget__media-grid {
@@ -425,22 +457,56 @@
 }
 
 .campaign-dashboard-widget__navbar-link {
-  align-items: center;
-  display: grid;
-  gap: 0.7rem;
-  grid-template-columns: minmax(8rem, 0.8fr) minmax(0, 1.2fr);
-  padding: 0.65rem 0.75rem;
+  min-width: 0;
 }
 
 .campaign-dashboard-widget__navbar-link + .campaign-dashboard-widget__navbar-link {
   border-top: 1px solid var(--theme-elevation-100);
 }
 
-.campaign-dashboard-widget__navbar-link[data-depth='1'] {
+.campaign-dashboard-widget__navbar-link > a,
+.campaign-dashboard-widget__navbar-link > div {
+  align-items: center;
+  color: var(--theme-text);
+  display: grid;
+  gap: 0.7rem;
+  grid-template-columns: minmax(8rem, 0.65fr) minmax(0, 1.35fr) 1rem;
+  min-width: 0;
+  padding: 0.65rem 0.75rem;
+  text-decoration: none;
+}
+
+.campaign-dashboard-widget__navbar-link > a {
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.campaign-dashboard-widget__navbar-link > a:hover {
+  background: var(--theme-elevation-50);
+}
+
+.campaign-dashboard-widget__navbar-link > a:hover strong {
+  color: var(--theme-link);
+}
+
+.campaign-dashboard-widget__navbar-link[data-state='missing'] > div,
+.campaign-dashboard-widget__navbar-link[data-state='unsafe'] > div {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.campaign-dashboard-widget__navbar-link[data-state='unsafe'] > div {
+  background: color-mix(in srgb, var(--hro-brand-red-soft, #fbedee) 70%, transparent);
+}
+
+.campaign-dashboard-widget__navbar-link[data-depth='1'] > a,
+.campaign-dashboard-widget__navbar-link[data-depth='1'] > div {
   padding-inline-start: 1.6rem;
 }
 
-.campaign-dashboard-widget__navbar-link[data-depth='2'] {
+.campaign-dashboard-widget__navbar-link[data-depth='2'] > a,
+.campaign-dashboard-widget__navbar-link[data-depth='2'] > div {
   padding-inline-start: 2.5rem;
 }
 
@@ -455,6 +521,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.campaign-dashboard-widget__navbar-link svg {
+  color: var(--theme-elevation-500);
+  justify-self: end;
 }
 
 .campaign-dashboard-widget__site-grid {
@@ -515,9 +586,9 @@
   border: 1px solid var(--theme-elevation-150);
   border-radius: 8px;
   display: grid;
-  gap: 0.7rem;
+  gap: 0.45rem;
   min-width: 0;
-  padding: 0.75rem;
+  padding: 0.6rem 0.7rem;
 }
 
 .campaign-dashboard-widget__site-card-heading {
@@ -528,19 +599,12 @@
   justify-content: space-between;
 }
 
-.campaign-dashboard-widget__site-card-heading > div {
-  display: grid;
-  gap: 0.1rem;
-  min-width: 0;
-}
-
 .campaign-dashboard-widget__site-card-heading strong {
-  font-size: 0.84rem;
-}
-
-.campaign-dashboard-widget__site-card-heading span {
-  color: var(--theme-elevation-600);
-  font-size: 0.72rem;
+  font-size: 0.86rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .campaign-dashboard-widget__site-card-heading small {
@@ -622,6 +686,7 @@
 
 .campaign-dashboard-widget__media-manager-button,
 .campaign-dashboard-widget__primary-button,
+.campaign-dashboard-widget__save-button,
 .campaign-dashboard-widget__media-actions button {
   align-items: center;
   background: var(--theme-text);
@@ -645,12 +710,44 @@
 .campaign-dashboard-widget__media-manager-button:focus-visible,
 .campaign-dashboard-widget__primary-button:hover,
 .campaign-dashboard-widget__primary-button:focus-visible,
+.campaign-dashboard-widget__save-button:not(:disabled):hover,
+.campaign-dashboard-widget__save-button:not(:disabled):focus-visible,
 .campaign-dashboard-widget__media-actions button:not(:disabled):hover,
 .campaign-dashboard-widget__media-actions button:not(:disabled):focus-visible {
   background: var(--theme-elevation-800);
   border-color: var(--theme-elevation-800);
   color: var(--theme-bg);
   transform: translateY(-1px);
+}
+
+.campaign-dashboard-widget__save-button {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.campaign-dashboard-widget__save-button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.campaign-dashboard-widget__save-status {
+  color: var(--theme-elevation-650);
+  font-size: 0.76rem;
+  line-height: 1.35;
+  margin: -0.35rem 0 0.85rem;
+  text-align: end;
+}
+
+.campaign-dashboard-widget__save-status:empty {
+  display: none;
+}
+
+.campaign-dashboard-widget__save-status[data-status='error'] {
+  color: var(--theme-error-500);
+}
+
+.campaign-dashboard-widget__save-status[data-status='saved'] {
+  color: var(--theme-success-600);
 }
 
 .campaign-dashboard-widget__media-card-help {
@@ -730,7 +827,7 @@
     padding: 0.9rem;
   }
 
-  .campaign-dashboard-widget--welcome {
+  .campaign-dashboard-widget--quick-actions {
     padding-inline: 0;
   }
 
@@ -781,18 +878,32 @@
     flex-direction: column;
   }
 
+  .campaign-dashboard-widget__header-actions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
   .campaign-dashboard-widget__banner-controls {
     grid-template-columns: 1fr;
   }
 
-  .campaign-dashboard-widget__navbar-link {
+  .campaign-dashboard-widget__navbar-link > a,
+  .campaign-dashboard-widget__navbar-link > div {
     align-items: start;
     gap: 0.15rem;
     grid-template-columns: 1fr;
   }
 
   .campaign-dashboard-widget__navbar-link span {
+    display: -webkit-box;
+    overflow-wrap: anywhere;
     white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .campaign-dashboard-widget__navbar-link svg {
+    display: none;
   }
 
   .campaign-dashboard-widget__site-assignment-controls {

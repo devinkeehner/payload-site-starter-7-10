@@ -15,11 +15,11 @@ export default function EmailCampaignView(props: DocumentViewServerProps) {
   const id = props.id ?? doc?.id
 
   if (!props.user || !canUseEmailFeatures(props.user)) {
-    return <div style={{ padding: 24 }}>Only alpha testers and super admins can use campaign guidance.</div>
+    return <div style={{ padding: 24 }}>Only alpha testers and super admins can use email campaigns.</div>
   }
 
   if (!id) {
-    return <div style={{ padding: 24 }}>Save this email before opening campaign guidance.</div>
+    return <div style={{ padding: 24 }}>Save this email before opening its campaign workspace.</div>
   }
 
   return (

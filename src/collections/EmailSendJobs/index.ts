@@ -1,18 +1,21 @@
 import type { CollectionConfig, CollectionSlug } from 'payload'
 
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
+import {
+  emailSendJobLifecycleAccess,
+  protectEmailSendJob,
+} from '@/lib/email/jobCollectionHooks'
 
 const EMAILS_COLLECTION = 'emails' as CollectionSlug
-const TENANTS_COLLECTION = 'tenants' as CollectionSlug
 const USERS_COLLECTION = 'users' as CollectionSlug
 
 export const EmailSendJobs: CollectionConfig = {
   slug: 'email-send-jobs',
   access: {
-    create: roleRestrictedAccess('email-send-jobs'),
-    delete: roleRestrictedAccess('email-send-jobs'),
+    create: emailSendJobLifecycleAccess,
+    delete: () => false,
     read: roleRestrictedAccess('email-send-jobs'),
-    update: roleRestrictedAccess('email-send-jobs'),
+    update: emailSendJobLifecycleAccess,
   },
   admin: {
     defaultColumns: ['email', 'status', 'kind', 'recipientCount', 'updatedAt'],
@@ -24,6 +27,9 @@ export const EmailSendJobs: CollectionConfig = {
     singular: 'Email Send Job',
     plural: 'Email Send Jobs',
   },
+  hooks: {
+    beforeChange: [protectEmailSendJob],
+  },
   fields: [
     {
       name: 'email',
@@ -32,22 +38,39 @@ export const EmailSendJobs: CollectionConfig = {
       required: true,
     },
     {
-      name: 'tenant',
-      type: 'relationship',
-      relationTo: TENANTS_COLLECTION,
-    },
-    {
       name: 'status',
       type: 'select',
       defaultValue: 'pending',
       options: [
+        { label: 'Preparing', value: 'preparing' },
+        { label: 'Scheduled', value: 'scheduled' },
         { label: 'Pending', value: 'pending' },
         { label: 'Running', value: 'running' },
         { label: 'Completed', value: 'completed' },
         { label: 'Failed', value: 'failed' },
+        { label: 'Delivery unknown', value: 'delivery_unknown' },
         { label: 'Cancelled', value: 'cancelled' },
       ],
       required: true,
+    },
+    {
+      name: 'activeKey',
+      type: 'text',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+      index: true,
+      unique: true,
+    },
+    {
+      name: 'claimToken',
+      type: 'text',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+      index: true,
     },
     {
       name: 'kind',
@@ -71,6 +94,39 @@ export const EmailSendJobs: CollectionConfig = {
       required: true,
     },
     {
+      name: 'scheduledFor',
+      type: 'date',
+      admin: {
+        readOnly: true,
+      },
+    },
+    {
+      name: 'contentRevision',
+      type: 'text',
+      index: true,
+      admin: {
+        readOnly: true,
+      },
+      required: true,
+    },
+    {
+      name: 'snapshot',
+      type: 'json',
+      admin: {
+        readOnly: true,
+      },
+      required: true,
+    },
+    {
+      name: 'recipientChunkCount',
+      type: 'number',
+      admin: {
+        readOnly: true,
+      },
+      min: 1,
+      required: true,
+    },
+    {
       type: 'row',
       fields: [
         {
@@ -90,6 +146,22 @@ export const EmailSendJobs: CollectionConfig = {
       min: 0,
     },
     {
+      name: 'providerAttemptedAt',
+      type: 'date',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+    },
+    {
+      name: 'reconciliationPending',
+      type: 'checkbox',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+    },
+    {
       type: 'row',
       fields: [
         {
@@ -107,6 +179,14 @@ export const EmailSendJobs: CollectionConfig = {
       fields: [
         {
           name: 'recipientCount',
+          type: 'number',
+        },
+        {
+          name: 'sentRecipientCount',
+          type: 'number',
+        },
+        {
+          name: 'suppressedRecipientCount',
           type: 'number',
         },
         {

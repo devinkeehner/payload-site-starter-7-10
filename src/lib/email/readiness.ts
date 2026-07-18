@@ -1,10 +1,17 @@
 import type { Payload, PayloadRequest } from 'payload'
 
-import { getEmailAudienceSummary } from './audienceSummary'
 import { prepareEmailLayoutForRender } from './footerContext'
 import { applyConfirmedEmailLinks, checkRemoteEmailLinks, inspectEmailQuality, type DeclaredEmailLink, type EmailLinkCheck, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
+import {
+  assertEmailAudienceTenantMatch,
+  resolveEmailAudience,
+} from './recipients'
+import { computeEmailRenderedContentRevision } from './revision'
 import { getTenantEmailSenderSettings, hasElasticEmailSender } from './sender'
+import { getEmailRequestOrigin } from './snapshot'
+import { getEmailWebVersionUrl } from './webVersion'
+import type { EmailWorkflowAudience } from './workflowTypes'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -16,8 +23,9 @@ export type EmailReadinessItem = {
 }
 
 export type EmailReadiness = {
-  audience?: Awaited<ReturnType<typeof getEmailAudienceSummary>>
+  audience?: EmailWorkflowAudience
   canSend: boolean
+  contentRevision: string
   failures: number
   items: EmailReadinessItem[]
   quality?: EmailQualityResult
@@ -153,10 +161,12 @@ export function getBlockingEmailLinks(links: EmailLinkCheck[] | undefined): Emai
 
 export async function getEmailReadiness({
   emailId,
+  overrideAccess = false,
   payload,
   req,
 }: {
   emailId: string
+  overrideAccess?: boolean
   payload: Payload
   req: PayloadRequest
 }): Promise<EmailReadiness> {
@@ -165,7 +175,7 @@ export async function getEmailReadiness({
     depth: 2,
     draft: true,
     id: emailId,
-    overrideAccess: false,
+    overrideAccess,
     req,
   })) as unknown as UnknownRecord
   const items: EmailReadinessItem[] = []
@@ -180,21 +190,31 @@ export async function getEmailReadiness({
   const sendSummary = isRecord(email.sendSummary) ? email.sendSummary : null
   const sendError = getString(sendSummary?.sendError)
   const status = getString(email.status) || 'draft'
-  const audience = emailListId
-    ? await getEmailAudienceSummary({ listId: emailListId, payload, req }).catch(() => undefined)
-    : undefined
-  const emailList = emailListId
-    ? await payload.findByID({
-        collection: 'email-lists',
-        depth: 1,
-        id: emailListId,
-        overrideAccess: false,
+  let audience: EmailWorkflowAudience | undefined
+  let audienceError = ''
+  let emailList: UnknownRecord | null = null
+  if (emailListId) {
+    try {
+      const resolvedAudience = await resolveEmailAudience({
+        listId: emailListId,
+        overrideAccess,
+        payload,
         req,
-      }).catch(() => null)
-    : null
+      })
+      assertEmailAudienceTenantMatch({
+        audienceTenant: resolvedAudience.list.tenant,
+        campaignTenant: email.tenant,
+      })
+      audience = resolvedAudience.summary
+      emailList = resolvedAudience.list
+    } catch (error) {
+      audienceError = error instanceof Error ? error.message : 'Unable to resolve this audience.'
+    }
+  }
   const senderSettings = await getTenantEmailSenderSettings({
     email,
     emailList: isRecord(emailList) ? emailList : null,
+    overrideAccess,
     payload,
     req,
   })
@@ -202,16 +222,35 @@ export async function getEmailReadiness({
   const prepared = await prepareEmailLayoutForRender({
     email,
     emailList: isRecord(emailList) ? emailList : null,
+    overrideAccess,
     payload,
     req,
   })
+  const origin = getEmailRequestOrigin(req as unknown as Request)
   const rendered = hasLayout
     ? await renderEmail({
         layout: prepared.layout,
+        origin,
         preheader,
         subject,
+        webVersionUrl: getEmailWebVersionUrl(
+          emailId,
+          origin,
+        ),
       }).catch(() => null)
     : null
+  const contentRevision = computeEmailRenderedContentRevision({
+    audienceListId: emailListId,
+    fromEmail: senderSettings.fromEmail,
+    fromName: senderSettings.fromName,
+    html: rendered?.html || '',
+    origin,
+    preheader,
+    replyTo: getString(email.replyTo) || senderSettings.replyTo,
+    subject,
+    tenantId: getId(email.tenant),
+    text: rendered?.text || '',
+  })
   const hasUnsubscribeLink = prepared.layout.some((block) => {
     if (!isRecord(block) || block.blockType !== 'emailFooterOneColumn' || !Array.isArray(block.links)) return false
     return block.links.some((link) => isRecord(link) && /preferences|unsubscribe/i.test(getString(link.label)) && getString(link.url))
@@ -304,16 +343,26 @@ export async function getEmailReadiness({
   addItem(items, {
     key: 'test-send',
     label: 'Test send',
-    message: lastTest?.status === 'sent' ? 'A test send has succeeded.' : 'Send a test before production.',
-    status: lastTest?.status === 'sent' ? 'pass' : 'warn',
+    message: lastTest?.status === 'sent' && getString(lastTest.contentRevision) === contentRevision
+      ? 'The current campaign revision has a successful test send.'
+      : lastTest?.status === 'sent'
+        ? 'Campaign content changed after the last test. Send the current version again.'
+        : lastTest?.status === 'failed'
+          ? 'The last test failed. Send a successful test of the current version.'
+          : 'Send a successful test of the current version before production.',
+    status: lastTest?.status === 'sent' && getString(lastTest.contentRevision) === contentRevision
+      ? 'pass'
+      : 'fail',
   })
   addItem(items, {
     key: 'audience',
     label: 'Audience selected',
-    message: audience
-      ? `${audience.active} subscribed recipients are eligible.`
+    message: audienceError
+      ? audienceError
+      : audience
+      ? `${audience.eligible} subscribed recipients are eligible.`
       : 'Select an audience list before sending.',
-    status: audience?.active ? 'pass' : 'fail',
+    status: audience?.eligible ? 'pass' : 'fail',
   })
   addItem(items, {
     key: 'elastic',
@@ -332,6 +381,7 @@ export async function getEmailReadiness({
   return {
     audience,
     canSend: failures === 0,
+    contentRevision,
     failures,
     items,
     quality,

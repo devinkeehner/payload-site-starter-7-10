@@ -192,6 +192,7 @@ export type PuckBuilderShellProps<TPayload extends VisualPayload = VisualPayload
   toolbar?: boolean
   viewports: Array<{ height: number | 'auto'; label: string; width: number }>
   workspaceLabel?: string
+  workspaceNavigation?: React.ReactNode
   wrapperStyle?: React.CSSProperties
 }
 
@@ -1220,6 +1221,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
   toolbar = false,
   viewports,
   workspaceLabel,
+  workspaceNavigation,
   wrapperStyle,
 }: PuckBuilderShellProps<TPayload>) {
   useAdminBuilderMode(documentType)
@@ -1264,6 +1266,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
             documentType={documentType}
             workspaceLabel={workspaceLabel}
           />
+          {workspaceNavigation}
           {toolbar ? (
             <div
               className={styles.builderHeaderRichTextToolbar}
@@ -1280,7 +1283,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
         <VisualEditorPuckShell {...props} startSidebarClosed={startSidebarClosed} />
       ),
     }),
-    [documentId, documentTitle, documentType, drawerItem, paletteItemMap, previewFrameStyle, startSidebarClosed, toolbar, workspaceLabel],
+    [documentId, documentTitle, documentType, drawerItem, paletteItemMap, previewFrameStyle, startSidebarClosed, toolbar, workspaceLabel, workspaceNavigation],
   )
   const [data, setData] = useState<PuckPageData | null>(null)
   const [status, setStatus] = useState<PuckBuilderStatus>('idle')

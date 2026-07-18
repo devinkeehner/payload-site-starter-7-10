@@ -3,6 +3,11 @@ import type { CollectionBeforeValidateHook, CollectionConfig, CollectionSlug, Pa
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
+import {
+  normalizeEmailGroupAfterRead,
+  protectEmailLifecycleFields,
+  syncEmailContentRevision,
+} from '@/lib/email/collectionHooks'
 
 const EMAIL_LISTS_COLLECTION = 'email-lists' as CollectionSlug
 
@@ -201,20 +206,10 @@ export const Emails: CollectionConfig<'emails'> = {
           Component: '@/components/admin/email-center/EmailCenterListView#default',
         },
         edit: {
-          default: {
-            tab: {
-              label: 'Advanced',
-              order: 400,
-            },
-          },
+          default: {},
           campaign: {
             path: '/campaign',
             Component: '@/components/admin/email-campaign/EmailCampaignView#default',
-            tab: {
-              href: '/campaign',
-              label: 'Overview',
-              order: 100,
-            },
           },
           workflow: {
             path: '/workflow',
@@ -223,29 +218,22 @@ export const Emails: CollectionConfig<'emails'> = {
           visual: {
             path: '/visual',
             Component: '@/components/admin/email/PuckEmailBuilderView',
-            tab: {
-              href: '/visual',
-              label: 'Design',
-              order: 200,
-            },
           },
           audience: {
             path: '/audience',
-            Component: '@/components/admin/email-audience/EmailAudienceView#default',
-            tab: {
-              href: '/audience',
-              label: 'Audience',
-              order: 300,
-            },
+            Component: '@/components/admin/email-workflow/EmailAudienceStageView#default',
           },
           review: {
             path: '/review',
-            Component: '@/components/admin/email-center/EmailWorkflowView#default',
-            tab: {
-              href: '/review',
-              label: 'Review & Send',
-              order: 350,
-            },
+            Component: '@/components/admin/email-workflow/EmailReviewStageView#default',
+          },
+          delivery: {
+            path: '/delivery',
+            Component: '@/components/admin/email-workflow/EmailDeliveryStageView#default',
+          },
+          results: {
+            path: '/results',
+            Component: '@/components/admin/email-workflow/EmailResultsStageView#default',
           },
         },
       },
@@ -256,7 +244,8 @@ export const Emails: CollectionConfig<'emails'> = {
     plural: 'Emails',
   },
   hooks: {
-    beforeValidate: [syncDefaultSubject, populateDefaultLayout],
+    beforeChange: [protectEmailLifecycleFields],
+    beforeValidate: [syncDefaultSubject, populateDefaultLayout, syncEmailContentRevision],
   },
   endpoints: [
     {
@@ -389,7 +378,6 @@ export const Emails: CollectionConfig<'emails'> = {
               defaultValue: 'draft',
               options: [
                 { label: 'Draft', value: 'draft' },
-                { label: 'Approved', value: 'approved' },
                 { label: 'Scheduled', value: 'scheduled' },
                 { label: 'Queued', value: 'queued' },
                 { label: 'Sending', value: 'sending' },
@@ -397,6 +385,9 @@ export const Emails: CollectionConfig<'emails'> = {
                 { label: 'Failed', value: 'failed' },
               ],
               required: true,
+              admin: {
+                readOnly: true,
+              },
             },
             {
               name: 'scheduledAt',
@@ -406,6 +397,8 @@ export const Emails: CollectionConfig<'emails'> = {
                 date: {
                   pickerAppearance: 'dayAndTime',
                 },
+                description: 'Use the campaign delivery controls to schedule or reschedule.',
+                readOnly: true,
               },
             },
           ],
@@ -429,11 +422,83 @@ export const Emails: CollectionConfig<'emails'> = {
           label: 'Status',
           fields: [
             {
+              name: 'contentRevision',
+              label: 'Content revision',
+              type: 'text',
+              index: true,
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'deliveryConfirmedAt',
+              label: 'Delivery confirmed at',
+              type: 'date',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'deliveryConfirmedBy',
+              label: 'Delivery confirmed by',
+              type: 'relationship',
+              relationTo: 'users',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'deliveryContentRevision',
+              label: 'Confirmed content revision',
+              type: 'text',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'deliveryJob',
+              label: 'Delivery job',
+              type: 'relationship',
+              relationTo: 'email-send-jobs',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'deliveryTimeZone',
+              label: 'Delivery time zone',
+              type: 'text',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'legacyScheduleNeedsReview',
+              label: 'Legacy schedule needs confirmation',
+              type: 'checkbox',
+              defaultValue: false,
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
+              name: 'relatedPost',
+              label: 'Related post',
+              type: 'relationship',
+              relationTo: 'posts',
+              admin: {
+                readOnly: true,
+              },
+            },
+            {
               name: 'sendSummary',
               label: 'Production send',
               type: 'group',
               admin: {
                 readOnly: true,
+              },
+              hooks: {
+                afterRead: [normalizeEmailGroupAfterRead],
               },
               fields: [
                 {
@@ -445,6 +510,22 @@ export const Emails: CollectionConfig<'emails'> = {
                   name: 'recipientCount',
                   label: 'Recipient count',
                   type: 'number',
+                },
+                {
+                  name: 'suppressedRecipientCount',
+                  label: 'Suppressed at send time',
+                  type: 'number',
+                },
+                {
+                  name: 'sendJob',
+                  label: 'Send job',
+                  type: 'relationship',
+                  relationTo: 'email-send-jobs',
+                },
+                {
+                  name: 'contentRevision',
+                  label: 'Sent content revision',
+                  type: 'text',
                 },
                 {
                   name: 'approvedAt',
@@ -476,6 +557,9 @@ export const Emails: CollectionConfig<'emails'> = {
               admin: {
                 readOnly: true,
               },
+              hooks: {
+                afterRead: [normalizeEmailGroupAfterRead],
+              },
               fields: [
                 {
                   name: 'status',
@@ -502,6 +586,11 @@ export const Emails: CollectionConfig<'emails'> = {
                 {
                   name: 'message',
                   type: 'textarea',
+                },
+                {
+                  name: 'contentRevision',
+                  label: 'Tested content revision',
+                  type: 'text',
                 },
               ],
             },

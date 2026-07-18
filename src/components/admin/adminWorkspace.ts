@@ -10,6 +10,8 @@ export type AdminWorkspaceNavAreaKey =
   | 'posts'
   | 'website'
 
+export type AdminWorkspaceFlyoutEntryKind = 'action' | 'collection' | 'document'
+
 export type AdminWorkspaceSection = {
   defaultOpen: boolean
   description: string

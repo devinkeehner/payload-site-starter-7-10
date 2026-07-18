@@ -1,18 +1,19 @@
+import { randomUUID } from 'node:crypto'
+
 import type { Payload, PayloadRequest, Where } from 'payload'
 
-import { sendProductionEmailCampaign } from './campaignSend'
+import { sendProductionEmailSnapshotJob } from './campaignSend'
+import {
+  getEmailCampaignStatus,
+  transitionEmailLifecycle,
+} from './lifecycle'
+import { transitionEmailSendJob } from './jobState'
+import { getEmailRelationshipId } from './recipients'
 
 type UnknownRecord = Record<string, unknown>
 
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function getId(value: unknown): string | null {
-  if (typeof value === 'string' || typeof value === 'number') return String(value)
-  if (!isRecord(value)) return null
-  const id = value.id ?? value._id ?? value.value
-  return typeof id === 'string' || typeof id === 'number' ? String(id) : null
 }
 
 function getString(value: unknown): string {
@@ -23,10 +24,103 @@ function getNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
-function lockExpiresAt() {
+function getMaxAttempts(): number {
+  const value = Number(process.env.EMAIL_SEND_JOB_MAX_ATTEMPTS || 3)
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 3
+}
+
+function getLockExpiration(now = new Date()): string {
   const ttlMinutes = Number(process.env.EMAIL_SEND_JOB_LOCK_MINUTES || 30)
   const ttl = Number.isFinite(ttlMinutes) && ttlMinutes > 0 ? ttlMinutes : 30
-  return new Date(Date.now() + ttl * 60 * 1000).toISOString()
+  return new Date(now.getTime() + ttl * 60 * 1000).toISOString()
+}
+
+export function isExpiredEmailSendJobLock(
+  lockExpiresAt: unknown,
+  now = new Date(),
+): boolean {
+  if (typeof lockExpiresAt !== 'string' || !lockExpiresAt) return true
+  const expiresAt = new Date(lockExpiresAt)
+  return !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= now.getTime()
+}
+
+export function canClaimEmailSendJob(
+  job: UnknownRecord,
+  now = new Date(),
+  maxAttempts = getMaxAttempts(),
+): boolean {
+  void now
+  const status = getString(job.status)
+  return status === 'pending' && getNumber(job.attempts) < maxAttempts
+}
+
+export function isIdempotentlyQueuedStatus(status: unknown): boolean {
+  return status === 'pending' || status === 'running'
+}
+
+export async function requeueExpiredPreDispatchJob({
+  claimToken,
+  jobId,
+  payload,
+}: {
+  claimToken?: string
+  jobId: string
+  payload: Payload
+}): Promise<UnknownRecord | null> {
+  return transitionEmailSendJob({
+    data: {
+      claimToken: null,
+      lockExpiresAt: null,
+      lockedAt: null,
+      message: 'Worker lease expired before provider dispatch; safely returned to queue.',
+    },
+    expected: {
+      ...(claimToken ? { claimToken } : {}),
+      providerAttemptedAt: null,
+    },
+    from: 'running',
+    jobId,
+    payload,
+    to: 'pending',
+  })
+}
+
+async function getQueueActivationState({
+  emailId,
+  jobId,
+  overrideAccess,
+  payload,
+  req,
+}: {
+  emailId: string
+  jobId: string
+  overrideAccess: boolean
+  payload: Payload
+  req: PayloadRequest
+}) {
+  const [email, job] = await Promise.all([
+    payload.findByID({
+      collection: 'emails',
+      depth: 0,
+      draft: true,
+      id: emailId,
+      overrideAccess,
+      req,
+    }),
+    payload.findByID({
+      collection: 'email-send-jobs' as never,
+      depth: 0,
+      id: jobId,
+      overrideAccess,
+      req,
+    }),
+  ])
+  return {
+    email: email as unknown as UnknownRecord,
+    emailStatus: getEmailCampaignStatus((email as unknown as UnknownRecord).status),
+    job: job as unknown as UnknownRecord,
+    jobStatus: getString((job as unknown as UnknownRecord).status),
+  }
 }
 
 async function findActiveJob({
@@ -38,8 +132,8 @@ async function findActiveJob({
   emailId: string
   overrideAccess: boolean
   payload: Payload
-  req?: PayloadRequest
-}) {
+  req: PayloadRequest
+}): Promise<UnknownRecord | null> {
   const existing = await payload.find({
     collection: 'email-send-jobs' as never,
     depth: 0,
@@ -52,6 +146,8 @@ async function findActiveJob({
         { email: { equals: emailId } },
         {
           or: [
+            { status: { equals: 'scheduled' } },
+            { status: { equals: 'preparing' } },
             { status: { equals: 'pending' } },
             { status: { equals: 'running' } },
           ],
@@ -60,23 +156,21 @@ async function findActiveJob({
     } as Where,
   })
 
-  return existing.docs[0] as UnknownRecord | undefined
+  return (existing.docs[0] as UnknownRecord | undefined) || null
 }
 
 export async function enqueueEmailSendJob({
   emailId,
-  kind = 'manual',
+  jobId,
   overrideAccess = false,
   payload,
   req,
-  userId,
 }: {
   emailId: string
-  kind?: 'manual' | 'scheduled'
+  jobId?: string | null
   overrideAccess?: boolean
   payload: Payload
-  req?: PayloadRequest
-  userId?: string | null
+  req: PayloadRequest
 }) {
   const email = (await payload.findByID({
     collection: 'emails',
@@ -86,86 +180,174 @@ export async function enqueueEmailSendJob({
     overrideAccess,
     req,
   })) as unknown as UnknownRecord
-  const status = getString(email.status) || 'draft'
-
-  if (status === 'sent') {
-    throw new Error('This email has already been sent. Duplicate it before sending again.')
+  const resolvedJobId = jobId || getEmailRelationshipId(email.deliveryJob)
+  const job = resolvedJobId
+    ? (await payload.findByID({
+        collection: 'email-send-jobs' as never,
+        depth: 0,
+        id: resolvedJobId,
+        overrideAccess,
+        req,
+      })) as unknown as UnknownRecord
+    : await findActiveJob({ emailId, overrideAccess, payload, req })
+  const activeJobId = getEmailRelationshipId(job)
+  if (!job || !activeJobId) {
+    throw new Error('No approved snapshot job exists for this campaign.')
+  }
+  if (getEmailRelationshipId(job.email) !== emailId) {
+    throw new Error('The delivery job does not belong to this campaign.')
   }
 
-  const activeJob = await findActiveJob({ emailId, overrideAccess, payload, req })
-  if (activeJob) {
+  const jobStatus = getString(job.status)
+  const emailStatus = getEmailCampaignStatus(email.status)
+  if (
+    isIdempotentlyQueuedStatus(jobStatus) &&
+    (emailStatus === 'queued' || emailStatus === 'sending') &&
+    getEmailRelationshipId(email.deliveryJob) === activeJobId
+  ) {
     return {
       alreadyQueued: true,
       emailId,
-      jobId: getId(activeJob),
-      message: 'This email is already queued for sending.',
-      status: getString(activeJob.status) || 'pending',
+      jobId: activeJobId,
+      message: 'This campaign is already queued.',
+      status: jobStatus,
     }
   }
+  if (jobStatus !== 'scheduled') {
+    throw new Error(`A ${jobStatus || 'missing'} delivery job cannot be queued.`)
+  }
 
-  const now = new Date().toISOString()
-  await payload.update({
-    collection: 'emails',
+  if (emailStatus === 'scheduled') {
+    try {
+      await transitionEmailLifecycle({
+        emailId,
+        expected: {
+          deliveryContentRevision: getString(job.contentRevision),
+          deliveryJob: activeJobId,
+          scheduledAt: getString(job.scheduledFor),
+        },
+        from: emailStatus,
+        overrideAccess,
+        payload,
+        req,
+        to: 'queued',
+      })
+    } catch (error) {
+      const current = await getQueueActivationState({
+        emailId,
+        jobId: activeJobId,
+        overrideAccess,
+        payload,
+        req,
+      }).catch(() => null)
+      if (
+        !current ||
+        !['queued', 'sending'].includes(current.emailStatus) ||
+        getEmailRelationshipId(current.email.deliveryJob) !== activeJobId ||
+        !['scheduled', 'pending', 'running'].includes(current.jobStatus)
+      ) {
+        throw error
+      }
+      if (isIdempotentlyQueuedStatus(current.jobStatus)) {
+        return {
+          alreadyQueued: true,
+          emailId,
+          jobId: activeJobId,
+          message: 'This campaign is already queued.',
+          status: current.jobStatus,
+        }
+      }
+    }
+  } else if (emailStatus !== 'queued') {
+    throw new Error(`A campaign in ${emailStatus} cannot activate a scheduled delivery.`)
+  }
+  const activated = await transitionEmailSendJob({
     data: {
-      sendSummary: {
-        approvedAt: now,
-        approvedBy: userId || undefined,
-        sendError: undefined,
-      },
-      status: 'queued',
-    } as never,
-    draft: true,
-    id: emailId,
-    overrideAccess,
-    overrideLock: false,
-    req,
+      message: null,
+    },
+    expected: {
+      activeKey: emailId,
+    },
+    from: 'scheduled',
+    jobId: activeJobId,
+    payload,
+    to: 'pending',
   })
-
-  const job = (await payload.create({
-    collection: 'email-send-jobs' as never,
-    data: {
-      email: emailId,
-      kind,
-      requestedAt: now,
-      requestedBy: userId || undefined,
-      status: 'pending',
-      tenant: getId(email.tenant) || undefined,
-    } as never,
-    overrideAccess,
-    req,
-  })) as unknown as UnknownRecord
+  if (!activated) {
+    const current = await getQueueActivationState({
+      emailId,
+      jobId: activeJobId,
+      overrideAccess,
+      payload,
+      req,
+    }).catch(() => null)
+    if (
+      current &&
+      isIdempotentlyQueuedStatus(current.jobStatus) &&
+      ['queued', 'sending'].includes(current.emailStatus) &&
+      getEmailRelationshipId(current.email.deliveryJob) === activeJobId
+    ) {
+      return {
+        alreadyQueued: true,
+        emailId,
+        jobId: activeJobId,
+        message: 'This campaign is already queued.',
+        status: current.jobStatus,
+      }
+    }
+    await transitionEmailLifecycle({
+      data: {
+        sendSummary: {
+          sendError: 'The scheduled send job could not be activated.',
+          sendJob: activeJobId,
+        },
+      },
+      emailId,
+      expected: {
+        deliveryJob: activeJobId,
+      },
+      from: 'queued',
+      overrideAccess,
+      payload,
+      req,
+      to: 'failed',
+    }).catch(() => undefined)
+    throw new Error('The scheduled send job could not be activated.')
+  }
 
   return {
     alreadyQueued: false,
     emailId,
-    jobId: getId(job),
-    message: 'Email queued for sending.',
+    jobId: activeJobId,
+    message: 'Campaign queued for delivery.',
     status: 'pending',
   }
 }
 
 async function claimJob({
   job,
-  overrideAccess,
+  now = new Date(),
   payload,
-  req,
 }: {
   job: UnknownRecord
-  overrideAccess: boolean
+  now?: Date
   payload: Payload
-  req?: PayloadRequest
-}) {
-  const id = getId(job)
-  if (!id) return null
-  const now = new Date().toISOString()
+}): Promise<UnknownRecord | null> {
+  const id = getEmailRelationshipId(job)
+  if (!id || !canClaimEmailSendJob(job, now)) return null
+  const nowISO = now.toISOString()
+  const claimToken = randomUUID()
   const claimData = {
     attempts: getNumber(job.attempts) + 1,
-    lockedAt: now,
-    lockExpiresAt: lockExpiresAt(),
-    startedAt: job.startedAt || now,
+    claimToken,
+    completedAt: null,
+    lockedAt: nowISO,
+    lockExpiresAt: getLockExpiration(now),
+    message: null,
+    providerAttemptedAt: null,
+    startedAt: job.startedAt || nowISO,
     status: 'running',
   }
-
   const model = (payload.db.collections as Record<string, unknown>)['email-send-jobs'] as
     | {
         findOneAndUpdate?: (
@@ -178,7 +360,11 @@ async function claimJob({
 
   if (model?.findOneAndUpdate) {
     const query = model.findOneAndUpdate(
-      { _id: id, status: 'pending' },
+      {
+        _id: id,
+        attempts: { $lt: getMaxAttempts() },
+        status: 'pending',
+      },
       { $set: claimData },
       { new: true },
     )
@@ -188,15 +374,239 @@ async function claimJob({
 
     return claimed ? ({ ...job, ...claimData } as UnknownRecord) : null
   }
+  throw new Error('Atomic email send-job claims are unavailable.')
+}
 
-  return payload.update({
-    collection: 'email-send-jobs' as never,
-    data: claimData as never,
-    id,
+async function failJobAndCampaign({
+  claimToken,
+  deliveryUnknown = false,
+  emailId,
+  emailStatus,
+  jobId,
+  message,
+  overrideAccess,
+  payload,
+  req,
+}: {
+  claimToken?: string
+  deliveryUnknown?: boolean
+  emailId: string
+  emailStatus: ReturnType<typeof getEmailCampaignStatus>
+  jobId: string
+  message: string
+  overrideAccess: boolean
+  payload: Payload
+  req: PayloadRequest
+}) {
+  const completedAt = new Date().toISOString()
+  const terminalStatus = deliveryUnknown ? 'delivery_unknown' : 'failed'
+  const updatedJob = await transitionEmailSendJob({
+    data: {
+      // Unknown provider outcomes deliberately retain the campaign's active
+      // key. That blocks any new delivery job until an operator investigates,
+      // preventing an ambiguous provider acceptance from being resent.
+      activeKey: deliveryUnknown ? emailId : `terminal:${jobId}`,
+      completedAt,
+      lockExpiresAt: null,
+      lockedAt: null,
+      message,
+    },
+    expected: claimToken ? { claimToken } : {},
+    from: claimToken ? 'running' : 'pending',
+    jobId,
+    payload,
+    to: terminalStatus,
+  }).catch(() => null)
+  if (!updatedJob) return false
+
+  if (emailStatus === 'queued' || emailStatus === 'sending') {
+    const currentEmail = (await payload.findByID({
+      collection: 'emails',
+      depth: 0,
+      draft: true,
+      id: emailId,
+      overrideAccess,
+      req,
+    }).catch(() => null)) as UnknownRecord | null
+    const previousSummary = isRecord(currentEmail?.sendSummary) ? currentEmail.sendSummary : {}
+    await transitionEmailLifecycle({
+      data: {
+        sendSummary: {
+          ...previousSummary,
+          sendError: message,
+          sendJob: jobId,
+        },
+      },
+      emailId,
+      expected: {
+        deliveryJob: jobId,
+      },
+      from: emailStatus,
+      overrideAccess,
+      payload,
+      req,
+      to: 'failed',
+    }).catch(() => undefined)
+  }
+  return true
+}
+
+export async function reconcileCompletedEmailSendJob({
+  job,
+  overrideAccess = false,
+  payload,
+  req,
+}: {
+  job: UnknownRecord
+  overrideAccess?: boolean
+  payload: Payload
+  req: PayloadRequest
+}): Promise<boolean> {
+  const jobId = getEmailRelationshipId(job)
+  const emailId = getEmailRelationshipId(job.email)
+  if (
+    !jobId ||
+    !emailId ||
+    getString(job.status) !== 'completed' ||
+    job.reconciliationPending !== true ||
+    getString(job.activeKey) !== emailId
+  ) {
+    return false
+  }
+
+  let email = (await payload.findByID({
+    collection: 'emails',
+    depth: 0,
+    draft: true,
+    id: emailId,
     overrideAccess,
-    overrideLock: false,
     req,
-  }) as Promise<UnknownRecord>
+  }).catch(() => null)) as UnknownRecord | null
+  if (!email || getEmailRelationshipId(email.deliveryJob) !== jobId) return false
+
+  let emailStatus = getEmailCampaignStatus(email.status)
+  if (emailStatus !== 'sent') {
+    if (emailStatus !== 'sending') return false
+    const previousSummary = isRecord(email.sendSummary) ? email.sendSummary : {}
+    try {
+      await transitionEmailLifecycle({
+        data: {
+          sendSummary: {
+            ...previousSummary,
+            contentRevision: getString(job.contentRevision),
+            elasticCampaignId: getString(job.elasticCampaignId),
+            recipientCount: getNumber(job.sentRecipientCount),
+            sendError: null,
+            sendJob: jobId,
+            sentAt: getString(job.completedAt) || new Date().toISOString(),
+            suppressedRecipientCount: getNumber(job.suppressedRecipientCount),
+          },
+        },
+        emailId,
+        expected: {
+          deliveryJob: jobId,
+        },
+        from: 'sending',
+        overrideAccess,
+        payload,
+        req,
+        to: 'sent',
+      })
+      emailStatus = 'sent'
+    } catch {
+      email = (await payload.findByID({
+        collection: 'emails',
+        depth: 0,
+        draft: true,
+        id: emailId,
+        overrideAccess,
+        req,
+      }).catch(() => null)) as UnknownRecord | null
+      emailStatus = getEmailCampaignStatus(email?.status)
+      if (
+        emailStatus !== 'sent' ||
+        getEmailRelationshipId(email?.deliveryJob) !== jobId
+      ) {
+        return false
+      }
+    }
+  }
+
+  const released = await transitionEmailSendJob({
+    data: {
+      activeKey: `terminal:${jobId}`,
+      reconciliationPending: false,
+    },
+    expected: {
+      activeKey: emailId,
+      reconciliationPending: true,
+    },
+    from: 'completed',
+    jobId,
+    payload,
+    to: 'completed',
+  })
+  if (released) return true
+
+  const currentJob = (await payload.findByID({
+    collection: 'email-send-jobs' as never,
+    depth: 0,
+    id: jobId,
+    overrideAccess,
+    req,
+  }).catch(() => null)) as UnknownRecord | null
+  return Boolean(
+    currentJob &&
+    getString(currentJob.status) === 'completed' &&
+    currentJob.reconciliationPending !== true &&
+    getString(currentJob.activeKey) === `terminal:${jobId}`,
+  )
+}
+
+export async function reconcileCompletedEmailSendJobs({
+  emailId,
+  limit = 10,
+  overrideAccess = false,
+  payload,
+  req,
+}: {
+  emailId?: string
+  limit?: number
+  overrideAccess?: boolean
+  payload: Payload
+  req: PayloadRequest
+}) {
+  const jobs = await payload.find({
+    collection: 'email-send-jobs' as never,
+    depth: 0,
+    limit: Math.max(1, Math.min(25, limit)),
+    overrideAccess,
+    req,
+    sort: 'completedAt',
+    where: {
+      and: [
+        { status: { equals: 'completed' } },
+        { reconciliationPending: { equals: true } },
+        ...(emailId ? [{ email: { equals: emailId } }] : []),
+      ],
+    } as Where,
+  })
+
+  const results: Array<{ jobId: string; reconciled: boolean }> = []
+  for (const job of jobs.docs as UnknownRecord[]) {
+    const jobId = getEmailRelationshipId(job)
+    if (!jobId) continue
+    results.push({
+      jobId,
+      reconciled: await reconcileCompletedEmailSendJob({
+        job,
+        overrideAccess,
+        payload,
+        req,
+      }),
+    })
+  }
+  return results
 }
 
 export async function processEmailSendQueue({
@@ -204,16 +614,40 @@ export async function processEmailSendQueue({
   limit = 1,
   overrideAccess = false,
   payload,
-  request,
   req,
 }: {
   emailId?: string
   limit?: number
   overrideAccess?: boolean
   payload: Payload
-  request: Request
+  request?: Request
   req: PayloadRequest
 }) {
+  await reconcileCompletedEmailSendJobs({
+    emailId,
+    limit,
+    overrideAccess,
+    payload,
+    req,
+  })
+  const now = new Date()
+  const expiredRunningWhere = {
+    and: [
+      { status: { equals: 'running' } },
+      {
+        or: [
+          { lockExpiresAt: { less_than_equal: now.toISOString() } },
+          { lockExpiresAt: { exists: false } },
+        ],
+      },
+    ],
+  }
+  const statusWhere = {
+    or: [
+      { status: { equals: 'pending' } },
+      expiredRunningWhere,
+    ],
+  }
   const jobs = await payload.find({
     collection: 'email-send-jobs' as never,
     depth: 1,
@@ -224,77 +658,215 @@ export async function processEmailSendQueue({
     where: emailId
       ? {
           and: [
-            { status: { equals: 'pending' } },
+            statusWhere,
             { email: { equals: emailId } },
           ],
         } as Where
-      : {
-          status: { equals: 'pending' },
-        } as Where,
+      : statusWhere as Where,
   })
   const results: Array<{ emailId?: string; error?: string; jobId: string; sent?: boolean }> = []
 
   for (const pendingJob of jobs.docs as UnknownRecord[]) {
-    const jobId = getId(pendingJob)
-    const emailId = getId(pendingJob.email)
-    if (!jobId || !emailId) continue
+    const jobId = getEmailRelationshipId(pendingJob)
+    const campaignId = getEmailRelationshipId(pendingJob.email)
+    if (!jobId || !campaignId) continue
+    const initialEmail = (await payload.findByID({
+      collection: 'emails',
+      depth: 1,
+      draft: true,
+      id: campaignId,
+      overrideAccess,
+      req,
+    })) as unknown as UnknownRecord
+    const initialStatus = getEmailCampaignStatus(initialEmail.status)
 
-    const claimedJob = await claimJob({ job: pendingJob, overrideAccess, payload, req })
-    if (!claimedJob) continue
+    if (
+      getString(pendingJob.status) === 'running' &&
+      isExpiredEmailSendJobLock(pendingJob.lockExpiresAt, now)
+    ) {
+      if (pendingJob.providerAttemptedAt === null) {
+        const requeued = await requeueExpiredPreDispatchJob({
+          claimToken: getString(pendingJob.claimToken) || undefined,
+          jobId,
+          payload,
+        })
+        if (requeued) continue
 
-    try {
-      const sent = await sendProductionEmailCampaign({
-        allowSendingStatus: true,
-        emailId,
+        // The worker may have marked provider dispatch after this process read
+        // the stale job. Refresh before classifying; never requeue that job.
+        const refreshedJob = (await payload.findByID({
+          collection: 'email-send-jobs' as never,
+          depth: 0,
+          id: jobId,
+          overrideAccess,
+          req,
+        }).catch(() => null)) as UnknownRecord | null
+        if (
+          getString(refreshedJob?.status) === 'running' &&
+          refreshedJob?.providerAttemptedAt
+        ) {
+          const message = 'Provider delivery outcome is unknown after the worker lease expired. Investigate before sending again.'
+          await failJobAndCampaign({
+            claimToken: getString(refreshedJob.claimToken),
+            deliveryUnknown: true,
+            emailId: campaignId,
+            emailStatus: initialStatus,
+            jobId,
+            message,
+            overrideAccess,
+            payload,
+            req,
+          })
+          results.push({ emailId: campaignId, error: message, jobId, sent: false })
+        }
+        continue
+      }
+      const message = 'Provider delivery outcome is unknown after the worker lease expired. Investigate before sending again.'
+      await failJobAndCampaign({
+        claimToken: getString(pendingJob.claimToken),
+        deliveryUnknown: true,
+        emailId: campaignId,
+        emailStatus: initialStatus,
+        jobId,
+        message,
         overrideAccess,
         payload,
         req,
-        request,
       })
-      await payload.update({
-        collection: 'email-send-jobs' as never,
-        data: {
-          completedAt: new Date().toISOString(),
-          elasticCampaignId: sent.elasticCampaignId,
-          message: sent.message,
-          recipientCount: sent.recipientCount,
-          status: 'completed',
-        } as never,
-        id: jobId,
+      results.push({ emailId: campaignId, error: message, jobId, sent: false })
+      continue
+    }
+
+    if (
+      initialStatus !== 'queued' ||
+      getEmailRelationshipId(initialEmail.deliveryJob) !== jobId
+    ) {
+      const message = 'Queued job no longer matches the campaign delivery reservation.'
+      await failJobAndCampaign({
+        emailId: campaignId,
+        emailStatus: initialStatus,
+        jobId,
+        message,
         overrideAccess,
-        overrideLock: false,
+        payload,
         req,
       })
-      results.push({ emailId, jobId, sent: true })
+      results.push({ emailId: campaignId, error: message, jobId, sent: false })
+      continue
+    }
+
+    if (!canClaimEmailSendJob(pendingJob, now)) {
+      if (getNumber(pendingJob.attempts) >= getMaxAttempts()) {
+        const message = 'Email send job exceeded its retry limit.'
+        await failJobAndCampaign({
+          emailId: campaignId,
+          emailStatus: initialStatus,
+          jobId,
+          message,
+          overrideAccess,
+          payload,
+          req,
+        })
+        results.push({ emailId: campaignId, error: message, jobId, sent: false })
+      }
+      continue
+    }
+
+    const claimedJob = await claimJob({
+      job: pendingJob,
+      now,
+      payload,
+    })
+    if (!claimedJob) continue
+    let providerAttempted = false
+
+    try {
+      if (initialStatus !== 'queued') {
+        throw new Error(`A campaign in ${initialStatus} cannot be processed from the send queue.`)
+      }
+      await transitionEmailLifecycle({
+        emailId: campaignId,
+        expected: {
+          deliveryJob: jobId,
+        },
+        from: initialStatus,
+        overrideAccess,
+        payload,
+        req,
+        to: 'sending',
+      })
+      const sent = await sendProductionEmailSnapshotJob({
+        beforeProviderDispatch: async () => {
+          const attemptedAt = new Date().toISOString()
+          const marked = await transitionEmailSendJob({
+            data: {
+              providerAttemptedAt: attemptedAt,
+            },
+            expected: {
+              claimToken: getString(claimedJob.claimToken),
+            },
+            from: 'running',
+            jobId,
+            payload,
+            to: 'running',
+          })
+          if (!marked) {
+            throw new Error('This send worker lost its delivery lease before provider dispatch.')
+          }
+          providerAttempted = true
+        },
+        jobId,
+        overrideAccess,
+        payload,
+        req,
+      })
+      const completedAt = new Date().toISOString()
+      const completedJob = await transitionEmailSendJob({
+        data: {
+          completedAt,
+          elasticCampaignId: sent.elasticCampaignId,
+          lockExpiresAt: null,
+          lockedAt: null,
+          message: sent.message,
+          reconciliationPending: true,
+          sentRecipientCount: sent.recipientCount,
+          suppressedRecipientCount: sent.suppressedRecipientCount,
+        },
+        expected: {
+          claimToken: getString(claimedJob.claimToken),
+        },
+        from: 'running',
+        jobId,
+        payload,
+        to: 'completed',
+      })
+      if (!completedJob) {
+        throw new Error('This send worker no longer owns the delivery job.')
+      }
+      const reconciled = await reconcileCompletedEmailSendJob({
+        job: completedJob,
+        overrideAccess,
+        payload,
+        req,
+      })
+      if (!reconciled) {
+        throw new Error('Provider accepted the delivery, but campaign results still need reconciliation.')
+      }
+      results.push({ emailId: campaignId, jobId, sent: true })
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unable to process email send job'
-      await payload.update({
-        collection: 'email-send-jobs' as never,
-        data: {
-          completedAt: new Date().toISOString(),
-          message,
-          status: 'failed',
-        } as never,
-        id: jobId,
+      await failJobAndCampaign({
+        claimToken: getString(claimedJob.claimToken),
+        deliveryUnknown: providerAttempted,
+        emailId: campaignId,
+        emailStatus: 'sending',
+        jobId,
+        message,
         overrideAccess,
-        overrideLock: false,
+        payload,
         req,
-      }).catch(() => undefined)
-      await payload.update({
-        collection: 'emails',
-        data: {
-          sendSummary: {
-            sendError: message,
-          },
-          status: 'failed',
-        },
-        draft: true,
-        id: emailId,
-        overrideAccess,
-        overrideLock: false,
-        req,
-      }).catch(() => undefined)
-      results.push({ emailId, error: message, jobId, sent: false })
+      })
+      results.push({ emailId: campaignId, error: message, jobId, sent: false })
     }
   }
 
