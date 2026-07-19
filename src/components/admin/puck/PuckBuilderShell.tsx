@@ -1199,7 +1199,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
   externalStatus,
   getDataFromPayload,
   headerTitle,
-  height = 'calc(100vh - 96px)',
+  height = '100%',
   initialData,
   initialMessage = null,
   lexicalBlockSchema = EMPTY_BLOCK_SCHEMA,
