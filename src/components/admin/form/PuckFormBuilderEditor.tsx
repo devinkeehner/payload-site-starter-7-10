@@ -1,16 +1,25 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import { Link, useConfig } from '@payloadcms/ui'
+import { formatAdminURL } from 'payload/shared'
+import React, { useMemo, useState } from 'react'
 
 import {
   createPuckBuilderConfig,
   PuckBuilderShell,
+  type PuckBuilderContext,
   type VisualPaletteItem,
   type VisualRowPreset,
 } from '@/components/admin/puck/PuckBuilderShell'
 import styles from '@/components/admin/puck/puck-page-builder.module.css'
 import type { PuckBlockSchema, PuckFormDoc, PuckPageData } from '@/lib/puck/types'
 
+import { FormSettingsFields } from './FormSettingsFields'
+import {
+  createLexicalText,
+  normalizeFormSettings,
+  type FormSettings,
+} from './formSettings'
 import { PuckFormBlockPreview } from './PuckFormBlockPreview'
 
 const FIELD_ORDER = [
@@ -75,8 +84,7 @@ export type PuckFormBuilderProps = {
   blockSchema: PuckBlockSchema[]
   formId: string
   initialData: PuckPageData
-  submitButtonLabel?: string | null
-  title: string
+  initialSettings: FormSettings
 }
 
 type PuckFormPayload = {
@@ -97,10 +105,20 @@ export function PuckFormBuilderEditor({
   blockSchema,
   formId,
   initialData,
-  submitButtonLabel,
-  title,
+  initialSettings,
 }: PuckFormBuilderProps) {
+  const {
+    config: {
+      routes: { admin: adminRoute },
+    },
+  } = useConfig()
+  const [settings, setSettings] = useState(initialSettings)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const paletteSlugs = useMemo(() => getPaletteSlugs(blockSchema), [blockSchema])
+  const advancedURL = formatAdminURL({
+    adminRoute,
+    path: `/collections/forms/${encodeURIComponent(formId)}/advanced`,
+  })
   const config = useMemo(
     () => createPuckBuilderConfig({
       blockSchema,
@@ -120,19 +138,107 @@ export function PuckFormBuilderEditor({
           <section className={styles.formPreviewCard}>
             <div className={styles.formPreviewHeading}>
               <span>Form Preview</span>
-              <h2>{title || 'Untitled form'}</h2>
+              <h2>{settings.title || 'Untitled form'}</h2>
             </div>
             <div className={styles.formPreviewFields}>
               {props.children}
             </div>
-            <button type="button">{submitButtonLabel || 'Submit'}</button>
+            <button type="button">{settings.submitButtonLabel || 'Submit'}</button>
           </section>
         </main>
       ),
       rows: FORM_CONFIG_ROWS,
     }),
-    [blockSchema, paletteSlugs, submitButtonLabel, title],
+    [blockSchema, paletteSlugs, settings.submitButtonLabel, settings.title],
   )
+
+  const getSaveRequestBody = (data: PuckPageData) => {
+    const nextSettings = normalizeFormSettings(settings)
+    return {
+      data,
+      settings: {
+        ...nextSettings,
+        confirmationMessage: createLexicalText(nextSettings.confirmationMessage),
+      },
+    }
+  }
+
+  const renderHeaderActions = (context: PuckBuilderContext<PuckFormPayload>) => (
+    <div className={styles.headerActions}>
+      <button
+        className={styles.settingsButton}
+        onClick={() => setSettingsOpen(true)}
+        type="button"
+      >
+        Form settings
+      </button>
+      <Link className={styles.advancedBuilderLink} href={advancedURL}>
+        Advanced
+      </Link>
+      <button
+        className={styles.saveButton}
+        disabled={context.status === 'saving' || !settings.title.trim()}
+        onClick={() => void context.save(context.data)}
+        type="button"
+      >
+        {context.status === 'saving' ? 'Saving…' : 'Save Form'}
+      </button>
+    </div>
+  )
+
+  const renderSettingsPanel = (context: PuckBuilderContext<PuckFormPayload>) => settingsOpen ? (
+    <div className={styles.formSettingsOverlay} role="presentation">
+      <button
+        aria-label="Close form settings"
+        className={styles.formSettingsScrim}
+        onClick={() => setSettingsOpen(false)}
+        type="button"
+      />
+      <aside
+        aria-label="Form settings"
+        aria-modal="true"
+        className={styles.formSettingsPanel}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <h2>Form settings</h2>
+            <p>Name the form and control what happens after someone submits it.</p>
+          </div>
+          <button
+            aria-label="Close form settings"
+            className={styles.formSettingsClose}
+            onClick={() => setSettingsOpen(false)}
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+
+        <FormSettingsFields
+          disabled={context.status === 'saving'}
+          onChange={setSettings}
+          settings={settings}
+        />
+
+        <footer>
+          <Link href={advancedURL}>Email, integrations, and advanced options</Link>
+          <button
+            className={styles.saveButton}
+            disabled={context.status === 'saving' || !settings.title.trim()}
+            onClick={() => {
+              void context.save(context.data).then((saved) => {
+                if (saved) setSettingsOpen(false)
+              })
+            }}
+            type="button"
+          >
+            {context.status === 'saving' ? 'Saving…' : 'Save settings'}
+          </button>
+        </footer>
+      </aside>
+    </div>
+  ) : null
 
   return (
     <PuckBuilderShell<PuckFormPayload>
@@ -140,9 +246,10 @@ export function PuckFormBuilderEditor({
       blockSchema={blockSchema}
       config={config}
       documentId={formId}
-      documentTitle={title}
+      documentTitle={settings.title}
       documentType="form"
-      headerTitle={`Form Builder: ${title}`}
+      getSaveRequestBody={getSaveRequestBody}
+      headerTitle={`Form Builder: ${settings.title}`}
       initialData={initialData}
       loadingLabel="Loading form builder..."
       palette={{
@@ -155,11 +262,13 @@ export function PuckFormBuilderEditor({
         rowTitle: 'Rows',
       }}
       previewFrameStyle={{ minHeight: '100%' }}
+      renderHeaderActions={renderHeaderActions}
       rows={FORM_CONFIG_ROWS}
       saveButtonLabel="Save Form"
       saveErrorMessage="Unable to save form"
       savedMessage="Form draft saved."
       savingMessage="Saving form..."
+      sidePanel={renderSettingsPanel}
       startSidebarClosed
       viewports={[
         { width: 390, height: 'auto', label: 'Mobile' },

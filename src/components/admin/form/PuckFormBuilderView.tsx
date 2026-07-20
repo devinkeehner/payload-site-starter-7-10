@@ -5,17 +5,15 @@ import { getFormPuckBlockSchema } from '@/lib/puck/schema'
 import type { PuckFormDoc } from '@/lib/puck/types'
 
 import { PuckFormBuilderClient } from './PuckFormBuilderClient'
+import { PuckFormCreateClient } from './PuckFormCreateClient'
+import { getLexicalPlainText } from './formSettings'
 
 export default function PuckFormBuilderView(props: DocumentViewServerProps) {
   const doc = props.doc as PuckFormDoc
   const id = props.id ?? doc?.id
 
   if (!id) {
-    return (
-      <div style={{ padding: 24 }}>
-        Save this form before opening the form builder.
-      </div>
-    )
+    return <PuckFormCreateClient />
   }
 
   return (
@@ -23,8 +21,16 @@ export default function PuckFormBuilderView(props: DocumentViewServerProps) {
       blockSchema={getFormPuckBlockSchema()}
       formId={String(id)}
       initialData={formToPuckData(doc)}
-      submitButtonLabel={doc.submitButtonLabel}
-      title={typeof doc?.title === 'string' ? doc.title : 'Untitled form'}
+      initialSettings={{
+        confirmationMessage: getLexicalPlainText(doc.confirmationMessage)
+          || 'Thanks! Your response has been received.',
+        confirmationType: doc.confirmationType === 'redirect' ? 'redirect' : 'message',
+        enableHoneypot: doc.enableHoneypot !== false,
+        enableTurnstile: doc.enableTurnstile === true,
+        redirectURL: typeof doc.redirect?.url === 'string' ? doc.redirect.url : '',
+        submitButtonLabel: typeof doc.submitButtonLabel === 'string' ? doc.submitButtonLabel : 'Submit',
+        title: typeof doc?.title === 'string' ? doc.title : 'Untitled form',
+      }}
     />
   )
 }

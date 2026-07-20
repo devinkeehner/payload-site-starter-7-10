@@ -77,7 +77,8 @@
 }
 
 .createForm input,
-.createForm select {
+.createForm select,
+.createForm textarea {
   min-height: 38px;
   border: 1px solid var(--theme-elevation-250);
   border-radius: 6px;
@@ -88,7 +89,27 @@
   font-size: 14px;
 }
 
-.createForm button {
+.createForm textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.createActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  border-top: 1px solid var(--theme-elevation-150);
+  padding-top: 16px;
+}
+
+.createActions a {
+  color: var(--theme-elevation-700);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.createActions button {
   min-height: 38px;
   border: 1px solid var(--theme-elevation-800);
   border-radius: 6px;
@@ -100,9 +121,102 @@
   font-weight: 800;
 }
 
-.createForm button:disabled {
+.createActions button:disabled {
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+.formSettingsFields {
+  display: grid;
+  gap: 16px;
+}
+
+.formSettingsFields > label {
+  display: grid;
+  gap: 7px;
+  color: var(--theme-elevation-750, #334155);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.formSettingsFields > label strong {
+  color: var(--theme-error-600, #b91c1c);
+}
+
+.formSettingsFields input,
+.formSettingsFields select,
+.formSettingsFields textarea {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--theme-elevation-250, #cbd5e1);
+  border-radius: 6px;
+  padding: 9px 11px;
+  background: var(--theme-input-bg, #fff);
+  color: var(--theme-text, #182230);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.formSettingsFields textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.formSettingsFields input:focus,
+.formSettingsFields select:focus,
+.formSettingsFields textarea:focus {
+  border-color: var(--builder-accent, #2563eb);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--builder-accent, #2563eb) 16%, transparent);
+  outline: none;
+}
+
+.formSettingsFields fieldset {
+  display: grid;
+  gap: 12px;
+  margin: 2px 0 0;
+  border: 1px solid var(--theme-elevation-150, #e2e8f0);
+  border-radius: 7px;
+  padding: 13px;
+}
+
+.formSettingsFields legend {
+  padding: 0 5px;
+  color: var(--theme-elevation-750, #334155);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.formSettingsCheckbox {
+  display: flex !important;
+  align-items: flex-start;
+  gap: 10px !important;
+  cursor: pointer;
+}
+
+.formSettingsCheckbox input {
+  width: 16px;
+  min-height: 16px;
+  margin-top: 2px;
+}
+
+.formSettingsCheckbox span {
+  display: grid;
+  gap: 2px;
+}
+
+.formSettingsCheckbox b {
+  color: var(--theme-text, #182230);
+  font-size: 13px;
+}
+
+.formSettingsCheckbox small {
+  color: var(--theme-elevation-600, #64748b);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
 .createError {
@@ -2498,6 +2612,126 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
+}
+
+.settingsButton,
+.advancedBuilderLink {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.settingsButton:hover,
+.advancedBuilderLink:hover {
+  border-color: #94a3b8;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.formSettingsOverlay {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  justify-items: end;
+}
+
+.formSettingsScrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.42);
+  cursor: default;
+}
+
+.formSettingsPanel {
+  position: relative;
+  display: grid;
+  width: min(440px, 100vw);
+  height: 100dvh;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  box-sizing: border-box;
+  border-left: 1px solid #d8dee8;
+  padding: 0;
+  background: #fff;
+  box-shadow: -20px 0 48px rgba(15, 23, 42, 0.18);
+  color: #182230;
+}
+
+.formSettingsPanel > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 20px 22px 18px;
+}
+
+.formSettingsPanel h2 {
+  margin: 0;
+  color: #182230;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.formSettingsPanel header p {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.formSettingsPanel > .formSettingsFields {
+  overflow-y: auto;
+  padding: 22px;
+}
+
+.formSettingsClose {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  padding: 0 0 2px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.formSettingsPanel > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-top: 1px solid #e2e8f0;
+  padding: 15px 22px;
+}
+
+.formSettingsPanel > footer a {
+  max-width: 210px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .autosaveState {

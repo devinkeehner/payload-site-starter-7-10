@@ -4,6 +4,16 @@ import { createPayloadRequest } from 'payload'
 import { formToPuckData, puckDataToFormPatch } from '@/lib/puck/converters'
 import type { PuckFormDoc, PuckPageData } from '@/lib/puck/types'
 
+type FormSettingsPatch = {
+  confirmationMessage?: Record<string, unknown>
+  confirmationType?: 'message' | 'redirect'
+  enableHoneypot?: boolean
+  enableTurnstile?: boolean
+  redirectURL?: string
+  submitButtonLabel?: string
+  title?: string
+}
+
 async function getAuthenticatedPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
     canSetHeaders: false,
@@ -47,12 +57,39 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 
   try {
-    const body = (await req.json()) as { data?: PuckPageData }
+    const body = (await req.json()) as { data?: PuckPageData; settings?: FormSettingsPatch }
     if (!body.data || typeof body.data !== 'object') {
       return new Response('Missing Puck data', { status: 400 })
     }
 
-    const patch = puckDataToFormPatch(body.data)
+    const settings = body.settings
+    const title = settings?.title?.trim()
+    if (settings && !title) {
+      return new Response('Form name is required', { status: 400 })
+    }
+    if (
+      settings?.confirmationType === 'redirect'
+      && !settings.redirectURL?.trim()
+    ) {
+      return new Response('Redirect URL is required', { status: 400 })
+    }
+
+    const patch = {
+      ...puckDataToFormPatch(body.data),
+      ...(settings
+        ? {
+            confirmationMessage: settings.confirmationMessage,
+            confirmationType: settings.confirmationType,
+            enableHoneypot: settings.enableHoneypot,
+            enableTurnstile: settings.enableTurnstile,
+            redirect: settings.confirmationType === 'redirect'
+              ? { url: settings.redirectURL?.trim() }
+              : undefined,
+            submitButtonLabel: settings.submitButtonLabel?.trim() || 'Submit',
+            title,
+          }
+        : {}),
+    }
     const form = await payload.update({
       collection: 'forms',
       id,

@@ -160,6 +160,7 @@ export type PuckBuilderShellProps<TPayload extends VisualPayload = VisualPayload
   externalMessage?: string | null
   externalStatus?: string | null
   getDataFromPayload?: (payload: TPayload, submittedData?: Data) => PuckPageData
+  getSaveRequestBody?: (data: Data) => unknown
   headerTitle: string
   height?: string
   initialData: PuckPageData
@@ -1198,6 +1199,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
   externalMessage,
   externalStatus,
   getDataFromPayload,
+  getSaveRequestBody,
   headerTitle,
   height = '100%',
   initialData,
@@ -1416,7 +1418,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ data: nextData }),
+        body: JSON.stringify(getSaveRequestBody ? getSaveRequestBody(nextData) : { data: nextData }),
       })
 
       if (!res.ok) throw new Error(await res.text())

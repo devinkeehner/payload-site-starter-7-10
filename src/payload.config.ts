@@ -367,6 +367,7 @@ export default buildConfig({
       if (forms) {
         const existingViews = (forms.admin?.components?.views || {}) as Record<string, any>
         const existingEditViews = (existingViews.edit || {}) as Record<string, any>
+        const { visual: _legacyVisualView, ...editViewsWithoutLegacyVisual } = existingEditViews
         forms.admin = {
           ...(forms.admin || {}),
           components: {
@@ -374,25 +375,24 @@ export default buildConfig({
             views: {
               ...existingViews,
               edit: {
-                ...existingEditViews,
+                ...editViewsWithoutLegacyVisual,
                 default: {
                   ...(existingEditViews.default || {}),
-                  tab: {
-                    href: '/',
-                    label: 'Advanced',
-                    order: 200,
-                    ...(existingEditViews.default?.tab || {}),
-                  },
-                },
-                visual: {
-                  ...(existingEditViews.visual || {}),
                   Component: '@/components/admin/form/PuckFormBuilderView#default',
-                  path: '/visual',
                   tab: {
-                    href: '/visual',
+                    ...(existingEditViews.default?.tab || {}),
+                    href: '/',
                     label: 'Builder',
                     order: 75,
-                    ...(existingEditViews.visual?.tab || {}),
+                  },
+                },
+                advanced: {
+                  Component: '@/components/admin/form/FormAdvancedEditView#default',
+                  path: '/advanced',
+                  tab: {
+                    href: '/advanced',
+                    label: 'Advanced',
+                    order: 200,
                   },
                 },
               },

@@ -21,8 +21,13 @@ export type PuckEmailDoc = {
 }
 
 export type PuckFormDoc = Record<string, unknown> & {
+  confirmationMessage?: Record<string, unknown> | null
+  confirmationType?: 'message' | 'redirect' | null
+  enableHoneypot?: boolean | null
+  enableTurnstile?: boolean | null
   id?: string | number
   fields?: PuckPageBlock[] | null
+  redirect?: { url?: string | null } | null
   submitButtonLabel?: string | null
   title?: string | null
 }

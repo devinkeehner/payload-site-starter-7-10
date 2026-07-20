@@ -46,6 +46,7 @@ import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/compone
 import { FormShareField as FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f } from '@/components/admin/FormShareField'
 import { FormIContactBackfillField as FormIContactBackfillField_d9538333f17a5dd3581e50e6e5fb922a } from '@/components/admin/FormIContactBackfillField'
 import { default as default_5227e444aa3025f379371ab29789d5c0 } from '@/components/admin/form/PuckFormBuilderView'
+import { default as default_44e21f512ac54b28cfdda7a38ee35dcb } from '@/components/admin/form/FormAdvancedEditView'
 import { default as default_f947c8c711b9789ffe849c3dce394ff8 } from '@/components/admin/FormResultsDashboard'
 import { FormSubmissionCooldownNotice as FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472 } from '@/components/admin/FormSubmissionCooldownNotice'
 import { WatchTenantCollection as WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a } from '@payloadcms/plugin-multi-tenant/client'
@@ -136,6 +137,7 @@ export const importMap = {
   "@/components/admin/FormShareField#FormShareField": FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f,
   "@/components/admin/FormIContactBackfillField#FormIContactBackfillField": FormIContactBackfillField_d9538333f17a5dd3581e50e6e5fb922a,
   "@/components/admin/form/PuckFormBuilderView#default": default_5227e444aa3025f379371ab29789d5c0,
+  "@/components/admin/form/FormAdvancedEditView#default": default_44e21f512ac54b28cfdda7a38ee35dcb,
   "@/components/admin/FormResultsDashboard#default": default_f947c8c711b9789ffe849c3dce394ff8,
   "@/components/admin/FormSubmissionCooldownNotice#FormSubmissionCooldownNotice": FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472,
   "@payloadcms/plugin-multi-tenant/client#WatchTenantCollection": WatchTenantCollection_1d0591e3cf4f332c83a86da13a0de59a,
