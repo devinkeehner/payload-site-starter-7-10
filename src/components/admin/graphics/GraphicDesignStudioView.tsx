@@ -1,5 +1,6 @@
 import type { DocumentViewServerProps } from 'payload'
 
+import { canUseBuilders } from '@/lib/access/isSuperUser'
 import { createDefaultGraphicScene, type GraphicScene } from '@/lib/graphics/studioTypes'
 
 import { GraphicDesignStudioClient } from './GraphicDesignStudioClient'
@@ -22,6 +23,10 @@ function getRelationId(value: RelationValue): string | null {
 }
 
 export default function GraphicDesignStudioView(props: DocumentViewServerProps) {
+  if (!canUseBuilders(props.user)) {
+    return <div style={{ padding: '2rem' }}>Only alpha testers and super admins can use Canvas.</div>
+  }
+
   const doc = (props.doc || {}) as GraphicDesignDoc
   const id = props.id ?? doc.id
 

@@ -2734,6 +2734,29 @@
   line-height: 1.35;
 }
 
+.formSettingsSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  min-width: 280px;
+}
+
+.formSettingsSidebar h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.formSettingsSidebar p {
+  margin: -8px 0 0;
+  color: var(--theme-elevation-500);
+  font-size: 12px;
+}
+
+.formSettingsSidebar > a {
+  font-size: 12px;
+}
+
 .autosaveState {
   min-width: 88px;
   color: var(--theme-elevation-650);

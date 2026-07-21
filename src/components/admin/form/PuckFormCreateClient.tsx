@@ -1,7 +1,6 @@
 'use client'
 
 import { Link, useConfig } from '@payloadcms/ui'
-import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import { formatAdminURL } from 'payload/shared'
 import React, { useState } from 'react'
 
@@ -38,35 +37,17 @@ export function PuckFormCreateClient() {
       routes: { admin: adminRoute },
     },
   } = useConfig()
-  const { options = [], selectedTenantID } = useTenantSelection()
   const [settings, setSettings] = useState(INITIAL_SETTINGS)
-  const [tenantID, setTenantID] = useState(() => getSelectedTenantID() || '')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   const formsURL = formatAdminURL({ adminRoute, path: '/collections/forms' })
-  const siteOptions = options
-    .filter((option) => option && !('isDivider' in option && option.isDivider))
-    .map((option) => ({
-      label: String(option.label ?? option.value ?? ''),
-      value: String(option.value ?? ''),
-    }))
-    .filter((option) => option.value)
-
-  React.useEffect(() => {
-    if (!tenantID && selectedTenantID) setTenantID(String(selectedTenantID))
-  }, [selectedTenantID, tenantID])
-
   async function createForm(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextSettings = normalizeFormSettings(settings)
 
     if (!nextSettings.title) {
       setError('Give this form a name before opening the builder.')
-      return
-    }
-    if (!tenantID) {
-      setError('Select a site before opening the builder.')
       return
     }
     if (nextSettings.confirmationType === 'redirect' && !nextSettings.redirectURL) {
@@ -78,7 +59,7 @@ export function PuckFormCreateClient() {
     setError(null)
 
     try {
-      const tenantId = tenantID
+      const tenantId = getSelectedTenantID() || undefined
       const response = await fetch('/api/forms', {
         body: JSON.stringify({
           ...(tenantId ? { tenant: tenantId } : {}),
@@ -131,24 +112,10 @@ export function PuckFormCreateClient() {
 
         <FormSettingsFields
           disabled={saving}
+          minimal
           onChange={setSettings}
           settings={settings}
         />
-
-        <label className={styles.formSettingsSiteField}>
-          <span>Site <strong aria-hidden="true">*</strong></span>
-          <select
-            disabled={saving}
-            onChange={(event) => setTenantID(event.target.value)}
-            required
-            value={tenantID}
-          >
-            <option value="">Select a site</option>
-            {siteOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </label>
 
         {error ? <div className={styles.createError} role="alert">{error}</div> : null}
 

@@ -1,7 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import { authenticated } from '@/lib/access/authenticated'
-import { isSuperUser } from '@/lib/access/isSuperUser'
+import { isCollectionHiddenForRole, roleRestrictedAccess } from '@/lib/access/roles'
 import { defaultGraphicScene } from '@/lib/graphics/defaultScene'
 import { createDefaultGraphicScene as createDefaultGraphicStudioScene } from '@/lib/graphics/studioTypes'
 
@@ -17,6 +16,7 @@ export const GraphicDesigns: CollectionConfig = {
     useAsTitle: 'title',
     defaultColumns: ['title', 'sourcePost', 'updatedAt'],
     description: 'Create and manage Post social and SEO graphics.',
+    hidden: isCollectionHiddenForRole('graphic-designs'),
     components: {
       views: {
         edit: {
@@ -36,10 +36,10 @@ export const GraphicDesigns: CollectionConfig = {
     },
   },
   access: {
-    create: authenticated,
-    delete: ({ req }) => isSuperUser(req.user),
-    read: authenticated,
-    update: authenticated,
+    create: roleRestrictedAccess('graphic-designs'),
+    delete: roleRestrictedAccess('graphic-designs'),
+    read: roleRestrictedAccess('graphic-designs'),
+    update: roleRestrictedAccess('graphic-designs'),
   },
   fields: [
     {

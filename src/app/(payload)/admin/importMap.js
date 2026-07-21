@@ -26,7 +26,6 @@ import { BlockquoteFeatureClient as BlockquoteFeatureClient_e70f5e05f09f93e00b99
 import { UploadFeatureClient as UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864 } from '@payloadcms/richtext-lexical/client'
 import { TextColorFeatureClient as TextColorFeatureClient_c99717c5f8781434005d4490da54eff9 } from '../../../lib/rich-text/client'
 import { PostPublishingAssistant as PostPublishingAssistant_dd305d4164f2b06dc948157a3b51365c } from '../../../components/admin/PostPublishingAssistant'
-import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { ShareCopyField as ShareCopyField_beaba85f0ccf15f13c89f620a863758e } from '@/components/admin/ShareCopyField'
 import { DraftShareField as DraftShareField_b8b20b8fa8917c47596a0044ca795a6a } from '@/components/admin/DraftShareField'
 import { SlugComponent as SlugComponent_20724636d9656daa0703c14077e21c27 } from '@/collections/fields/slug/slug-component'
@@ -36,6 +35,7 @@ import { OverviewComponent as OverviewComponent_a8a977ebc872c5d5ea7ee689724c0860
 import { MetaTitleComponent as MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MetaImageComponent as MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MetaDescriptionComponent as MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
+import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { GenerateSEOButton as GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae } from '../../../components/admin/GenerateSEOButton'
 import { default as default_ba1864c9a769a36011f463d5faeeb745 } from '@/components/admin/media/MediaGalleryListView'
 import { default as default_37461efde84e27dbdd00177f6b8a1329 } from '@/components/admin/graphics/GraphicDesignDefaultView'
@@ -117,7 +117,6 @@ export const importMap = {
   "@payloadcms/richtext-lexical/client#UploadFeatureClient": UploadFeatureClient_e70f5e05f09f93e00b997edb1ef0c864,
   "./lib/rich-text/client#TextColorFeatureClient": TextColorFeatureClient_c99717c5f8781434005d4490da54eff9,
   "./components/admin/PostPublishingAssistant#PostPublishingAssistant": PostPublishingAssistant_dd305d4164f2b06dc948157a3b51365c,
-  "@payloadcms/plugin-seo/client#PreviewComponent": PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@/components/admin/ShareCopyField#ShareCopyField": ShareCopyField_beaba85f0ccf15f13c89f620a863758e,
   "@/components/admin/DraftShareField#DraftShareField": DraftShareField_b8b20b8fa8917c47596a0044ca795a6a,
   "@/collections/fields/slug/slug-component#SlugComponent": SlugComponent_20724636d9656daa0703c14077e21c27,
@@ -127,6 +126,7 @@ export const importMap = {
   "@payloadcms/plugin-seo/client#MetaTitleComponent": MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#MetaImageComponent": MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#MetaDescriptionComponent": MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860,
+  "@payloadcms/plugin-seo/client#PreviewComponent": PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "./components/admin/GenerateSEOButton#GenerateSEOButton": GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae,
   "@/components/admin/media/MediaGalleryListView#default": default_ba1864c9a769a36011f463d5faeeb745,
   "@/components/admin/graphics/GraphicDesignDefaultView#default": default_37461efde84e27dbdd00177f6b8a1329,

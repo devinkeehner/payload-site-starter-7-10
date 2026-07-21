@@ -113,7 +113,6 @@ export function PuckFormBuilderEditor({
     },
   } = useConfig()
   const [settings, setSettings] = useState(initialSettings)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const paletteSlugs = useMemo(() => getPaletteSlugs(blockSchema), [blockSchema])
   const advancedURL = formatAdminURL({
     adminRoute,
@@ -165,13 +164,6 @@ export function PuckFormBuilderEditor({
 
   const renderHeaderActions = (context: PuckBuilderContext<PuckFormPayload>) => (
     <div className={styles.headerActions}>
-      <button
-        className={styles.settingsButton}
-        onClick={() => setSettingsOpen(true)}
-        type="button"
-      >
-        Form settings
-      </button>
       <Link className={styles.advancedBuilderLink} href={advancedURL}>
         Advanced
       </Link>
@@ -186,59 +178,14 @@ export function PuckFormBuilderEditor({
     </div>
   )
 
-  const renderSettingsPanel = (context: PuckBuilderContext<PuckFormPayload>) => settingsOpen ? (
-    <div className={styles.formSettingsOverlay} role="presentation">
-      <button
-        aria-label="Close form settings"
-        className={styles.formSettingsScrim}
-        onClick={() => setSettingsOpen(false)}
-        type="button"
-      />
-      <aside
-        aria-label="Form settings"
-        aria-modal="true"
-        className={styles.formSettingsPanel}
-        role="dialog"
-      >
-        <header>
-          <div>
-            <h2>Form settings</h2>
-            <p>Name the form and control what happens after someone submits it.</p>
-          </div>
-          <button
-            aria-label="Close form settings"
-            className={styles.formSettingsClose}
-            onClick={() => setSettingsOpen(false)}
-            type="button"
-          >
-            ×
-          </button>
-        </header>
-
-        <FormSettingsFields
-          disabled={context.status === 'saving'}
-          onChange={setSettings}
-          settings={settings}
-        />
-
-        <footer>
-          <Link href={advancedURL}>Email, integrations, and advanced options</Link>
-          <button
-            className={styles.saveButton}
-            disabled={context.status === 'saving' || !settings.title.trim()}
-            onClick={() => {
-              void context.save(context.data).then((saved) => {
-                if (saved) setSettingsOpen(false)
-              })
-            }}
-            type="button"
-          >
-            {context.status === 'saving' ? 'Saving…' : 'Save settings'}
-          </button>
-        </footer>
-      </aside>
+  const renderSettingsPanel = (
+    <div aria-label="Form settings" className={styles.formSettingsSidebar}>
+      <h2>Form settings</h2>
+      <p>Name the form and control what happens after submission.</p>
+      <FormSettingsFields onChange={setSettings} settings={settings} />
+      <Link href={advancedURL}>Email, integrations, and advanced options</Link>
     </div>
-  ) : null
+  )
 
   return (
     <PuckBuilderShell<PuckFormPayload>
@@ -268,7 +215,7 @@ export function PuckFormBuilderEditor({
       saveErrorMessage="Unable to save form"
       savedMessage="Form draft saved."
       savingMessage="Saving form..."
-      sidePanel={renderSettingsPanel}
+      sidebarPanel={renderSettingsPanel}
       startSidebarClosed
       viewports={[
         { width: 390, height: 'auto', label: 'Mobile' },

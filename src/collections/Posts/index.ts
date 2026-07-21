@@ -25,12 +25,7 @@ import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
 
-import {
-  MetaDescriptionField,
-  MetaImageField,
-  MetaTitleField,
-  PreviewField,
-} from '@payloadcms/plugin-seo/fields'
+import { MetaDescriptionField, MetaImageField, MetaTitleField } from '@payloadcms/plugin-seo/fields'
 import { slugField } from '@/collections/fields/slug'
 import { canUseBuilders, isSuperUser } from '@/lib/access/isSuperUser'
 import {
@@ -1177,6 +1172,17 @@ export const Posts: CollectionConfig<'posts'> = {
               label: 'SEO',
               type: 'group',
               fields: [
+                MetaImageField({
+                  relationTo: 'media',
+                  overrides: {
+                    label: 'Social image',
+                    required: true,
+                    admin: {
+                      description:
+                        'Used when this post is shared on social platforms. Recommended size: 1200 × 630 pixels.',
+                    },
+                  },
+                }),
                 MetaTitleField({
                   overrides: {
                     label: 'Search title',
@@ -1197,16 +1203,6 @@ export const Posts: CollectionConfig<'posts'> = {
                     },
                   },
                 }),
-                MetaImageField({
-                  relationTo: 'media',
-                  overrides: {
-                    label: 'Social image',
-                    required: true,
-                    admin: {
-                      description: 'Used when this post is shared on social platforms. Recommended size: 1200 × 630 pixels.',
-                    },
-                  },
-                }),
                 {
                   name: 'descriptionApproved',
                   label: 'Description Approved',
@@ -1214,18 +1210,11 @@ export const Posts: CollectionConfig<'posts'> = {
                   required: true,
                   validate: validateDescriptionApproval,
                 },
-                PreviewField({
-                  titlePath: 'meta.title',
-                  descriptionPath: 'meta.description',
-                }),
               ],
             },
             {
-              type: 'collapsible',
               label: 'Key takeaways & approval',
-              admin: {
-                initCollapsed: true,
-              },
+              type: 'group',
               fields: [
                 {
                   name: 'keyTakeaways',

@@ -25,6 +25,8 @@ export type GraphicTextLayer = GraphicLayerBase & {
 
 export type GraphicImageLayer = GraphicLayerBase & {
   alt: string
+  imagePositionX?: number
+  imagePositionY?: number
   mediaId?: string
   objectFit: 'contain' | 'cover'
   type: 'image'

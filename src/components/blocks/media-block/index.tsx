@@ -20,6 +20,24 @@ type Props = MediaBlockProps & {
   disableInnerContainer?: boolean
 }
 
+type MediaDisplay = {
+  alignment?: 'left' | 'right'
+  linkURL?: string
+}
+
+const getSafeImageLinkHref = (value: string | undefined): string | undefined => {
+  const href = value?.trim()
+  if (!href) return undefined
+  if (href.startsWith('/') || href.startsWith('#')) return href
+
+  try {
+    const url = new URL(href)
+    return ['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol) ? href : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const MediaBlock: React.FC<Props> = (props) => {
   const {
     captionClassName,
@@ -30,15 +48,30 @@ export const MediaBlock: React.FC<Props> = (props) => {
     staticImage,
     disableInnerContainer,
   } = props
+  const display = (props as Props & { display?: MediaDisplay }).display
+  const linkHref = getSafeImageLinkHref(display?.linkURL)
+  const alignmentClass = display?.alignment === 'right' ? 'ml-auto' : 'mr-auto'
 
   let caption
   if (media && typeof media === 'object') caption = media.caption
+
+  const image = (
+    <Media imgClassName={cn('border', imgClassName)} resource={media} src={staticImage} />
+  )
 
   return (
     <Section className={className}>
       <Container>
         {(media || staticImage) && (
-          <Media imgClassName={cn('border', imgClassName)} resource={media} src={staticImage} />
+          <div className={cn('w-fit max-w-full', alignmentClass)}>
+            {linkHref ? (
+              <a href={linkHref} className="block w-fit max-w-full">
+                {image}
+              </a>
+            ) : (
+              image
+            )}
+          </div>
         )}
         {caption && (
           <div

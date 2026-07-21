@@ -8,6 +8,8 @@ import {
   Bold,
   BringToFront,
   Circle,
+  ChevronDown,
+  ChevronUp,
   ClipboardPaste,
   Copy,
   Download,
@@ -65,7 +67,8 @@ import { graphicSceneToPuckData } from '@/lib/puck/graphicAdapter'
 import styles from './graphic-design-studio.module.css'
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
-type PointerMode = 'drag' | 'resize' | 'rotate' | 'line-start' | 'line-end'
+type ResizeHandle = 'e' | 'n' | 'ne' | 'nw' | 's' | 'se' | 'sw' | 'w'
+type PointerMode = 'drag' | 'image-pan' | 'resize' | 'rotate' | 'line-start' | 'line-end'
 type ToolPanel = 'colors' | 'elements' | 'images' | 'layers' | 'properties' | 'text'
 type PointerSession = {
   hasMoved: boolean
@@ -73,6 +76,7 @@ type PointerSession = {
   mode: PointerMode
   pointerX: number
   pointerY: number
+  resizeHandle?: ResizeHandle
 }
 type ContextMenuState = {
   layerId: string | null
@@ -94,7 +98,6 @@ const FONT_OPTIONS = [
   { label: 'Courier New', value: '"Courier New", Courier, monospace' },
   { label: 'Impact', value: 'Impact, Haettenschweiler, sans-serif' },
 ] as const
-const FONT_SIZE_OPTIONS = [12, 16, 20, 24, 32, 40, 48, 56, 64, 72, 84, 96, 120, 144] as const
 const RICH_BLOCK_OPTIONS = [
   { label: 'Paragraph', value: 'p' },
   { label: 'Heading 1', value: 'h1' },
@@ -104,6 +107,11 @@ const RICH_BLOCK_OPTIONS = [
 ] as const
 type RichBlockFormat = (typeof RICH_BLOCK_OPTIONS)[number]['value']
 const GENERAL_COLORS = ['#ffffff', '#111827', '#2563eb', '#dc2626', '#f59e0b', '#16a34a', '#7c3aed', '#ec4899']
+const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value))
+}
 
 function getLayerLabel(layer: GraphicLayer) {
   return layer.name || (layer.type === 'text' ? 'Text' : layer.type === 'image' ? 'Image' : 'Shape')
@@ -169,6 +177,7 @@ export function GraphicDesignStudioEditor({
   const [designTitle, setDesignTitle] = useState(title)
   const [selectedId, setSelectedId] = useState<string | null>(initialScene.layers[0]?.id || null)
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
+  const [croppingImageId, setCroppingImageId] = useState<string | null>(null)
   const [activeBlockFormat, setActiveBlockFormat] = useState<RichBlockFormat>('p')
   const [activePanel, setActivePanel] = useState<ToolPanel>('elements')
   const [zoom, setZoom] = useState(0.6)
@@ -191,10 +200,7 @@ export function GraphicDesignStudioEditor({
   const initialized = useRef(false)
   const editableRef = useRef<HTMLDivElement | null>(null)
   const selectedLayer = useMemo(() => scene.layers.find((layer) => layer.id === selectedId) || null, [scene.layers, selectedId])
-  const editingTextLayer = useMemo(
-    () => scene.layers.find((layer): layer is GraphicTextLayer => layer.id === editingTextId && layer.type === 'text') || null,
-    [editingTextId, scene.layers],
-  )
+  const toolbarTextLayer = selectedLayer?.type === 'text' ? selectedLayer : null
   const displayLayers = useMemo(() => {
     const layersById = new Map(scene.layers.map((layer) => [layer.id, layer]))
     const order = layerOrderPreview || [...scene.layers].reverse().map((layer) => layer.id)
@@ -528,6 +534,11 @@ export function GraphicDesignStudioEditor({
         setContextMenu(null)
         return
       }
+      if (event.key === 'Escape' && croppingImageId) {
+        event.preventDefault()
+        setCroppingImageId(null)
+        return
+      }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
         deleteSelected()
@@ -543,7 +554,7 @@ export function GraphicDesignStudioEditor({
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [contextMenu, copySelected, deleteSelected, duplicateSelected, pasteCopied, redo, selectedLayer, undo, updateLayer])
+  }, [contextMenu, copySelected, croppingImageId, deleteSelected, duplicateSelected, pasteCopied, redo, selectedLayer, undo, updateLayer])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -572,11 +583,48 @@ export function GraphicDesignStudioEditor({
       }
       if (session.mode === 'drag') {
         updateLayer(session.layer.id, { x: session.layer.x + deltaX, y: session.layer.y + deltaY }, false)
-      } else if (session.mode === 'resize') {
+      } else if (session.mode === 'image-pan' && session.layer.type === 'image') {
         updateLayer(session.layer.id, {
-          height: Math.max(MIN_LAYER_SIZE, session.layer.height + deltaY),
-          width: Math.max(MIN_LAYER_SIZE, session.layer.width + deltaX),
+          imagePositionX: clamp((session.layer.imagePositionX ?? 50) - (deltaX / session.layer.width) * 100, 0, 100),
+          imagePositionY: clamp((session.layer.imagePositionY ?? 50) - (deltaY / session.layer.height) * 100, 0, 100),
+          objectFit: 'cover',
         }, false)
+      } else if (session.mode === 'resize') {
+        const handle = session.resizeHandle || 'se'
+        const movesLeft = handle.includes('w')
+        const movesRight = handle.includes('e')
+        const movesTop = handle.includes('n')
+        const movesBottom = handle.includes('s')
+        let width = session.layer.width + (movesRight ? deltaX : movesLeft ? -deltaX : 0)
+        let height = session.layer.height + (movesBottom ? deltaY : movesTop ? -deltaY : 0)
+        const isCorner = (movesLeft || movesRight) && (movesTop || movesBottom)
+        if (event.shiftKey && isCorner) {
+          const scale = Math.max(
+            MIN_LAYER_SIZE / session.layer.width,
+            Math.abs(width / session.layer.width - 1) >= Math.abs(height / session.layer.height - 1)
+              ? width / session.layer.width
+              : height / session.layer.height,
+          )
+          width = session.layer.width * scale
+          height = session.layer.height * scale
+        }
+        width = Math.max(MIN_LAYER_SIZE, width)
+        height = Math.max(MIN_LAYER_SIZE, height)
+        const patch: Partial<GraphicLayer> = {
+          height,
+          width,
+          x: movesLeft ? session.layer.x + session.layer.width - width : session.layer.x,
+          y: movesTop ? session.layer.y + session.layer.height - height : session.layer.y,
+        }
+        if (session.layer.type === 'text' && isCorner) {
+          const scale = Math.sqrt((width / session.layer.width) * (height / session.layer.height))
+          updateLayer(session.layer.id, {
+            ...patch,
+            fontSize: clamp(session.layer.fontSize * scale, 8, 512),
+          }, false)
+        } else {
+          updateLayer(session.layer.id, patch, false)
+        }
       } else if (session.mode === 'line-end' && session.layer.type === 'shape') {
         const delta = event.shiftKey
           ? snapLineDelta(session.layer.width + deltaX, session.layer.height + deltaY)
@@ -613,12 +661,14 @@ export function GraphicDesignStudioEditor({
     }
   }, [updateLayer, zoom])
 
-  const beginPointer = (event: React.PointerEvent, layer: GraphicLayer, mode: PointerMode) => {
+  const beginPointer = (event: React.PointerEvent, layer: GraphicLayer, mode: PointerMode, resizeHandle?: ResizeHandle) => {
     event.stopPropagation()
     if (layer.locked || editingTextId === layer.id) return
     if (layer.type !== 'text' || mode !== 'drag') event.preventDefault()
     setSelectedId(layer.id)
-    pointerSession.current = { hasMoved: false, layer, mode, pointerX: event.clientX, pointerY: event.clientY }
+    if (editingTextId && editingTextId !== layer.id) setEditingTextId(null)
+    if (croppingImageId && croppingImageId !== layer.id) setCroppingImageId(null)
+    pointerSession.current = { hasMoved: false, layer, mode, pointerX: event.clientX, pointerY: event.clientY, resizeHandle }
   }
 
   const rememberRichSelection = () => {
@@ -657,8 +707,13 @@ export function GraphicDesignStudioEditor({
   }
 
   const changeTextFont = (fontFamily: string) => {
-    if (!editingTextId) return
-    updateLayer(editingTextId, { fontFamily })
+    if (!toolbarTextLayer) return
+    updateLayer(toolbarTextLayer.id, { fontFamily })
+  }
+
+  const changeTextSize = (fontSize: number) => {
+    if (!toolbarTextLayer) return
+    updateLayer(toolbarTextLayer.id, { fontSize: clamp(Math.round(fontSize), 8, 512) })
   }
 
   const changePreset = (preset: GraphicCanvasPreset) => {
@@ -813,33 +868,35 @@ export function GraphicDesignStudioEditor({
         </div>
       </header>
 
-      <div aria-hidden={!editingTextId} className={`${styles.richToolbar} ${editingTextId ? '' : styles.richToolbarIdle}`}>
-        {editingTextId ? (
+      <div aria-hidden={!toolbarTextLayer} className={`${styles.richToolbar} ${toolbarTextLayer ? '' : styles.richToolbarIdle}`}>
+        {toolbarTextLayer ? (
           <>
-          <select aria-label="Font family" className={styles.fontPicker} onChange={(event) => changeTextFont(event.target.value)} value={editingTextLayer?.fontFamily || FONT_OPTIONS[0].value}>
-            {editingTextLayer && !FONT_OPTIONS.some((font) => font.value === editingTextLayer.fontFamily) ? <option value={editingTextLayer.fontFamily}>Current font</option> : null}
+          <select aria-label="Font family" className={styles.fontPicker} onChange={(event) => changeTextFont(event.target.value)} value={toolbarTextLayer.fontFamily}>
+            {!FONT_OPTIONS.some((font) => font.value === toolbarTextLayer.fontFamily) ? <option value={toolbarTextLayer.fontFamily}>Current font</option> : null}
             {FONT_OPTIONS.map((font) => <option key={font.value} style={{ fontFamily: font.value }} value={font.value}>{font.label}</option>)}
           </select>
           <label className={styles.fontSizePicker}>Size
-            <select aria-label="Base font size" onChange={(event) => { if (editingTextId) updateLayer(editingTextId, { fontSize: Number(event.target.value) }) }} value={editingTextLayer?.fontSize || FONT_SIZE_OPTIONS[5]}>
-              {editingTextLayer && !FONT_SIZE_OPTIONS.some((size) => size === editingTextLayer.fontSize) ? <option value={editingTextLayer.fontSize}>{editingTextLayer.fontSize}</option> : null}
-              {FONT_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
-            </select>
+            <input aria-label="Base font size" min="8" onChange={(event) => changeTextSize(Number(event.target.value))} type="number" value={Math.round(toolbarTextLayer.fontSize)} />
+            <span className={styles.fontSizeSteppers}>
+              <button aria-label="Increase font size" onClick={() => changeTextSize(toolbarTextLayer.fontSize + 1)} title="Increase font size" type="button"><ChevronUp /></button>
+              <button aria-label="Decrease font size" onClick={() => changeTextSize(toolbarTextLayer.fontSize - 1)} title="Decrease font size" type="button"><ChevronDown /></button>
+            </span>
           </label>
-          <select aria-label="Paragraph or heading style" onChange={(event) => applyBlockFormat(event.target.value as RichBlockFormat)} value={activeBlockFormat}>
+          <label className={styles.toolbarColor} title="Text color"><span>Color</span><input aria-label="Text color" onChange={(event) => updateLayer(toolbarTextLayer.id, { color: event.target.value })} type="color" value={toolbarTextLayer.color} /></label>
+          <select aria-label="Paragraph or heading style" disabled={!editingTextId} onChange={(event) => applyBlockFormat(event.target.value as RichBlockFormat)} value={activeBlockFormat}>
             {RICH_BLOCK_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('bold')} title="Bold" type="button"><Bold /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('italic')} title="Italic" type="button"><Italic /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('underline')} title="Underline" type="button"><Underline /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('strikeThrough')} title="Strike" type="button"><Strikethrough /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('insertUnorderedList')} title="Bulleted list" type="button"><List /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('insertOrderedList')} title="Numbered list" type="button"><ListOrdered /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyLeft')} title="Align left" type="button"><AlignLeft /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyCenter')} title="Align center" type="button"><AlignCenter /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyRight')} title="Align right" type="button"><AlignRight /></button>
-          <button onMouseDown={(event) => event.preventDefault()} onClick={() => { const url = window.prompt('Link URL'); if (url) applyRichCommand('createLink', url) }} title="Link" type="button"><Link /></button>
-          <button className={styles.doneButton} onClick={() => setEditingTextId(null)} type="button">Done editing</button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('bold')} title="Bold" type="button"><Bold /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('italic')} title="Italic" type="button"><Italic /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('underline')} title="Underline" type="button"><Underline /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('strikeThrough')} title="Strike" type="button"><Strikethrough /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('insertUnorderedList')} title="Bulleted list" type="button"><List /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('insertOrderedList')} title="Numbered list" type="button"><ListOrdered /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyLeft')} title="Align left" type="button"><AlignLeft /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyCenter')} title="Align center" type="button"><AlignCenter /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyRight')} title="Align right" type="button"><AlignRight /></button>
+          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => { const url = window.prompt('Link URL'); if (url) applyRichCommand('createLink', url) }} title="Link" type="button"><Link /></button>
+          {editingTextId ? <button className={styles.doneButton} onClick={() => setEditingTextId(null)} type="button">Done editing</button> : <button className={styles.doneButton} onClick={() => startTextEditing(toolbarTextLayer.id)} type="button">Edit text</button>}
           </>
         ) : null}
       </div>
@@ -862,8 +919,8 @@ export function GraphicDesignStudioEditor({
           {exportStatus ? <p className={styles.exportStatus}>{exportStatus}</p> : null}
         </aside>
 
-        <section className={styles.canvasViewport} onContextMenu={(event) => openContextMenu(event, null)} onPointerDown={() => { setSelectedId(null); setEditingTextId(null); setContextMenu(null) }}>
-          {selectedLayer ? <div className={styles.selectionToolbar}><button onClick={duplicateSelected} title="Duplicate" type="button"><Copy /></button><button onClick={() => moveLayer('front')} title="Bring to front" type="button"><BringToFront /></button><button onClick={() => moveLayer('back')} title="Send to back" type="button"><SendToBack /></button><button onClick={() => updateLayer(selectedLayer.id, { hidden: !selectedLayer.hidden })} title="Show or hide" type="button">{selectedLayer.hidden ? <EyeOff /> : <Eye />}</button><button onClick={() => updateLayer(selectedLayer.id, { locked: !selectedLayer.locked })} title="Lock or unlock" type="button">{selectedLayer.locked ? <Lock /> : <Unlock />}</button><button onClick={deleteSelected} title="Delete" type="button"><Trash2 /></button></div> : null}
+        <section className={styles.canvasViewport} onContextMenu={(event) => openContextMenu(event, null)} onPointerDown={() => { setSelectedId(null); setEditingTextId(null); setCroppingImageId(null); setContextMenu(null) }}>
+          {selectedLayer ? <div className={styles.selectionToolbar}>{croppingImageId === selectedLayer.id ? <button className={styles.cropDoneButton} onClick={() => setCroppingImageId(null)} type="button">Done cropping</button> : null}<button onClick={duplicateSelected} title="Duplicate" type="button"><Copy /></button><button onClick={() => moveLayer('front')} title="Bring to front" type="button"><BringToFront /></button><button onClick={() => moveLayer('back')} title="Send to back" type="button"><SendToBack /></button><button onClick={() => updateLayer(selectedLayer.id, { hidden: !selectedLayer.hidden })} title="Show or hide" type="button">{selectedLayer.hidden ? <EyeOff /> : <Eye />}</button><button onClick={() => updateLayer(selectedLayer.id, { locked: !selectedLayer.locked })} title="Lock or unlock" type="button">{selectedLayer.locked ? <Lock /> : <Unlock />}</button><button onClick={deleteSelected} title="Delete" type="button"><Trash2 /></button></div> : null}
           <div className={styles.canvasSizer} style={{ height: scene.height * zoom, width: scene.width * zoom }}>
             <div className={styles.canvas} style={{ background: scene.background, height: scene.height, transform: `scale(${zoom})`, width: scene.width }}>
               {scene.layers.map((layer) => {
@@ -874,7 +931,8 @@ export function GraphicDesignStudioEditor({
                   return <div className={`${styles.canvasLayer} ${styles.lineLayer} ${selected ? styles.lineLayerSelected : ''}`} key={layer.id} onContextMenu={(event) => openContextMenu(event, layer.id)} onPointerDown={(event) => beginPointer(event, layer, 'drag')} style={{ height: frame.height, left: frame.left, opacity: layer.opacity ?? 1, position: 'absolute', top: frame.top, width: frame.width }}><svg height="100%" overflow="visible" width="100%"><line stroke={layer.borderColor} strokeLinecap="butt" strokeWidth={Math.max(1, layer.borderWidth)} x1={frame.startX} x2={frame.endX} y1={frame.startY} y2={frame.endY} /></svg>{selected && !layer.locked ? <><button aria-label="Move line start" className={styles.lineEndpoint} onPointerDown={(event) => beginPointer(event, layer, 'line-start')} style={{ left: frame.startX - 9, top: frame.startY - 9 }} type="button" /><button aria-label="Move line end" className={styles.lineEndpoint} onPointerDown={(event) => beginPointer(event, layer, 'line-end')} style={{ left: frame.endX - 9, top: frame.endY - 9 }} type="button" /></> : null}</div>
                 }
                 const commonStyle: React.CSSProperties = { height: layer.height, left: layer.x, opacity: layer.opacity ?? 1, position: 'absolute', top: layer.y, transform: `rotate(${layer.rotation || 0}deg)`, width: layer.width }
-                return <div className={`${styles.canvasLayer} ${selected ? styles.canvasLayerSelected : ''}`} key={layer.id} onContextMenu={(event) => openContextMenu(event, layer.id)} onDoubleClick={(event) => { if (layer.type !== 'text' || layer.locked || editingTextId === layer.id) return; event.preventDefault(); event.stopPropagation(); startTextEditing(layer.id, { x: event.clientX, y: event.clientY }) }} onPointerDown={(event) => beginPointer(event, layer, 'drag')} style={commonStyle}>{layer.type === 'image' ? <Image alt={layer.alt} draggable={false} fill sizes={`${Math.round(layer.width * zoom)}px`} src={layer.url} style={{ objectFit: layer.objectFit }} unoptimized /> : null}{layer.type === 'shape' ? <div style={{ background: layer.fill, border: `${layer.borderWidth}px solid ${layer.borderColor}`, borderRadius: layer.shape === 'circle' ? '50%' : layer.borderRadius, height: '100%', width: '100%' }} /> : null}{layer.type === 'text' && editingTextId === layer.id ? <div aria-label={`Editing ${getLayerLabel(layer)}`} className={styles.richTextLayer} contentEditable onBlur={(event) => { rememberRichSelection(); updateLayer(layer.id, { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) }) }} onInput={(event) => { rememberRichSelection(); updateLayer(layer.id, { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) }, false) }} onKeyUp={rememberRichSelection} onMouseUp={rememberRichSelection} ref={editableRef} role="textbox" spellCheck suppressContentEditableWarning style={{ color: layer.color, fontFamily: layer.fontFamily, fontSize: layer.fontSize, lineHeight: layer.lineHeight, textAlign: layer.textAlign }} /> : null}{layer.type === 'text' && editingTextId !== layer.id ? <div className={`${styles.richTextLayer} ${styles.richTextLayerPreview}`} dangerouslySetInnerHTML={{ __html: sanitizeGraphicRichHtml(layer.html) }} style={{ color: layer.color, fontFamily: layer.fontFamily, fontSize: layer.fontSize, lineHeight: layer.lineHeight, textAlign: layer.textAlign }} /> : null}{selected && !layer.locked && editingTextId !== layer.id ? <><button aria-label="Rotate layer" className={styles.rotateHandle} onPointerDown={(event) => beginPointer(event, layer, 'rotate')} type="button"><RotateCw /></button><button aria-label="Resize layer" className={styles.resizeHandle} onPointerDown={(event) => beginPointer(event, layer, 'resize')} type="button" /></> : null}</div>
+                const isCropping = croppingImageId === layer.id && layer.type === 'image'
+                return <div className={`${styles.canvasLayer} ${selected ? styles.canvasLayerSelected : ''} ${isCropping ? styles.canvasLayerCropping : ''}`} key={layer.id} onContextMenu={(event) => openContextMenu(event, layer.id)} onDoubleClick={(event) => { if (layer.locked) return; if (layer.type === 'text' && editingTextId !== layer.id) { event.preventDefault(); event.stopPropagation(); startTextEditing(layer.id, { x: event.clientX, y: event.clientY }) } else if (layer.type === 'image') { event.preventDefault(); event.stopPropagation(); setSelectedId(layer.id); setCroppingImageId(layer.id); updateLayer(layer.id, { objectFit: 'cover' }) } }} onPointerDown={(event) => beginPointer(event, layer, isCropping ? 'image-pan' : 'drag')} style={commonStyle} title={layer.type === 'image' ? 'Double-click to crop and reposition image' : undefined}>{layer.type === 'image' ? <Image alt={layer.alt} draggable={false} fill sizes={`${Math.round(layer.width * zoom)}px`} src={layer.url} style={{ objectFit: layer.objectFit, objectPosition: `${layer.imagePositionX ?? 50}% ${layer.imagePositionY ?? 50}%` }} unoptimized /> : null}{isCropping ? <div className={styles.cropHint}>Drag image to reposition</div> : null}{layer.type === 'shape' ? <div style={{ background: layer.fill, border: `${layer.borderWidth}px solid ${layer.borderColor}`, borderRadius: layer.shape === 'circle' ? '50%' : layer.borderRadius, height: '100%', width: '100%' }} /> : null}{layer.type === 'text' && editingTextId === layer.id ? <div aria-label={`Editing ${getLayerLabel(layer)}`} className={styles.richTextLayer} contentEditable onBlur={(event) => { rememberRichSelection(); updateLayer(layer.id, { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) }) }} onInput={(event) => { rememberRichSelection(); updateLayer(layer.id, { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) }, false) }} onKeyUp={rememberRichSelection} onMouseUp={rememberRichSelection} ref={editableRef} role="textbox" spellCheck suppressContentEditableWarning style={{ color: layer.color, fontFamily: layer.fontFamily, fontSize: layer.fontSize, lineHeight: layer.lineHeight, textAlign: layer.textAlign }} /> : null}{layer.type === 'text' && editingTextId !== layer.id ? <div className={`${styles.richTextLayer} ${styles.richTextLayerPreview}`} dangerouslySetInnerHTML={{ __html: sanitizeGraphicRichHtml(layer.html) }} style={{ color: layer.color, fontFamily: layer.fontFamily, fontSize: layer.fontSize, lineHeight: layer.lineHeight, textAlign: layer.textAlign }} /> : null}{selected && !layer.locked && editingTextId !== layer.id ? <><button aria-label="Rotate layer" className={styles.rotateHandle} onPointerDown={(event) => beginPointer(event, layer, 'rotate')} type="button"><RotateCw /></button>{RESIZE_HANDLES.map((handle) => <button aria-label={`Resize layer from ${handle}`} className={styles.resizeHandle} data-handle={handle} key={handle} onPointerDown={(event) => beginPointer(event, layer, 'resize', handle)} type="button" />)}</> : null}</div>
               })}
             </div>
           </div>

@@ -123,7 +123,7 @@ const buildToneInstruction = (tone: SeoAssistantTone) => {
   }
 }
 
-const buildInstructions = (args: {
+export const buildPostSeoInstructions = (args: {
   additionalInstructions?: string
   defaultInstructions?: string
   tone: SeoAssistantTone
@@ -137,11 +137,13 @@ const buildInstructions = (args: {
     'Return only JSON matching the required schema.',
     'Read the full article carefully and identify its main topics, proposals, and context.',
     'Do not invent details, numbers, people, motives, or outcomes unless they are stated in the article text or explicitly supplied in one-off editor instructions.',
+    'Keep actors, beneficiaries, locations, and joint attribution separate; do not infer recipients, venues, or individual credit.',
+    'Keep every number or amount attached to its exact measure, purpose, and status.',
+    'Preserve certainty, attribution, and procedural status; proposals, requests, projections, pending actions, and allegations must remain conditional.',
     'Meta title: a short, SEO-friendly headline that captures the essence of the article and encourages clicks.',
     'Description: one concise sentence summarizing the core story or announcement. Avoid repetition and filler.',
     'Key takeaways: write exactly four lines, each under 20 words, using headline or talking-point phrasing. Begin with strong subjects or verbs. Avoid meta wording.',
-    'Categories: choose exactly one best-fit category slug from the provided list. Return the slug only.',
-    'Article type: choose exactly one best-fit article type slug from the provided list. Return the slug only.',
+    'Choose taxonomy only from supplied slugs: category by central subject and article type by primary communicative purpose.',
     'If the article is an announcement of a proposal, rollout, endorsement, or legislative push, prefer `announcement` over `news` unless the article is clearly reported as straight news.',
   ]
 
@@ -221,7 +223,7 @@ export const generatePostSeo = async (args: {
     metadata: args.metadata,
     reasoning: { effort: settings.defaultReasoning },
     safety_identifier: args.safetyIdentifier,
-    instructions: buildInstructions({
+    instructions: buildPostSeoInstructions({
       additionalInstructions: args.additionalInstructions?.trim(),
       defaultInstructions: settings.defaultInstructions,
       tone,

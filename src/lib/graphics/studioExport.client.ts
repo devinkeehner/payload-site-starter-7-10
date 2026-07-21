@@ -377,10 +377,10 @@ function renderCanvasImageLayer(
   let sourceHeight = image.naturalHeight
   if (sourceRatio > destinationRatio) {
     sourceWidth = image.naturalHeight * destinationRatio
-    sourceX = (image.naturalWidth - sourceWidth) / 2
+    sourceX = (image.naturalWidth - sourceWidth) * clampImagePosition(layer.imagePositionX)
   } else {
     sourceHeight = image.naturalWidth / destinationRatio
-    sourceY = (image.naturalHeight - sourceHeight) / 2
+    sourceY = (image.naturalHeight - sourceHeight) * clampImagePosition(layer.imagePositionY)
   }
   context.drawImage(
     image,
@@ -393,6 +393,22 @@ function renderCanvasImageLayer(
     layer.width,
     layer.height,
   )
+}
+
+function clampImagePosition(value: number | undefined) {
+  return Math.min(100, Math.max(0, value ?? 50)) / 100
+}
+
+function getSvgCoverPlacement(layer: GraphicImageLayer, naturalWidth: number, naturalHeight: number) {
+  const scale = Math.max(layer.width / naturalWidth, layer.height / naturalHeight)
+  const width = naturalWidth * scale
+  const height = naturalHeight * scale
+  return {
+    height,
+    width,
+    x: layer.x - (width - layer.width) * clampImagePosition(layer.imagePositionX),
+    y: layer.y - (height - layer.height) * clampImagePosition(layer.imagePositionY),
+  }
 }
 
 function blobToDataUrl(blob: Blob) {
@@ -415,16 +431,29 @@ export async function buildSelfContainedGraphicSvg(scene: GraphicScene) {
   const imageEntries = await Promise.all(
     scene.layers
       .filter((layer): layer is GraphicImageLayer => layer.type === 'image' && !layer.hidden)
-      .map(async (layer) => [layer.id, await inlineImageUrl(layer.url)] as const),
+      .map(async (layer) => {
+        const url = await inlineImageUrl(layer.url)
+        const image = new window.Image()
+        image.src = url
+        await image.decode()
+        return [layer.id, { height: image.naturalHeight, url, width: image.naturalWidth }] as const
+      }),
   )
-  const imageUrls = new Map(imageEntries)
+  const imageData = new Map(imageEntries)
 
-  const nodes = scene.layers.map((layer) => {
+  const nodes = scene.layers.map((layer, index) => {
     if (layer.hidden) return ''
     const opacity = layer.opacity ?? 1
     const transform = `rotate(${layer.rotation || 0} ${layer.x + layer.width / 2} ${layer.y + layer.height / 2})`
     if (layer.type === 'image') {
-      return `<image href="${escapeXml(imageUrls.get(layer.id) || layer.url)}" x="${layer.x}" y="${layer.y}" width="${layer.width}" height="${layer.height}" preserveAspectRatio="xMidYMid ${layer.objectFit === 'cover' ? 'slice' : 'meet'}" opacity="${opacity}" transform="${transform}" />`
+      const data = imageData.get(layer.id)
+      const url = data?.url || layer.url
+      if (layer.objectFit === 'cover' && data?.width && data.height) {
+        const placement = getSvgCoverPlacement(layer, data.width, data.height)
+        const clipId = `graphic-image-clip-${index}`
+        return `<g opacity="${opacity}" transform="${transform}" clip-path="url(#${clipId})"><clipPath id="${clipId}" clipPathUnits="userSpaceOnUse"><rect x="${layer.x}" y="${layer.y}" width="${layer.width}" height="${layer.height}" /></clipPath><image href="${escapeXml(url)}" x="${placement.x}" y="${placement.y}" width="${placement.width}" height="${placement.height}" preserveAspectRatio="none" /></g>`
+      }
+      return `<image href="${escapeXml(url)}" x="${layer.x}" y="${layer.y}" width="${layer.width}" height="${layer.height}" preserveAspectRatio="xMidYMid meet" opacity="${opacity}" transform="${transform}" />`
     }
     if (layer.type === 'shape') {
       if (layer.shape === 'line') {

@@ -188,6 +188,7 @@ export type PuckBuilderShellProps<TPayload extends VisualPayload = VisualPayload
   savedMessage: string
   savingMessage: string
   sidePanel?: (context: PuckBuilderContext<TPayload>) => React.ReactNode
+  sidebarPanel?: React.ReactNode
   startSidebarClosed?: boolean
   statusMessage?: (context: PuckBuilderContext<TPayload>) => React.ReactNode
   toolbar?: boolean
@@ -417,9 +418,13 @@ function VisualBlockLibraryPanel({
   rowSlugs,
   rowTitle,
   rowsPlaceholder,
+  initialGroup = 'content',
+  hideTabs = false,
 }: PuckBuilderShellProps['palette'] & {
   drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
   paletteItems: Record<string, VisualPaletteItem>
+  initialGroup?: VisualBlockLibraryGroup['name']
+  hideTabs?: boolean
 }) {
   const groups = useMemo<VisualBlockLibraryGroup[]>(() => [
     {
@@ -437,12 +442,12 @@ function VisualBlockLibraryPanel({
       slugs: rowSlugs,
     },
   ], [contentDescription, contentSlugs, contentTitle, rowDescription, rowSlugs, rowTitle])
-  const [activeName, setActiveName] = useState<VisualBlockLibraryGroup['name']>('content')
+  const [activeName, setActiveName] = useState<VisualBlockLibraryGroup['name']>(initialGroup)
   const activeGroup = groups.find((group) => group.name === activeName) || groups[0]!
 
   return (
     <div className={styles.blockLibraryPanel}>
-      <div aria-label="Block categories" className={styles.blockLibraryTabs} role="tablist">
+      {!hideTabs ? <div aria-label="Block categories" className={styles.blockLibraryTabs} role="tablist">
         {groups.map((group) => (
           <button
             aria-selected={group.name === activeGroup.name}
@@ -456,7 +461,7 @@ function VisualBlockLibraryPanel({
             <span>{group.label}</span>
           </button>
         ))}
-      </div>
+      </div> : null}
       <VisualBlockLibraryDrawer
         drawerItem={drawerItem}
         group={activeGroup}
@@ -471,15 +476,28 @@ function VisualBlockLibraryPanel({
 function createVisualPlugins(props: PuckBuilderShellProps['palette'] & {
   drawerItem: (props: { children?: React.ReactNode; name: string }) => React.ReactElement
   paletteItems: Record<string, VisualPaletteItem>
+  settingsPanel?: React.ReactNode
 }): Plugin[] {
   return [
     {
       icon: <span className={styles.blockPaletteTabIcon}><VisualPaletteSvgIcon icon="text" /></span>,
-      label: 'Blocks',
+      label: 'Fields',
       name: 'blocks',
-      render: () => <VisualBlockLibraryPanel {...props} />,
+      render: () => <VisualBlockLibraryPanel {...props} hideTabs initialGroup="content" />,
+    },
+    {
+      icon: <span className={styles.blockPaletteTabIcon}><VisualPaletteSvgIcon icon="rows" /></span>,
+      label: 'Rows',
+      name: 'rows',
+      render: () => <VisualBlockLibraryPanel {...props} hideTabs initialGroup="rows" />,
     },
     fieldsPlugin({ desktopSideBar: 'left' }) as Plugin,
+    ...(props.settingsPanel ? [{
+      icon: <span className={styles.blockPaletteTabIcon} aria-hidden="true">⚙</span>,
+      label: 'Settings',
+      name: 'settings',
+      render: () => props.settingsPanel,
+    } as Plugin] : []),
   ]
 }
 
@@ -501,7 +519,12 @@ function VisualBuilderWorkspaceHeader({
   const history = useVisualDocumentPuck((state) => state.history)
   const leftSideBarVisible = useVisualDocumentPuck((state) => state.appState.ui.leftSideBarVisible)
   const collectionSlug = documentType === 'email' ? 'emails' : documentType === 'form' ? 'forms' : 'posts'
-  const editHref = `/admin/collections/${collectionSlug}/${encodeURIComponent(documentId)}`
+  // The collection edit route is intentionally the Puck builder for forms.
+  // Send these escape hatches to the site's form list so they do not route
+  // back into the same builder.
+  const editHref = documentType === 'form'
+    ? '/admin/collections/forms'
+    : `/admin/collections/${collectionSlug}/${encodeURIComponent(documentId)}`
   const label = workspaceLabel || `${documentType[0]?.toUpperCase()}${documentType.slice(1)} Builder`
   const tenantSlug = tenant?.slug || tenantID || ''
   const tenantLabel = tenantName || tenant?.name || tenantSlug
@@ -1218,6 +1241,7 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
   savedMessage,
   savingMessage,
   sidePanel,
+  sidebarPanel,
   startSidebarClosed,
   statusMessage,
   toolbar = false,
@@ -1249,8 +1273,9 @@ export function PuckBuilderShell<TPayload extends VisualPayload = VisualPayload>
       ...palette,
       drawerItem,
       paletteItems: paletteItemMap,
+      settingsPanel: sidebarPanel,
     }),
-    [drawerItem, palette, paletteItemMap],
+    [drawerItem, palette, paletteItemMap, sidebarPanel],
   )
   const [richTextToolbarTarget, setRichTextToolbarTarget] = useState<HTMLDivElement | null>(null)
   const overrides = useMemo(

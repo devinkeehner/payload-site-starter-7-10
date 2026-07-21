@@ -1,6 +1,6 @@
 import type { Access } from 'payload'
 
-import { canUseEmailFeatures, isSuperUser } from '@/lib/access/isSuperUser'
+import { canUseBuilders, canUseEmailFeatures, isSuperUser } from '@/lib/access/isSuperUser'
 
 type UserLike = unknown
 
@@ -75,9 +75,16 @@ const EMAIL_FEATURE_COLLECTIONS = new Set([
   'contacts',
 ])
 
+// The Canvas is the Graphic Designs collection. Keep its visibility and API
+// access aligned with the other experimental builders.
+const BUILDER_FEATURE_COLLECTIONS = new Set([
+  'graphic-designs',
+])
+
 export function canAccessCollection(user: UserLike, collection: string): boolean {
   if (!user) return false
   if (EMAIL_FEATURE_COLLECTIONS.has(collection)) return canUseEmailFeatures(user)
+  if (BUILDER_FEATURE_COLLECTIONS.has(collection)) return canUseBuilders(user)
   if (SUPER_ONLY_COLLECTIONS.has(collection)) return isSuperUser(user)
   return true
 }

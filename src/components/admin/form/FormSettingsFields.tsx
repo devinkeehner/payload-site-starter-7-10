@@ -8,12 +8,14 @@ import type { FormSettings } from './formSettings'
 
 type FormSettingsFieldsProps = {
   disabled?: boolean
+  minimal?: boolean
   onChange: (nextSettings: FormSettings) => void
   settings: FormSettings
 }
 
 export function FormSettingsFields({
   disabled = false,
+  minimal = false,
   onChange,
   settings,
 }: FormSettingsFieldsProps) {
@@ -34,6 +36,8 @@ export function FormSettingsFields({
           value={settings.title}
         />
       </label>
+
+      {minimal ? null : <>
 
       <label>
         <span>Submit button label</span>
@@ -110,7 +114,7 @@ export function FormSettingsFields({
           </span>
         </label>
       </fieldset>
+      </>}
     </div>
   )
 }
-

@@ -260,6 +260,10 @@ export interface Post {
   graphicDesign?: (string | null) | GraphicDesign;
   meta: {
     /**
+     * Used when this post is shared on social platforms. Recommended size: 1200 × 630 pixels.
+     */
+    image: string | Media;
+    /**
      * The headline shown in search results. Aim for a clear title between 50 and 60 characters.
      */
     title: string;
@@ -267,10 +271,6 @@ export interface Post {
      * A concise summary for search results. Aim for 120 to 160 characters.
      */
     description: string;
-    /**
-     * Used when this post is shared on social platforms. Recommended size: 1200 × 630 pixels.
-     */
-    image: string | Media;
     descriptionApproved: boolean;
   };
   /**
@@ -995,7 +995,23 @@ export interface ContentBlock {
  * via the `definition` "MediaBlock".
  */
 export interface MediaBlock {
+  /**
+   * Choose the image to display in this Media Block.
+   */
   media: string | Media;
+  /**
+   * Use these options to make the image clickable and position its natural-width display on the left or right.
+   */
+  display?: {
+    /**
+     * Enter a full URL (https://...) or a site path (for example, /donate).
+     */
+    linkURL?: string | null;
+    /**
+     * The image keeps its natural width instead of expanding to the full content width.
+     */
+    alignment?: ('left' | 'right') | null;
+  };
   id?: string | null;
   blockName?: string | null;
   blockType: 'mediaBlock';
@@ -4166,9 +4182,9 @@ export interface PostsSelect<T extends boolean = true> {
   meta?:
     | T
     | {
+        image?: T;
         title?: T;
         description?: T;
-        image?: T;
         descriptionApproved?: T;
       };
   keyTakeaways?:
@@ -4542,6 +4558,12 @@ export interface ContentBlockSelect<T extends boolean = true> {
  */
 export interface MediaBlockSelect<T extends boolean = true> {
   media?: T;
+  display?:
+    | T
+    | {
+        linkURL?: T;
+        alignment?: T;
+      };
   id?: T;
   blockName?: T;
 }
@@ -6677,7 +6699,7 @@ export interface SeoGeneratorSetting {
   /**
    * Default model used by the post publishing assistant for SEO generation.
    */
-  defaultModel: 'gpt-5.4-nano' | 'gpt-5.4' | 'gpt-5.4-mini';
+  defaultModel: 'gpt-5.6-luna' | 'gpt-5.4' | 'gpt-5.4-mini';
   /**
    * Reasoning effort for the default SEO generation run.
    */

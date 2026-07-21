@@ -397,7 +397,7 @@ export const PostPublishingAssistant: React.FC = () => {
           </p>
         </div>
         <Button onClick={handleGenerateSeo} disabled={generateLoading} buttonStyle="primary">
-          {generateLoading ? 'Drafting search details…' : 'Draft search details'}
+          {generateLoading ? 'Generating SEO…' : 'Generate SEO'}
         </Button>
       </div>
 
@@ -477,7 +477,7 @@ export const PostPublishingAssistant: React.FC = () => {
         </div>
         <div className="post-publishing-assistant__actions">
           <Button onClick={openPostGraphicEditor} disabled={!documentID} buttonStyle="secondary">
-            Create SEO/social image
+            Generate image
           </Button>
           {designID ? (
             <Button onClick={openDesignEditor} buttonStyle="secondary">
