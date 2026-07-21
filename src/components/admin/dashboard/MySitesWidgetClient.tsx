@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 
 import {
   clearAdminUnsavedChanges,
@@ -17,6 +18,10 @@ export type DashboardSiteOption = {
   viewHref: string
 }
 
+function setTenantCookie(tenantID: string) {
+  document.cookie = `payload-tenant=${encodeURIComponent(tenantID)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
+}
+
 export function MySitesWidgetClient({
   initialAssignedIDs,
   selectedTenantID,
@@ -26,6 +31,7 @@ export function MySitesWidgetClient({
   selectedTenantID: string | null
   sites: DashboardSiteOption[]
 }) {
+  const { options: tenantOptions = [], selectedTenantID: activeTenantID, setTenant } = useTenantSelection()
   const [assignedIDs, setAssignedIDs] = useState(initialAssignedIDs)
   const [savedIDs, setSavedIDs] = useState(initialAssignedIDs)
   const [siteToAdd, setSiteToAdd] = useState('')
@@ -59,6 +65,21 @@ export function MySitesWidgetClient({
   const removeSite = (siteID: string) => {
     setAssignedIDs((current) => current.filter((id) => id !== siteID))
     clearStatus()
+  }
+
+  const editSite = (event: MouseEvent<HTMLAnchorElement>, site: DashboardSiteOption) => {
+    event.preventDefault()
+
+    if (String(activeTenantID ?? '') !== site.id) {
+      const isKnownTenant = tenantOptions.some((option) => String(option.value) === site.id)
+      if (isKnownTenant) {
+        setTenant({ id: site.id })
+      } else {
+        setTenantCookie(site.id)
+      }
+    }
+
+    window.location.assign(site.editHref)
   }
 
   const save = async () => {
@@ -144,7 +165,9 @@ export function MySitesWidgetClient({
                 {site.archived ? <small data-status="archived">Archived</small> : null}
               </div>
               <div className="campaign-dashboard-widget__site-actions">
-                <a href={site.editHref}>Edit site</a>
+                <a href={site.editHref} onClick={(event) => editSite(event, site)}>
+                  Edit site
+                </a>
                 <a href={site.viewHref} rel="noreferrer" target="_blank">
                   View site
                 </a>
