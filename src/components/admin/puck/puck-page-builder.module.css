@@ -846,6 +846,8 @@
 }
 
 .wrapper :global([class*='Sidebar--left']) {
+  min-width: 0;
+  overflow-x: hidden;
   background: var(--builder-panel);
 }
 
@@ -858,7 +860,20 @@
   background: var(--builder-canvas);
 }
 
+.wrapper :global([class*='PuckPluginTab']) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  align-self: stretch;
+  overflow: hidden;
+}
+
 .wrapper :global([class*='PuckPluginTab-body']) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -2929,7 +2944,10 @@
 
 .blockDrawerPanel {
   display: grid;
+  width: 100%;
   min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   align-content: start;
   gap: 12px;
   overflow-y: auto;
@@ -3662,16 +3680,16 @@
   --builder-accent-soft: #172554;
   --builder-border: #344156;
   --builder-canvas: #0b1220;
-  --builder-muted: #a9b4c5;
+  --builder-muted: #c1cad8;
   --builder-panel: #111827;
   --builder-panel-muted: #0b1322;
   --builder-text: #f3f6fb;
   --builder-warning: #f59e0b;
   --puck-color-white: #111827;
   --puck-color-black: #f8fafc;
-  --puck-color-grey-01: #020617;
-  --puck-color-grey-02: #0f172a;
-  --puck-color-grey-03: #1e293b;
+  --puck-color-grey-01: #f8fafc;
+  --puck-color-grey-02: #e2e8f0;
+  --puck-color-grey-03: #cbd5e1;
   --puck-color-grey-04: #94a3b8;
   --puck-color-grey-05: #cbd5e1;
   --puck-color-grey-06: #94a3b8;
@@ -3687,6 +3705,16 @@
   --puck-color-azure-11: rgba(96, 165, 250, 0.14);
   --puck-color-azure-12: #0f172a;
   color-scheme: dark;
+}
+
+:global(.payload-theme-dark) .wrapper :global([class*='NavItem-link']),
+:global([data-theme='dark']) .wrapper :global([class*='NavItem-link']) {
+  color: var(--builder-muted);
+}
+
+:global(.payload-theme-dark) .wrapper :global([class*='NavItem--active']) > :global([class*='NavItem-link']),
+:global([data-theme='dark']) .wrapper :global([class*='NavItem--active']) > :global([class*='NavItem-link']) {
+  color: var(--builder-accent);
 }
 
 :global(.payload-theme-dark) .wrapper :global([class*='PuckHeader']),
