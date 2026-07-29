@@ -4081,7 +4081,7 @@ const updateRichTextNodesTool = {
 const getEditingDefaultsTool = {
   name: 'getEditingDefaults',
   description:
-    'Return preferred editing conventions for this CMS workspace (tenant targeting, slug interpretation, and draft-first publishing behavior).',
+    'Return preferred CMS conventions, including tenant targeting, draft-first publishing, and public draft-share link construction for posts.',
   parameters: {},
   handler: async () => {
     const guidance = [
@@ -4095,6 +4095,8 @@ const getEditingDefaultsTool = {
       '7) Forms rich text is editable through listRichTextNodes/updateRichTextNodes on forms.confirmationMessage, forms.emails[*].message, and message field blocks.',
       '8) Tenant cloning: use shareDocumentToTenants for posts and forms instead of the admin UI share buttons.',
       '9) Globals: use getGlobal and updateGlobal for header, footer, global-meta-seo, and seo-generator-settings.',
+      '10) Draft-share links: A post with slug and draftShareToken can be shared through the frontend /api/draft-share endpoint. Use the configured frontend origin, collection=posts, the post slug, and the draftShareToken. The link is a bearer link: anyone with it can view that draft.',
+      '11) Draft-share post routes: the main tenant (slug "main") owns root posts at /posts/<post.slug>; other tenants use /<tenant.slug>/<post.slug>. Include tenant=<tenant.slug> for tenant-scoped draft-share links; omit it for main-tenant posts.',
     ].join('\n');
 
     return {
