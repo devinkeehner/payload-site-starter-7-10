@@ -70,12 +70,14 @@ export function MySitesWidgetClient({
   const editSite = (event: MouseEvent<HTMLAnchorElement>, site: DashboardSiteOption) => {
     event.preventDefault()
 
+    // Persist the selection before the full-page dashboard navigation so the
+    // server-rendered dashboard and the navbar selector agree on the site.
+    setTenantCookie(site.id)
+
     if (String(activeTenantID ?? '') !== site.id) {
       const isKnownTenant = tenantOptions.some((option) => String(option.value) === site.id)
       if (isKnownTenant) {
         setTenant({ id: site.id })
-      } else {
-        setTenantCookie(site.id)
       }
     }
 

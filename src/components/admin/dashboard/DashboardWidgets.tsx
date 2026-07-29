@@ -872,7 +872,7 @@ export async function MySitesWidget(props: WidgetServerProps) {
   for (const site of assignedSites) sitesByID.set(site.id, site)
   const sites: DashboardSiteOption[] = Array.from(sitesByID.values()).map((site) => ({
     ...site,
-    editHref: `${adminURL(props.req, '/collections/pages')}?tenant=${encodeURIComponent(site.id)}`,
+    editHref: withTenant(adminURL(props.req, '/'), site.id),
     settingsHref: canEditSiteSettings
       ? adminURL(props.req, `/collections/tenants/${site.id}`)
       : null,
