@@ -12,15 +12,6 @@ export const MediaGalleryBlockConfig: Block = {
   },
   fields: [
     {
-      name: 'bulkAddGalleryImages',
-      type: 'ui',
-      admin: {
-        components: {
-          Field: '@/components/admin/media/MediaGalleryBulkAddField#MediaGalleryBulkAddField',
-        },
-      },
-    },
-    {
       name: 'images',
       type: 'array',
       minRows: 1,
