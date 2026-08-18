@@ -446,7 +446,7 @@ function VisualBlockLibraryPanel({
   const activeGroup = groups.find((group) => group.name === activeName) || groups[0]!
 
   return (
-    <div className={styles.blockLibraryPanel}>
+    <div className={styles.blockLibraryPanel} data-tabs-hidden={hideTabs ? 'true' : undefined}>
       {!hideTabs ? <div aria-label="Block categories" className={styles.blockLibraryTabs} role="tablist">
         {groups.map((group) => (
           <button

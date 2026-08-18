@@ -855,6 +855,11 @@
   background: var(--builder-panel);
 }
 
+.wrapper :global([class*='PuckPluginTab-body']) {
+  width: 100%;
+  min-width: 0;
+}
+
 .wrapper :global([class*='PuckCanvas']) {
   background: var(--builder-canvas);
 }
@@ -2871,9 +2876,16 @@
 .blockLibraryPanel {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
+  overflow: hidden;
   background: var(--builder-panel-muted);
   color: var(--builder-text);
+}
+
+.blockLibraryPanel[data-tabs-hidden='true'] {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .blockLibraryTabs {
