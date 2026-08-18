@@ -1739,6 +1739,12 @@ export const plugins: Plugin[] = [
             }
 
             const submitterIP = (() => {
+              const cloudflareIP = getHeader('cf-connecting-ip').trim()
+              if (cloudflareIP) return cloudflareIP
+
+              const realIP = getHeader('x-real-ip').trim()
+              if (realIP) return realIP
+
               const forwarded = getHeader('x-forwarded-for')
               if (forwarded) return forwarded.split(',')[0]?.trim() || ''
               return (
