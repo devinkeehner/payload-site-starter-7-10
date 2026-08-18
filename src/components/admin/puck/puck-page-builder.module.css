@@ -847,7 +847,6 @@
 
 .wrapper :global([class*='Sidebar--left']) {
   min-width: 0;
-  overflow-x: hidden;
   background: var(--builder-panel);
 }
 
@@ -858,23 +857,6 @@
 
 .wrapper :global([class*='PuckCanvas']) {
   background: var(--builder-canvas);
-}
-
-.wrapper :global([class*='PuckPluginTab']) {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  align-self: stretch;
-  overflow: hidden;
-}
-
-.wrapper :global([class*='PuckPluginTab-body']) {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: hidden;
-  overflow-y: auto;
 }
 
 .emailPalettePanel {
