@@ -20,7 +20,7 @@ export const MediaBlockConfig: Block = {
       label: 'Image display',
       admin: {
         description:
-          'Use these options to make the image clickable and position its natural-width display on the left or right.',
+          'Control the image width and position. When this block is inserted inside rich text, half- and one-third-width images let the following text wrap around them on larger screens.',
       },
       fields: [
         {
@@ -29,6 +29,22 @@ export const MediaBlockConfig: Block = {
           label: 'Make image clickable (optional)',
           admin: {
             description: 'Enter a full URL (https://...) or a site path (for example, /donate).',
+          },
+        },
+        {
+          name: 'width',
+          type: 'radio',
+          defaultValue: 'natural',
+          label: 'Image width',
+          options: [
+            { label: 'Original size', value: 'natural' },
+            { label: 'Full width', value: 'full' },
+            { label: 'Half', value: 'half' },
+            { label: 'One third', value: 'oneThird' },
+          ],
+          admin: {
+            description: 'Half and one third stack at full width on small screens for readability.',
+            layout: 'horizontal',
           },
         },
         {
@@ -41,8 +57,7 @@ export const MediaBlockConfig: Block = {
             { label: 'Right', value: 'right' },
           ],
           admin: {
-            description:
-              'The image keeps its natural width instead of expanding to the full content width.',
+            description: 'Choose which side of the content container the image sits on.',
             layout: 'horizontal',
           },
         },

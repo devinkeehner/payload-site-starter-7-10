@@ -1000,7 +1000,7 @@ export interface MediaBlock {
    */
   media: string | Media;
   /**
-   * Use these options to make the image clickable and position its natural-width display on the left or right.
+   * Control the image width and position. When this block is inserted inside rich text, half- and one-third-width images let the following text wrap around them on larger screens.
    */
   display?: {
     /**
@@ -1008,7 +1008,11 @@ export interface MediaBlock {
      */
     linkURL?: string | null;
     /**
-     * The image keeps its natural width instead of expanding to the full content width.
+     * Half and one third stack at full width on small screens for readability.
+     */
+    width?: ('natural' | 'full' | 'half' | 'oneThird') | null;
+    /**
+     * Choose which side of the content container the image sits on.
      */
     alignment?: ('left' | 'right') | null;
   };
@@ -4562,6 +4566,7 @@ export interface MediaBlockSelect<T extends boolean = true> {
     | T
     | {
         linkURL?: T;
+        width?: T;
         alignment?: T;
       };
   id?: T;

@@ -34,7 +34,8 @@ type NodeTypes =
       CTABlockProps | MediaBlockProps | BannerBlockProps | CodeBlockProps | Record<string, unknown>
     >
 
-const makeInternalDocToHref = (tenantSlug?: string | null) =>
+const makeInternalDocToHref =
+  (tenantSlug?: string | null) =>
   ({ linkNode }: { linkNode: SerializedLinkNode }) => {
     const doc = linkNode.fields?.doc
     const relationTo = doc?.relationTo
@@ -53,7 +54,8 @@ const makeInternalDocToHref = (tenantSlug?: string | null) =>
     return `/${slug}`
   }
 
-const makeJsxConverters = (tenantSlug?: string | null): JSXConvertersFunction<NodeTypes> =>
+const makeJsxConverters =
+  (tenantSlug?: string | null): JSXConvertersFunction<NodeTypes> =>
   ({ defaultConverters }) => ({
     ...defaultConverters,
     ...LinkJSXConverter({ internalDocToHref: makeInternalDocToHref(tenantSlug) }),
@@ -67,6 +69,7 @@ const makeJsxConverters = (tenantSlug?: string | null): JSXConvertersFunction<No
           captionClassName="mx-auto max-w-[48rem]"
           enableGutter={false}
           disableInnerContainer={true}
+          variant="embedded"
         />
       ),
       code: ({ node }) => <CodeBlock className="col-start-2" {...node.fields} />,
@@ -86,7 +89,12 @@ const makeJsxConverters = (tenantSlug?: string | null): JSXConvertersFunction<No
         if (fields.source === 'link' && fields.externalURL) {
           return (
             <div className="col-start-1 col-span-3">
-              <a href={fields.externalURL} target="_blank" rel="noopener noreferrer" className="underline">
+              <a
+                href={fields.externalURL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
                 View video
               </a>
             </div>
@@ -137,7 +145,7 @@ export default function RichText(props: Props) {
     <ConvertRichText
       converters={makeJsxConverters(tenantSlug)}
       className={cn(
-        'payload-richtext',
+        'payload-richtext flow-root',
         {
           'max-w-prose': enableGutter,
           'space-y-4': enableSpacing,
