@@ -164,6 +164,45 @@ export const listIContactLists = async (cfg: IContactConfig, accountId: string, 
   return { total: lists.length, lists }
 }
 
+export const ensureIContactList = async ({
+  clientFolderId,
+  description,
+  name,
+}: {
+  clientFolderId: string
+  description: string
+  name: string
+}) => {
+  const cfg = getIContactConfigFromEnv()
+  if (!cfg) throw new Error('Missing iContact env credentials.')
+
+  const accountId = await resolveIContactAccountId(cfg)
+  const existing = await listIContactLists(cfg, accountId, clientFolderId)
+  const matchingList = existing.lists.find((list) => sanitize(list?.name).toLowerCase() === name.toLowerCase())
+  const existingListId = sanitize(matchingList?.listId)
+  if (existingListId) return { accountId, listId: existingListId }
+
+  const response = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/lists`, {
+    method: 'POST',
+    body: [{
+      description,
+      emailOwnerOnChange: 0,
+      name,
+      welcomeOnManualAdd: 0,
+      welcomeOnSignupAdd: 0,
+    }],
+  })
+  if (!response.ok || !response.data || typeof response.data !== 'object') {
+    const message = typeof response.data === 'object' ? JSON.stringify(response.data) : String(response.data || '')
+    throw new Error(`Failed to create iContact test list (${response.status}): ${message}`)
+  }
+
+  const lists = Array.isArray((response.data as JsonRecord).lists) ? ((response.data as JsonRecord).lists as any[]) : []
+  const listId = sanitize(lists[0]?.listId)
+  if (!listId) throw new Error('iContact created a test list without returning a listId.')
+  return { accountId, listId }
+}
+
 export const listIContactContacts = async (
   cfg: IContactConfig,
   accountId: string,
@@ -462,6 +501,36 @@ export const ensureIContactContactSubscription = async ({
   }
 
   return { accountId, contactId }
+}
+
+export const verifyIContactSingleRecipientList = async ({
+  clientFolderId,
+  contactId,
+  listId,
+}: {
+  clientFolderId: string
+  contactId: string
+  listId: string
+}) => {
+  const cfg = getIContactConfigFromEnv()
+  if (!cfg) throw new Error('Missing iContact env credentials.')
+
+  const accountId = await resolveIContactAccountId(cfg)
+  const { subscriptions } = await listIContactSubscriptions(cfg, accountId, clientFolderId, listId)
+  const activeContactIds = Array.from(new Set(
+    subscriptions
+      .filter((subscription) => sanitize(subscription?.status).toLowerCase() === 'normal')
+      .map((subscription) => sanitize(subscription?.contactId))
+      .filter(Boolean),
+  ))
+
+  if (activeContactIds.length !== 1 || activeContactIds[0] !== contactId) {
+    throw new Error(
+      `Safety check failed: iContact list ${listId} has ${activeContactIds.length} active recipients instead of exactly the requested test recipient. No email was sent.`,
+    )
+  }
+
+  return { accountId, activeRecipientCount: 1 as const }
 }
 
 export const syncSubmissionToIContact = async (args: {

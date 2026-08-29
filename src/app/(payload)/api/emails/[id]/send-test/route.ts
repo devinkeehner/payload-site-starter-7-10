@@ -3,7 +3,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
-import { sendIContactTestEmail } from '@/lib/email/iContactEmail'
+import { prepareIContactTestEmail, sendIContactTestEmail } from '@/lib/email/iContactEmail'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import {
   canSendEmailTest,
@@ -60,6 +60,38 @@ function getRequestOrigin(req: Request): string {
   return host ? `${protocol}://${host}` : requestUrl.origin
 }
 
+async function getTestClientFolderId({
+  email,
+  payload,
+  req,
+}: {
+  email: Email
+  payload: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['payload']
+  req: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['req']
+}): Promise<string> {
+  const relationship = email.emailList
+  if (relationship && typeof relationship === 'object') {
+    const clientFolderId = getOptionalString(relationship.iContactClientFolderId)
+    if (clientFolderId) return clientFolderId
+  }
+
+  const emailListId = getEmailRelationshipId(relationship)
+  if (!emailListId) {
+    throw new Error('Choose an iContact-backed audience before sending a test email.')
+  }
+  const emailList = await payload.findByID({
+    collection: 'email-lists',
+    id: emailListId,
+    depth: 0,
+    overrideAccess: false,
+    req,
+  })
+  return getRequiredString(
+    emailList.iContactClientFolderId,
+    'The selected audience’s iContact client folder',
+  )
+}
+
 async function updateLastTestSend({
   contentRevision,
   id,
@@ -100,10 +132,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   let contentRevision = ''
+  let isDryRun = false
   let recipientEmail = ''
 
   try {
-    const body = (await req.json().catch(() => ({}))) as { recipientEmail?: unknown }
+    const body = (await req.json().catch(() => ({}))) as {
+      dryRun?: unknown
+      preparedListId?: unknown
+      recipientEmail?: unknown
+    }
+    isDryRun = body.dryRun === true
     const email = (await payload.findByID({
       collection: 'emails',
       id,
@@ -145,6 +183,24 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       payload,
       req: payloadReq,
     })
+    const clientFolderId = await getTestClientFolderId({
+      email,
+      payload,
+      req: payloadReq,
+    })
+
+    if (isDryRun) {
+      const preparation = await prepareIContactTestEmail({
+        clientFolderId,
+        recipientEmail,
+      })
+      const message = `Verified exactly one active recipient (${preparation.recipientEmail}) in iContact list “${preparation.listName}” (list ${preparation.listId}, folder ${preparation.clientFolderId}). No email was sent.`
+      return Response.json({
+        ...preparation,
+        message,
+        status: 'verified',
+      })
+    }
     const replyTo = typeof email.replyTo === 'string' && email.replyTo.trim()
       ? email.replyTo.trim()
       : senderSettings.replyTo
@@ -191,9 +247,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const result = await sendIContactTestEmail({
       campaignId: senderSettings.iContactCampaignId,
+      clientFolderId,
       fromEmail: senderSettings.fromEmail,
       html,
       preheader,
+      preparedListId: getRequiredString(body.preparedListId, 'Prepared iContact test list ID'),
       recipientEmail,
       subject,
       text,
@@ -223,7 +281,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to send test email'
 
-    if (recipientEmail) {
+    if (recipientEmail && !isDryRun) {
       try {
         await updateLastTestSend({
           contentRevision,

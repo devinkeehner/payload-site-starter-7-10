@@ -3587,6 +3587,8 @@ export interface EmailSendEvent {
     | 'failed';
   iContactSendId?: string | null;
   iContactMessageId?: string | null;
+  elasticCampaignId?: string | null;
+  elasticMessageId?: string | null;
   occurredAt: string;
   url?: string | null;
   raw?:
@@ -6263,6 +6265,8 @@ export interface EmailSendEventsSelect<T extends boolean = true> {
   eventType?: T;
   iContactSendId?: T;
   iContactMessageId?: T;
+  elasticCampaignId?: T;
+  elasticMessageId?: T;
   occurredAt?: T;
   url?: T;
   raw?: T;

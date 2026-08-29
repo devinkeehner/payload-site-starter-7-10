@@ -1,24 +1,71 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Button, useDocumentInfo, useFormModified } from '@payloadcms/ui'
+
+type PreparedTest = {
+  activeRecipientCount: 1
+  clientFolderId: string
+  listId: string
+  listName: string
+  message: string
+  recipientEmail: string
+}
 
 export function EmailSendControl() {
   const { id } = useDocumentInfo()
   const isModified = useFormModified()
-  const [status, setStatus] = useState<'idle' | 'creatingPost' | 'sending' | 'sendingProduction' | 'sent' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'creatingPost' | 'verifying' | 'verified' | 'sending' | 'sendingProduction' | 'sent' | 'error'>('idle')
   const [message, setMessage] = useState<string | null>(null)
+  const [preparedTest, setPreparedTest] = useState<PreparedTest | null>(null)
+
+  useEffect(() => {
+    if (isModified) setPreparedTest(null)
+  }, [isModified])
 
   if (!id) return null
 
-  async function sendTestEmail() {
+  async function verifyTestRecipient() {
     if (!id || isModified) return
+
+    setStatus('verifying')
+    setMessage(null)
+    setPreparedTest(null)
+
+    try {
+      const res = await fetch(`/api/emails/${id}/send-test`, {
+        body: JSON.stringify({ dryRun: true }),
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+
+      if (!res.ok) throw new Error(await res.text())
+      const payload = (await res.json()) as PreparedTest
+      if (payload.activeRecipientCount !== 1) {
+        throw new Error(`Safety check returned ${payload.activeRecipientCount} recipients instead of exactly one.`)
+      }
+      setPreparedTest(payload)
+      setStatus('verified')
+      setMessage(payload.message)
+    } catch (error) {
+      setStatus('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to verify the test recipient')
+    }
+  }
+
+  async function sendTestEmail() {
+    if (!id || isModified || !preparedTest) return
+    if (!window.confirm(
+      `Send one test email to ${preparedTest.recipientEmail}?\n\nVerified iContact list: ${preparedTest.listName}\nActive recipients: exactly 1`,
+    )) return
 
     setStatus('sending')
     setMessage(null)
 
     try {
       const res = await fetch(`/api/emails/${id}/send-test`, {
+        body: JSON.stringify({ preparedListId: preparedTest.listId }),
+        headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       })
 
@@ -79,7 +126,7 @@ export function EmailSendControl() {
     }
   }
 
-  const busy = status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'
+  const busy = status === 'verifying' || status === 'sending' || status === 'creatingPost' || status === 'sendingProduction'
 
   return (
     <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
@@ -87,6 +134,15 @@ export function EmailSendControl() {
         <Button
           buttonStyle="primary"
           disabled={isModified || busy}
+          onClick={() => void verifyTestRecipient()}
+          size="small"
+          type="button"
+        >
+          {status === 'verifying' ? 'Verifying...' : 'Dry Run: Verify 1 Recipient'}
+        </Button>
+        <Button
+          buttonStyle="secondary"
+          disabled={isModified || busy || !preparedTest}
           onClick={() => void sendTestEmail()}
           size="small"
           type="button"
@@ -113,7 +169,9 @@ export function EmailSendControl() {
         </Button>
       </div>
       <div style={{ color: status === 'error' ? 'var(--theme-error-500)' : 'var(--theme-elevation-600)', fontSize: 12 }}>
-        {isModified ? 'Save changes before sending a test or creating a post.' : message}
+        {isModified
+          ? 'Save changes before verifying a recipient, sending a test, or creating a post.'
+          : message || (!preparedTest ? 'Run the dry run before sending a test email.' : null)}
       </div>
     </div>
   )

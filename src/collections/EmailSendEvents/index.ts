@@ -66,6 +66,24 @@ export const EmailSendEvents: CollectionConfig = {
       type: 'text',
     },
     {
+      name: 'elasticCampaignId',
+      label: 'Legacy Elastic campaign ID',
+      type: 'text',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+    },
+    {
+      name: 'elasticMessageId',
+      label: 'Legacy Elastic message ID',
+      type: 'text',
+      admin: {
+        hidden: true,
+        readOnly: true,
+      },
+    },
+    {
       name: 'occurredAt',
       type: 'date',
       defaultValue: () => new Date().toISOString(),

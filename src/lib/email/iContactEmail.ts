@@ -1,8 +1,12 @@
+import { createHash } from 'node:crypto'
+
 import {
   ensureIContactContactSubscription,
+  ensureIContactList,
   getIContactConfigFromEnv,
   iContactFetch,
   resolveIContactAccountId,
+  verifyIContactSingleRecipientList,
 } from '@/lib/icontact'
 import type { IContactConfig } from '@/lib/icontact'
 
@@ -15,18 +19,21 @@ export type IContactEmailResult = {
   sendId: string
 }
 
+export type IContactTestPreparation = {
+  activeRecipientCount: 1
+  clientFolderId: string
+  contactId: string
+  listId: string
+  listName: string
+  recipientEmail: string
+}
+
 function getString(value: unknown): string {
   return typeof value === 'string' || typeof value === 'number' ? String(value).trim() : ''
 }
 
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
-}
-
-function getRequiredEnv(name: string): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`${name} is required to send through iContact.`)
-  return value
 }
 
 function getIContactError(data: unknown, status: number): string {
@@ -213,37 +220,90 @@ export async function sendIContactCampaign({
   }
 }
 
+export async function prepareIContactTestEmail({
+  clientFolderId,
+  expectedListId,
+  recipientEmail,
+}: {
+  clientFolderId: string
+  expectedListId?: string
+  recipientEmail: string
+}): Promise<IContactTestPreparation> {
+  if (!clientFolderId.trim()) {
+    throw new Error('Choose an iContact-backed audience before sending a test email.')
+  }
+  const normalizedEmail = recipientEmail.trim().toLowerCase()
+  const recipientKey = createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 10)
+  const listName = `HRO Web Test — ${normalizedEmail} — ${recipientKey}`.slice(0, 255)
+  const { listId } = await ensureIContactList({
+    clientFolderId,
+    description: 'Single-recipient test list managed automatically by HRO Web.',
+    name: listName,
+  })
+  if (expectedListId && listId !== expectedListId) {
+    throw new Error('Safety check failed: the prepared iContact test list changed. Run the dry run again. No email was sent.')
+  }
+  const { contactId } = await ensureIContactContactSubscription({
+    clientFolderId,
+    email: normalizedEmail,
+    listId,
+  })
+  const verification = await verifyIContactSingleRecipientList({ clientFolderId, contactId, listId })
+
+  return {
+    activeRecipientCount: verification.activeRecipientCount,
+    clientFolderId,
+    contactId,
+    listId,
+    listName,
+    recipientEmail: normalizedEmail,
+  }
+}
+
 export async function sendIContactTestEmail({
   campaignId,
+  clientFolderId,
   fromEmail,
   html,
   preheader,
+  preparedListId,
   recipientEmail,
   subject,
   text,
 }: {
   campaignId?: string
+  clientFolderId: string
   fromEmail?: string
   html: string
   preheader?: string
+  preparedListId: string
   recipientEmail: string
   subject: string
   text: string
 }): Promise<IContactEmailResult> {
-  const clientFolderId = getRequiredEnv('ICONTACT_TEST_CLIENT_FOLDER_ID')
-  const listId = getRequiredEnv('ICONTACT_TEST_LIST_ID')
-  await ensureIContactContactSubscription({ clientFolderId, email: recipientEmail, listId })
+  if (!preparedListId.trim()) {
+    throw new Error('Run the recipient dry run before sending a test email.')
+  }
+  const preparation = await prepareIContactTestEmail({
+    clientFolderId,
+    expectedListId: preparedListId,
+    recipientEmail,
+  })
   const result = await sendIContactCampaign({
-    campaignId: campaignId || process.env.ICONTACT_TEST_CAMPAIGN_ID?.trim(),
+    campaignId,
     clientFolderId,
     fromEmail,
     html,
-    listId,
+    listId: preparation.listId,
     messageName: `TEST — ${subject}`.slice(0, 255),
     preheader,
     subject: `[TEST] ${subject}`.slice(0, 255),
     text,
   })
+
+  if (result.recipientCount !== 1) {
+    throw new Error(`iContact reported ${result.recipientCount} recipients for test send ${result.sendId}; expected exactly one.`)
+  }
 
   return result
 }
