@@ -494,7 +494,8 @@ export async function reconcileCompletedEmailSendJob({
           sendSummary: {
             ...previousSummary,
             contentRevision: getString(job.contentRevision),
-            elasticCampaignId: getString(job.elasticCampaignId),
+            iContactMessageId: getString(job.iContactMessageId),
+            iContactSendId: getString(job.iContactSendId),
             recipientCount: getNumber(job.sentRecipientCount),
             sendError: null,
             sendJob: jobId,
@@ -824,7 +825,8 @@ export async function processEmailSendQueue({
       const completedJob = await transitionEmailSendJob({
         data: {
           completedAt,
-          elasticCampaignId: sent.elasticCampaignId,
+          iContactMessageId: sent.iContactMessageId,
+          iContactSendId: sent.iContactSendId,
           lockExpiresAt: null,
           lockedAt: null,
           message: sent.message,

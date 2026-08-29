@@ -26,6 +26,7 @@ export type EmailSendSnapshot = {
   fromEmail: string
   fromName: string
   html: string
+  iContactCampaignId?: string
   origin: string
   preheader: string
   replyTo?: string
@@ -181,6 +182,7 @@ export async function buildEmailSendSnapshot({
       fromEmail,
       fromName,
       html,
+      iContactCampaignId: senderSettings.iContactCampaignId,
       origin,
       preheader,
       replyTo,

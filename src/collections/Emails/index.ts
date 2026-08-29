@@ -502,8 +502,13 @@ export const Emails: CollectionConfig<'emails'> = {
               },
               fields: [
                 {
-                  name: 'elasticCampaignId',
-                  label: 'Elastic send ID',
+                  name: 'iContactMessageId',
+                  label: 'iContact message ID',
+                  type: 'text',
+                },
+                {
+                  name: 'iContactSendId',
+                  label: 'iContact send ID',
                   type: 'text',
                 },
                 {

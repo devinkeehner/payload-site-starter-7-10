@@ -423,6 +423,47 @@ const subscribeContactToList = async (
   return res.data
 }
 
+export const ensureIContactContactSubscription = async ({
+  clientFolderId,
+  email,
+  listId,
+}: {
+  clientFolderId: string
+  email: string
+  listId: string
+}) => {
+  const cfg = getIContactConfigFromEnv()
+  if (!cfg) throw new Error('Missing iContact env credentials.')
+
+  const accountId = await resolveIContactAccountId(cfg)
+  let existing = await getExistingContact(cfg, accountId, clientFolderId, email)
+  let contactId = sanitize(existing?.contactId)
+  if (!contactId) {
+    try {
+      const created = await createContact(cfg, accountId, clientFolderId, {
+        email,
+        firstName: '',
+        lastName: '',
+        phone: '',
+        postalCode: '',
+      })
+      contactId = created.contactId
+    } catch (error) {
+      existing = await getExistingContact(cfg, accountId, clientFolderId, email)
+      contactId = sanitize(existing?.contactId)
+      if (!contactId) throw error
+    }
+  }
+
+  try {
+    await subscribeContactToList(cfg, accountId, clientFolderId, contactId, listId)
+  } catch (error) {
+    if (!looksLikeDuplicateIContactError(errorText(error))) throw error
+  }
+
+  return { accountId, contactId }
+}
+
 export const syncSubmissionToIContact = async (args: {
   formDoc: any
   submissionData: unknown

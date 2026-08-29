@@ -2705,6 +2705,10 @@ export interface RepInfo {
    */
   emailReplyTo?: string | null;
   /**
+   * Optional iContact campaign/sender property used for this site’s email delivery.
+   */
+  iContactCampaignId?: string | null;
+  /**
    * Physical mailing address shown in email footers.
    */
   mailingAddress?: string | null;
@@ -2993,7 +2997,8 @@ export interface Email {
   legacyScheduleNeedsReview?: boolean | null;
   relatedPost?: (string | null) | Post;
   sendSummary?: {
-    elasticCampaignId?: string | null;
+    iContactMessageId?: string | null;
+    iContactSendId?: string | null;
     recipientCount?: number | null;
     suppressedRecipientCount?: number | null;
     sendJob?: (string | null) | EmailSendJob;
@@ -3037,11 +3042,6 @@ export interface EmailList {
   name: string;
   description?: string | null;
   /**
-   * Used when syncing this audience list to Elastic Email.
-   */
-  elasticListName?: string | null;
-  elasticPublicListID?: string | null;
-  /**
    * Should remain enabled for normal campaign audiences.
    */
   allowUnsubscribe?: boolean | null;
@@ -3051,7 +3051,7 @@ export interface EmailList {
    */
   contacts?: (string | Contact)[] | null;
   activeContactCount?: number | null;
-  lastSyncedToElasticAt?: string | null;
+  lastSyncedToIContactAt?: string | null;
   iContactClientFolderId?: string | null;
   iContactListId?: string | null;
   updatedAt: string;
@@ -3097,9 +3097,8 @@ export interface Contact {
         id?: string | null;
       }[]
     | null;
-  elasticContactId?: string | null;
   iContactContactId?: string | null;
-  lastSyncedToElasticAt?: string | null;
+  lastSyncedToIContactAt?: string | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -3542,7 +3541,8 @@ export interface EmailSendJob {
   recipientCount?: number | null;
   sentRecipientCount?: number | null;
   suppressedRecipientCount?: number | null;
-  elasticCampaignId?: string | null;
+  iContactMessageId?: string | null;
+  iContactSendId?: string | null;
   message?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -3585,8 +3585,8 @@ export interface EmailSendEvent {
     | 'complaint'
     | 'unsubscribed'
     | 'failed';
-  elasticCampaignId?: string | null;
-  elasticMessageId?: string | null;
+  iContactSendId?: string | null;
+  iContactMessageId?: string | null;
   occurredAt: string;
   url?: string | null;
   raw?:
@@ -5288,6 +5288,7 @@ export interface RepInfoSelect<T extends boolean = true> {
   emailFromName?: T;
   emailFromEmail?: T;
   emailReplyTo?: T;
+  iContactCampaignId?: T;
   mailingAddress?: T;
   mailingAddressLine1?: T;
   mailingAddressLine2?: T;
@@ -5821,7 +5822,8 @@ export interface EmailsSelect<T extends boolean = true> {
   sendSummary?:
     | T
     | {
-        elasticCampaignId?: T;
+        iContactMessageId?: T;
+        iContactSendId?: T;
         recipientCount?: T;
         suppressedRecipientCount?: T;
         sendJob?: T;
@@ -6222,13 +6224,11 @@ export interface EmailListsSelect<T extends boolean = true> {
   tenant?: T;
   name?: T;
   description?: T;
-  elasticListName?: T;
-  elasticPublicListID?: T;
   allowUnsubscribe?: T;
   status?: T;
   contacts?: T;
   activeContactCount?: T;
-  lastSyncedToElasticAt?: T;
+  lastSyncedToIContactAt?: T;
   iContactClientFolderId?: T;
   iContactListId?: T;
   updatedAt?: T;
@@ -6261,8 +6261,8 @@ export interface EmailSendEventsSelect<T extends boolean = true> {
   contact?: T;
   recipientEmail?: T;
   eventType?: T;
-  elasticCampaignId?: T;
-  elasticMessageId?: T;
+  iContactSendId?: T;
+  iContactMessageId?: T;
   occurredAt?: T;
   url?: T;
   raw?: T;
@@ -6296,7 +6296,8 @@ export interface EmailSendJobsSelect<T extends boolean = true> {
   recipientCount?: T;
   sentRecipientCount?: T;
   suppressedRecipientCount?: T;
-  elasticCampaignId?: T;
+  iContactMessageId?: T;
+  iContactSendId?: T;
   message?: T;
   updatedAt?: T;
   createdAt?: T;
@@ -6403,9 +6404,8 @@ export interface ContactsSelect<T extends boolean = true> {
         source?: T;
         id?: T;
       };
-  elasticContactId?: T;
   iContactContactId?: T;
-  lastSyncedToElasticAt?: T;
+  lastSyncedToIContactAt?: T;
   updatedAt?: T;
   createdAt?: T;
 }

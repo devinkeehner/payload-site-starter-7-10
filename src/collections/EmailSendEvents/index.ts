@@ -56,13 +56,13 @@ export const EmailSendEvents: CollectionConfig = {
       required: true,
     },
     {
-      name: 'elasticCampaignId',
-      label: 'Elastic send ID',
+      name: 'iContactSendId',
+      label: 'iContact send ID',
       type: 'text',
     },
     {
-      name: 'elasticMessageId',
-      label: 'Elastic message ID',
+      name: 'iContactMessageId',
+      label: 'iContact message ID',
       type: 'text',
     },
     {

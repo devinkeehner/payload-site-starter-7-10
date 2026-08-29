@@ -48,7 +48,7 @@ describe('completed delivery reconciliation', () => {
       activeKey: 'email-1',
       completedAt: '2026-07-18T12:00:00.000Z',
       contentRevision: 'revision-1',
-      elasticCampaignId: 'elastic-1',
+      iContactSendId: 'icontact-send-1',
       email: 'email-1',
       reconciliationPending: true,
       sentRecipientCount: 12,
@@ -91,7 +91,7 @@ describe('completed delivery reconciliation', () => {
     })).resolves.toBe(true)
     expect(email.status).toBe('sent')
     expect(email.sendSummary).toMatchObject({
-      elasticCampaignId: 'elastic-1',
+      iContactSendId: 'icontact-send-1',
       recipientCount: 12,
       sendJob: 'job-1',
       suppressedRecipientCount: 2,

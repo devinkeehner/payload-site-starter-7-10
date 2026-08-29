@@ -8,7 +8,8 @@ import {
   resolveEmailAudience,
 } from './recipients'
 import { computeEmailRenderedContentRevision } from './revision'
-import { getTenantEmailSenderSettings, hasElasticEmailSender } from './sender'
+import { getTenantEmailSenderSettings } from './sender'
+import { hasIContactDeliveryConfiguration } from './iContactEmail'
 import { getEmailRequestOrigin } from './snapshot'
 import { getEmailWebVersionUrl } from './webVersion'
 import type { EmailWorkflowAudience } from './workflowTypes'
@@ -218,7 +219,7 @@ export async function getEmailReadiness({
     payload,
     req,
   })
-  const elasticConfigured = hasElasticEmailSender(senderSettings)
+  const iContactConfigured = hasIContactDeliveryConfiguration()
   const prepared = await prepareEmailLayoutForRender({
     email,
     emailList: isRecord(emailList) ? emailList : null,
@@ -365,14 +366,12 @@ export async function getEmailReadiness({
     status: audience?.eligible ? 'pass' : 'fail',
   })
   addItem(items, {
-    key: 'elastic',
-    label: 'Elastic Email',
-    message: elasticConfigured
-      ? senderSettings.fromEmail
-        ? 'Elastic Email is configured with this tenant sender.'
-        : 'Elastic Email sender is configured from environment defaults.'
-      : 'Elastic Email API key/from address are missing.',
-    status: elasticConfigured ? 'pass' : 'fail',
+    key: 'icontact',
+    label: 'iContact',
+    message: iContactConfigured
+      ? 'iContact delivery credentials and sender property are configured.'
+      : 'iContact API credentials or ICONTACT_CAMPAIGN_ID are missing.',
+    status: iContactConfigured ? 'pass' : 'fail',
   })
 
   const failures = items.filter((item) => item.status === 'fail').length

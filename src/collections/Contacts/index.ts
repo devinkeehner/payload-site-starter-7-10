@@ -263,14 +263,6 @@ export const Contacts: CollectionConfig = {
               type: 'row',
               fields: [
                 {
-                  name: 'elasticContactId',
-                  label: 'Elastic contact ID',
-                  type: 'text',
-                  admin: {
-                    readOnly: true,
-                  },
-                },
-                {
                   name: 'iContactContactId',
                   label: 'iContact contact ID',
                   type: 'text',
@@ -281,8 +273,8 @@ export const Contacts: CollectionConfig = {
               ],
             },
             {
-              name: 'lastSyncedToElasticAt',
-              label: 'Last synced to Elastic',
+              name: 'lastSyncedToIContactAt',
+              label: 'Last synced from iContact',
               type: 'date',
               admin: {
                 readOnly: true,

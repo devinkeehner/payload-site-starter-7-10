@@ -9,11 +9,7 @@ const normalizeEmailList: CollectionBeforeValidateHook = ({ data }) => {
   if (!data) return data
   const name = normalizeListName(data.name)
 
-  return {
-    ...data,
-    elasticListName: normalizeListName(data.elasticListName) || name,
-    name,
-  }
+  return { ...data, name }
 }
 
 export const EmailLists: CollectionConfig = {
@@ -72,23 +68,6 @@ export const EmailLists: CollectionConfig = {
       type: 'textarea',
     },
     {
-      name: 'elasticListName',
-      label: 'Elastic list name',
-      type: 'text',
-      admin: {
-        description: 'Used when syncing this audience list to Elastic Email.',
-      },
-      index: true,
-    },
-    {
-      name: 'elasticPublicListID',
-      label: 'Elastic public list ID',
-      type: 'text',
-      admin: {
-        readOnly: true,
-      },
-    },
-    {
       name: 'allowUnsubscribe',
       label: 'Allow unsubscribes',
       type: 'checkbox',
@@ -128,12 +107,10 @@ export const EmailLists: CollectionConfig = {
           },
         },
         {
-          name: 'lastSyncedToElasticAt',
-          label: 'Last synced to Elastic',
+          name: 'lastSyncedToIContactAt',
+          label: 'Last synced from iContact',
           type: 'date',
-          admin: {
-            readOnly: true,
-          },
+          admin: { readOnly: true },
         },
       ],
     },

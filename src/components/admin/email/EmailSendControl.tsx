@@ -59,7 +59,7 @@ export function EmailSendControl() {
 
   async function sendProductionEmail() {
     if (!id || isModified) return
-    if (!window.confirm('Send this email to the selected audience list? This creates a production Elastic Email campaign.')) return
+    if (!window.confirm('Send this email to the selected iContact audience list? This creates a production iContact send.')) return
 
     setStatus('sendingProduction')
     setMessage(null)

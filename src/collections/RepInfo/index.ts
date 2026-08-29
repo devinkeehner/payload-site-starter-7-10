@@ -323,6 +323,12 @@ export const RepInfo: CollectionConfig = {
               admin: { description: 'Used when an email does not specify a different reply-to address.' },
             },
             {
+              name: 'iContactCampaignId',
+              label: 'iContact sender property ID',
+              type: 'text',
+              admin: { description: 'Optional iContact campaign/sender property used for this site’s email delivery.' },
+            },
+            {
               name: 'mailingAddress',
               label: 'Email footer mailing address',
               type: 'textarea',

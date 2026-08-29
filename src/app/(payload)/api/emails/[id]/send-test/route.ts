@@ -3,7 +3,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
-import { sendElasticMarketingEmail } from '@/lib/email/elasticEmail'
+import { sendIContactTestEmail } from '@/lib/email/iContactEmail'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
 import {
   canSendEmailTest,
@@ -189,18 +189,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       payload,
     })
 
-    const result = await sendElasticMarketingEmail({
+    const result = await sendIContactTestEmail({
+      campaignId: senderSettings.iContactCampaignId,
       fromEmail: senderSettings.fromEmail,
-      fromName: senderSettings.fromName,
       html,
-      replyTo,
+      preheader,
+      recipientEmail,
       subject,
       text,
-      to: recipientEmail,
     })
 
-    const message = result.id
-      ? `Test email sent to ${recipientEmail}. Elastic Email ID: ${result.id}`
+    const message = result.sendId
+      ? `Test email sent to ${recipientEmail}. iContact send ID: ${result.sendId}`
       : `Test email sent to ${recipientEmail}.`
 
     await updateLastTestSend({
@@ -214,7 +214,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     return Response.json({
       contentRevision,
-      id: result.id,
+      id: result.sendId,
       message,
       recipientEmail,
       status: 'sent',

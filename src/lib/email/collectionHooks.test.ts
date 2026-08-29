@@ -24,8 +24,8 @@ describe('email collection hooks', () => {
     expect(await normalizeEmailGroupAfterRead({ value: null } as never)).toEqual({})
     expect(
       await normalizeEmailGroupAfterRead({
-        value: { elasticCampaignId: 'elastic-1' },
+        value: { iContactSendId: 'icontact-send-1' },
       } as never),
-    ).toEqual({ elasticCampaignId: 'elastic-1' })
+    ).toEqual({ iContactSendId: 'icontact-send-1' })
   })
 })

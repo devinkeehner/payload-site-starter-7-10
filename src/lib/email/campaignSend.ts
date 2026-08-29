@@ -1,6 +1,6 @@
 import type { Payload, PayloadRequest } from 'payload'
 
-import { sendElasticBulkMarketingEmail } from './elasticEmail'
+import { sendIContactCampaign } from './iContactEmail'
 import {
   assertEmailAudienceTenantMatch,
   resolveEmailAudience,
@@ -11,20 +11,8 @@ import {
 } from './snapshot'
 import { suppressIneligibleSnapshotRecipients } from './suppression'
 
-function getElasticSendChannelName(jobId: string): string {
-  return `hro-email-job-${jobId}`.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80)
-}
-
-function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-async function runElasticStep<T>(label: string, action: () => Promise<T>): Promise<T> {
-  try {
-    return await action()
-  } catch (error) {
-    throw new Error(`${label}: ${getErrorMessage(error)}`)
-  }
+function getString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
 }
 
 export async function sendProductionEmailSnapshotJob({
@@ -74,32 +62,20 @@ export async function sendProductionEmailSnapshotJob({
     throw new Error('Every approved recipient is now suppressed; no email was sent.')
   }
 
-  const channelName = getElasticSendChannelName(jobId)
+  const clientFolderId = getString(currentAudience.list.iContactClientFolderId)
+  const listId = getString(currentAudience.list.iContactListId)
   await beforeProviderDispatch?.()
-  const elasticSend = await runElasticStep('Elastic bulk send failed', () =>
-    sendElasticBulkMarketingEmail({
-      channelName,
-      fromEmail: snapshot.fromEmail,
-      fromName: snapshot.fromName,
-      html: snapshot.html,
-      recipients: suppression.recipients.map((recipient) => ({
-        Email: recipient.email,
-        Fields: {
-          contactId: recipient.contactId || '',
-          email: recipient.email,
-          firstName: recipient.firstName || '',
-          fullName: [recipient.firstName, recipient.lastName].filter(Boolean).join(' '),
-          lastName: recipient.lastName || '',
-          phone: recipient.phone || '',
-          postalCode: recipient.postalCode || '',
-          tenant: snapshot.tenantSlug || '',
-        },
-      })),
-      replyTo: snapshot.replyTo,
-      subject: snapshot.subject,
-      text: snapshot.text,
-    }),
-  )
+  const iContactSend = await sendIContactCampaign({
+    clientFolderId,
+    campaignId: snapshot.iContactCampaignId,
+    fromEmail: snapshot.fromEmail,
+    html: snapshot.html,
+    listId,
+    messageName: `${snapshot.subject} — ${jobId}`.slice(0, 255),
+    preheader: snapshot.preheader,
+    subject: snapshot.subject,
+    text: snapshot.text,
+  })
 
   await payload.update({
     collection: 'email-lists',
@@ -113,9 +89,10 @@ export async function sendProductionEmailSnapshotJob({
   })
 
   return {
-    elasticCampaignId: elasticSend.id || channelName,
-    message: elasticSend.message,
-    recipientCount: suppression.recipients.length,
+    iContactMessageId: iContactSend.messageId,
+    iContactSendId: iContactSend.sendId,
+    message: iContactSend.message,
+    recipientCount: iContactSend.recipientCount || suppression.recipients.length,
     suppressedRecipientCount: suppression.suppressedCount,
   }
 }

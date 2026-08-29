@@ -7,6 +7,7 @@ type UnknownRecord = Record<string, unknown>
 export type EmailSenderSettings = {
   fromEmail?: string
   fromName?: string
+  iContactCampaignId?: string
   replyTo?: string
 }
 
@@ -46,6 +47,7 @@ export async function getTenantEmailSenderSettings({
     select: {
       emailFromEmail: true,
       emailFromName: true,
+      iContactCampaignId: true,
       emailReplyTo: true,
     },
     where: {
@@ -61,6 +63,7 @@ export async function getTenantEmailSenderSettings({
   return {
     fromEmail: getString(repInfo.emailFromEmail) || undefined,
     fromName: getString(repInfo.emailFromName) || undefined,
+    iContactCampaignId: getString(repInfo.iContactCampaignId) || undefined,
     replyTo: getString(repInfo.emailReplyTo) || undefined,
   }
 }
