@@ -1,3 +1,4 @@
+import { importSiteLinks, validateDomainAssignment } from '@/lib/tinyurl/service'
 import type {
   CollectionAfterChangeHook,
   CollectionAfterDeleteHook,
@@ -42,7 +43,9 @@ export const RepInfo: CollectionConfig = {
   access: {
     read: () => true,
   },
+  endpoints: [{ path: '/:id/import-short-links', method: 'post', handler: importSiteLinks }],
   hooks: {
+    beforeChange: [validateDomainAssignment],
     afterChange: [
       (async ({ req: { payload, context } }) => {
         if (context?.disableRevalidate) return
@@ -72,6 +75,10 @@ export const RepInfo: CollectionConfig = {
     {
       type: 'tabs',
       tabs: [
+        { label: 'TinyURL', fields: [
+          { name: 'tinyURLDomain', label: 'Existing TinyURL domain', type: 'text', unique: true, index: true, admin: { description: 'Domain already set up in TinyURL for this site, without https:// or a path. Each domain belongs to one site.' } },
+          { name: 'tinyURLImport', type: 'ui', admin: { components: { Field: '@/components/admin/TinyURLField#TinyURLImportField' } } },
+        ] },
         {
           label: 'Profile & Towns',
           description: 'Public identity, district information, and towns shown on this website.',

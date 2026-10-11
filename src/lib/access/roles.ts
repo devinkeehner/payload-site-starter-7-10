@@ -18,6 +18,7 @@ export const CONTENT_EDITOR_COLLECTIONS = [
   'tags',
   'site-seo',
   'rep-info',
+  'short-links',
   'standard-media',
   'navbars',
   'graphic-templates',

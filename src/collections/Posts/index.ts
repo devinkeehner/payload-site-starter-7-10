@@ -1,3 +1,5 @@
+import { tinyURLAliasField } from '@/lib/tinyurl/fields'
+import { contentLinkEndpoint, syncPublishedContent, protectLinkedContentDelete, captureContentOperation, protectLinkedContent } from '@/lib/tinyurl/service'
 import type { CheckboxFieldValidation, CollectionConfig, PayloadHandler, PayloadRequest } from 'payload'
 
 import {
@@ -248,6 +250,8 @@ export const Posts: CollectionConfig<'posts'> = {
     useAsTitle: 'title',
   },
   endpoints: [
+    { path: '/:id/short-link', method: 'post', handler: contentLinkEndpoint('posts') },
+    { path: '/:id/short-link', method: 'get', handler: contentLinkEndpoint('posts') },
     {
       path: '/assistant-config',
       method: 'get',
@@ -1330,10 +1334,14 @@ export const Posts: CollectionConfig<'posts'> = {
       },
     },
     // Author fields removed
+    tinyURLAliasField,
     ...slugField(),
   ],
   hooks: {
-    afterChange: [revalidatePost, rebuildSitemapsAfterPublishedChange],
+    beforeOperation: [captureContentOperation<'posts'>()],
+    beforeChange: [protectLinkedContent],
+    beforeDelete: [protectLinkedContentDelete],
+    afterChange: [syncPublishedContent, revalidatePost, rebuildSitemapsAfterPublishedChange],
     afterDelete: [revalidateDelete, rebuildSitemapsAfterPublishedDelete],
   },
   versions: {

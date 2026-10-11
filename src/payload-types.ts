@@ -75,6 +75,7 @@ export interface Config {
     'graphic-designs': GraphicDesign;
     'wordpress-posts': WordpressPost;
     'rep-info': RepInfo;
+    'short-links': ShortLink;
     navbars: Navbar;
     'standard-media': StandardMedia;
     'site-seo': SiteSeo;
@@ -119,6 +120,7 @@ export interface Config {
     'graphic-designs': GraphicDesignsSelect<false> | GraphicDesignsSelect<true>;
     'wordpress-posts': WordpressPostsSelect<false> | WordpressPostsSelect<true>;
     'rep-info': RepInfoSelect<false> | RepInfoSelect<true>;
+    'short-links': ShortLinksSelect<false> | ShortLinksSelect<true>;
     navbars: NavbarsSelect<false> | NavbarsSelect<true>;
     'standard-media': StandardMediaSelect<false> | StandardMediaSelect<true>;
     'site-seo': SiteSeoSelect<false> | SiteSeoSelect<true>;
@@ -294,6 +296,10 @@ export interface Post {
   articleType: string | ArticleType;
   publishedAt?: string | null;
   draftShareToken?: string | null;
+  /**
+   * Save/publish content before syncing the short link. The Short Links collection shows all existing aliases and sync errors.
+   */
+  shortLinkAlias?: string | null;
   slug?: string | null;
   slugLock?: boolean | null;
   updatedAt: string;
@@ -886,6 +892,10 @@ export interface Page {
   };
   publishedAt?: string | null;
   draftShareToken?: string | null;
+  /**
+   * Save/publish content before syncing the short link. The Short Links collection shows all existing aliases and sync errors.
+   */
+  shortLinkAlias?: string | null;
   slug?: string | null;
   slugLock?: boolean | null;
   updatedAt: string;
@@ -2650,6 +2660,10 @@ export interface Author {
 export interface RepInfo {
   id: string;
   tenant?: (string | null) | Tenant;
+  /**
+   * Domain already set up in TinyURL for this site, without https:// or a path. Each domain belongs to one site.
+   */
+  tinyURLDomain?: string | null;
   officeTitle: string;
   name: string;
   districtNumber: number;
@@ -2755,6 +2769,43 @@ export interface User {
     | null;
   password?: string | null;
   collection: 'users';
+}
+/**
+ * Create or edit redirects for this site. Import all existing links from the TinyURL section in Site Profile. Archived links are shown for reference; restore them in TinyURL before editing.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "short-links".
+ */
+export interface ShortLink {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  /**
+   * 1–30 letters, numbers, underscores or hyphens; tinyurl.com requires at least 5. Save alias and destination changes separately.
+   */
+  alias: string;
+  /**
+   * A public HTTP(S) URL. Links attached to published content follow that content automatically.
+   */
+  destinationURL: string;
+  domain?: string | null;
+  shortURL?: string | null;
+  remoteKey?: string | null;
+  source?:
+    | ({
+        relationTo: 'posts';
+        value: string | Post;
+      } | null)
+    | ({
+        relationTo: 'pages';
+        value: string | Page;
+      } | null);
+  archived?: boolean | null;
+  /**
+   * If publication changes a URL and TinyURL cannot be updated, this field explains why. Retry from the content’s sidebar after resolving the error.
+   */
+  syncError?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4002,6 +4053,10 @@ export interface PayloadLockedDocument {
         value: string | RepInfo;
       } | null)
     | ({
+        relationTo: 'short-links';
+        value: string | ShortLink;
+      } | null)
+    | ({
         relationTo: 'navbars';
         value: string | Navbar;
       } | null)
@@ -4204,6 +4259,7 @@ export interface PostsSelect<T extends boolean = true> {
   articleType?: T;
   publishedAt?: T;
   draftShareToken?: T;
+  shortLinkAlias?: T;
   slug?: T;
   slugLock?: T;
   updatedAt?: T;
@@ -4502,6 +4558,7 @@ export interface PagesSelect<T extends boolean = true> {
       };
   publishedAt?: T;
   draftShareToken?: T;
+  shortLinkAlias?: T;
   slug?: T;
   slugLock?: T;
   updatedAt?: T;
@@ -5254,6 +5311,7 @@ export interface WordpressPostsSelect<T extends boolean = true> {
  */
 export interface RepInfoSelect<T extends boolean = true> {
   tenant?: T;
+  tinyURLDomain?: T;
   officeTitle?: T;
   name?: T;
   districtNumber?: T;
@@ -5297,6 +5355,23 @@ export interface RepInfoSelect<T extends boolean = true> {
   mailingAddressCity?: T;
   mailingAddressState?: T;
   mailingAddressPostalCode?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "short-links_select".
+ */
+export interface ShortLinksSelect<T extends boolean = true> {
+  tenant?: T;
+  alias?: T;
+  destinationURL?: T;
+  domain?: T;
+  shortURL?: T;
+  remoteKey?: T;
+  source?: T;
+  archived?: T;
+  syncError?: T;
   updatedAt?: T;
   createdAt?: T;
 }

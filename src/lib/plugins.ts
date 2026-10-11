@@ -2059,6 +2059,7 @@ export const plugins: Plugin[] = [
       'graphic-designs': {},
       'standard-media': { isGlobal: true },
       'rep-info': {},
+      'short-links': {},
       'site-seo': { isGlobal: true },
       forms: {},
       'form-submissions': {},

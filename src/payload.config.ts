@@ -1,3 +1,4 @@
+import { ShortLinks } from './collections/ShortLinks'
 import { mongooseAdapter } from '@payloadcms/db-mongodb';
 import { resendAdapter } from '@payloadcms/email-resend';
 import sharp from 'sharp';
@@ -310,6 +311,7 @@ export default buildConfig({
     WordpressPosts,
     // Site Settings
     RepInfo,
+    ShortLinks,
     Navbar,
     StandardMedia,
     SiteSEO,

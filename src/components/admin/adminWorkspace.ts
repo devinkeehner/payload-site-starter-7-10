@@ -45,6 +45,7 @@ export type AdminWorkspaceNavArea = {
  * sidebar and dashboard will keep the same labels, grouping, and disclosure rules.
  */
 export const ADMIN_WORKSPACE_ENTRIES = [
+  { dashboard: true, description: 'Import, create, and edit this site’s TinyURL redirects.', label: 'Short Links', section: 'website', slug: 'short-links' },
   {
     dashboard: true,
     description: 'Write, review, and publish news and updates.',
@@ -289,7 +290,7 @@ export const ADMIN_WORKSPACE_NAV_AREAS = [
     description: 'Update site-wide identity, navigation, media, and settings.',
     key: 'website',
     label: 'Website',
-    slugs: ['rep-info', 'navbars', 'standard-media', 'site-seo', 'header', 'footer'],
+    slugs: ['short-links', 'rep-info', 'navbars', 'standard-media', 'site-seo', 'header', 'footer'],
   },
   {
     description: 'Supporting records, taxonomy, access, and technical tools.',

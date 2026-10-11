@@ -1,3 +1,5 @@
+import { tinyURLAliasField } from '@/lib/tinyurl/fields'
+import { contentLinkEndpoint, syncPublishedContent, protectLinkedContentDelete, captureContentOperation, protectLinkedContent } from '@/lib/tinyurl/service'
 import type { CollectionConfig } from 'payload'
 
 import { authenticated } from '@/lib/access/authenticated'
@@ -85,6 +87,10 @@ export const Pages: CollectionConfig<'pages'> = {
       }),
     useAsTitle: 'title',
   },
+  endpoints: [
+    { path: '/:id/short-link', method: 'post', handler: contentLinkEndpoint('pages') },
+    { path: '/:id/short-link', method: 'get', handler: contentLinkEndpoint('pages') },
+  ],
   fields: [
     {
       name: 'title',
@@ -185,11 +191,14 @@ export const Pages: CollectionConfig<'pages'> = {
         hidden: true,
       },
     },
+    tinyURLAliasField,
     ...slugField(),
   ],
   hooks: {
-    afterChange: [revalidatePage, rebuildSitemapsAfterPublishedChange],
-    beforeChange: [populatePublishedAt],
+    beforeOperation: [captureContentOperation<'pages'>()],
+    beforeChange: [protectLinkedContent, populatePublishedAt],
+    beforeDelete: [protectLinkedContentDelete],
+    afterChange: [syncPublishedContent, revalidatePage, rebuildSitemapsAfterPublishedChange],
     afterDelete: [revalidateDelete, rebuildSitemapsAfterPublishedDelete],
   },
   versions: {
