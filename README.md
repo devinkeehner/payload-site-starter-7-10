@@ -373,3 +373,64 @@ You can also deploy your app manually, check out the [deployment documentation](
 ## Questions
 
 If you have any issues or questions, reach out to us on [Discord](https://discord.com/invite/payload) or start a [GitHub discussion](https://github.com/payloadcms/payload/discussions).
+
+## Email Live Editor
+
+Email Compose (`/admin/collections/emails/<id>/visual`) now opens
+`/live-editor/emails/<id>`. This route has a separate root layout: Payload's
+navigation and header are not mounted around the editor. The email collection's
+tab is named **Live Editor**. Audience, Review & Test, Delivery, and Results retain
+the existing campaign workflow.
+
+The interface adapts Campaign's newer editor, but its catalog, field schemas,
+previews and saved data are Gov's email blocks. It edits native `layout` records,
+including the existing `emailGrid` column arrays; it does not convert email data
+into website blocks or Puck documents. Existing opaque fields, media identities,
+Lexical formatting and inactive grid-column content remain preserved. Plain
+email fields stay plain; rich-text fields retain their native Lexical storage.
+
+Save draft (or Ctrl/Cmd+S) saves content and message settings. Preview and Continue
+to Audience save first; failed or conflicting saves retain the local edits and
+undo history. Preview uses the existing authenticated email HTML renderer, with
+plain-text view and HTML download. Test sending and delivery remain in the
+existing review/delivery stages; the editor does not send email.
+
+The native API at `/api/live-editor/emails/<id>` requires an authorized email user
+and collection access, checks assigned-site membership, and writes only title,
+subject, preheader, reply-to and layout. Tenant, audience, lifecycle, approval and
+send-job fields cannot be changed here. Scheduled/queued/sending/sent campaigns
+are locked. Saves carry `expectedUpdatedAt` and reject stale versions; this is
+optimistic conflict detection, not a database-wide compare-and-swap transaction.
+Payload's normal draft, document-lock and lifecycle hooks still run. No migration
+or new environment variables are required.
+
+Media/document options are scoped by the authorized email's saved tenant rather
+than the active-site cookie. New references must be readable and belong to that
+site. Image uploads use an email-scoped authenticated route (JPEG, PNG, GIF, WebP
+or AVIF, up to 10 MB), derive ownership server-side, and run normal media access
+checks. The `/live-editor/canvas` iframe is an empty hydrated mount: private email
+content is supplied only in memory by the parent editor.
+
+When `document.modelContext` or the supported legacy `navigator.modelContext`
+is available, Live Editor registers `live_editor_read_catalog`,
+`live_editor_read_document`, `live_editor_edit_draft`, `live_editor_undo`,
+`live_editor_redo`, `live_editor_read_preview`, and `live_editor_scroll_preview`.
+Read the catalog for exact email schemas and the draft for current IDs, slots and
+revision. Edits and history commands require the latest `expectedRevision` and
+share the UI's validation and undo history. These tools cannot save, publish,
+upload, navigate or send email. Registration is cleaned up when the editor closes;
+ordinary editing also works in browsers without WebMCP support.
+
+Local validation commands:
+
+- `pnpm test` for native operations, formatting preservation, WebMCP command
+  validation, draft access controls and existing repository regressions.
+- `pnpm exec playwright test tests/e2e/live-editor.spec.ts` against a local dev
+  server via `PLAYWRIGHT_BASE_URL`. These browser regressions intercept editor
+  APIs with synthetic fixtures; they do not connect to a production database or
+  send email.
+- `pnpm exec tsc --noEmit --incremental false` and ESLint on the changed files.
+
+A real authenticated database save/upload and provider delivery need separate
+integration verification with the intended local/staging environment. Browser
+fixture tests are not evidence of production deployment or iContact delivery.

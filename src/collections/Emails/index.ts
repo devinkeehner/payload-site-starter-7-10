@@ -217,6 +217,7 @@ export const Emails: CollectionConfig<'emails'> = {
           },
           visual: {
             path: '/visual',
+            tab: { label: 'Live Editor', order: 0 },
             Component: '@/components/admin/email/PuckEmailBuilderView',
           },
           audience: {

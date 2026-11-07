@@ -1,0 +1,8 @@
+.separator { position: relative; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; width: 6px; align-self: stretch; cursor: col-resize; touch-action: none; user-select: none; color: var(--ue-muted, #64748b); background: var(--ue-bg, #f2f4f6); }
+.separator::before { content: ''; position: absolute; inset: 0 -3px; z-index: 1; }
+.separator:hover, .separator[data-resizing] { background: var(--ue-tint, #e8f3ef); color: var(--ue-accent, #176a55); }
+.separator:focus-visible { outline: 2px solid var(--ue-accent, #176a55); outline-offset: -2px; }
+.grip { width: 4px; height: 28px; border-inline: 1px solid currentColor; border-radius: 2px; pointer-events: none; }
+.instructions { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.shield { position: fixed; inset: 0; z-index: 2147483647; cursor: col-resize; touch-action: none; user-select: none; background: transparent; }
+@media (max-width: 650px) { .separator { display: none; } }

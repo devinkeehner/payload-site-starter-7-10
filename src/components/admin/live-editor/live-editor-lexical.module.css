@@ -1,0 +1,1347 @@
+.wrapper,
+.lexicalBlockModal,
+.richTextCanvasToolbar {
+--builder-accent: #2563eb;
+  --builder-accent-soft: #eff6ff;
+  --builder-border: #d8dee8;
+  --builder-canvas: #edf1f5;
+  --builder-muted: #637083;
+  --builder-panel: #fff;
+  --builder-panel-muted: #f6f8fa;
+  --builder-text: #182230;
+  --builder-warning: #b45309;
+}
+
+.linkFields, .relationshipField, .relationshipPicker {
+display: grid; min-width: 0; gap: 10px;
+}
+
+.linkField, .relationshipPicker label {
+display: grid; min-width: 0; gap: 6px;
+}
+
+.linkField > span, .relationshipPicker label {
+color: var(--builder-muted); font-size: 12px; font-weight: 700;
+}
+
+.relationshipField button, .relationshipPicker select, .relationshipSearch {
+min-height: 36px; border: 1px solid var(--builder-border); border-radius: 6px; padding: 7px 9px;
+  background: var(--builder-panel); color: var(--builder-text); font: inherit; font-size: 12px;
+}
+
+.relationshipField button {
+cursor: pointer;
+}
+
+.relationshipField button:hover:not(:disabled), .relationshipField button[aria-pressed='true'] {
+border-color: var(--builder-accent); background: var(--builder-accent-soft); color: var(--builder-accent);
+}
+
+.relationshipField button:focus-visible, .relationshipPicker select:focus-visible {
+outline: 2px solid var(--builder-accent); outline-offset: 2px;
+}
+
+.relationshipField button:disabled {
+cursor: not-allowed; opacity: .6;
+}
+
+.relationshipSelected {
+display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--builder-border); border-radius: 6px; padding: 9px; background: var(--builder-panel-muted);
+}
+
+.relationshipSelected > span {
+min-width: 0;
+}
+
+.relationshipSelected strong {
+display: block; color: var(--builder-text); font-size: 13px; overflow-wrap: anywhere;
+}
+
+.relationshipSelected small, .relationshipResults small {
+display: block; color: var(--builder-muted); font-size: 11px; font-weight: 400; margin-top: 3px; overflow-wrap: anywhere;
+}
+
+.relationshipSelected button {
+display: inline-grid; flex: 0 0 auto; place-items: center; width: 32px; min-height: 32px; padding: 0;
+}
+
+.relationshipBrowse {
+font-weight: 700 !important;
+}
+
+.relationshipPicker {
+border: 1px solid var(--builder-border); border-radius: 6px; padding: 10px; background: var(--builder-panel-muted);
+}
+
+.relationshipSearch {
+display: flex; align-items: center; gap: 7px; padding: 0 8px;
+}
+
+.relationshipSearch:focus-within {
+outline: 2px solid var(--builder-accent); outline-offset: 1px;
+}
+
+.relationshipSearch > svg {
+flex: 0 0 auto; color: var(--builder-muted);
+}
+
+.relationshipSearch input {
+width: 100%; min-width: 0; min-height: 36px; border: 0 !important; outline: 0 !important; padding: 6px 0; background: transparent !important; color: var(--builder-text); font: inherit;
+}
+
+.relationshipResults {
+display: grid; gap: 5px; max-height: 280px; overflow: auto;
+}
+
+.relationshipResults > button {
+display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; overflow-wrap: anywhere;
+}
+
+.relationshipResults p, .relationshipHint {
+margin: 4px 0; color: var(--builder-muted); font-size: 12px; line-height: 1.45;
+}
+
+.wrapper .galleryBulkLibrary,
+.wrapper .galleryBulkRow,
+.wrapper .galleryBulkGrid > button,
+.lexicalBlockModal,
+.lexicalBlockModal .lexicalBlockArrayItem {
+border-color: var(--builder-border);
+  background: var(--builder-panel);
+  color: var(--builder-text);
+}
+
+.wrapper .galleryBulkRowHeader strong,
+.wrapper .galleryBulkCheckbox,
+.wrapper .galleryBulkControl,
+.lexicalBlockModal .lexicalBlockModalHeader strong,
+.lexicalBlockModal .lexicalBlockField > span,
+.lexicalBlockModal .lexicalBlockFieldset legend,
+.lexicalBlockModal .lexicalBlockFieldset summary,
+.lexicalBlockModal .lexicalBlockArrayHeader > span,
+.lexicalBlockModal .lexicalBlockCheckboxField span {
+color: var(--builder-text);
+}
+
+.wrapper .galleryBulkGrid small,
+.wrapper .galleryBulkLibraryFooter,
+.wrapper .galleryBulkEmpty,
+.wrapper .mediaLoading,
+.lexicalBlockModal .lexicalBlockModalHeader span {
+color: var(--builder-muted);
+}
+
+.wrapper .galleryBulkLibraryFooter button,
+.wrapper .galleryBulkRowHeader button,
+.wrapper .galleryBulkControl input,
+.wrapper .galleryBulkControl select,
+.wrapper .galleryBulkLibrary > input[type='search'],
+.lexicalBlockModal .lexicalBlockField input,
+.lexicalBlockModal .lexicalBlockField select,
+.lexicalBlockModal .lexicalBlockField textarea,
+.lexicalBlockModal .lexicalBlockModalHeader button,
+.lexicalBlockModal .lexicalBlockModalFooter button,
+.lexicalBlockModal .lexicalBlockArrayHeader button,
+.lexicalBlockModal .lexicalBlockArrayItem > button {
+border-color: var(--builder-border);
+  background: var(--builder-panel-muted);
+  color: var(--builder-text);
+}
+
+.lexicalBlockModal .lexicalBlockModalFooter button:last-child {
+border-color: var(--builder-accent);
+  background: var(--builder-accent-soft);
+  color: var(--builder-accent);
+}
+
+.jsonField {
+display: grid;
+  gap: 6px;
+}
+
+.jsonField textarea,
+.lexicalField textarea {
+min-height: 150px;
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.lexicalField {
+display: grid;
+  gap: 10px;
+}
+
+.lexicalField textarea {
+min-height: 190px;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.lexicalField details {
+border-top: 1px solid rgba(148, 163, 184, 0.35);
+  padding-top: 8px;
+}
+
+.lexicalField summary {
+cursor: pointer;
+  color: var(--theme-elevation-700);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.richTextToolbar {
+display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  border: 1px solid var(--builder-border, rgba(148, 163, 184, 0.5));
+  border-radius: 7px;
+  padding: 6px;
+  background: var(--builder-panel-muted, #f8fafc);
+  color: var(--builder-text, #111827);
+}
+
+.richTextToolbarCluster {
+display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  border-right: 1px solid var(--builder-border, rgba(148, 163, 184, 0.5));
+  padding-right: 6px;
+}
+
+.richTextToolbarCluster:last-child {
+border-right: 0;
+  padding-right: 0;
+}
+
+.richTextCanvasToolbar {
+position: fixed;
+  z-index: 2000;
+  top: 8px;
+  right: 8px;
+  left: 8px;
+  display: inline-flex;
+  box-sizing: border-box;
+  width: calc(100% - 16px);
+  max-width: calc(100% - 16px);
+  min-height: 48px;
+  align-items: flex-start;
+  gap: 8px;
+  overflow: visible;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  padding: 7px;
+  background-color: #fff !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.2);
+  color: #111827;
+  color-scheme: light;
+  pointer-events: auto;
+}
+
+.richTextCanvasToolbarLabel {
+flex: 0 0 auto;
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  border-right: 1px solid #e2e8f0;
+  padding: 0 10px 0 5px;
+  color: #334155;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.richTextCanvasToolbar .richTextToolbar {
+flex: 1 1 0;
+  min-width: 0;
+  max-height: none;
+  overflow: visible;
+  flex-wrap: wrap;
+  border: 0;
+  padding: 0;
+  background-color: #fff !important;
+}
+
+.richTextCanvasToolbar .richTextToolbarButton,
+.richTextCanvasToolbar .richTextToolbarSelect,
+.richTextCanvasToolbar .richTextToolbarInsertGroup,
+.richTextCanvasToolbar .richTextColorSwatches {
+color: #111827;
+  opacity: 1;
+}
+
+.richTextCanvasToolbar .richTextToolbarButton:hover,
+.richTextCanvasToolbar .richTextToolbarButton[data-active='true'] {
+border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.richTextToolbarButton {
+display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 0;
+  background: transparent;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.richTextToolbarButton:hover,
+.richTextToolbarButton[data-active='true'] {
+border-color: rgba(37, 99, 235, 0.35);
+  background: #fff;
+  color: #1d4ed8;
+}
+
+.richTextToolbarButton:disabled {
+cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.richTextToolbarButton svg,
+.richTextToolbarStyleSelect > svg,
+.richTextToolbarMenu summary svg {
+width: 16px;
+  height: 16px;
+  stroke-width: 2;
+}
+
+.richTextToolbarSelect {
+min-height: 30px;
+  border: 1px solid var(--builder-border, rgba(148, 163, 184, 0.6));
+  border-radius: 5px;
+  padding: 0 8px;
+  appearance: auto;
+  background-color: #fff !important;
+  color: var(--builder-text, #111827);
+  font: inherit;
+  font-size: 12px;
+}
+
+.richTextToolbarSelect option {
+background-color: #fff;
+  color: #111827;
+}
+
+.richTextToolbarStyleSelect {
+display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--builder-muted, #475569);
+}
+
+.richTextToolbarStyleSelect .richTextToolbarSelect {
+max-width: 122px;
+}
+
+.richTextToolbarInsertGroup {
+display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.richTextToolbarMenu {
+position: relative;
+}
+
+.richTextToolbarMenu summary {
+display: inline-flex;
+  width: 32px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--builder-text, #111827);
+  cursor: pointer;
+  list-style: none;
+}
+
+.richTextToolbarMenu summary::-webkit-details-marker {
+display: none;
+}
+
+.richTextToolbarMenu summary:hover,
+.richTextToolbarMenu[open] summary {
+border-color: color-mix(in srgb, var(--admin-color-accent, #2563eb) 35%, transparent);
+  background: color-mix(in srgb, var(--admin-color-accent, #2563eb) 10%, var(--builder-panel, #fff));
+  color: var(--admin-color-accent, #2563eb);
+}
+
+.richTextToolbarMenuPanel {
+position: absolute;
+  z-index: 2100;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 170px;
+  gap: 4px;
+  border: 1px solid var(--builder-border, #cbd5e1);
+  border-radius: 6px;
+  padding: 6px;
+  background-color: #fff !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+}
+
+.richTextToolbarMenuPanel .richTextToolbarButton {
+width: 100%;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.richTextToolbarMenuPanel .richTextToolbarInsertGroup .richTextToolbarSelect {
+width: 100%;
+}
+
+.richTextColorSwatches {
+display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.richTextColorMenuPanel {
+min-width: 0;
+}
+
+.richTextColorButton {
+display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  border-radius: 5px;
+  padding: 0;
+  background: #fff;
+  cursor: pointer;
+}
+
+.richTextColorButton:hover,
+.richTextColorButton[data-active='true'] {
+border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.richTextColorButton:disabled {
+cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.richTextColorSwatch {
+width: 18px;
+  height: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 999px;
+}
+
+.richTextEditor {
+position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.65);
+  border-radius: 7px;
+  background: #fff;
+}
+
+.lexicalField[data-surface='field'] .richTextEditor {
+border-color: var(--builder-border, rgba(148, 163, 184, 0.65));
+  background-color: #fff !important;
+}
+
+.lexicalField[data-surface='field'][data-toolbar-mode='none'] .richTextEditor {
+border-color: var(--builder-border, var(--theme-elevation-200));
+  background-color: #fff !important;
+}
+
+.lexicalField[data-surface='field'][data-toolbar-mode='none'] .richTextContentEditable {
+min-height: 64px;
+  max-height: 132px;
+  overflow: auto;
+  padding: 9px 10px;
+  color: var(--builder-text, var(--theme-text));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.lexicalField[data-surface='canvas'] {
+display: block;
+  gap: 0;
+}
+
+.lexicalField[data-surface='canvas'] .richTextEditor {
+overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.lexicalField[data-surface='canvas'] .richTextContentEditable {
+min-height: 86px;
+  max-height: none;
+  overflow: visible;
+  padding: 16px;
+  color: inherit;
+  cursor: text;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  text-transform: inherit;
+}
+
+.lexicalField[data-surface='canvas'] .richTextPlaceholder {
+top: 16px;
+  left: 16px;
+}
+
+.lexicalField[data-surface='canvas'][data-canvas-appearance='inline'] .richTextContentEditable {
+min-height: 1.25em;
+  padding: 0;
+}
+
+.lexicalField[data-surface='canvas'][data-canvas-appearance='inline'] .richTextPlaceholder {
+top: 0;
+  left: 0;
+}
+
+.lexicalField[data-surface='canvas'] .richTextHeading1,
+.lexicalField[data-surface='canvas'] .richTextHeading2,
+.lexicalField[data-surface='canvas'] .richTextHeading3,
+.lexicalField[data-surface='canvas'] .richTextHeading4,
+.lexicalField[data-surface='canvas'] .richTextHeading5,
+.lexicalField[data-surface='canvas'] .richTextHeading6,
+.lexicalField[data-surface='canvas'] .richTextQuote {
+color: inherit;
+  font-family: var(--tenant-heading-font, inherit);
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.lexicalField[data-surface='canvas'] .richTextHeading1 {
+font-size: clamp(2.5rem, 6vw, 4rem);
+}
+
+.lexicalField[data-surface='canvas'] .richTextHeading2 {
+font-size: clamp(2rem, 5vw, 3.25rem);
+}
+
+.lexicalField[data-surface='canvas'] .richTextHeading3 {
+font-size: clamp(1.5rem, 4vw, 2.5rem);
+}
+
+.lexicalField[data-surface='canvas'] .richTextHeading4 {
+font-size: clamp(1.25rem, 3vw, 2rem);
+}
+
+.richTextContentEditable {
+min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  padding: 14px;
+  color: var(--builder-text, #111827);
+  font-size: 14px;
+  line-height: 1.65;
+  outline: none;
+}
+
+.richTextPlaceholder {
+position: absolute;
+  top: 14px;
+  left: 14px;
+  color: #94a3b8;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.lexicalField[data-surface='field'] .richTextContentEditable [style*='color: #ffffff'],
+.lexicalField[data-surface='field'] .richTextContentEditable [style*='color:#ffffff'],
+.lexicalField[data-surface='field'] .richTextContentEditable [style*='color: rgb(255, 255, 255)'],
+.lexicalField[data-surface='field'] .richTextContentEditable [style*='color:white'],
+.lexicalField[data-surface='field'] .richTextContentEditable [style*='color: white'] {
+border-radius: 3px;
+  padding: 0 0.18em;
+  background: #111827;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+@media (max-width: 637px) {
+.richTextCanvasToolbar {
+top: 6px;
+    right: 6px;
+    left: 6px;
+}
+}
+
+.richTextParagraph {
+margin: 0 0 0.85rem;
+}
+
+.richTextHeading1,
+.richTextHeading2,
+.richTextHeading3,
+.richTextHeading4 {
+margin: 0 0 0.75rem;
+  color: #111827;
+  font-weight: 800;
+  line-height: 1.18;
+}
+
+.richTextHeading1 {
+font-size: 1.875rem;
+}
+
+.richTextHeading2 {
+font-size: 1.5rem;
+}
+
+.richTextHeading3 {
+font-size: 1.25rem;
+}
+
+.richTextHeading4 {
+font-size: 1.125rem;
+}
+
+.richTextHeading5,
+.richTextHeading6 {
+margin: 0 0 0.75rem;
+  color: #111827;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.richTextHeading5 {
+font-size: 1rem;
+}
+
+.richTextHeading6 {
+font-size: 0.875rem;
+  text-transform: uppercase;
+}
+
+.richTextQuote {
+margin: 0 0 1rem;
+  border-left: 3px solid rgba(37, 99, 235, 0.5);
+  padding-left: 0.85rem;
+  color: #475569;
+}
+
+.richTextUnorderedList,
+.richTextOrderedList {
+margin: 0 0 1rem;
+  padding-left: 1.35rem;
+}
+
+.richTextListItem {
+margin: 0.25rem 0;
+}
+
+.richTextLink {
+color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.richTextBold {
+font-weight: 700;
+}
+
+.richTextItalic {
+font-style: italic;
+}
+
+.richTextStrikethrough {
+text-decoration: line-through;
+}
+
+.richTextUnderline {
+text-decoration: underline;
+}
+
+.richTextCode {
+border-radius: 4px;
+  padding: 0.08rem 0.28rem;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+.richTextHr {
+margin: 1rem 0;
+  border: 0;
+  border-top: 1px solid rgba(148, 163, 184, 0.7);
+}
+
+.lexicalBlockChip,
+.lexicalInlineBlockChip {
+max-width: 100%;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 6px;
+  background: rgba(239, 246, 255, 0.95);
+  color: #1e3a8a;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.lexicalBlockChip {
+display: flex;
+  width: 100%;
+  margin: 0.75rem 0;
+  padding: 12px;
+  text-align: left;
+}
+
+.lexicalInlineBlockChip {
+display: inline-flex;
+  margin-inline: 0.2rem;
+  padding: 2px 6px;
+  vertical-align: middle;
+}
+
+.lexicalBlockModalBackdrop {
+position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.lexicalBlockModal {
+display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--builder-panel);
+  color: var(--builder-text);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.35);
+}
+
+.lexicalBlockModalHeader,
+.lexicalBlockModalFooter {
+display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 14px 16px;
+}
+
+.lexicalBlockModalFooter {
+border-top: 1px solid rgba(148, 163, 184, 0.35);
+  border-bottom: 0;
+}
+
+.lexicalBlockModalHeader strong {
+display: block;
+  color: #111827;
+  font-size: 15px;
+}
+
+.lexicalBlockModalHeader span {
+display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.lexicalBlockModalHeader button,
+.lexicalBlockModalFooter button,
+.lexicalBlockArrayHeader button,
+.lexicalBlockArrayItem > button {
+min-height: 32px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lexicalBlockModalFooter button:last-child {
+background: #111827;
+  color: #fff;
+}
+
+.lexicalBlockModalBody {
+display: grid;
+  gap: 12px;
+  overflow: auto;
+  padding: 16px;
+}
+
+.lexicalBlockField,
+.lexicalBlockFieldset,
+.lexicalBlockArrayField {
+display: grid;
+  gap: 6px;
+}
+
+.lexicalBlockField > span,
+.lexicalBlockFieldset legend,
+.lexicalBlockFieldset summary,
+.lexicalBlockArrayHeader > span,
+.lexicalBlockCheckboxField span {
+color: #334155;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.lexicalBlockField input,
+.lexicalBlockField select,
+.lexicalBlockField textarea {
+min-height: 36px;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.65);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #111827;
+  font: inherit;
+  font-size: 13px;
+}
+
+.lexicalBlockField textarea {
+min-height: 110px;
+  resize: vertical;
+}
+
+.lexicalBlockCheckboxField {
+display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lexicalBlockFieldset,
+.lexicalBlockArrayField,
+.lexicalBlockArrayItem {
+border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 7px;
+  padding: 10px;
+}
+
+.lexicalBlockFieldGrid {
+display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.lexicalBlockArrayHeader {
+display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lexicalBlockArrayItem {
+display: grid;
+  gap: 10px;
+  background: #f8fafc;
+}
+
+.fieldError {
+color: #b91c1c;
+  font-size: 12px;
+}
+
+.mediaField {
+display: grid;
+  gap: 12px;
+}
+
+.mediaField input[type='search'] {
+min-height: 38px;
+  width: 100%;
+  border: 1px solid rgba(148, 163, 184, 0.7);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.mediaFieldCurrent {
+display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.mediaFieldCurrent .mediaThumb {
+width: 72px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #e5e7eb;
+}
+
+.mediaThumb {
+position: relative;
+}
+
+.mediaThumb img {
+object-fit: cover;
+}
+
+.mediaFieldCurrent strong {
+display: block;
+  overflow: hidden;
+  color: #111827;
+  font-size: 13px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mediaFieldCurrent button {
+margin-top: 6px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #1d4ed8;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.mediaFieldActions {
+display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.mediaToggleButton,
+.mediaUploadButton {
+min-height: 34px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mediaUploadButton {
+display: inline-flex;
+  align-items: center;
+}
+
+.mediaUploadButton input {
+position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.mediaToggleButton:hover,
+.mediaUploadButton:hover {
+border-color: rgba(37, 99, 235, 0.45);
+  color: #1d4ed8;
+}
+
+.mediaToggleButton:disabled,
+.mediaUploadButton:has(input:disabled) {
+cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.mediaGrid {
+display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+  max-height: 390px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.mediaGrid[data-loading='true'] {
+opacity: 0.65;
+}
+
+.mediaGridItem {
+display: grid;
+  gap: 6px;
+  border: 2px solid transparent;
+  border-radius: 7px;
+  padding: 6px;
+  background: #f8fafc;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.mediaGridItem:hover,
+.mediaGridItem[data-selected='true'] {
+border-color: var(--tenant-accent, #2563eb);
+  background: #fff;
+}
+
+.mediaGridItem .mediaThumb,
+.mediaGridItem > span:first-child {
+display: flex;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e5e7eb;
+  color: #64748b;
+  object-fit: cover;
+  font-size: 11px;
+}
+
+.mediaGridItem > span:last-child {
+overflow: hidden;
+  min-width: 0;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mediaField[data-display='gallery'] .mediaGrid {
+grid-template-columns: 1fr;
+  gap: 12px;
+  max-height: none;
+  overflow: visible;
+}
+
+.mediaField[data-display='gallery'] .mediaGridItem {
+display: grid;
+  min-height: 0;
+  align-items: stretch;
+  gap: 0;
+  justify-content: stretch;
+  padding: 4px;
+}
+
+.mediaField[data-display='gallery'] .mediaGridItem .mediaThumb,
+.mediaField[data-display='gallery'] .mediaGridItem > span:first-child {
+min-height: 150px;
+  aspect-ratio: 16 / 10;
+}
+
+.mediaField[data-display='gallery'] .mediaGridItem > span:last-child {
+position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.mediaLoading {
+color: #64748b;
+  font-size: 12px;
+}
+
+:global(.payload-theme-dark) .wrapper,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .wrapper,
+:global(.payload-theme-dark) .lexicalBlockModal,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .lexicalBlockModal,
+:global(.payload-theme-dark) .richTextCanvasToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar {
+--builder-accent: #60a5fa;
+  --builder-accent-soft: #172554;
+  --builder-border: #344156;
+  --builder-canvas: #0b1220;
+  --builder-muted: #a9b4c5;
+  --builder-panel: #111827;
+  --builder-panel-muted: #0b1322;
+  --builder-text: #f3f6fb;
+  --builder-warning: #f59e0b;
+  --puck-color-white: #111827;
+  --puck-color-black: #f8fafc;
+  --puck-color-grey-01: #f8fafc;
+  --puck-color-grey-02: #e2e8f0;
+  --puck-color-grey-03: #cbd5e1;
+  --puck-color-grey-04: #b7c4d6;
+  --puck-color-grey-05: #a0adc0;
+  --puck-color-grey-06: #94a3b8;
+  --puck-color-grey-07: #64748b;
+  --puck-color-grey-08: #475569;
+  --puck-color-grey-09: #334155;
+  --puck-color-grey-10: #1e293b;
+  --puck-color-grey-11: #0f172a;
+  --puck-color-grey-12: #020617;
+  --puck-color-azure-04: #60a5fa;
+  --puck-color-azure-05: #60a5fa;
+  --puck-color-azure-10: rgba(96, 165, 250, 0.18);
+  --puck-color-azure-11: rgba(96, 165, 250, 0.14);
+  --puck-color-azure-12: #0f172a;
+  color-scheme: dark;
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar {
+border-color: var(--builder-border);
+  background: var(--builder-panel);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+  color: var(--builder-text);
+  color-scheme: dark;
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbarLabel,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbarLabel {
+border-color: var(--builder-border);
+  color: var(--builder-text);
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbar {
+background: var(--builder-panel);
+  color: var(--builder-text);
+  scrollbar-color: var(--builder-muted) var(--builder-panel-muted);
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarButton,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarSelect,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarSelect {
+color: var(--builder-text);
+}
+
+:global(.payload-theme-dark) .innerItemOverlay button,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .innerItemOverlay button,
+:global(.payload-theme-dark) .richTextCanvasOverlayHeader button,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasOverlayHeader button,
+:global(.payload-theme-dark) .colorSwatchButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .colorSwatchButton,
+:global(.payload-theme-dark) .styleOverridesHeader button,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverridesHeader button,
+:global(.payload-theme-dark) .styleOverrideRowHeader button,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideRowHeader button,
+:global(.payload-theme-dark) .styleOverrideRowHeader select,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideRowHeader select,
+:global(.payload-theme-dark) .styleOverrideControl input,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideControl input,
+:global(.payload-theme-dark) .styleOverrideControl select,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideControl select,
+:global(.payload-theme-dark) .richTextToolbarSelect,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbarSelect,
+:global(.payload-theme-dark) .mediaToggleButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .mediaToggleButton,
+:global(.payload-theme-dark) .mediaUploadButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .mediaUploadButton {
+border-color: rgba(148, 163, 184, 0.45);
+  background: var(--theme-elevation-100);
+  color: var(--theme-text);
+}
+
+:global(.payload-theme-dark) .richSwitchField,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richSwitchField,
+:global(.payload-theme-dark) .lexicalField[data-surface='field'] .richTextEditor,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .lexicalField[data-surface='field'] .richTextEditor,
+:global(.payload-theme-dark) .richTextToolbarMenuPanel,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbarMenuPanel {
+border-color: var(--builder-border);
+  background: var(--builder-panel);
+  color: var(--builder-text);
+}
+
+:global(.payload-theme-dark) .richSwitchInput,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richSwitchInput,
+:global(.payload-theme-dark) .richSwitchTextarea,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richSwitchTextarea,
+:global(.payload-theme-dark) .richTextToolbarSelect,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbarSelect,
+:global(.payload-theme-dark) .richTextColorButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextColorButton {
+border-color: var(--builder-border);
+  background: var(--builder-panel-muted);
+  color: var(--builder-text);
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbar,
+:global(.payload-theme-dark) .lexicalField[data-surface='field'] .richTextEditor,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .lexicalField[data-surface='field'] .richTextEditor {
+background-color: #111827 !important;
+}
+
+:global(.payload-theme-dark) .richTextToolbarSelect,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbarSelect,
+:global(.payload-theme-dark) .richTextToolbarMenuPanel,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbarMenuPanel {
+background-color: #0b1322 !important;
+}
+
+:global(.payload-theme-dark) .richTextToolbarSelect option,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbarSelect option {
+background-color: #0b1322;
+  color: #f8fafc;
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar,
+:global(.payload-theme-dark) .richTextCanvasToolbarLabel,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbarLabel,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarButton,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarSelect,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarSelect,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarMenu summary,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarMenu summary,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextColorSwatches,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextColorSwatches {
+color: #f8fafc !important;
+}
+
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarButton:hover,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarButton:hover,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarButton[data-active='true'],
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarButton[data-active='true'],
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarMenu summary:hover,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarMenu summary:hover,
+:global(.payload-theme-dark) .richTextCanvasToolbar .richTextToolbarMenu[open] summary,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasToolbar .richTextToolbarMenu[open] summary {
+color: #bfdbfe !important;
+}
+
+:global(.payload-theme-dark) .styleOverrideRow,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideRow,
+:global(.payload-theme-dark) .colorSwatchField summary,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .colorSwatchField summary,
+:global(.payload-theme-dark) .colorSwatchMenu,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .colorSwatchMenu,
+:global(.payload-theme-dark) .colorSwatchButton,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .colorSwatchButton,
+:global(.payload-theme-dark) .richTextToolbar,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextToolbar,
+:global(.payload-theme-dark) .lexicalBlockArrayItem,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .lexicalBlockArrayItem,
+:global(.payload-theme-dark) .mediaGridItem,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .mediaGridItem,
+:global(.payload-theme-dark) .mediaFieldCurrent,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .mediaFieldCurrent {
+background: var(--theme-elevation-50);
+  color: var(--theme-text);
+}
+
+:global(.payload-theme-dark) .styleOverridesHeader strong,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverridesHeader strong,
+:global(.payload-theme-dark) .styleOverrideRowHeader select,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideRowHeader select,
+:global(.payload-theme-dark) .styleOverrideControl > span,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .styleOverrideControl > span,
+:global(.payload-theme-dark) .richTextCanvasOverlayHeader span,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .richTextCanvasOverlayHeader span,
+:global(.payload-theme-dark) .mediaFieldCurrent strong,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .mediaFieldCurrent strong,
+:global(.payload-theme-dark) .mediaGridItem > span:last-child,
+:global(:is([data-theme='dark'], [data-puck-editor-theme='dark'])) .mediaGridItem > span:last-child {
+color: var(--theme-text);
+}
+
+:global([data-unsteady-theme]) :is(.richTextCanvasToolbar, .lexicalBlockModal) {
+--builder-accent: var(--unsteady-accent);
+  --builder-accent-soft: var(--ue-tint);
+  --builder-border: var(--unsteady-border);
+  --builder-muted: var(--unsteady-muted);
+  --builder-panel: var(--unsteady-panel);
+  --builder-panel-muted: var(--unsteady-soft);
+  --builder-text: var(--unsteady-text);
+  color-scheme: var(--unsteady-color-scheme);
+}
+
+:global([data-unsteady-theme]) .richTextCanvasToolbar,
+:global([data-unsteady-theme]) .richTextCanvasToolbar .richTextToolbar,
+:global([data-unsteady-theme]) .lexicalField[data-surface='field'] .richTextEditor,
+:global([data-unsteady-theme]) .richTextToolbarSelect,
+:global([data-unsteady-theme]) .richTextToolbarMenuPanel {
+background-color: var(--builder-panel) !important;
+  border-color: var(--builder-border);
+  color: var(--builder-text);
+}
+
+:global([data-unsteady-theme]) .richTextToolbar {
+background: var(--builder-panel-muted);
+  border-color: var(--builder-border);
+  color: var(--builder-text);
+}
+
+:global([data-unsteady-theme][data-theme]) .richTextToolbarButton,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarSelect,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarStyleSelect,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarInsertGroup,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarSelectLabel,
+:global([data-unsteady-theme][data-theme]) .richTextColorSwatches,
+:global([data-unsteady-theme][data-theme]) .richTextCanvasToolbarLabel,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarMenu summary {
+color: var(--builder-text) !important;
+}
+
+:global([data-unsteady-theme][data-theme]) .richTextToolbarButton:hover,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarButton[data-active='true'],
+:global([data-unsteady-theme][data-theme]) .richTextToolbarMenu summary:hover,
+:global([data-unsteady-theme][data-theme]) .richTextToolbarMenu[open] summary {
+border-color: var(--builder-accent);
+  background: var(--builder-accent-soft);
+  color: var(--builder-accent) !important;
+}
+
+:global([data-unsteady-theme]) .richTextToolbarSelect option,
+:global([data-unsteady-theme]) .richTextColorButton {
+background: var(--builder-panel);
+  color: var(--builder-text);
+  border-color: var(--builder-border);
+}
+
+:global([data-unsteady-theme]) .lexicalField[data-surface='field'] .richTextContentEditable {
+color: var(--builder-text);
+}
+
+:global([data-unsteady-theme]) .lexicalField[data-surface='field'] .richTextPlaceholder {
+color: var(--builder-muted);
+}

@@ -47,6 +47,7 @@ export type PuckFieldSchema = {
   label?: string | null
   type: string
   required?: boolean
+  hasMany?: boolean
   defaultValue?: unknown
   relationTo?: string | string[]
   mimeTypes?: string[]

@@ -106,6 +106,7 @@ function normalizeField(field: Field): PuckFieldSchema | null {
   }
 
   if ('required' in field) normalized.required = Boolean(field.required)
+  if ('hasMany' in field) normalized.hasMany = Boolean(field.hasMany)
   if (typeof defaultValue !== 'undefined') normalized.defaultValue = defaultValue
   if ('minRows' in field && typeof field.minRows === 'number') normalized.minRows = field.minRows
   if ('maxRows' in field && typeof field.maxRows === 'number') normalized.maxRows = field.maxRows
