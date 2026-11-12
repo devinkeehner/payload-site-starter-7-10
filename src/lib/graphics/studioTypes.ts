@@ -14,6 +14,7 @@ export type GraphicLayerBase = {
 }
 
 export type GraphicTextLayer = GraphicLayerBase & {
+  binding?: 'post-title' | 'primary-rep-name' | 'secondary-rep-name'
   color: string
   fontFamily: string
   fontSize: number
@@ -24,6 +25,7 @@ export type GraphicTextLayer = GraphicLayerBase & {
 }
 
 export type GraphicImageLayer = GraphicLayerBase & {
+  binding?: 'primary-headshot' | 'secondary-headshot'
   alt: string
   imagePositionX?: number
   imagePositionY?: number

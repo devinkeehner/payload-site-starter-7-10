@@ -320,7 +320,7 @@ export interface Tenant {
   createdAt: string;
 }
 /**
- * Legacy graphic templates retained for existing Post graphics.
+ * Reusable Post graphic templates. Create new templates with Save as template in the Design Studio.
  *
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "graphic-templates".
@@ -330,6 +330,18 @@ export interface GraphicTemplate {
   title: string;
   sourceCollection: 'posts' | 'pages';
   backgroundImage?: (string | null) | Media;
+  /**
+   * Saved visually from the Design Studio. Text and image bindings personalize each new Post graphic.
+   */
+  studioScene?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   scene:
     | {
         [k: string]: unknown;
@@ -5257,6 +5269,7 @@ export interface GraphicTemplatesSelect<T extends boolean = true> {
   title?: T;
   sourceCollection?: T;
   backgroundImage?: T;
+  studioScene?: T;
   scene?: T;
   notes?: T;
   updatedAt?: T;

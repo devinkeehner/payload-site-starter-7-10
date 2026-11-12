@@ -1,3 +1,4 @@
+import { POST_GRAPHIC_TEMPLATE_FILTER } from '@/lib/graphics/templates'
 import type { CollectionConfig } from 'payload'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { rebuildSitemapsAfterTenantChange, rebuildSitemapsAfterTenantDelete } from '@/lib/hooks/rebuildSitemaps'
@@ -34,6 +35,7 @@ export const Tenants: CollectionConfig = {
       label: 'Default Post Graphic Template',
       type: 'relationship',
       relationTo: 'graphic-templates',
+      filterOptions: POST_GRAPHIC_TEMPLATE_FILTER,
       required: false,
       admin: {
         hidden: true,

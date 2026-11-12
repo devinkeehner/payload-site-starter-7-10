@@ -1,3 +1,4 @@
+import { POST_GRAPHIC_TEMPLATE_FILTER } from '@/lib/graphics/templates'
 import { tinyURLAliasField } from '@/lib/tinyurl/fields'
 import { contentLinkEndpoint, syncPublishedContent, protectLinkedContentDelete, captureContentOperation, protectLinkedContent } from '@/lib/tinyurl/service'
 import type { CheckboxFieldValidation, CollectionConfig, PayloadHandler, PayloadRequest } from 'payload'
@@ -1156,6 +1157,7 @@ export const Posts: CollectionConfig<'posts'> = {
               label: 'Graphic Template Link',
               type: 'relationship',
               relationTo: 'graphic-templates',
+      filterOptions: POST_GRAPHIC_TEMPLATE_FILTER,
               required: false,
               admin: {
                 hidden: true,

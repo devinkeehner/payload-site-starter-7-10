@@ -1,5 +1,4 @@
-import type { PayloadRequest } from 'payload'
-import { getPayload } from 'payload'
+import { createPayloadRequest } from 'payload'
 import configPromise from '@payload-config'
 import type { Media } from '@/payload-types'
 
@@ -8,28 +7,22 @@ export const runtime = 'nodejs'
 const getObject = (value: unknown): Record<string, unknown> | null =>
   typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : null
 
-export async function POST(req: Request): Promise<Response> {
-  const payload = await getPayload({ config: configPromise })
-
-  // Authenticate user (admin UI will include cookies/headers)
-  let user: unknown
-  try {
-    user = await payload.auth({ req: req as unknown as PayloadRequest, headers: req.headers })
-  } catch (err) {
-    payload.logger.error({ err }, 'Auth error while uploading admin media')
-    return new Response('Unauthorized', { status: 401 })
-  }
-  if (!user) return new Response('Unauthorized', { status: 401 })
+export async function POST(request: Request): Promise<Response> {
+  const req = await createPayloadRequest({ config: configPromise, request, canSetHeaders: false })
+  const payload = req.payload
+  if (!req.user)
+    return Response.json({ message: 'Sign in before uploading media.' }, { status: 401 })
 
   let form: FormData
   try {
-    form = await req.formData()
+    form = await request.formData()
   } catch {
-    return new Response('Invalid form data', { status: 400 })
+    return Response.json({ message: 'Invalid form data' }, { status: 400 })
   }
 
-  const file = form.get('file') as File | null
-  if (!file) return new Response('Missing file', { status: 400 })
+  const file = form.get('file')
+  if (!(file instanceof File) || !file.size)
+    return Response.json({ message: 'Choose a nonempty file.' }, { status: 400 })
 
   const rawAlt = (form.get('alt') as string) || ''
   const rawData = (form.get('data') as string) || ''
@@ -49,13 +42,17 @@ export async function POST(req: Request): Promise<Response> {
   // caption can be stringified JSON or pre-built Lexical JSON
   let caption: unknown = data.caption
   if (typeof caption === 'string') {
-    try { caption = JSON.parse(caption) } catch { /* keep as string */ }
+    try {
+      caption = JSON.parse(caption)
+    } catch {
+      /* keep as string */
+    }
   }
 
   // tenant can come from data or header
   let tenant = (data?.tenant as string) || ''
   if (!tenant) {
-    const headerTenant = req.headers.get('x-payload-tenant')
+    const headerTenant = request.headers.get('x-payload-tenant')
     if (headerTenant) tenant = headerTenant
   }
 
@@ -93,19 +90,25 @@ export async function POST(req: Request): Promise<Response> {
         // Others accept `mimetype` (lowercase); harmless to include both
         mimetype: file.type || 'image/png',
       },
-      req: req as unknown as PayloadRequest,
+      overrideAccess: false,
+      req,
     })
-    
+
     return new Response(JSON.stringify(created), {
       status: 201,
       headers: { 'content-type': 'application/json' },
     })
   } catch (err: unknown) {
-    payload.logger.error({ err, meta: { originalName, type: file.type, size } }, 'Error creating uploaded admin media')
+    payload.logger.error(
+      { err, meta: { originalName, type: file.type, size } },
+      'Error creating uploaded admin media',
+    )
     const errRecord = getObject(err)
     const message = typeof errRecord?.message === 'string' ? errRecord.message : 'Upload failed'
-    const stack = typeof errRecord?.stack === 'string' ? errRecord.stack : undefined
-    const detail = { message, stack, file: { originalName, type: file.type, size } }
-    return new Response(JSON.stringify(detail), { status: 400, headers: { 'content-type': 'application/json' } })
+    const detail = { message }
+    return new Response(JSON.stringify(detail), {
+      status: 400,
+      headers: { 'content-type': 'application/json' },
+    })
   }
 }

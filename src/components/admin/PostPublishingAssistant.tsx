@@ -1,5 +1,7 @@
 'use client'
 
+import { RETIRED_TOWN_TEMPLATE_ID } from '@/lib/graphics/templates'
+
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Button, useDocumentInfo, useField, useForm, useFormFields } from '@payloadcms/ui'
 
@@ -178,6 +180,7 @@ export const PostPublishingAssistant: React.FC = () => {
           pagination: 'false',
           sort: 'title',
           'where[sourceCollection][equals]': 'posts',
+          'where[id][not_equals]': RETIRED_TOWN_TEMPLATE_ID,
         })
         const response = await fetch(`/api/graphic-templates?${query.toString()}`, {
           credentials: 'include',

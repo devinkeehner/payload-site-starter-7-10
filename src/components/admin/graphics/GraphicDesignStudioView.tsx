@@ -1,6 +1,6 @@
 import type { DocumentViewServerProps } from 'payload'
 
-import { canUseBuilders } from '@/lib/access/isSuperUser'
+import { canUseBuilders, isSuperUser } from '@/lib/access/isSuperUser'
 import { createDefaultGraphicScene, type GraphicScene } from '@/lib/graphics/studioTypes'
 
 import { GraphicDesignStudioClient } from './GraphicDesignStudioClient'
@@ -33,6 +33,7 @@ export default function GraphicDesignStudioView(props: DocumentViewServerProps) 
   return (
     <div data-hro-fullscreen-builder="graphic-design" style={{ display: 'contents' }}>
       <GraphicDesignStudioClient
+        canManageTemplates={isSuperUser(props.user)}
         designId={id == null ? null : String(id)}
         initialScene={doc.studioScene || createDefaultGraphicScene()}
         sourcePostId={getRelationId(doc.sourcePost)}

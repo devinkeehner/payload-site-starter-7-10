@@ -14,7 +14,7 @@ export const GraphicTemplates: CollectionConfig = {
     group: 'Content',
     useAsTitle: 'title',
     defaultColumns: ['title', 'updatedAt'],
-    description: 'Legacy graphic templates retained for existing Post graphics.',
+    description: 'Reusable Post graphic templates. Create new templates with Save as template in the Design Studio.',
     hidden: true,
   },
   access: {
@@ -45,6 +45,12 @@ export const GraphicTemplates: CollectionConfig = {
       type: 'upload',
       relationTo: 'media',
       required: false,
+    },
+    {
+      name: 'studioScene',
+      label: 'Reusable Design Studio Scene',
+      type: 'json',
+      admin: { description: 'Saved visually from the Design Studio. Text and image bindings personalize each new Post graphic.', readOnly: true },
     },
     {
       name: 'scene',

@@ -5,9 +5,11 @@ import Link from 'next/link'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
-  convertLegacyTemplateToStudioScene,
   type LegacyTemplateMedia,
 } from '@/lib/graphics/legacyTemplateToStudioScene'
+
+import { instantiateGraphicTemplate, RETIRED_TOWN_TEMPLATE_ID, type StudioTemplate } from '@/lib/graphics/templates'
+import type { GraphicScene } from '@/lib/graphics/studioTypes'
 
 import './graphic-design-gallery-list-view.scss'
 
@@ -27,6 +29,8 @@ type TenantResponse = {
 }
 
 type TemplateResponse = {
+  studioScene?: unknown
+  title?: string
   backgroundImage?: LegacyTemplateMedia | RelationValue
   id?: number | string
   scene?: unknown
@@ -106,8 +110,9 @@ async function readJson<T>(response: Response, fallbackMessage: string): Promise
   return result
 }
 
-function openStudio(designId: string) {
-  window.location.replace(`/admin/collections/graphic-designs/${encodeURIComponent(designId)}`)
+function openStudio(designId: string, postId?: string | null) {
+  const query = postId ? `?${new URLSearchParams({ fromPost: postId })}` : ''
+  window.location.replace(`/admin/collections/graphic-designs/${encodeURIComponent(designId)}${query}`)
 }
 
 export function PostGraphicEditorLauncher() {
@@ -130,7 +135,7 @@ export function PostGraphicEditorLauncher() {
     }
 
     if (requestedDesignId) {
-      openStudio(requestedDesignId)
+      openStudio(requestedDesignId, postId)
       return
     }
 
@@ -147,7 +152,7 @@ export function PostGraphicEditorLauncher() {
 
       const savedDesignId = getRelationId(post.graphicDesign)
       if (savedDesignId) {
-        openStudio(savedDesignId)
+        openStudio(savedDesignId, postId)
         return
       }
 
@@ -186,11 +191,12 @@ export function PostGraphicEditorLauncher() {
       }
 
       const postTemplateId = getRelationId(post.graphicTemplate)
-      const templateId =
-        requestedTemplateId || postTemplateId || getRelationId(tenant?.defaultGraphicTemplate)
+      const candidateTemplateId = requestedTemplateId || postTemplateId || getRelationId(tenant?.defaultGraphicTemplate)
+      // Retired relationships can still exist on old Posts; use the preserved generic layout.
+      const templateId = candidateTemplateId === RETIRED_TOWN_TEMPLATE_ID ? '69dcd4d076b7d80a6bbc04c0' : candidateTemplateId
 
       let template: TemplateResponse | null = null
-      let studioScene: ReturnType<typeof convertLegacyTemplateToStudioScene> | null = null
+      let studioScene: GraphicScene | null = null
 
       if (templateId) {
         const templateResponse = await fetch(
@@ -210,13 +216,11 @@ export function PostGraphicEditorLauncher() {
           }),
         )
 
-        studioScene = convertLegacyTemplateToStudioScene({
-          backgroundImage: getMedia(template.backgroundImage),
+        studioScene = instantiateGraphicTemplate({ ...template, id: templateId, backgroundImage: getMedia(template.backgroundImage) } as StudioTemplate, {
           headlineText: title,
           mediaById: Object.fromEntries(mediaEntries),
           primaryHeadshot: getMedia(standardMedia?.mobileHeadshot),
           primaryRepName: repInfo?.name || tenant?.name,
-          scene: template.scene,
         })
       }
 
@@ -254,7 +258,7 @@ export function PostGraphicEditorLauncher() {
       })
       if (!postUpdateResponse.ok) throw new Error('The graphic was created, but it could not be linked to the Post')
 
-      openStudio(String(designId))
+      openStudio(String(designId), postId)
     } catch (launchError) {
       started.current = false
       setError(launchError instanceof Error ? launchError.message : 'Unable to open the Post graphic editor')

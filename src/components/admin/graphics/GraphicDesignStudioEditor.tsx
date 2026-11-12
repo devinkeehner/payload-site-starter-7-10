@@ -26,6 +26,9 @@ import {
   Lock,
   Minus,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LayoutTemplate,
   Redo2,
   RotateCw,
   Save,
@@ -64,12 +67,21 @@ import {
 } from '@/lib/graphics/studioTypes'
 import { graphicSceneToPuckData } from '@/lib/puck/graphicAdapter'
 
+import { graphicSceneSchema } from '@/lib/graphics/studioSchema'
+import {
+  instantiateGraphicTemplate,
+  RETIRED_TOWN_TEMPLATE_ID,
+  type StudioTemplate,
+} from '@/lib/graphics/templates'
+import { fetchGraphic, readGraphicResponse } from '@/lib/graphics/studioRequests'
+import { useGraphicAgentTools } from './useGraphicAgentTools'
+
 import styles from './graphic-design-studio.module.css'
 
 type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error'
 type ResizeHandle = 'e' | 'n' | 'ne' | 'nw' | 's' | 'se' | 'sw' | 'w'
 type PointerMode = 'drag' | 'image-pan' | 'resize' | 'rotate' | 'line-start' | 'line-end'
-type ToolPanel = 'colors' | 'elements' | 'images' | 'layers' | 'properties' | 'text'
+type ToolPanel = 'templates' | 'colors' | 'elements' | 'images' | 'layers' | 'properties' | 'text'
 type PointerSession = {
   hasMoved: boolean
   layer: GraphicLayer
@@ -106,7 +118,16 @@ const RICH_BLOCK_OPTIONS = [
   { label: 'Heading 4', value: 'h4' },
 ] as const
 type RichBlockFormat = (typeof RICH_BLOCK_OPTIONS)[number]['value']
-const GENERAL_COLORS = ['#ffffff', '#111827', '#2563eb', '#dc2626', '#f59e0b', '#16a34a', '#7c3aed', '#ec4899']
+const GENERAL_COLORS = [
+  '#ffffff',
+  '#111827',
+  '#2563eb',
+  '#dc2626',
+  '#f59e0b',
+  '#16a34a',
+  '#7c3aed',
+  '#ec4899',
+]
 const RESIZE_HANDLES: ResizeHandle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 
 function clamp(value: number, minimum: number, maximum: number) {
@@ -118,20 +139,23 @@ function getLayerLabel(layer: GraphicLayer) {
 }
 
 function getExportFilename(title: string, extension: 'pdf' | 'png' | 'svg') {
-  const safeTitle = (title || 'graphic').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').trim() || 'graphic'
+  const safeTitle =
+    (title || 'graphic').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '-').trim() || 'graphic'
   return `${safeTitle}.${extension}`
 }
 
 function getRichBlockFormat(range: Range, editable: HTMLDivElement): RichBlockFormat {
-  const startElement = range.startContainer instanceof Element
-    ? range.startContainer
-    : range.startContainer.parentElement
+  const startElement =
+    range.startContainer instanceof Element
+      ? range.startContainer
+      : range.startContainer.parentElement
   const block = startElement?.closest('p,h1,h2,h3,h4')
   if (!block || !editable.contains(block)) return 'p'
   const tagName = block.tagName.toLowerCase()
-  return RICH_BLOCK_OPTIONS.some((option) => option.value === tagName) ? tagName as RichBlockFormat : 'p'
+  return RICH_BLOCK_OPTIONS.some((option) => option.value === tagName)
+    ? (tagName as RichBlockFormat)
+    : 'p'
 }
-
 
 function snapLineDelta(width: number, height: number) {
   const length = Math.hypot(width, height)
@@ -159,27 +183,49 @@ function getLineFrame(layer: GraphicShapeLayer) {
 }
 
 export function GraphicDesignStudioEditor({
+  canManageTemplates = false,
   designId,
   initialScene,
   sourcePostId,
+  returnToPostId,
   tenantId,
   tenantColors,
   title,
 }: {
+  canManageTemplates?: boolean
   designId: string | null
   initialScene: GraphicScene
   sourcePostId?: string | null
+  returnToPostId?: string | null
   tenantId?: string | null
   tenantColors: { accent: string; background: string; primary: string }
   title: string
 }) {
   const [scene, setScene] = useState<GraphicScene>(initialScene)
   const [designTitle, setDesignTitle] = useState(title)
-  const [selectedId, setSelectedId] = useState<string | null>(initialScene.layers[0]?.id || null)
+  const [selectedId, setSelectedIdState] = useState<string | null>(
+    initialScene.layers[0]?.id || null,
+  )
+  const selectedIdRef = useRef(selectedId)
+  const setSelectedId = useCallback((id: string | null) => {
+    selectedIdRef.current = id
+    setSelectedIdState(id)
+  }, [])
   const [editingTextId, setEditingTextId] = useState<string | null>(null)
   const [croppingImageId, setCroppingImageId] = useState<string | null>(null)
   const [activeBlockFormat, setActiveBlockFormat] = useState<RichBlockFormat>('p')
   const [activePanel, setActivePanel] = useState<ToolPanel>('elements')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [templates, setTemplates] = useState<StudioTemplate[]>([])
+  const [templateName, setTemplateName] = useState('')
+  const [templateStatus, setTemplateStatus] = useState<string | null>(null)
+  const [templatesLoading, setTemplatesLoading] = useState(false)
+  const templateRequestRef = useRef<AbortController | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const exportLock = useRef(false)
+  const revisionRef = useRef(0)
+  const historyRef = useRef<GraphicScene[]>([])
+  const futureRef = useRef<GraphicScene[]>([])
   const [zoom, setZoom] = useState(0.6)
   const [saveState, setSaveState] = useState<SaveState>('idle')
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -199,7 +245,12 @@ export function GraphicDesignStudioEditor({
   const titleRef = useRef(designTitle)
   const initialized = useRef(false)
   const editableRef = useRef<HTMLDivElement | null>(null)
-  const selectedLayer = useMemo(() => scene.layers.find((layer) => layer.id === selectedId) || null, [scene.layers, selectedId])
+  const selectedLayer = useMemo(
+    () => scene.layers.find((layer) => layer.id === selectedId) || null,
+    [scene.layers, selectedId],
+  )
+  const toolbarShapeLayer = selectedLayer?.type === 'shape' ? selectedLayer : null
+  const toolbarImageLayer = selectedLayer?.type === 'image' ? selectedLayer : null
   const toolbarTextLayer = selectedLayer?.type === 'text' ? selectedLayer : null
   const displayLayers = useMemo(() => {
     const layersById = new Map(scene.layers.map((layer) => [layer.id, layer]))
@@ -209,7 +260,10 @@ export function GraphicDesignStudioEditor({
       return layer ? [layer] : []
     })
   }, [layerOrderPreview, scene.layers])
-  const tenantPalette = useMemo(() => Array.from(new Set([tenantColors.primary, tenantColors.accent, tenantColors.background])), [tenantColors])
+  const tenantPalette = useMemo(
+    () => Array.from(new Set([tenantColors.primary, tenantColors.accent, tenantColors.background])),
+    [tenantColors],
+  )
 
   useEffect(() => {
     sceneRef.current = scene
@@ -255,54 +309,74 @@ export function GraphicDesignStudioEditor({
       }
       return id
     })
-  }, [])
+  }, [setSelectedId])
 
-  const commitScene = useCallback((updater: (current: GraphicScene) => GraphicScene, recordHistory = true) => {
-    setScene((current) => {
+  const commitScene = useCallback(
+    (updater: (current: GraphicScene) => GraphicScene, recordHistory = true) => {
+      const current = sceneRef.current
       const next = updater(current)
-      if (next === current) return current
+      if (next === current) return
       if (recordHistory) {
-        setHistory((items) => [...items.slice(-(MAX_HISTORY - 1)), current])
+        historyRef.current = [...historyRef.current.slice(-(MAX_HISTORY - 1)), current]
+        futureRef.current = []
+        setHistory(historyRef.current)
         setFuture([])
       }
-      return next
-    })
-    setSaveState('dirty')
-  }, [])
+      sceneRef.current = next
+      revisionRef.current += 1
+      setScene(next)
+      setSaveState('dirty')
+    },
+    [],
+  )
 
-  const updateLayer = useCallback((id: string, patch: Partial<GraphicLayer>, recordHistory = true) => {
-    commitScene(
-      (current) => ({
-        ...current,
-        layers: current.layers.map((layer) => (layer.id === id ? ({ ...layer, ...patch } as GraphicLayer) : layer)),
-      }),
-      recordHistory,
-    )
-  }, [commitScene])
+  const updateLayer = useCallback(
+    (id: string, patch: Partial<GraphicLayer>, recordHistory = true) => {
+      commitScene(
+        (current) => ({
+          ...current,
+          layers: current.layers.map((layer) =>
+            layer.id === id ? ({ ...layer, ...patch } as GraphicLayer) : layer,
+          ),
+        }),
+        recordHistory,
+      )
+    },
+    [commitScene],
+  )
 
   const save = useCallback(async () => {
-    if (!designId) return
+    if (!designId) return false
+    const savingScene = sceneRef.current
+    const savingTitle = titleRef.current
     setSaveState('saving')
     setSaveError(null)
     try {
-      const response = await fetch(`/api/graphic-designs/${encodeURIComponent(designId)}?draft=true`, {
-        body: JSON.stringify({
-          puckData: graphicSceneToPuckData(sceneRef.current),
-          studioScene: sceneRef.current,
-          title: titleRef.current.trim() || 'Untitled design',
-        }),
-        credentials: 'same-origin',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(tenantId ? { 'X-Payload-Tenant': tenantId } : {}),
+      const response = await fetchGraphic(
+        `/api/graphic-designs/${encodeURIComponent(designId)}?draft=true`,
+        {
+          body: JSON.stringify({
+            puckData: graphicSceneToPuckData(savingScene),
+            studioScene: savingScene,
+            title: savingTitle.trim() || 'Untitled design',
+          }),
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(tenantId ? { 'X-Payload-Tenant': tenantId } : {}),
+          },
+          method: 'PATCH',
         },
-        method: 'PATCH',
-      })
-      if (!response.ok) throw new Error(await response.text())
-      setSaveState('saved')
+      )
+      await readGraphicResponse(response, 'Save design draft')
+      setSaveState(
+        sceneRef.current === savingScene && titleRef.current === savingTitle ? 'saved' : 'dirty',
+      )
+      return true
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Unable to save design')
       setSaveState('error')
+      return false
     }
   }, [designId, tenantId])
 
@@ -317,22 +391,60 @@ export function GraphicDesignStudioEditor({
   }, [designId, save, saveState, scene])
 
   const undo = useCallback(() => {
-    const previous = history.at(-1)
+    const previous = historyRef.current.at(-1)
     if (!previous) return
-    setHistory((items) => items.slice(0, -1))
-    setFuture((items) => [sceneRef.current, ...items].slice(0, MAX_HISTORY))
+    historyRef.current = historyRef.current.slice(0, -1)
+    futureRef.current = [sceneRef.current, ...futureRef.current].slice(0, MAX_HISTORY)
+    setHistory(historyRef.current)
+    setFuture(futureRef.current)
+    sceneRef.current = previous
+    revisionRef.current += 1
     setScene(previous)
     setSaveState('dirty')
-  }, [history])
+    setEditingTextId(null)
+  }, [])
 
   const redo = useCallback(() => {
-    const next = future[0]
+    const next = futureRef.current[0]
     if (!next) return
-    setFuture((items) => items.slice(1))
-    setHistory((items) => [...items, sceneRef.current].slice(-MAX_HISTORY))
+    futureRef.current = futureRef.current.slice(1)
+    historyRef.current = [...historyRef.current, sceneRef.current].slice(-MAX_HISTORY)
+    setFuture(futureRef.current)
+    setHistory(historyRef.current)
+    sceneRef.current = next
+    revisionRef.current += 1
     setScene(next)
     setSaveState('dirty')
-  }, [future])
+    setEditingTextId(null)
+  }, [])
+
+  const agentStatus = useGraphicAgentTools({
+    read: () => ({
+      scene: sceneRef.current,
+      revision: revisionRef.current,
+      title: titleRef.current,
+      designId,
+      selectedId: selectedIdRef.current,
+    }),
+    commit: (next) => {
+      const safeScene = {
+        ...next,
+        layers: next.layers.map((layer) =>
+          layer.type === 'text' ? { ...layer, html: sanitizeGraphicRichHtml(layer.html) } : layer,
+        ),
+      }
+      commitScene(() => safeScene)
+      setEditingTextId(null)
+      setCroppingImageId(null)
+    },
+    select: (id) => {
+      setSelectedId(id)
+      setEditingTextId(null)
+      setCroppingImageId(null)
+    },
+    undo,
+    redo,
+  })
 
   const addText = () => {
     const layer: GraphicTextLayer = {
@@ -408,7 +520,7 @@ export function GraphicDesignStudioEditor({
     } as GraphicLayer
     commitScene((current) => ({ ...current, layers: [...current.layers, copy] }))
     setSelectedId(copy.id)
-  }, [commitScene, selectedLayer])
+  }, [commitScene, selectedLayer, setSelectedId])
 
   const copySelected = useCallback(() => {
     if (!selectedLayer) return
@@ -432,24 +544,30 @@ export function GraphicDesignStudioEditor({
     commitScene((current) => ({ ...current, layers: [...current.layers, pastedLayer] }))
     setSelectedId(pastedLayer.id)
     setEditingTextId(null)
-  }, [commitScene])
+  }, [commitScene, setSelectedId])
 
   const deleteSelected = useCallback(() => {
     if (!selectedLayer || selectedLayer.locked) return
-    commitScene((current) => ({ ...current, layers: current.layers.filter((layer) => layer.id !== selectedLayer.id) }))
+    commitScene((current) => ({
+      ...current,
+      layers: current.layers.filter((layer) => layer.id !== selectedLayer.id),
+    }))
     setSelectedId(null)
     setEditingTextId(null)
-  }, [commitScene, selectedLayer])
+  }, [commitScene, selectedLayer, setSelectedId])
 
-  const moveLayer = useCallback((direction: 'back' | 'front') => {
-    if (!selectedLayer) return
-    commitScene((current) => {
-      const layers = current.layers.filter((layer) => layer.id !== selectedLayer.id)
-      if (direction === 'front') layers.push(selectedLayer)
-      else layers.unshift(selectedLayer)
-      return { ...current, layers }
-    })
-  }, [commitScene, selectedLayer])
+  const moveLayer = useCallback(
+    (direction: 'back' | 'front') => {
+      if (!selectedLayer) return
+      commitScene((current) => {
+        const layers = current.layers.filter((layer) => layer.id !== selectedLayer.id)
+        if (direction === 'front') layers.push(selectedLayer)
+        else layers.unshift(selectedLayer)
+        return { ...current, layers }
+      })
+    },
+    [commitScene, selectedLayer],
+  )
 
   const openContextMenu = (event: React.MouseEvent, layerId: string | null) => {
     const target = event.target as HTMLElement
@@ -505,7 +623,11 @@ export function GraphicDesignStudioEditor({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null
-      if (target?.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')) return
+      if (
+        target?.isContentEditable ||
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName || '')
+      )
+        return
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) redo()
@@ -544,17 +666,37 @@ export function GraphicDesignStudioEditor({
         deleteSelected()
         return
       }
-      if (!selectedLayer || selectedLayer.locked || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
+      if (
+        !selectedLayer ||
+        selectedLayer.locked ||
+        !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+      )
+        return
       event.preventDefault()
       const distance = event.shiftKey ? 10 : 1
       updateLayer(selectedLayer.id, {
-        x: selectedLayer.x + (event.key === 'ArrowLeft' ? -distance : event.key === 'ArrowRight' ? distance : 0),
-        y: selectedLayer.y + (event.key === 'ArrowUp' ? -distance : event.key === 'ArrowDown' ? distance : 0),
+        x:
+          selectedLayer.x +
+          (event.key === 'ArrowLeft' ? -distance : event.key === 'ArrowRight' ? distance : 0),
+        y:
+          selectedLayer.y +
+          (event.key === 'ArrowUp' ? -distance : event.key === 'ArrowDown' ? distance : 0),
       })
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [contextMenu, copySelected, croppingImageId, deleteSelected, duplicateSelected, pasteCopied, redo, selectedLayer, undo, updateLayer])
+  }, [
+    contextMenu,
+    copySelected,
+    croppingImageId,
+    deleteSelected,
+    duplicateSelected,
+    pasteCopied,
+    redo,
+    selectedLayer,
+    undo,
+    updateLayer,
+  ])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -578,17 +720,38 @@ export function GraphicDesignStudioEditor({
       if (!session.hasMoved) {
         if (Math.abs(deltaX) + Math.abs(deltaY) < 0.75) return
         session.hasMoved = true
-        setHistory((items) => [...items.slice(-(MAX_HISTORY - 1)), sceneRef.current])
-        setFuture([])
+        setHistory(
+          (historyRef.current = [
+            ...historyRef.current.slice(-(MAX_HISTORY - 1)),
+            sceneRef.current,
+          ]),
+        )
+        setFuture((futureRef.current = []))
       }
       if (session.mode === 'drag') {
-        updateLayer(session.layer.id, { x: session.layer.x + deltaX, y: session.layer.y + deltaY }, false)
+        updateLayer(
+          session.layer.id,
+          { x: session.layer.x + deltaX, y: session.layer.y + deltaY },
+          false,
+        )
       } else if (session.mode === 'image-pan' && session.layer.type === 'image') {
-        updateLayer(session.layer.id, {
-          imagePositionX: clamp((session.layer.imagePositionX ?? 50) - (deltaX / session.layer.width) * 100, 0, 100),
-          imagePositionY: clamp((session.layer.imagePositionY ?? 50) - (deltaY / session.layer.height) * 100, 0, 100),
-          objectFit: 'cover',
-        }, false)
+        updateLayer(
+          session.layer.id,
+          {
+            imagePositionX: clamp(
+              (session.layer.imagePositionX ?? 50) - (deltaX / session.layer.width) * 100,
+              0,
+              100,
+            ),
+            imagePositionY: clamp(
+              (session.layer.imagePositionY ?? 50) - (deltaY / session.layer.height) * 100,
+              0,
+              100,
+            ),
+            objectFit: 'cover',
+          },
+          false,
+        )
       } else if (session.mode === 'resize') {
         const handle = session.resizeHandle || 'se'
         const movesLeft = handle.includes('w')
@@ -618,10 +781,14 @@ export function GraphicDesignStudioEditor({
         }
         if (session.layer.type === 'text' && isCorner) {
           const scale = Math.sqrt((width / session.layer.width) * (height / session.layer.height))
-          updateLayer(session.layer.id, {
-            ...patch,
-            fontSize: clamp(session.layer.fontSize * scale, 8, 512),
-          }, false)
+          updateLayer(
+            session.layer.id,
+            {
+              ...patch,
+              fontSize: clamp(session.layer.fontSize * scale, 8, 512),
+            },
+            false,
+          )
         } else {
           updateLayer(session.layer.id, patch, false)
         }
@@ -638,7 +805,11 @@ export function GraphicDesignStudioEditor({
         const delta = event.shiftKey
           ? snapLineDelta(endX - candidateX, endY - candidateY)
           : { width: endX - candidateX, height: endY - candidateY }
-        updateLayer(session.layer.id, { x: endX - delta.width, y: endY - delta.height, ...delta }, false)
+        updateLayer(
+          session.layer.id,
+          { x: endX - delta.width, y: endY - delta.height, ...delta },
+          false,
+        )
       } else if (session.mode === 'rotate') {
         const centerX = session.layer.x + session.layer.width / 2
         const centerY = session.layer.y + session.layer.height / 2
@@ -646,7 +817,11 @@ export function GraphicDesignStudioEditor({
         if (!canvas) return
         const x = (event.clientX - canvas.left) / zoom
         const y = (event.clientY - canvas.top) / zoom
-        updateLayer(session.layer.id, { rotation: Math.round((Math.atan2(y - centerY, x - centerX) * 180) / Math.PI + 90) }, false)
+        updateLayer(
+          session.layer.id,
+          { rotation: Math.round((Math.atan2(y - centerY, x - centerX) * 180) / Math.PI + 90) },
+          false,
+        )
       }
     }
     const onPointerUp = () => {
@@ -661,14 +836,26 @@ export function GraphicDesignStudioEditor({
     }
   }, [updateLayer, zoom])
 
-  const beginPointer = (event: React.PointerEvent, layer: GraphicLayer, mode: PointerMode, resizeHandle?: ResizeHandle) => {
+  const beginPointer = (
+    event: React.PointerEvent,
+    layer: GraphicLayer,
+    mode: PointerMode,
+    resizeHandle?: ResizeHandle,
+  ) => {
     event.stopPropagation()
     if (layer.locked || editingTextId === layer.id) return
     if (layer.type !== 'text' || mode !== 'drag') event.preventDefault()
     setSelectedId(layer.id)
     if (editingTextId && editingTextId !== layer.id) setEditingTextId(null)
     if (croppingImageId && croppingImageId !== layer.id) setCroppingImageId(null)
-    pointerSession.current = { hasMoved: false, layer, mode, pointerX: event.clientX, pointerY: event.clientY, resizeHandle }
+    pointerSession.current = {
+      hasMoved: false,
+      layer,
+      mode,
+      pointerX: event.clientX,
+      pointerY: event.clientY,
+      resizeHandle,
+    }
   }
 
   const rememberRichSelection = () => {
@@ -718,108 +905,253 @@ export function GraphicDesignStudioEditor({
 
   const changePreset = (preset: GraphicCanvasPreset) => {
     const dimensions = GRAPHIC_CANVAS_PRESETS[preset]
-    commitScene((current) => ({ ...current, preset, width: dimensions.width, height: dimensions.height }))
+    commitScene((current) => ({
+      ...current,
+      preset,
+      width: dimensions.width,
+      height: dimensions.height,
+    }))
   }
 
-  const exportSvg = async () => {
-    setExportStatus('Preparing SVG…')
+  const runExport = async (format: 'svg' | 'png' | 'pdf') => {
+    if (exportLock.current) return
+    exportLock.current = true
+    setExporting(true)
+    setExportStatus(`Preparing ${format.toUpperCase()}…`)
     try {
-      const svg = await buildSelfContainedGraphicSvg(sceneRef.current)
-      downloadGraphicBlob(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), getExportFilename(designTitle, 'svg'))
-      setExportStatus('SVG downloaded')
+      syncEditedHtml()
+      const snapshot = sceneRef.current
+      const blob =
+        format === 'svg'
+          ? new Blob([await buildSelfContainedGraphicSvg(snapshot)], {
+              type: 'image/svg+xml;charset=utf-8',
+            })
+          : format === 'pdf'
+            ? await createGraphicScenePdfBlob(snapshot, titleRef.current)
+            : await renderGraphicSceneToPngBlob(snapshot)
+      downloadGraphicBlob(blob, getExportFilename(titleRef.current, format))
+      setExportStatus(`${format.toUpperCase()} downloaded`)
     } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : 'SVG export failed')
+      setExportStatus(
+        error instanceof Error ? error.message : `${format.toUpperCase()} export failed`,
+      )
+    } finally {
+      exportLock.current = false
+      setExporting(false)
     }
   }
 
-  const exportPng = async () => {
-    setExportStatus('Preparing PNG…')
-    try {
-      const blob = await renderGraphicSceneToPngBlob(sceneRef.current)
-      downloadGraphicBlob(blob, getExportFilename(designTitle, 'png'))
-      setExportStatus('PNG downloaded')
-    } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : 'PNG export failed')
-    }
-  }
-
-  const exportPdf = async () => {
-    setExportStatus('Preparing print-quality PDF…')
-    try {
-      const blob = await createGraphicScenePdfBlob(sceneRef.current, designTitle || 'Graphic design')
-      downloadGraphicBlob(blob, getExportFilename(designTitle, 'pdf'))
-      setExportStatus('PDF downloaded')
-    } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : 'PDF export failed')
-    }
-  }
-
-  const saveToPostSeo = async () => {
-    if (!designId || !sourcePostId || !tenantId) {
-      setExportStatus('This design must be linked to a Post and tenant before it can become the SEO image.')
+  const saveImage = async (target: 'gallery' | 'post') => {
+    if (exportLock.current) return
+    if (!designId || !tenantId || (target === 'post' && !sourcePostId)) {
+      setExportStatus(
+        'Link this design to a site and, for Post SEO, a Post before saving its image.',
+      )
       return
     }
-
-    setExportStatus('Rendering and saving the Post SEO image…')
+    exportLock.current = true
+    setExporting(true)
+    setExportStatus(
+      target === 'post' ? 'Preparing Post SEO image…' : 'Preparing Media Gallery image…',
+    )
+    let uploadedMediaId: string | number | null = null
     try {
-      await save()
-      const blob = await renderGraphicSceneToPngBlob(sceneRef.current)
-      const filenameBase = (designTitle || 'post-graphic')
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '') || 'post-graphic'
+      syncEditedHtml()
+      const snapshot = sceneRef.current
+      const snapshotTitle = titleRef.current
+      if (!(await save()))
+        throw new Error(
+          'Save design draft failed. Resolve the save error before exporting to the Media Gallery.',
+        )
+      // Read Post metadata before uploading so expired sessions fail without creating media.
+      const post =
+        target === 'post'
+          ? await readGraphicResponse<{ meta?: Record<string, unknown> }>(
+              await fetchGraphic(
+                `/api/posts/${encodeURIComponent(sourcePostId!)}?draft=true&depth=0`,
+                {
+                  cache: 'no-store',
+                  credentials: 'same-origin',
+                  headers: { 'X-Payload-Tenant': tenantId },
+                },
+              ),
+              'Read Post SEO metadata',
+            )
+          : null
+      const blob = await renderGraphicSceneToPngBlob(snapshot)
       const formData = new FormData()
-      formData.append('file', new File([blob], `${filenameBase}.png`, { type: 'image/png' }))
-      formData.append('alt', designTitle || 'Post social graphic')
-      formData.append('tenant', tenantId)
-
-      const uploadResponse = await fetch('/api/media/upload', {
-        body: formData,
-        credentials: 'include',
-        headers: { 'X-Payload-Tenant': tenantId },
-        method: 'POST',
-      })
-      const uploadPayload = await uploadResponse.json() as { doc?: { id?: string | number }; id?: string | number; message?: string }
-      if (!uploadResponse.ok) throw new Error(uploadPayload.message || 'Unable to upload the SEO image')
-      const mediaId = uploadPayload.doc?.id ?? uploadPayload.id
-      if (mediaId == null) throw new Error('The media upload did not return an ID')
-
-      const postResponse = await fetch(`/api/posts/${encodeURIComponent(sourcePostId)}?draft=true&depth=0`, {
-        cache: 'no-store',
-        credentials: 'include',
-        headers: { 'X-Payload-Tenant': tenantId },
-      })
-      const postPayload = await postResponse.json() as { meta?: Record<string, unknown>; message?: string }
-      if (!postResponse.ok) throw new Error(postPayload.message || 'Unable to load the Post before updating its SEO image')
-
-      const [designResponse, updatePostResponse] = await Promise.all([
-        fetch(`/api/graphic-designs/${encodeURIComponent(designId)}?draft=true`, {
-          body: JSON.stringify({
-            exportedMedia: mediaId,
-            puckData: graphicSceneToPuckData(sceneRef.current),
-            studioScene: sceneRef.current,
-            title: titleRef.current.trim() || 'Untitled design',
-          }),
-          credentials: 'include',
+      formData.append(
+        'file',
+        new File([blob], getExportFilename(snapshotTitle, 'png'), { type: 'image/png' }),
+      )
+      formData.append('alt', snapshotTitle || 'Post social graphic')
+      formData.append('data', JSON.stringify({ tenant: tenantId }))
+      const uploaded = await readGraphicResponse<{
+        doc?: { id?: string | number }
+        id?: string | number
+      }>(
+        await fetchGraphic('/api/media/upload', {
+          body: formData,
+          credentials: 'same-origin',
+          headers: { 'X-Payload-Tenant': tenantId },
+          method: 'POST',
+        }),
+        'Upload PNG to Media Gallery',
+      )
+      const mediaId = uploaded.doc?.id ?? uploaded.id
+      if (mediaId == null) throw new Error('Upload PNG to Media Gallery returned no media ID.')
+      uploadedMediaId = mediaId
+      await readGraphicResponse(
+        await fetchGraphic(`/api/graphic-designs/${encodeURIComponent(designId)}?draft=true`, {
+          body: JSON.stringify({ exportedMedia: mediaId }),
+          credentials: 'same-origin',
           headers: { 'Content-Type': 'application/json', 'X-Payload-Tenant': tenantId },
           method: 'PATCH',
         }),
-        fetch(`/api/posts/${encodeURIComponent(sourcePostId)}?draft=true`, {
-          body: JSON.stringify({
-            graphicDesign: designId,
-            meta: { ...(postPayload.meta || {}), image: mediaId },
+        'Link exported media to design',
+      )
+      if (target === 'post')
+        await readGraphicResponse(
+          await fetchGraphic(`/api/posts/${encodeURIComponent(sourcePostId!)}?draft=true`, {
+            body: JSON.stringify({
+              graphicDesign: designId,
+              meta: { ...(post?.meta || {}), image: mediaId },
+            }),
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json', 'X-Payload-Tenant': tenantId },
+            method: 'PATCH',
           }),
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json', 'X-Payload-Tenant': tenantId },
-          method: 'PATCH',
-        }),
-      ])
-      if (!designResponse.ok) throw new Error(await designResponse.text())
-      if (!updatePostResponse.ok) throw new Error(await updatePostResponse.text())
-
-      setExportStatus('Saved to the Media Gallery and set as this Post’s SEO/social image.')
+          'Set Post SEO image',
+        )
+      setExportStatus(
+        target === 'post'
+          ? 'Saved to the Media Gallery and set as this Post’s SEO/social image.'
+          : 'Saved to the Media Gallery.',
+      )
     } catch (error) {
-      setExportStatus(error instanceof Error ? error.message : 'Unable to save the Post SEO image')
+      const message = error instanceof Error ? error.message : 'Unable to save the image.'
+      setExportStatus(
+        `${message}${uploadedMediaId != null ? ' The PNG is already in the Media Gallery; choose that image there to finish linking it.' : ''}`,
+      )
+    } finally {
+      exportLock.current = false
+      setExporting(false)
+    }
+  }
+
+  const loadTemplates = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const query = new URLSearchParams({
+        limit: '100',
+        depth: '1',
+        sort: 'title',
+        'where[sourceCollection][equals]': 'posts',
+        'where[id][not_equals]': RETIRED_TOWN_TEMPLATE_ID,
+      })
+      const data = await readGraphicResponse<{ docs?: StudioTemplate[] }>(
+        await fetchGraphic(`/api/graphic-templates?${query}`, {
+          credentials: 'same-origin',
+          signal,
+        }),
+        'Load graphic templates',
+      )
+      if (!signal?.aborted) {
+        setTemplates(data.docs || [])
+        setTemplateStatus(null)
+      }
+    } catch (error) {
+      if (!signal?.aborted)
+        setTemplateStatus(error instanceof Error ? error.message : 'Unable to load templates.')
+    } finally {
+      if (!signal?.aborted) setTemplatesLoading(false)
+    }
+  }, [])
+
+  useEffect(() => () => templateRequestRef.current?.abort(), [])
+
+  const requestTemplates = () => {
+    templateRequestRef.current?.abort()
+    const controller = new AbortController()
+    templateRequestRef.current = controller
+    setTemplatesLoading(true)
+    void loadTemplates(controller.signal)
+  }
+
+  const saveTemplate = async () => {
+    if (!canManageTemplates || !templateName.trim() || exportLock.current) return
+    exportLock.current = true
+    setExporting(true)
+    setTemplateStatus('Saving template…')
+    try {
+      syncEditedHtml()
+      const studioScene = graphicSceneSchema.parse(sceneRef.current)
+      await readGraphicResponse(
+        await fetchGraphic('/api/graphic-templates', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: templateName.trim(),
+            sourceCollection: 'posts',
+            studioScene,
+          }),
+        }),
+        'Save reusable template',
+      )
+      await loadTemplates()
+      setTemplateStatus(
+        `Saved “${templateName.trim()}”. It is now available for new Post graphics.`,
+      )
+      setTemplateName('')
+    } catch (error) {
+      setTemplateStatus(error instanceof Error ? error.message : 'Unable to save template.')
+    } finally {
+      exportLock.current = false
+      setExporting(false)
+    }
+  }
+
+  const applyTemplate = (template: StudioTemplate) => {
+    try {
+      const current = sceneRef.current
+      const text = (binding: GraphicTextLayer['binding'], legacyId: string) => {
+        const layer = current.layers.find(
+          (layer) => layer.type === 'text' && (layer.binding === binding || layer.id === legacyId),
+        )
+        return layer?.type === 'text'
+          ? new DOMParser().parseFromString(layer.html, 'text/html').body.textContent || ''
+          : ''
+      }
+      const image = (binding: GraphicImageLayer['binding'], name: string) => {
+        const layer = current.layers.find(
+          (layer) => layer.type === 'image' && (layer.binding === binding || layer.name === name),
+        )
+        return layer?.type === 'image'
+          ? { id: layer.mediaId, url: layer.url, alt: layer.alt }
+          : null
+      }
+      const next = instantiateGraphicTemplate(template, {
+        headlineText:
+          text('post-title', 'legacy-post-headline') ||
+          titleRef.current.replace(/ social graphic$/, ''),
+        primaryRepName: text('primary-rep-name', 'legacy-primary-representative-name'),
+        secondaryRepName: text('secondary-rep-name', 'legacy-secondary-representative-name'),
+        primaryHeadshot: image('primary-headshot', 'Representative photo'),
+        secondaryHeadshot: image('secondary-headshot', 'Secondary representative photo'),
+      })
+      if (
+        !window.confirm(
+          `Apply “${template.title || 'Untitled template'}” to this design? You can undo this change.`,
+        )
+      )
+        return
+      commitScene(() => next)
+      setSelectedId(null)
+      setEditingTextId(null)
+      setCroppingImageId(null)
+      setTemplateStatus('Template applied. Undo restores the previous design.')
+    } catch (error) {
+      setTemplateStatus(error instanceof Error ? error.message : 'Unable to apply template.')
     }
   }
 
@@ -829,15 +1161,28 @@ export function GraphicDesignStudioEditor({
     } else if (selectedLayer.type === 'text') {
       updateLayer(selectedLayer.id, { color })
     } else if (selectedLayer.type === 'shape') {
-      updateLayer(selectedLayer.id, selectedLayer.shape === 'line' ? { borderColor: color } : { fill: color })
+      updateLayer(
+        selectedLayer.id,
+        selectedLayer.shape === 'line' ? { borderColor: color } : { fill: color },
+      )
     }
   }
 
-  const openPanel = (panel: ToolPanel) => setActivePanel(panel)
+  const openPanel = (panel: ToolPanel) => {
+    if (panel === 'templates') requestTemplates()
+    setActivePanel(panel)
+    setSidebarCollapsed(false)
+  }
 
-  if (!designId) return <div className={styles.createNotice}>Save this Graphic Design first, then open the Design Studio tab.</div>
+  if (!designId)
+    return (
+      <div className={styles.createNotice}>
+        Save this Graphic Design first, then open the Design Studio tab.
+      </div>
+    )
 
   const toolButtons: Array<{ icon: React.ReactNode; id: ToolPanel; label: string }> = [
+    { icon: <LayoutTemplate />, id: 'templates', label: 'Templates' },
     { icon: <Shapes />, id: 'elements', label: 'Elements' },
     { icon: <ImageIcon />, id: 'images', label: 'Images' },
     { icon: <Type />, id: 'text', label: 'Text' },
@@ -849,111 +1194,1375 @@ export function GraphicDesignStudioEditor({
   return (
     <div className={styles.wrapper} data-hro-fullscreen-builder="graphic-design">
       <header className={styles.header}>
-        <div><input aria-label="Design title" className={styles.titleInput} maxLength={120} onChange={(event) => { setDesignTitle(event.target.value); setSaveState('dirty') }} value={designTitle} /><span>{saveState === 'saving' ? 'Saving…' : saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Save failed' : saveState === 'dirty' ? 'Unsaved changes' : 'Ready'}</span></div>
+        <div>
+          <input
+            aria-label="Design title"
+            className={styles.titleInput}
+            maxLength={120}
+            onChange={(event) => {
+              titleRef.current = event.target.value
+              setDesignTitle(event.target.value)
+              setSaveState('dirty')
+            }}
+            value={designTitle}
+          />
+          <span>
+            {saveState === 'saving'
+              ? 'Saving…'
+              : saveState === 'saved'
+                ? 'Saved'
+                : saveState === 'error'
+                  ? 'Save failed'
+                  : saveState === 'dirty'
+                    ? 'Unsaved changes'
+                    : 'Ready'}
+          </span>
+        </div>
         <div className={styles.headerControls}>
-          <select aria-label="Canvas size" onChange={(event) => changePreset(event.target.value as GraphicCanvasPreset)} value={scene.preset}>
-            {Object.entries(GRAPHIC_CANVAS_PRESETS).map(([value, preset]) => <option key={value} value={value}>{preset.label} · {preset.width}×{preset.height}</option>)}
+          <select
+            aria-label="Canvas size"
+            onChange={(event) => changePreset(event.target.value as GraphicCanvasPreset)}
+            value={scene.preset}
+          >
+            {Object.entries(GRAPHIC_CANVAS_PRESETS).map(([value, preset]) => (
+              <option key={value} value={value}>
+                {preset.label} · {preset.width}×{preset.height}
+              </option>
+            ))}
           </select>
-          <label>Zoom <input max="1.25" min="0.2" onChange={(event) => setZoom(Number(event.target.value))} step="0.05" type="range" value={zoom} /><span>{Math.round(zoom * 100)}%</span></label>
+          <label>
+            Zoom{' '}
+            <input
+              max="1.25"
+              min="0.2"
+              onChange={(event) => setZoom(Number(event.target.value))}
+              step="0.05"
+              type="range"
+              value={zoom}
+            />
+            <span>{Math.round(zoom * 100)}%</span>
+          </label>
         </div>
         <div className={styles.headerActions}>
-          <button disabled={!history.length} onClick={undo} title="Undo" type="button"><Undo2 /></button>
-          <button disabled={!future.length} onClick={redo} title="Redo" type="button"><Redo2 /></button>
-          <button onClick={() => void save()} title="Save now" type="button"><Save /> Save</button>
-          <button onClick={() => void exportSvg()} title="Download SVG" type="button"><Download /> SVG</button>
-          <button onClick={() => void exportPng()} title="Download PNG" type="button"><Download /> PNG</button>
-          <button onClick={() => void exportPdf()} title="Download print-quality PDF" type="button"><Download /> PDF</button>
-          {sourcePostId ? <button onClick={() => void saveToPostSeo()} title="Save to Post SEO image and Media Gallery" type="button"><ImageUp /> Post SEO</button> : null}
-          <NextLink className={styles.backButton} href="/admin/collections/graphic-designs"><ArrowLeft />Back to Payload</NextLink>
+          <button disabled={!history.length} onClick={undo} title="Undo" type="button">
+            <Undo2 />
+          </button>
+          <button disabled={!future.length} onClick={redo} title="Redo" type="button">
+            <Redo2 />
+          </button>
+          <button onClick={() => void save()} title="Save now" type="button">
+            <Save /> Save
+          </button>
+          <button
+            disabled={exporting}
+            onClick={() => void runExport('svg')}
+            title="Download SVG"
+            type="button"
+          >
+            <Download /> SVG
+          </button>
+          <button
+            disabled={exporting}
+            onClick={() => void runExport('png')}
+            title="Download PNG"
+            type="button"
+          >
+            <Download /> PNG
+          </button>
+          <button
+            disabled={exporting}
+            onClick={() => void runExport('pdf')}
+            title="Download print-quality PDF"
+            type="button"
+          >
+            <Download /> PDF
+          </button>
+          <button
+            disabled={exporting || !tenantId}
+            onClick={() => void saveImage('gallery')}
+            title="Save PNG to Media Gallery"
+            type="button"
+          >
+            <ImageUp /> Media Gallery
+          </button>
+          {sourcePostId ? (
+            <button
+              disabled={exporting}
+              onClick={() => void saveImage('post')}
+              title="Save to Post SEO image and Media Gallery"
+              type="button"
+            >
+              <ImageUp /> Post SEO
+            </button>
+          ) : null}
+          <NextLink
+            className={styles.backButton}
+            href={
+              (returnToPostId || sourcePostId)
+                ? `/admin/collections/posts/${encodeURIComponent((returnToPostId || sourcePostId)!)}`
+                : '/admin/collections/graphic-designs'
+            }
+          >
+            <ArrowLeft />
+            Back to Payload
+          </NextLink>
         </div>
       </header>
 
-      <div aria-hidden={!toolbarTextLayer} className={`${styles.richToolbar} ${toolbarTextLayer ? '' : styles.richToolbarIdle}`}>
+      <div aria-label="Selected element controls" className={styles.richToolbar} role="toolbar">
         {toolbarTextLayer ? (
           <>
-          <select aria-label="Font family" className={styles.fontPicker} onChange={(event) => changeTextFont(event.target.value)} value={toolbarTextLayer.fontFamily}>
-            {!FONT_OPTIONS.some((font) => font.value === toolbarTextLayer.fontFamily) ? <option value={toolbarTextLayer.fontFamily}>Current font</option> : null}
-            {FONT_OPTIONS.map((font) => <option key={font.value} style={{ fontFamily: font.value }} value={font.value}>{font.label}</option>)}
-          </select>
-          <label className={styles.fontSizePicker}>Size
-            <input aria-label="Base font size" min="8" onChange={(event) => changeTextSize(Number(event.target.value))} type="number" value={Math.round(toolbarTextLayer.fontSize)} />
-            <span className={styles.fontSizeSteppers}>
-              <button aria-label="Increase font size" onClick={() => changeTextSize(toolbarTextLayer.fontSize + 1)} title="Increase font size" type="button"><ChevronUp /></button>
-              <button aria-label="Decrease font size" onClick={() => changeTextSize(toolbarTextLayer.fontSize - 1)} title="Decrease font size" type="button"><ChevronDown /></button>
-            </span>
-          </label>
-          <label className={styles.toolbarColor} title="Text color"><span>Color</span><input aria-label="Text color" onChange={(event) => updateLayer(toolbarTextLayer.id, { color: event.target.value })} type="color" value={toolbarTextLayer.color} /></label>
-          <select aria-label="Paragraph or heading style" disabled={!editingTextId} onChange={(event) => applyBlockFormat(event.target.value as RichBlockFormat)} value={activeBlockFormat}>
-            {RICH_BLOCK_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('bold')} title="Bold" type="button"><Bold /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('italic')} title="Italic" type="button"><Italic /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('underline')} title="Underline" type="button"><Underline /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('strikeThrough')} title="Strike" type="button"><Strikethrough /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('insertUnorderedList')} title="Bulleted list" type="button"><List /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('insertOrderedList')} title="Numbered list" type="button"><ListOrdered /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyLeft')} title="Align left" type="button"><AlignLeft /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyCenter')} title="Align center" type="button"><AlignCenter /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => applyRichCommand('justifyRight')} title="Align right" type="button"><AlignRight /></button>
-          <button disabled={!editingTextId} onMouseDown={(event) => event.preventDefault()} onClick={() => { const url = window.prompt('Link URL'); if (url) applyRichCommand('createLink', url) }} title="Link" type="button"><Link /></button>
-          {editingTextId ? <button className={styles.doneButton} onClick={() => setEditingTextId(null)} type="button">Done editing</button> : <button className={styles.doneButton} onClick={() => startTextEditing(toolbarTextLayer.id)} type="button">Edit text</button>}
+            <select
+              aria-label="Font family"
+              className={styles.fontPicker}
+              onChange={(event) => changeTextFont(event.target.value)}
+              value={toolbarTextLayer.fontFamily}
+            >
+              {!FONT_OPTIONS.some((font) => font.value === toolbarTextLayer.fontFamily) ? (
+                <option value={toolbarTextLayer.fontFamily}>Current font</option>
+              ) : null}
+              {FONT_OPTIONS.map((font) => (
+                <option key={font.value} style={{ fontFamily: font.value }} value={font.value}>
+                  {font.label}
+                </option>
+              ))}
+            </select>
+            <label className={styles.fontSizePicker}>
+              Size
+              <input
+                aria-label="Base font size"
+                min="8"
+                onChange={(event) => changeTextSize(Number(event.target.value))}
+                type="number"
+                value={Math.round(toolbarTextLayer.fontSize)}
+              />
+              <span className={styles.fontSizeSteppers}>
+                <button
+                  aria-label="Increase font size"
+                  onClick={() => changeTextSize(toolbarTextLayer.fontSize + 1)}
+                  title="Increase font size"
+                  type="button"
+                >
+                  <ChevronUp />
+                </button>
+                <button
+                  aria-label="Decrease font size"
+                  onClick={() => changeTextSize(toolbarTextLayer.fontSize - 1)}
+                  title="Decrease font size"
+                  type="button"
+                >
+                  <ChevronDown />
+                </button>
+              </span>
+            </label>
+            <label className={styles.toolbarColor} title="Text color">
+              <span>Color</span>
+              <input
+                aria-label="Text color"
+                onChange={(event) =>
+                  updateLayer(toolbarTextLayer.id, { color: event.target.value })
+                }
+                type="color"
+                value={toolbarTextLayer.color}
+              />
+            </label>
+            <select
+              aria-label="Paragraph or heading style"
+              disabled={!editingTextId}
+              onChange={(event) => applyBlockFormat(event.target.value as RichBlockFormat)}
+              value={activeBlockFormat}
+            >
+              {RICH_BLOCK_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('bold')}
+              title="Bold"
+              type="button"
+            >
+              <Bold />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('italic')}
+              title="Italic"
+              type="button"
+            >
+              <Italic />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('underline')}
+              title="Underline"
+              type="button"
+            >
+              <Underline />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('strikeThrough')}
+              title="Strike"
+              type="button"
+            >
+              <Strikethrough />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('insertUnorderedList')}
+              title="Bulleted list"
+              type="button"
+            >
+              <List />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('insertOrderedList')}
+              title="Numbered list"
+              type="button"
+            >
+              <ListOrdered />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('justifyLeft')}
+              title="Align left"
+              type="button"
+            >
+              <AlignLeft />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('justifyCenter')}
+              title="Align center"
+              type="button"
+            >
+              <AlignCenter />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applyRichCommand('justifyRight')}
+              title="Align right"
+              type="button"
+            >
+              <AlignRight />
+            </button>
+            <button
+              disabled={!editingTextId}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                const url = window.prompt('Link URL')
+                if (url) applyRichCommand('createLink', url)
+              }}
+              title="Link"
+              type="button"
+            >
+              <Link />
+            </button>
+            {editingTextId ? (
+              <button
+                className={styles.doneButton}
+                onClick={() => setEditingTextId(null)}
+                type="button"
+              >
+                Done editing
+              </button>
+            ) : (
+              <button
+                className={styles.doneButton}
+                onClick={() => startTextEditing(toolbarTextLayer.id)}
+                type="button"
+              >
+                Edit text
+              </button>
+            )}
           </>
         ) : null}
+        {toolbarShapeLayer ? (
+          <fieldset className={styles.contextControls} disabled={toolbarShapeLayer.locked}>
+            <span>{toolbarShapeLayer.shape === 'line' ? 'Line' : 'Shape'}</span>
+            {toolbarShapeLayer.shape !== 'line' ? (
+              <label className={styles.toolbarColor}>
+                Fill
+                <input
+                  aria-label="Shape fill"
+                  onChange={(event) =>
+                    updateLayer(toolbarShapeLayer.id, { fill: event.target.value })
+                  }
+                  type="color"
+                  value={toolbarShapeLayer.fill}
+                />
+              </label>
+            ) : null}
+            <label className={styles.toolbarColor}>
+              {toolbarShapeLayer.shape === 'line' ? 'Color' : 'Border'}
+              <input
+                aria-label={
+                  toolbarShapeLayer.shape === 'line' ? 'Line color' : 'Shape border color'
+                }
+                onChange={(event) =>
+                  updateLayer(toolbarShapeLayer.id, { borderColor: event.target.value })
+                }
+                type="color"
+                value={toolbarShapeLayer.borderColor}
+              />
+            </label>
+            <label>
+              Stroke
+              <input
+                aria-label="Stroke width"
+                min={toolbarShapeLayer.shape === 'line' ? 1 : 0}
+                max="1000"
+                onChange={(event) =>
+                  updateLayer(toolbarShapeLayer.id, {
+                    borderWidth: clamp(
+                      Number(event.target.value),
+                      toolbarShapeLayer.shape === 'line' ? 1 : 0,
+                      1000,
+                    ),
+                  })
+                }
+                type="number"
+                value={toolbarShapeLayer.borderWidth}
+              />
+            </label>
+            {toolbarShapeLayer.shape === 'rectangle' ? (
+              <label>
+                Corners
+                <input
+                  aria-label="Corner radius"
+                  min="0"
+                  onChange={(event) =>
+                    updateLayer(toolbarShapeLayer.id, {
+                      borderRadius: Math.max(0, Number(event.target.value)),
+                    })
+                  }
+                  type="number"
+                  value={toolbarShapeLayer.borderRadius}
+                />
+              </label>
+            ) : null}
+            {toolbarShapeLayer.shape === 'line' ? (
+              <>
+                <button
+                  onClick={() =>
+                    updateLayer(toolbarShapeLayer.id, {
+                      height: 0,
+                      width: Math.hypot(toolbarShapeLayer.width, toolbarShapeLayer.height) || 420,
+                    })
+                  }
+                  type="button"
+                >
+                  Horizontal
+                </button>
+                <button
+                  onClick={() =>
+                    updateLayer(toolbarShapeLayer.id, {
+                      width: 0,
+                      height: Math.hypot(toolbarShapeLayer.width, toolbarShapeLayer.height) || 420,
+                    })
+                  }
+                  type="button"
+                >
+                  Vertical
+                </button>
+              </>
+            ) : null}
+          </fieldset>
+        ) : null}
+        {toolbarImageLayer ? (
+          <fieldset className={styles.contextControls} disabled={toolbarImageLayer.locked}>
+            <label>
+              Fit
+              <select
+                aria-label="Image fit"
+                onChange={(event) =>
+                  updateLayer(toolbarImageLayer.id, {
+                    objectFit: event.target.value as GraphicImageLayer['objectFit'],
+                  })
+                }
+                value={toolbarImageLayer.objectFit}
+              >
+                <option value="cover">Cover</option>
+                <option value="contain">Contain</option>
+              </select>
+            </label>
+            <button
+              onClick={() => {
+                updateLayer(toolbarImageLayer.id, { objectFit: 'cover' })
+                setCroppingImageId(
+                  croppingImageId === toolbarImageLayer.id ? null : toolbarImageLayer.id,
+                )
+              }}
+              type="button"
+            >
+              {croppingImageId === toolbarImageLayer.id ? 'Done cropping' : 'Crop image'}
+            </button>
+            <button
+              onClick={() =>
+                updateLayer(toolbarImageLayer.id, { imagePositionX: 50, imagePositionY: 50 })
+              }
+              type="button"
+            >
+              Center crop
+            </button>
+          </fieldset>
+        ) : null}
+        {selectedLayer ? (
+          <label className={styles.contextControls}>
+            Opacity
+            <input
+              aria-label="Element opacity"
+              disabled={selectedLayer.locked}
+              max="1"
+              min="0"
+              onChange={(event) =>
+                updateLayer(selectedLayer.id, { opacity: Number(event.target.value) })
+              }
+              step="0.05"
+              type="range"
+              value={selectedLayer.opacity ?? 1}
+            />
+          </label>
+        ) : (
+          <span className={styles.toolbarHint}>Select an element to edit its appearance.</span>
+        )}
+        {agentStatus === 'ready' ? (
+          <span
+            className={styles.agentStatus}
+            title="Browser agents can inspect and edit this design through WebMCP"
+          >
+            WebMCP ready
+          </span>
+        ) : null}
+      </div>
+      <div aria-live="polite" className={styles.statusToast} role="status">
+        {saveError || exportStatus}
       </div>
 
-      <main className={styles.workspace}>
+      <main className={`${styles.workspace} ${sidebarCollapsed ? styles.workspaceCollapsed : ''}`}>
         <nav aria-label="Design tools" className={styles.toolRail}>
+          <button
+            aria-controls="graphic-tool-drawer"
+            aria-expanded={!sidebarCollapsed}
+            aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={styles.toolButton}
+            onClick={() => setSidebarCollapsed((value) => !value)}
+            title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            type="button"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
+            <span>{sidebarCollapsed ? 'Expand' : 'Collapse'}</span>
+          </button>
           {toolButtons.map((tool) => (
-            <button aria-pressed={activePanel === tool.id} className={activePanel === tool.id ? styles.toolButtonActive : styles.toolButton} disabled={tool.id === 'properties' && !selectedLayer} key={tool.id} onClick={() => openPanel(tool.id)} title={tool.label} type="button">{tool.icon}<span>{tool.label}</span></button>
+            <button
+              aria-pressed={activePanel === tool.id}
+              className={activePanel === tool.id ? styles.toolButtonActive : styles.toolButton}
+              disabled={tool.id === 'properties' && !selectedLayer}
+              key={tool.id}
+              onClick={() => openPanel(tool.id)}
+              title={tool.label}
+              type="button"
+            >
+              {tool.icon}
+              <span>{tool.label}</span>
+            </button>
           ))}
         </nav>
 
-        <aside className={styles.toolDrawer}>
-          {activePanel === 'elements' ? <><h2>Elements</h2><p>Add a shape, then drag its handles directly on the canvas.</p><div className={styles.elementGrid}><button onClick={() => addShape('rectangle')} type="button"><Square />Rectangle</button><button onClick={() => addShape('circle')} type="button"><Circle />Circle</button><button onClick={() => addShape('line')} type="button"><Minus />Line</button></div></> : null}
-          {activePanel === 'images' ? <><h2>Images</h2><p>Upload a new image or choose one visually from this tenant’s media library.</p><PuckMediaField display="gallery" onChange={addImage} value={null} /></> : null}
-          {activePanel === 'text' ? <><h2>Text</h2><p>Add text, then double-click it on the canvas to type and format it.</p><button className={styles.primaryDrawerButton} onClick={addText} type="button"><Type /> Add text</button>{selectedLayer?.type === 'text' ? <button onClick={() => startTextEditing(selectedLayer.id)} type="button">Edit selected text</button> : null}</> : null}
-          {activePanel === 'colors' ? <><h2>Colors</h2><p>{selectedLayer ? `Apply a color to ${getLayerLabel(selectedLayer)}.` : 'Set the canvas background color.'}</p><strong className={styles.drawerLabel}>Tenant colors</strong><div className={styles.swatches}>{tenantPalette.map((color) => <button aria-label={`Use tenant color ${color}`} key={color} onClick={() => applyColor(color)} style={{ backgroundColor: color }} type="button" />)}</div><strong className={styles.drawerLabel}>More colors</strong><div className={styles.swatches}>{GENERAL_COLORS.map((color) => <button aria-label={`Use color ${color}`} key={color} onClick={() => applyColor(color)} style={{ backgroundColor: color }} type="button" />)}</div><label className={styles.customColor}>Custom color<input onChange={(event) => applyColor(event.target.value)} type="color" value={selectedLayer?.type === 'text' ? selectedLayer.color : selectedLayer?.type === 'shape' ? (selectedLayer.shape === 'line' ? selectedLayer.borderColor : selectedLayer.fill) : scene.background} /></label></> : null}
-          {activePanel === 'layers' ? <><h2>Layers</h2><p>Drag rows to change stacking order. The list moves with you; top rows appear in front.</p><div className={styles.layerList}>{displayLayers.map((layer) => <div aria-grabbed={draggedLayerId === layer.id} className={`${layer.id === selectedId ? styles.layerRowActive : styles.layerRow} ${draggedLayerId === layer.id ? styles.layerRowDragging : ''}`} draggable={!layer.locked} key={layer.id} onClick={() => setSelectedId(layer.id)} onContextMenu={(event) => openContextMenu(event, layer.id)} onDragEnd={finishLayerReorder} onDragEnter={() => previewLayerReorder(layer.id)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDragStart={(event) => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', layer.id); setDraggedLayerId(layer.id); setLayerOrderPreview([...scene.layers].reverse().map((item) => item.id)) }} onDrop={(event) => event.preventDefault()}><GripVertical /><span>{layer.type === 'text' ? <Type /> : layer.type === 'image' ? <ImageIcon /> : <Square />}{getLayerLabel(layer)}</span><button aria-label={layer.hidden ? 'Show layer' : 'Hide layer'} onClick={(event) => { event.stopPropagation(); updateLayer(layer.id, { hidden: !layer.hidden }) }} type="button">{layer.hidden ? <EyeOff /> : <Eye />}</button><button aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'} onClick={(event) => { event.stopPropagation(); updateLayer(layer.id, { locked: !layer.locked }) }} type="button">{layer.locked ? <Lock /> : <Unlock />}</button></div>)}</div></> : null}
-          {activePanel === 'properties' && selectedLayer ? <><h2>{getLayerLabel(selectedLayer)}</h2><label>Name<input onChange={(event) => updateLayer(selectedLayer.id, { name: event.target.value })} value={selectedLayer.name} /></label>{selectedLayer.type === 'shape' && selectedLayer.shape === 'line' ? <><div className={styles.twoColumns}><label>Start X<input onChange={(event) => updateLayer(selectedLayer.id, { x: Number(event.target.value) })} type="number" value={Math.round(selectedLayer.x)} /></label><label>Start Y<input onChange={(event) => updateLayer(selectedLayer.id, { y: Number(event.target.value) })} type="number" value={Math.round(selectedLayer.y)} /></label></div><div className={styles.twoColumns}><label>End X<input onChange={(event) => updateLayer(selectedLayer.id, { width: Number(event.target.value) - selectedLayer.x })} type="number" value={Math.round(selectedLayer.x + selectedLayer.width)} /></label><label>End Y<input onChange={(event) => updateLayer(selectedLayer.id, { height: Number(event.target.value) - selectedLayer.y })} type="number" value={Math.round(selectedLayer.y + selectedLayer.height)} /></label></div><div className={styles.inlineButtons}><button onClick={() => updateLayer(selectedLayer.id, { height: 0 })} type="button">Horizontal</button><button onClick={() => updateLayer(selectedLayer.id, { width: 0 })} type="button">Vertical</button></div></> : <><div className={styles.twoColumns}><label>X<input onChange={(event) => updateLayer(selectedLayer.id, { x: Number(event.target.value) })} type="number" value={Math.round(selectedLayer.x)} /></label><label>Y<input onChange={(event) => updateLayer(selectedLayer.id, { y: Number(event.target.value) })} type="number" value={Math.round(selectedLayer.y)} /></label></div><div className={styles.twoColumns}><label>Width<input min={MIN_LAYER_SIZE} onChange={(event) => updateLayer(selectedLayer.id, { width: Number(event.target.value) })} type="number" value={Math.round(selectedLayer.width)} /></label><label>Height<input min={MIN_LAYER_SIZE} onChange={(event) => updateLayer(selectedLayer.id, { height: Number(event.target.value) })} type="number" value={Math.round(selectedLayer.height)} /></label></div><label>Rotation<input max="180" min="-180" onChange={(event) => updateLayer(selectedLayer.id, { rotation: Number(event.target.value) })} type="range" value={selectedLayer.rotation || 0} /><span>{Math.round(selectedLayer.rotation || 0)}°</span></label></>}<label>Opacity<input max="1" min="0" onChange={(event) => updateLayer(selectedLayer.id, { opacity: Number(event.target.value) })} step="0.05" type="range" value={selectedLayer.opacity ?? 1} /></label>{selectedLayer.type === 'text' ? <><button className={styles.primaryDrawerButton} onClick={() => startTextEditing(selectedLayer.id)} type="button">Edit text</button><label>Font<select onChange={(event) => updateLayer(selectedLayer.id, { fontFamily: event.target.value })} value={selectedLayer.fontFamily}>{!FONT_OPTIONS.some((font) => font.value === selectedLayer.fontFamily) ? <option value={selectedLayer.fontFamily}>Current font</option> : null}{FONT_OPTIONS.map((font) => <option key={font.value} style={{ fontFamily: font.value }} value={font.value}>{font.label}</option>)}</select></label><label>Base font size<input min="8" onChange={(event) => updateLayer(selectedLayer.id, { fontSize: Number(event.target.value) })} type="number" value={selectedLayer.fontSize} /></label><label>Line height<input max="3" min="0.7" onChange={(event) => updateLayer(selectedLayer.id, { lineHeight: Number(event.target.value) })} step="0.05" type="number" value={selectedLayer.lineHeight} /></label></> : null}{selectedLayer.type === 'image' ? <label>Image fit<select onChange={(event) => updateLayer(selectedLayer.id, { objectFit: event.target.value as GraphicImageLayer['objectFit'] })} value={selectedLayer.objectFit}><option value="cover">Cover</option><option value="contain">Contain</option></select></label> : null}{selectedLayer.type === 'shape' ? <><label>Stroke width<input min="0" onChange={(event) => updateLayer(selectedLayer.id, { borderWidth: Number(event.target.value) })} type="number" value={selectedLayer.borderWidth} /></label>{selectedLayer.shape === 'rectangle' ? <label>Corner radius<input min="0" onChange={(event) => updateLayer(selectedLayer.id, { borderRadius: Number(event.target.value) })} type="number" value={selectedLayer.borderRadius} /></label> : null}</> : null}</> : null}
-          {saveError ? <p className={styles.error}>{saveError}</p> : null}
-          {exportStatus ? <p className={styles.exportStatus}>{exportStatus}</p> : null}
+        <aside
+          aria-label="Design tool settings"
+          className={styles.toolDrawer}
+          hidden={sidebarCollapsed}
+          id="graphic-tool-drawer"
+        >
+          {activePanel === 'templates' ? (
+            <>
+              <h2>Templates</h2>
+              <p>
+                Choose a layout for this design, or save your current canvas as a reusable Post
+                template.
+              </p>
+              {templatesLoading ? (
+                <p>Loading templates…</p>
+              ) : (
+                templates.map((template) => (
+                  <button key={template.id} onClick={() => applyTemplate(template)} type="button">
+                    {template.title || 'Untitled template'}
+                  </button>
+                ))
+              )}
+              <button
+                disabled={templatesLoading}
+                onClick={requestTemplates}
+                type="button"
+              >
+                Refresh templates
+              </button>
+              {canManageTemplates ? (
+                <>
+                  <hr />
+                  <h3>Save as template</h3>
+                  <p>
+                    Set a text or image layer’s Template content in Properties to use the Post title
+                    or representative details automatically.
+                  </p>
+                  <label>
+                    Template name
+                    <input
+                      maxLength={120}
+                      onChange={(event) => setTemplateName(event.target.value)}
+                      placeholder="Budget or Public Safety"
+                      value={templateName}
+                    />
+                  </label>
+                  <button
+                    disabled={exporting || templatesLoading || !templateName.trim()}
+                    onClick={() => void saveTemplate()}
+                    type="button"
+                  >
+                    Save as template
+                  </button>
+                </>
+              ) : (
+                <p>A super admin can save new reusable templates.</p>
+              )}
+              {templateStatus ? <p role="status">{templateStatus}</p> : null}
+            </>
+          ) : null}
+          {activePanel === 'elements' ? (
+            <>
+              <h2>Elements</h2>
+              <p>Add a shape, then drag its handles directly on the canvas.</p>
+              <div className={styles.elementGrid}>
+                <button onClick={() => addShape('rectangle')} type="button">
+                  <Square />
+                  Rectangle
+                </button>
+                <button onClick={() => addShape('circle')} type="button">
+                  <Circle />
+                  Circle
+                </button>
+                <button onClick={() => addShape('line')} type="button">
+                  <Minus />
+                  Line
+                </button>
+              </div>
+            </>
+          ) : null}
+          {activePanel === 'images' ? (
+            <>
+              <h2>Images</h2>
+              <p>Upload a new image or choose one visually from this tenant’s media library.</p>
+              <PuckMediaField display="gallery" onChange={addImage} value={null} />
+            </>
+          ) : null}
+          {activePanel === 'text' ? (
+            <>
+              <h2>Text</h2>
+              <p>Add text, then double-click it on the canvas to type and format it.</p>
+              <button className={styles.primaryDrawerButton} onClick={addText} type="button">
+                <Type /> Add text
+              </button>
+              {selectedLayer?.type === 'text' ? (
+                <button onClick={() => startTextEditing(selectedLayer.id)} type="button">
+                  Edit selected text
+                </button>
+              ) : null}
+            </>
+          ) : null}
+          {activePanel === 'colors' ? (
+            <>
+              <h2>Colors</h2>
+              <p>
+                {selectedLayer
+                  ? `Apply a color to ${getLayerLabel(selectedLayer)}.`
+                  : 'Set the canvas background color.'}
+              </p>
+              <strong className={styles.drawerLabel}>Tenant colors</strong>
+              <div className={styles.swatches}>
+                {tenantPalette.map((color) => (
+                  <button
+                    aria-label={`Use tenant color ${color}`}
+                    key={color}
+                    onClick={() => applyColor(color)}
+                    style={{ backgroundColor: color }}
+                    type="button"
+                  />
+                ))}
+              </div>
+              <strong className={styles.drawerLabel}>More colors</strong>
+              <div className={styles.swatches}>
+                {GENERAL_COLORS.map((color) => (
+                  <button
+                    aria-label={`Use color ${color}`}
+                    key={color}
+                    onClick={() => applyColor(color)}
+                    style={{ backgroundColor: color }}
+                    type="button"
+                  />
+                ))}
+              </div>
+              <label className={styles.customColor}>
+                Custom color
+                <input
+                  onChange={(event) => applyColor(event.target.value)}
+                  type="color"
+                  value={
+                    selectedLayer?.type === 'text'
+                      ? selectedLayer.color
+                      : selectedLayer?.type === 'shape'
+                        ? selectedLayer.shape === 'line'
+                          ? selectedLayer.borderColor
+                          : selectedLayer.fill
+                        : scene.background
+                  }
+                />
+              </label>
+            </>
+          ) : null}
+          {activePanel === 'layers' ? (
+            <>
+              <h2>Layers</h2>
+              <p>
+                Drag rows to change stacking order. The list moves with you; top rows appear in
+                front.
+              </p>
+              <div className={styles.layerList}>
+                {displayLayers.map((layer) => (
+                  <div
+                    aria-grabbed={draggedLayerId === layer.id}
+                    className={`${layer.id === selectedId ? styles.layerRowActive : styles.layerRow} ${draggedLayerId === layer.id ? styles.layerRowDragging : ''}`}
+                    draggable={!layer.locked}
+                    key={layer.id}
+                    onClick={() => setSelectedId(layer.id)}
+                    onContextMenu={(event) => openContextMenu(event, layer.id)}
+                    onDragEnd={finishLayerReorder}
+                    onDragEnter={() => previewLayerReorder(layer.id)}
+                    onDragOver={(event) => {
+                      event.preventDefault()
+                      event.dataTransfer.dropEffect = 'move'
+                    }}
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move'
+                      event.dataTransfer.setData('text/plain', layer.id)
+                      setDraggedLayerId(layer.id)
+                      setLayerOrderPreview([...scene.layers].reverse().map((item) => item.id))
+                    }}
+                    onDrop={(event) => event.preventDefault()}
+                  >
+                    <GripVertical />
+                    <span>
+                      {layer.type === 'text' ? (
+                        <Type />
+                      ) : layer.type === 'image' ? (
+                        <ImageIcon />
+                      ) : (
+                        <Square />
+                      )}
+                      {getLayerLabel(layer)}
+                    </span>
+                    <button
+                      aria-label={layer.hidden ? 'Show layer' : 'Hide layer'}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        updateLayer(layer.id, { hidden: !layer.hidden })
+                      }}
+                      type="button"
+                    >
+                      {layer.hidden ? <EyeOff /> : <Eye />}
+                    </button>
+                    <button
+                      aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        updateLayer(layer.id, { locked: !layer.locked })
+                      }}
+                      type="button"
+                    >
+                      {layer.locked ? <Lock /> : <Unlock />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {activePanel === 'properties' && selectedLayer ? (
+            <>
+              <h2>{getLayerLabel(selectedLayer)}</h2>
+              <label>
+                Name
+                <input
+                  onChange={(event) => updateLayer(selectedLayer.id, { name: event.target.value })}
+                  value={selectedLayer.name}
+                />
+              </label>
+              <label>
+                Opacity
+                <input
+                  max="1"
+                  min="0"
+                  onChange={(event) =>
+                    updateLayer(selectedLayer.id, { opacity: Number(event.target.value) })
+                  }
+                  step="0.05"
+                  type="range"
+                  value={selectedLayer.opacity ?? 1}
+                />
+              </label>
+              {selectedLayer.type === 'text' ? (
+                <>
+                  <button
+                    className={styles.primaryDrawerButton}
+                    onClick={() => startTextEditing(selectedLayer.id)}
+                    type="button"
+                  >
+                    Edit text
+                  </button>
+                  <label>
+                    Font
+                    <select
+                      onChange={(event) =>
+                        updateLayer(selectedLayer.id, { fontFamily: event.target.value })
+                      }
+                      value={selectedLayer.fontFamily}
+                    >
+                      {!FONT_OPTIONS.some((font) => font.value === selectedLayer.fontFamily) ? (
+                        <option value={selectedLayer.fontFamily}>Current font</option>
+                      ) : null}
+                      {FONT_OPTIONS.map((font) => (
+                        <option
+                          key={font.value}
+                          style={{ fontFamily: font.value }}
+                          value={font.value}
+                        >
+                          {font.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Base font size
+                    <input
+                      min="8"
+                      onChange={(event) =>
+                        updateLayer(selectedLayer.id, { fontSize: Number(event.target.value) })
+                      }
+                      type="number"
+                      value={selectedLayer.fontSize}
+                    />
+                  </label>
+                  <label>
+                    Line height
+                    <input
+                      max="3"
+                      min="0.7"
+                      onChange={(event) =>
+                        updateLayer(selectedLayer.id, { lineHeight: Number(event.target.value) })
+                      }
+                      step="0.05"
+                      type="number"
+                      value={selectedLayer.lineHeight}
+                    />
+                  </label>
+                </>
+              ) : null}
+              {selectedLayer.type === 'image' ? (
+                <label>
+                  Image fit
+                  <select
+                    onChange={(event) =>
+                      updateLayer(selectedLayer.id, {
+                        objectFit: event.target.value as GraphicImageLayer['objectFit'],
+                      })
+                    }
+                    value={selectedLayer.objectFit}
+                  >
+                    <option value="cover">Cover</option>
+                    <option value="contain">Contain</option>
+                  </select>
+                </label>
+              ) : null}
+              {selectedLayer.type === 'shape' ? (
+                <>
+                  <label>
+                    Stroke width
+                    <input
+                      min="0"
+                      onChange={(event) =>
+                        updateLayer(selectedLayer.id, { borderWidth: Number(event.target.value) })
+                      }
+                      type="number"
+                      value={selectedLayer.borderWidth}
+                    />
+                  </label>
+                  {selectedLayer.shape === 'rectangle' ? (
+                    <label>
+                      Corner radius
+                      <input
+                        min="0"
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, {
+                            borderRadius: Number(event.target.value),
+                          })
+                        }
+                        type="number"
+                        value={selectedLayer.borderRadius}
+                      />
+                    </label>
+                  ) : null}
+                </>
+              ) : null}
+              {selectedLayer.type === 'text' ? (
+                <label>
+                  Template content
+                  <select
+                    aria-label="Text template content"
+                    onChange={(event) =>
+                      updateLayer(selectedLayer.id, {
+                        binding: event.target.value
+                          ? (event.target.value as GraphicTextLayer['binding'])
+                          : undefined,
+                      })
+                    }
+                    value={selectedLayer.binding || ''}
+                  >
+                    <option value="">Keep this text</option>
+                    <option value="post-title">Post title</option>
+                    <option value="primary-rep-name">Primary representative name</option>
+                    <option value="secondary-rep-name">Secondary representative name</option>
+                  </select>
+                </label>
+              ) : null}
+              {selectedLayer.type === 'image' ? (
+                <label>
+                  Template content
+                  <select
+                    aria-label="Image template content"
+                    onChange={(event) =>
+                      updateLayer(selectedLayer.id, {
+                        binding: event.target.value
+                          ? (event.target.value as GraphicImageLayer['binding'])
+                          : undefined,
+                      })
+                    }
+                    value={selectedLayer.binding || ''}
+                  >
+                    <option value="">Keep this image</option>
+                    <option value="primary-headshot">Primary representative photo</option>
+                    <option value="secondary-headshot">Secondary representative photo</option>
+                  </select>
+                </label>
+              ) : null}
+              <h3>Position &amp; size</h3>
+              {selectedLayer.type === 'shape' && selectedLayer.shape === 'line' ? (
+                <>
+                  <div className={styles.twoColumns}>
+                    <label>
+                      Start X
+                      <input
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, { x: Number(event.target.value) })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.x)}
+                      />
+                    </label>
+                    <label>
+                      Start Y
+                      <input
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, { y: Number(event.target.value) })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.y)}
+                      />
+                    </label>
+                  </div>
+                  <div className={styles.twoColumns}>
+                    <label>
+                      End X
+                      <input
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, {
+                            width: Number(event.target.value) - selectedLayer.x,
+                          })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.x + selectedLayer.width)}
+                      />
+                    </label>
+                    <label>
+                      End Y
+                      <input
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, {
+                            height: Number(event.target.value) - selectedLayer.y,
+                          })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.y + selectedLayer.height)}
+                      />
+                    </label>
+                  </div>
+                  <div className={styles.inlineButtons}>
+                    <button
+                      onClick={() =>
+                        updateLayer(selectedLayer.id, {
+                          height: 0,
+                          width: Math.hypot(selectedLayer.width, selectedLayer.height) || 420,
+                        })
+                      }
+                      type="button"
+                    >
+                      Horizontal
+                    </button>
+                    <button
+                      onClick={() =>
+                        updateLayer(selectedLayer.id, {
+                          width: 0,
+                          height: Math.hypot(selectedLayer.width, selectedLayer.height) || 420,
+                        })
+                      }
+                      type="button"
+                    >
+                      Vertical
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={styles.twoColumns}>
+                    <label>
+                      X
+                      <input
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, { x: Number(event.target.value) })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.x)}
+                      />
+                    </label>
+                    <label>
+                      Y
+                      <input
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, { y: Number(event.target.value) })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.y)}
+                      />
+                    </label>
+                  </div>
+                  <div className={styles.twoColumns}>
+                    <label>
+                      Width
+                      <input
+                        min={MIN_LAYER_SIZE}
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, { width: Number(event.target.value) })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.width)}
+                      />
+                    </label>
+                    <label>
+                      Height
+                      <input
+                        min={MIN_LAYER_SIZE}
+                        onChange={(event) =>
+                          updateLayer(selectedLayer.id, { height: Number(event.target.value) })
+                        }
+                        type="number"
+                        value={Math.round(selectedLayer.height)}
+                      />
+                    </label>
+                  </div>
+                  <label>
+                    Rotation
+                    <input
+                      max="180"
+                      min="-180"
+                      onChange={(event) =>
+                        updateLayer(selectedLayer.id, { rotation: Number(event.target.value) })
+                      }
+                      type="range"
+                      value={selectedLayer.rotation || 0}
+                    />
+                    <span>{Math.round(selectedLayer.rotation || 0)}°</span>
+                  </label>
+                </>
+              )}
+            </>
+          ) : null}
         </aside>
 
-        <section className={styles.canvasViewport} onContextMenu={(event) => openContextMenu(event, null)} onPointerDown={() => { setSelectedId(null); setEditingTextId(null); setCroppingImageId(null); setContextMenu(null) }}>
-          {selectedLayer ? <div className={styles.selectionToolbar}>{croppingImageId === selectedLayer.id ? <button className={styles.cropDoneButton} onClick={() => setCroppingImageId(null)} type="button">Done cropping</button> : null}<button onClick={duplicateSelected} title="Duplicate" type="button"><Copy /></button><button onClick={() => moveLayer('front')} title="Bring to front" type="button"><BringToFront /></button><button onClick={() => moveLayer('back')} title="Send to back" type="button"><SendToBack /></button><button onClick={() => updateLayer(selectedLayer.id, { hidden: !selectedLayer.hidden })} title="Show or hide" type="button">{selectedLayer.hidden ? <EyeOff /> : <Eye />}</button><button onClick={() => updateLayer(selectedLayer.id, { locked: !selectedLayer.locked })} title="Lock or unlock" type="button">{selectedLayer.locked ? <Lock /> : <Unlock />}</button><button onClick={deleteSelected} title="Delete" type="button"><Trash2 /></button></div> : null}
-          <div className={styles.canvasSizer} style={{ height: scene.height * zoom, width: scene.width * zoom }}>
-            <div className={styles.canvas} style={{ background: scene.background, height: scene.height, transform: `scale(${zoom})`, width: scene.width }}>
+        <section
+          className={styles.canvasViewport}
+          onContextMenu={(event) => openContextMenu(event, null)}
+          onPointerDown={() => {
+            setSelectedId(null)
+            setEditingTextId(null)
+            setCroppingImageId(null)
+            setContextMenu(null)
+          }}
+        >
+          {selectedLayer ? (
+            <div
+              className={styles.selectionToolbar}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              {croppingImageId === selectedLayer.id ? (
+                <button
+                  className={styles.cropDoneButton}
+                  onClick={() => setCroppingImageId(null)}
+                  type="button"
+                >
+                  Done cropping
+                </button>
+              ) : null}
+              <button onClick={duplicateSelected} title="Duplicate" type="button">
+                <Copy />
+              </button>
+              <button onClick={() => moveLayer('front')} title="Bring to front" type="button">
+                <BringToFront />
+              </button>
+              <button onClick={() => moveLayer('back')} title="Send to back" type="button">
+                <SendToBack />
+              </button>
+              <button
+                onClick={() => updateLayer(selectedLayer.id, { hidden: !selectedLayer.hidden })}
+                title="Show or hide"
+                type="button"
+              >
+                {selectedLayer.hidden ? <EyeOff /> : <Eye />}
+              </button>
+              <button
+                onClick={() => updateLayer(selectedLayer.id, { locked: !selectedLayer.locked })}
+                title="Lock or unlock"
+                type="button"
+              >
+                {selectedLayer.locked ? <Lock /> : <Unlock />}
+              </button>
+              <button onClick={deleteSelected} title="Delete" type="button">
+                <Trash2 />
+              </button>
+            </div>
+          ) : null}
+          <div
+            className={styles.canvasSizer}
+            style={{ height: scene.height * zoom, width: scene.width * zoom }}
+          >
+            <div
+              className={styles.canvas}
+              style={{
+                background: scene.background,
+                height: scene.height,
+                transform: `scale(${zoom})`,
+                width: scene.width,
+              }}
+            >
               {scene.layers.map((layer) => {
                 if (layer.hidden) return null
                 const selected = layer.id === selectedId
                 if (layer.type === 'shape' && layer.shape === 'line') {
                   const frame = getLineFrame(layer)
-                  return <div className={`${styles.canvasLayer} ${styles.lineLayer} ${selected ? styles.lineLayerSelected : ''}`} key={layer.id} onContextMenu={(event) => openContextMenu(event, layer.id)} onPointerDown={(event) => beginPointer(event, layer, 'drag')} style={{ height: frame.height, left: frame.left, opacity: layer.opacity ?? 1, position: 'absolute', top: frame.top, width: frame.width }}><svg height="100%" overflow="visible" width="100%"><line stroke={layer.borderColor} strokeLinecap="butt" strokeWidth={Math.max(1, layer.borderWidth)} x1={frame.startX} x2={frame.endX} y1={frame.startY} y2={frame.endY} /></svg>{selected && !layer.locked ? <><button aria-label="Move line start" className={styles.lineEndpoint} onPointerDown={(event) => beginPointer(event, layer, 'line-start')} style={{ left: frame.startX - 9, top: frame.startY - 9 }} type="button" /><button aria-label="Move line end" className={styles.lineEndpoint} onPointerDown={(event) => beginPointer(event, layer, 'line-end')} style={{ left: frame.endX - 9, top: frame.endY - 9 }} type="button" /></> : null}</div>
+                  return (
+                    <div
+                      className={`${styles.canvasLayer} ${styles.lineLayer} ${selected ? styles.lineLayerSelected : ''}`}
+                      key={layer.id}
+                      onContextMenu={(event) => openContextMenu(event, layer.id)}
+                      onPointerDown={(event) => beginPointer(event, layer, 'drag')}
+                      style={{
+                        height: frame.height,
+                        left: frame.left,
+                        opacity: layer.opacity ?? 1,
+                        position: 'absolute',
+                        top: frame.top,
+                        width: frame.width,
+                      }}
+                    >
+                      <svg height="100%" overflow="visible" width="100%">
+                        <line
+                          stroke={layer.borderColor}
+                          strokeLinecap="butt"
+                          strokeWidth={Math.max(1, layer.borderWidth)}
+                          x1={frame.startX}
+                          x2={frame.endX}
+                          y1={frame.startY}
+                          y2={frame.endY}
+                        />
+                      </svg>
+                      {selected && !layer.locked ? (
+                        <>
+                          <button
+                            aria-label="Move line start"
+                            className={styles.lineEndpoint}
+                            onPointerDown={(event) => beginPointer(event, layer, 'line-start')}
+                            style={{ left: frame.startX - 9, top: frame.startY - 9 }}
+                            type="button"
+                          />
+                          <button
+                            aria-label="Move line end"
+                            className={styles.lineEndpoint}
+                            onPointerDown={(event) => beginPointer(event, layer, 'line-end')}
+                            style={{ left: frame.endX - 9, top: frame.endY - 9 }}
+                            type="button"
+                          />
+                        </>
+                      ) : null}
+                    </div>
+                  )
                 }
-                const commonStyle: React.CSSProperties = { height: layer.height, left: layer.x, opacity: layer.opacity ?? 1, position: 'absolute', top: layer.y, transform: `rotate(${layer.rotation || 0}deg)`, width: layer.width }
+                const commonStyle: React.CSSProperties = {
+                  height: layer.height,
+                  left: layer.x,
+                  opacity: layer.opacity ?? 1,
+                  position: 'absolute',
+                  top: layer.y,
+                  transform: `rotate(${layer.rotation || 0}deg)`,
+                  width: layer.width,
+                }
                 const isCropping = croppingImageId === layer.id && layer.type === 'image'
-                return <div className={`${styles.canvasLayer} ${selected ? styles.canvasLayerSelected : ''} ${isCropping ? styles.canvasLayerCropping : ''}`} key={layer.id} onContextMenu={(event) => openContextMenu(event, layer.id)} onDoubleClick={(event) => { if (layer.locked) return; if (layer.type === 'text' && editingTextId !== layer.id) { event.preventDefault(); event.stopPropagation(); startTextEditing(layer.id, { x: event.clientX, y: event.clientY }) } else if (layer.type === 'image') { event.preventDefault(); event.stopPropagation(); setSelectedId(layer.id); setCroppingImageId(layer.id); updateLayer(layer.id, { objectFit: 'cover' }) } }} onPointerDown={(event) => beginPointer(event, layer, isCropping ? 'image-pan' : 'drag')} style={commonStyle} title={layer.type === 'image' ? 'Double-click to crop and reposition image' : undefined}>{layer.type === 'image' ? <Image alt={layer.alt} draggable={false} fill sizes={`${Math.round(layer.width * zoom)}px`} src={layer.url} style={{ objectFit: layer.objectFit, objectPosition: `${layer.imagePositionX ?? 50}% ${layer.imagePositionY ?? 50}%` }} unoptimized /> : null}{isCropping ? <div className={styles.cropHint}>Drag image to reposition</div> : null}{layer.type === 'shape' ? <div style={{ background: layer.fill, border: `${layer.borderWidth}px solid ${layer.borderColor}`, borderRadius: layer.shape === 'circle' ? '50%' : layer.borderRadius, height: '100%', width: '100%' }} /> : null}{layer.type === 'text' && editingTextId === layer.id ? <div aria-label={`Editing ${getLayerLabel(layer)}`} className={styles.richTextLayer} contentEditable onBlur={(event) => { rememberRichSelection(); updateLayer(layer.id, { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) }) }} onInput={(event) => { rememberRichSelection(); updateLayer(layer.id, { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) }, false) }} onKeyUp={rememberRichSelection} onMouseUp={rememberRichSelection} ref={editableRef} role="textbox" spellCheck suppressContentEditableWarning style={{ color: layer.color, fontFamily: layer.fontFamily, fontSize: layer.fontSize, lineHeight: layer.lineHeight, textAlign: layer.textAlign }} /> : null}{layer.type === 'text' && editingTextId !== layer.id ? <div className={`${styles.richTextLayer} ${styles.richTextLayerPreview}`} dangerouslySetInnerHTML={{ __html: sanitizeGraphicRichHtml(layer.html) }} style={{ color: layer.color, fontFamily: layer.fontFamily, fontSize: layer.fontSize, lineHeight: layer.lineHeight, textAlign: layer.textAlign }} /> : null}{selected && !layer.locked && editingTextId !== layer.id ? <><button aria-label="Rotate layer" className={styles.rotateHandle} onPointerDown={(event) => beginPointer(event, layer, 'rotate')} type="button"><RotateCw /></button>{RESIZE_HANDLES.map((handle) => <button aria-label={`Resize layer from ${handle}`} className={styles.resizeHandle} data-handle={handle} key={handle} onPointerDown={(event) => beginPointer(event, layer, 'resize', handle)} type="button" />)}</> : null}</div>
+                return (
+                  <div
+                    className={`${styles.canvasLayer} ${selected ? styles.canvasLayerSelected : ''} ${isCropping ? styles.canvasLayerCropping : ''}`}
+                    key={layer.id}
+                    onContextMenu={(event) => openContextMenu(event, layer.id)}
+                    onDoubleClick={(event) => {
+                      if (layer.locked) return
+                      if (layer.type === 'text' && editingTextId !== layer.id) {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        startTextEditing(layer.id, { x: event.clientX, y: event.clientY })
+                      } else if (layer.type === 'image') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        setSelectedId(layer.id)
+                        setCroppingImageId(layer.id)
+                        updateLayer(layer.id, { objectFit: 'cover' })
+                      }
+                    }}
+                    onPointerDown={(event) =>
+                      beginPointer(event, layer, isCropping ? 'image-pan' : 'drag')
+                    }
+                    style={commonStyle}
+                    title={
+                      layer.type === 'image'
+                        ? 'Double-click to crop and reposition image'
+                        : undefined
+                    }
+                  >
+                    {layer.type === 'image' ? (
+                      <Image
+                        alt={layer.alt}
+                        draggable={false}
+                        fill
+                        sizes={`${Math.round(layer.width * zoom)}px`}
+                        src={layer.url}
+                        style={{
+                          objectFit: layer.objectFit,
+                          objectPosition: `${layer.imagePositionX ?? 50}% ${layer.imagePositionY ?? 50}%`,
+                        }}
+                        unoptimized
+                      />
+                    ) : null}
+                    {isCropping ? (
+                      <div className={styles.cropHint}>Drag image to reposition</div>
+                    ) : null}
+                    {layer.type === 'shape' ? (
+                      <div
+                        style={{
+                          background: layer.fill,
+                          border: `${layer.borderWidth}px solid ${layer.borderColor}`,
+                          borderRadius: layer.shape === 'circle' ? '50%' : layer.borderRadius,
+                          height: '100%',
+                          width: '100%',
+                        }}
+                      />
+                    ) : null}
+                    {layer.type === 'text' && editingTextId === layer.id ? (
+                      <div
+                        aria-label={`Editing ${getLayerLabel(layer)}`}
+                        className={styles.richTextLayer}
+                        contentEditable
+                        onBlur={(event) => {
+                          rememberRichSelection()
+                          updateLayer(layer.id, {
+                            html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML),
+                          })
+                        }}
+                        onInput={(event) => {
+                          rememberRichSelection()
+                          updateLayer(
+                            layer.id,
+                            { html: sanitizeGraphicRichHtml(event.currentTarget.innerHTML) },
+                            false,
+                          )
+                        }}
+                        onKeyUp={rememberRichSelection}
+                        onMouseUp={rememberRichSelection}
+                        ref={editableRef}
+                        role="textbox"
+                        spellCheck
+                        suppressContentEditableWarning
+                        style={{
+                          color: layer.color,
+                          fontFamily: layer.fontFamily,
+                          fontSize: layer.fontSize,
+                          lineHeight: layer.lineHeight,
+                          textAlign: layer.textAlign,
+                        }}
+                      />
+                    ) : null}
+                    {layer.type === 'text' && editingTextId !== layer.id ? (
+                      <div
+                        className={`${styles.richTextLayer} ${styles.richTextLayerPreview}`}
+                        dangerouslySetInnerHTML={{ __html: sanitizeGraphicRichHtml(layer.html) }}
+                        style={{
+                          color: layer.color,
+                          fontFamily: layer.fontFamily,
+                          fontSize: layer.fontSize,
+                          lineHeight: layer.lineHeight,
+                          textAlign: layer.textAlign,
+                        }}
+                      />
+                    ) : null}
+                    {selected && !layer.locked && editingTextId !== layer.id ? (
+                      <>
+                        <button
+                          aria-label="Rotate layer"
+                          className={styles.rotateHandle}
+                          onPointerDown={(event) => beginPointer(event, layer, 'rotate')}
+                          type="button"
+                        >
+                          <RotateCw />
+                        </button>
+                        {RESIZE_HANDLES.map((handle) => (
+                          <button
+                            aria-label={`Resize layer from ${handle}`}
+                            className={styles.resizeHandle}
+                            data-handle={handle}
+                            key={handle}
+                            onPointerDown={(event) => beginPointer(event, layer, 'resize', handle)}
+                            type="button"
+                          />
+                        ))}
+                      </>
+                    ) : null}
+                  </div>
+                )
               })}
             </div>
           </div>
         </section>
       </main>
       {contextMenu ? (
-        <div className={styles.contextMenu} onPointerDown={(event) => event.stopPropagation()} role="menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <div className={styles.contextMenuTitle}>{contextMenu.layerId && selectedLayer ? getLayerLabel(selectedLayer) : 'Canvas'}</div>
-          {contextMenu.layerId && selectedLayer ? <button onClick={() => runContextAction(copySelected)} role="menuitem" type="button"><Copy /><span>Copy</span><kbd>Ctrl+C</kbd></button> : null}
-          <button disabled={!hasCopiedLayer} onClick={() => runContextAction(pasteCopied)} role="menuitem" type="button"><ClipboardPaste /><span>Paste</span><kbd>Ctrl+V</kbd></button>
-          {contextMenu.layerId && selectedLayer ? <>
-            <button onClick={() => runContextAction(duplicateSelected)} role="menuitem" type="button"><Copy /><span>Duplicate</span><kbd>Ctrl+D</kbd></button>
-            <div className={styles.contextMenuDivider} />
-            <button onClick={() => runContextAction(() => moveLayer('front'))} role="menuitem" type="button"><BringToFront /><span>Bring to front</span></button>
-            <button onClick={() => runContextAction(() => moveLayer('back'))} role="menuitem" type="button"><SendToBack /><span>Send to back</span></button>
-            <div className={styles.contextMenuDivider} />
-            <button onClick={() => runContextAction(() => updateLayer(selectedLayer.id, { hidden: !selectedLayer.hidden }))} role="menuitem" type="button">{selectedLayer.hidden ? <Eye /> : <EyeOff />}<span>{selectedLayer.hidden ? 'Show' : 'Hide'}</span></button>
-            <button onClick={() => runContextAction(() => updateLayer(selectedLayer.id, { locked: !selectedLayer.locked }))} role="menuitem" type="button">{selectedLayer.locked ? <Unlock /> : <Lock />}<span>{selectedLayer.locked ? 'Unlock' : 'Lock'}</span></button>
-            <div className={styles.contextMenuDivider} />
-            <button className={styles.contextMenuDanger} disabled={selectedLayer.locked} onClick={() => runContextAction(deleteSelected)} role="menuitem" type="button"><Trash2 /><span>Delete</span><kbd>Del</kbd></button>
-          </> : null}
+        <div
+          className={styles.contextMenu}
+          onPointerDown={(event) => event.stopPropagation()}
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          <div className={styles.contextMenuTitle}>
+            {contextMenu.layerId && selectedLayer ? getLayerLabel(selectedLayer) : 'Canvas'}
+          </div>
+          {contextMenu.layerId && selectedLayer ? (
+            <button onClick={() => runContextAction(copySelected)} role="menuitem" type="button">
+              <Copy />
+              <span>Copy</span>
+              <kbd>Ctrl+C</kbd>
+            </button>
+          ) : null}
+          <button
+            disabled={!hasCopiedLayer}
+            onClick={() => runContextAction(pasteCopied)}
+            role="menuitem"
+            type="button"
+          >
+            <ClipboardPaste />
+            <span>Paste</span>
+            <kbd>Ctrl+V</kbd>
+          </button>
+          {contextMenu.layerId && selectedLayer ? (
+            <>
+              <button
+                onClick={() => runContextAction(duplicateSelected)}
+                role="menuitem"
+                type="button"
+              >
+                <Copy />
+                <span>Duplicate</span>
+                <kbd>Ctrl+D</kbd>
+              </button>
+              <div className={styles.contextMenuDivider} />
+              <button
+                onClick={() => runContextAction(() => moveLayer('front'))}
+                role="menuitem"
+                type="button"
+              >
+                <BringToFront />
+                <span>Bring to front</span>
+              </button>
+              <button
+                onClick={() => runContextAction(() => moveLayer('back'))}
+                role="menuitem"
+                type="button"
+              >
+                <SendToBack />
+                <span>Send to back</span>
+              </button>
+              <div className={styles.contextMenuDivider} />
+              <button
+                onClick={() =>
+                  runContextAction(() =>
+                    updateLayer(selectedLayer.id, { hidden: !selectedLayer.hidden }),
+                  )
+                }
+                role="menuitem"
+                type="button"
+              >
+                {selectedLayer.hidden ? <Eye /> : <EyeOff />}
+                <span>{selectedLayer.hidden ? 'Show' : 'Hide'}</span>
+              </button>
+              <button
+                onClick={() =>
+                  runContextAction(() =>
+                    updateLayer(selectedLayer.id, { locked: !selectedLayer.locked }),
+                  )
+                }
+                role="menuitem"
+                type="button"
+              >
+                {selectedLayer.locked ? <Unlock /> : <Lock />}
+                <span>{selectedLayer.locked ? 'Unlock' : 'Lock'}</span>
+              </button>
+              <div className={styles.contextMenuDivider} />
+              <button
+                className={styles.contextMenuDanger}
+                disabled={selectedLayer.locked}
+                onClick={() => runContextAction(deleteSelected)}
+                role="menuitem"
+                type="button"
+              >
+                <Trash2 />
+                <span>Delete</span>
+                <kbd>Del</kbd>
+              </button>
+            </>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
 
 import { useAdminBuilderMode } from '@/components/admin/hooks/useAdminBuilderMode'
 import { PuckVisualBuilderStepNav } from '@/components/admin/puck/PuckVisualBuilderStepNav'
@@ -17,6 +18,7 @@ const GraphicDesignStudioEditor = dynamic(
 )
 
 export function GraphicDesignStudioClient(props: {
+  canManageTemplates?: boolean
   designId: string | null
   initialScene: GraphicScene
   sourcePostId?: string | null
@@ -25,6 +27,8 @@ export function GraphicDesignStudioClient(props: {
   title: string
 }) {
   useAdminBuilderMode('graphic-design')
+  const searchParams = useSearchParams()
+  const returnToPostId = searchParams.get('fromPost') || props.sourcePostId
 
   return (
     <>
@@ -35,7 +39,7 @@ export function GraphicDesignStudioClient(props: {
         documentTitle={props.title}
         viewLabel="Design Studio"
       />
-      <GraphicDesignStudioEditor {...props} />
+      <GraphicDesignStudioEditor {...props} returnToPostId={returnToPostId} />
     </>
   )
 }

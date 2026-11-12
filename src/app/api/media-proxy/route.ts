@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     return new Response('Invalid url', { status: 400 })
   }
 
-  if (!ALLOWED_HOSTS.has(target.hostname)) {
+  if (target.protocol !== 'https:' || target.port || target.username || target.password || !ALLOWED_HOSTS.has(target.hostname)) {
     return new Response('Forbidden host', { status: 403 })
   }
 
@@ -26,6 +26,8 @@ export async function GET(req: NextRequest) {
     const upstream = await fetch(target.toString(), {
       // We want fresh content in admin; tune cache if desired
       cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(25_000),
       // Cloudflare/R2 doesn't require special headers for public objects
       // but you can forward them if needed.
     })

@@ -420,11 +420,48 @@ function blobToDataUrl(blob: Blob) {
   })
 }
 
+export function graphicExportImageRequest(url: string, origin: string) {
+  const target = new URL(url, origin)
+  if (target.protocol === 'data:' && url.startsWith('data:image/')) return url
+  if (target.protocol === 'blob:' && target.origin === origin) return url
+  if (!['http:', 'https:'].includes(target.protocol) || target.username || target.password) {
+    throw new Error('This image address is not supported.')
+  }
+  if (target.origin === origin) return target.href
+  // R2 images display in <img> without CORS, but canvas exports need their bytes.
+  // Use our existing, host-restricted proxy instead of a credentialed CORS fetch.
+  if (target.protocol === 'https:' && target.hostname === 'media.cthousegop.com' && !target.port) {
+    return `/api/media-proxy?${new URLSearchParams({ url: target.href })}`
+  }
+  return target.href
+}
+
 async function inlineImageUrl(url: string) {
-  if (url.startsWith('data:')) return url
-  const response = await fetch(url, { credentials: 'include' })
-  if (!response.ok) throw new Error(`Unable to include image in export (${response.status})`)
-  return blobToDataUrl(await response.blob())
+  if (url.startsWith('data:image/')) return url
+  const requestUrl = graphicExportImageRequest(url, window.location.origin)
+  let response: Response
+  try {
+    response = await fetch(requestUrl, {
+      credentials: 'same-origin',
+      signal: AbortSignal.timeout(30_000),
+    })
+  } catch {
+    throw new Error('The image download could not connect. Check your connection and try again; externally hosted images may need to be uploaded to the Media Gallery.')
+  }
+  if (!response.ok) throw new Error(`The image download returned HTTP ${response.status}. Check that the image is still available in the Media Gallery.`)
+  const blob = await response.blob()
+  if (!blob.type.startsWith('image/')) throw new Error('The image download returned a non-image response. Sign in again if your session expired.')
+  return blobToDataUrl(blob)
+}
+
+async function loadExportImage(layer: GraphicImageLayer) {
+  try {
+    return await loadCanvasImage(layer.url)
+  } catch (error) {
+    // Name the asset without exposing signed URLs, query strings or server bodies.
+    const name = (layer.name || layer.alt || 'Unnamed image').slice(0, 120)
+    throw new Error(`Export image “${name}”: ${error instanceof Error ? error.message : 'Unable to decode the downloaded image.'}`)
+  }
 }
 
 export async function buildSelfContainedGraphicSvg(scene: GraphicScene) {
@@ -432,11 +469,8 @@ export async function buildSelfContainedGraphicSvg(scene: GraphicScene) {
     scene.layers
       .filter((layer): layer is GraphicImageLayer => layer.type === 'image' && !layer.hidden)
       .map(async (layer) => {
-        const url = await inlineImageUrl(layer.url)
-        const image = new window.Image()
-        image.src = url
-        await image.decode()
-        return [layer.id, { height: image.naturalHeight, url, width: image.naturalWidth }] as const
+        const image = await loadExportImage(layer)
+        return [layer.id, { height: image.naturalHeight, url: image.src, width: image.naturalWidth }] as const
       }),
   )
   const imageData = new Map(imageEntries)
@@ -476,7 +510,7 @@ export async function renderGraphicSceneToPngBlob(
   const imageEntries = await Promise.all(
     scene.layers
       .filter((layer): layer is GraphicImageLayer => layer.type === 'image' && !layer.hidden)
-      .map(async (layer) => [layer.id, await loadCanvasImage(layer.url)] as const),
+      .map(async (layer) => [layer.id, await loadExportImage(layer)] as const),
   )
   const images = new Map(imageEntries)
   const scale = options?.maxDimension
