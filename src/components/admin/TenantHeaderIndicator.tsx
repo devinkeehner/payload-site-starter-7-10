@@ -120,7 +120,9 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
   const [isHydrated, setIsHydrated] = useState(false)
 
   const collections = useMemo<CollectionConfigShape[]>(() => (config?.collections || []) as CollectionConfigShape[], [config])
-  const isDashboard = (pathname || '').replace(/\/+$/, '') === '/admin'
+  const normalizedPathname = (pathname || '').replace(/\/+$/, '')
+  const isDashboard = normalizedPathname === '/admin'
+  const isMailTool = normalizedPathname === '/admin/mail-tool'
 
   const tenantSlug = tenant?.slug || tenantID || undefined
   const visitHref = useMemo(() => {
@@ -296,9 +298,9 @@ const TenantHeaderIndicator: React.FC<{ children?: React.ReactNode }> = ({ child
         <div className="hro-admin-header__inner">
           <div className="hro-admin-header__workspace">
             <TenantBreadcrumbBar
-              collectionLabel={isDashboard ? undefined : collectionLabel}
-              collectionHref={isDashboard ? undefined : collectionHref}
-              docLabel={isDashboard ? undefined : docLabel}
+              collectionLabel={isMailTool ? "Design" : isDashboard ? undefined : collectionLabel}
+              collectionHref={isMailTool || isDashboard ? undefined : collectionHref}
+              docLabel={isMailTool ? "Mail Tool" : isDashboard ? undefined : docLabel}
               tenantSelector={<TenantNavPanel selectedTenantID={tenantID} variant="header" />}
             />
           </div>

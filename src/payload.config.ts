@@ -199,6 +199,10 @@ export default buildConfig({
         Logo: '@/components/admin/brand/Logo#default',
       },
       views: {
+        mailTool: {
+          path: '/mail-tool',
+          Component: '@/components/admin/mail-tool/MailToolView#default',
+        },
         emailCampaignStart: {
           path: '/email-campaigns/start',
           Component: '@/components/admin/email-start/EmailStartView#default',

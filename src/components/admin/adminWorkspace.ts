@@ -70,7 +70,7 @@ export const ADMIN_WORKSPACE_ENTRIES = [
   {
     dashboard: true,
     description: 'Create and reuse social and website graphics.',
-    label: 'Graphics',
+    label: 'Design Tools',
     section: 'publishing',
     slug: 'graphic-designs',
   },
@@ -268,9 +268,9 @@ export const ADMIN_WORKSPACE_NAV_AREAS = [
     suppressEntityLinks: true,
   },
   {
-    description: 'Create reusable visual assets, templates, and social graphics.',
+    description: 'Create designs and prepare mailers for print.',
     key: 'canvas',
-    label: 'Canvas',
+    label: 'Design',
     slugs: ['graphic-designs', 'graphic-templates'],
   },
   {

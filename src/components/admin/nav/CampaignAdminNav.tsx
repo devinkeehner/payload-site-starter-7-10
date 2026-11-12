@@ -121,6 +121,12 @@ async function getSidebarQuickLinks(
   const contactPage = contactResult?.docs?.[0] as NavDocument | undefined
 
   return {
+    canvas: [{
+      href: adminURL(req, '/mail-tool'),
+      kind: 'action',
+      label: 'Mail Tool',
+      description: 'Prepare two-sided mailers for printing and cutting.',
+    }],
     media: [
       { href: mediaHref, kind: 'collection', label: 'Media Gallery', slug: 'media' },
       {
@@ -244,7 +250,7 @@ export async function CampaignAdminNav(props: Props) {
       quickLinks: sidebarQuickLinks[area.key],
       suppressEntityLinks: 'suppressEntityLinks' in area ? area.suppressEntityLinks : false,
     }
-  }).filter((area) => area.entities.length > 0)
+  }).filter((area) => area.entities.length > 0 || Boolean(area.quickLinks?.length))
 
   const remainingEntities = visibleNavEntities.filter(
     (entity) => !assignedSlugs.has(String(entity.slug)),

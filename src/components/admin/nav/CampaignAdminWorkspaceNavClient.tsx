@@ -287,6 +287,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
   const activeAreaKey = React.useMemo(
     () =>
       navAreas.find((area) =>
+        area.quickLinks?.some((link) => isPathActive(pathname, link.href.split('?')[0] || link.href)) ||
         area.entities.some(({ slug, type }) => {
           const href =
             type === EntityType.collection
