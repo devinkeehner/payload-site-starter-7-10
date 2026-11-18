@@ -2,6 +2,7 @@ import { POST_GRAPHIC_TEMPLATE_FILTER } from '@/lib/graphics/templates'
 import type { CollectionConfig } from 'payload'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { rebuildSitemapsAfterTenantChange, rebuildSitemapsAfterTenantDelete } from '@/lib/hooks/rebuildSitemaps'
+import { tenantPreviewEndpoint } from '@/lib/tenantPreviewEndpoint'
 
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
@@ -12,7 +13,9 @@ export const Tenants: CollectionConfig = {
   admin: {
     useAsTitle: 'name',
     group: 'Admin',
+    preview: (doc) => `/api/tenants/${doc.id}/preview`,
   },
+  endpoints: [{ path: '/:id/preview', method: 'get', handler: tenantPreviewEndpoint }],
   access: {
     read: () => true,
     create: ({ req }) => isSuperUser(req.user),
@@ -39,6 +42,17 @@ export const Tenants: CollectionConfig = {
       required: false,
       admin: {
         hidden: true,
+      },
+    },
+    {
+      name: 'isPrivate',
+      label: 'Private site',
+      type: 'checkbox',
+      defaultValue: false,
+      index: true,
+      admin: {
+        position: 'sidebar',
+        description: 'Hide the entire website from public visitors. Authorized editors and tenant preview links can still view it. Turn off when ready to launch.',
       },
     },
     {

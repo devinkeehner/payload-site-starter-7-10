@@ -50,6 +50,7 @@ import { plugins } from '@/lib/plugins';
 import { defaultLexical } from '@/collections/fields/defaultLexical';
 import { authenticated } from '@/lib/access/authenticated';
 import { isSuperUser } from '@/lib/access/isSuperUser';
+import { tenantPrivacyPlugin } from '@/lib/tenantPrivacy';
 import {
   DEFAULT_SEO_ASSISTANT_SETTINGS,
   SEO_ASSISTANT_MODEL_OPTIONS,
@@ -439,6 +440,7 @@ export default buildConfig({
         forcePathStyle: true,
       },
     }),
+    tenantPrivacyPlugin,
   ],
 
   secret: process.env.PAYLOAD_SECRET || '',

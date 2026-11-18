@@ -64,8 +64,15 @@ export const rebuildSitemapsAfterTenantChange: CollectionAfterChangeHook = async
       ? ((previousDoc as { slug: string }).slug as string)
       : undefined
 
-  if (currentSlug !== previousSlug) {
+  const visibilityChanged =
+    Boolean(doc.isPrivate) !== Boolean(previousDoc?.isPrivate) ||
+    Boolean(doc.archived) !== Boolean(previousDoc?.archived)
+  if (currentSlug !== previousSlug || visibilityChanged) {
     await safeRegenerateSitemaps(payload as never)
+    await triggerFrontendRevalidate({
+      paths: ['/', ...(currentSlug ? [`/${currentSlug}`] : []), '/caucus-members', '/leadership-team'],
+      tags: ['payload:sitemaps', 'payload:rep-info', ...(currentSlug ? [`tenant:${currentSlug}`] : [])],
+    })
   }
 
   return doc

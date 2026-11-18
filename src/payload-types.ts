@@ -311,6 +311,7 @@ export interface Post {
  * via the `definition` "tenants".
  */
 export interface Tenant {
+  isPrivate?: boolean | null;
   id: string;
   name: string;
   slug: string;
@@ -5804,6 +5805,7 @@ export interface UsersSelect<T extends boolean = true> {
  * via the `definition` "tenants_select".
  */
 export interface TenantsSelect<T extends boolean = true> {
+  isPrivate?: T;
   name?: T;
   slug?: T;
   defaultGraphicTemplate?: T;

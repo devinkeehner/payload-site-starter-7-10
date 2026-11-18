@@ -119,6 +119,7 @@ async function fetchTenantSlugMap(payload: Payload): Promise<Map<string, string>
     select: {
       slug: true,
     },
+    where: { and: [{ isPrivate: { not_equals: true } }, { archived: { not_equals: true } }] },
   } as never)) as PayloadFindResult<{ id: string; slug?: string | null }>
 
   return new Map(
@@ -177,6 +178,7 @@ function buildPageEntries(docs: BaseDoc[], tenantSlugMap: Map<string, string>): 
   ]
 
   const dynamicEntries = docs
+    .filter((doc) => !getTenantId(doc.tenant) || tenantSlugMap.has(getTenantId(doc.tenant)!))
     .map((doc): SitemapEntry | null => {
       const slug = typeof doc.slug === 'string' ? doc.slug.trim() : ''
       if (!slug) return null
@@ -208,6 +210,7 @@ function buildPostEntries(docs: BaseDoc[], tenantSlugMap: Map<string, string>): 
   const fallbackDate = new Date().toISOString()
 
   return docs
+    .filter((doc) => !getTenantId(doc.tenant) || tenantSlugMap.has(getTenantId(doc.tenant)!))
     .map((doc): SitemapEntry | null => {
       const slug = typeof doc.slug === 'string' ? doc.slug.trim() : ''
       if (!slug) return null
@@ -229,6 +232,7 @@ function buildWordpressEntries(docs: BaseDoc[], tenantSlugMap: Map<string, strin
   const fallbackDate = new Date().toISOString()
 
   return docs
+    .filter((doc) => !getTenantId(doc.tenant) || tenantSlugMap.has(getTenantId(doc.tenant)!))
     .map((doc): SitemapEntry | null => {
       const slug = typeof doc.slug === 'string' ? doc.slug.trim() : ''
       if (!slug) return null

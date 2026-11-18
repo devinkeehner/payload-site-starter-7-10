@@ -1,4 +1,3 @@
-import { draftMode } from 'next/headers'
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayload } from 'payload'
 import configPromise from '@payload-config'
@@ -13,13 +12,9 @@ export async function GET(req: NextRequest) {
   const secret = req.nextUrl.searchParams.get('secret') || ''
   const expected = process.env.PREVIEW_SECRET || ''
 
-  if (secret !== expected) {
+  if (!expected || secret !== expected) {
     return NextResponse.json({ message: 'Invalid token' }, { status: 401 })
   }
-
-  // Enable draft mode by setting cookies
-  const draft = await draftMode()
-  draft.enable()
 
   // Redirect to the provided path (default to /)
   const slug = req.nextUrl.searchParams.get('slug') || ''
@@ -53,17 +48,12 @@ export async function GET(req: NextRequest) {
   const baseOrigin = externalOrigin || req.nextUrl.origin
   const redirectURL = new URL(path, baseOrigin)
 
-  // Attach Payload preview JWT so the front-end can fetch drafts from the API
-  const token = process.env.PAYLOAD_PREVIEW_JWT || ''
-  const res = NextResponse.redirect(redirectURL)
-  if (token) {
-    res.cookies.set('payload-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    })
+  // Let the frontend validate the secret and establish its own tenant-scoped
+  // session; cookies set on the CMS host do not authenticate the frontend.
+  if (externalOrigin) {
+    const previewURL = new URL('/api/preview', externalOrigin)
+    previewURL.search = req.nextUrl.search
+    return NextResponse.redirect(previewURL, { headers: { 'Cache-Control': 'private, no-store' } })
   }
-
-  return res
+  return NextResponse.redirect(redirectURL)
 }
