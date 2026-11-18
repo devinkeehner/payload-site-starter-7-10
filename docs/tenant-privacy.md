@@ -33,4 +33,4 @@ The public media/CDN bucket is unchanged: existing direct image/file URLs and al
 - CMS: `pnpm exec tsc --noEmit --incremental false`.
 - Local Next.js browser check with a mock CMS: anonymous contact URL 404; valid preview URL redirects into draft mode and renders HTTP 200; exit preview returns to 404. No live data was changed for the check.
 
-The frontend has pre-existing type errors in page, Flickr, and rich-text types. Production build validation and actual deployment status must be checked independently; passing access tests is not a claim of production deployment.
+The CMS type check, both test suites (20 tests total), targeted lint, and the frontend production build passed. The build needed to run outside the restricted local sandbox. The standalone frontend type check still reports pre-existing errors in page, Flickr, and rich-text types; its build configuration skips those type errors. A successful build is not a claim of production deployment.
