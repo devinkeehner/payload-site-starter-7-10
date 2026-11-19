@@ -49,9 +49,10 @@ describe('shared email and post layouts', () => {
     expect(runs[1]?.html).not.toMatch(/onerror|script|bad\(\)/)
   })
 
-  it('uses the CMS origin for video thumbnails and footer icons on the website', async () => {
+  it('uses the public Render origin for assets when Next sees the internal listener', async () => {
     vi.stubEnv('NEXT_PUBLIC_SERVER_URL', 'https://website.example.test')
     vi.stubEnv('PAYLOAD_PUBLIC_SERVER_URL', '')
+    vi.stubEnv('RENDER_EXTERNAL_URL', 'https://cms.example.test')
     try {
       const post = await populateSharedPostLayout({
         doc: { layout: [
@@ -59,13 +60,14 @@ describe('shared email and post layouts', () => {
           { blockType: 'emailFooterOneColumn', socialLinks: [{ platform: 'facebook', url: 'https://www.facebook.com/example' }] },
         ] },
         context: {},
-        req: { payloadAPI: 'REST', origin: 'https://cms.example.test' },
+        req: { payloadAPI: 'REST', origin: 'https://localhost:10000' },
       } as Parameters<typeof populateSharedPostLayout>[0])
       const html = post.sharedLayoutHTML[0].html
       expect(html).toContain('src="https://cms.example.test/api/email-video-thumbnail?src=')
       expect(html).toContain('src="https://cms.example.test/email-icons/facebook.png"')
       expect(html).toMatch(/<div style="margin:10px auto 26px; max-width:640px; width:100%;"/)
       expect(html).not.toContain('website.example.test')
+      expect(html).not.toContain('localhost')
     } finally {
       vi.unstubAllEnvs()
     }

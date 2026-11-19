@@ -62,8 +62,9 @@ export async function renderSharedPostLayout(layout: unknown[], origin: string) 
 
 export const populateSharedPostLayout: CollectionAfterReadHook = async ({ doc, req, context }) => {
   if (req.payloadAPI === 'local' || context.skipSharedPostHTML || !Array.isArray(doc.layout) || !doc.layout.some(isSharedPostBlock)) return doc
-  // Thumbnail compositing and social icons are served by Payload, even when
-  // NEXT_PUBLIC_SERVER_URL is set to the public website for preview links.
-  const assetOrigin = process.env.PAYLOAD_PUBLIC_SERVER_URL || req.origin || getServerSideURL()
+  // Next may see Render's internal listener as the request origin. Use the
+  // public CMS URL for assets before falling back to the local request origin.
+  const assetOrigin = process.env.PAYLOAD_PUBLIC_SERVER_URL ||
+    process.env.RENDER_EXTERNAL_URL || req.origin || getServerSideURL()
   return { ...doc, sharedLayoutHTML: await renderSharedPostLayout(doc.layout, assetOrigin) }
 }
