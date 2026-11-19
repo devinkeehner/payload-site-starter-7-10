@@ -1,5 +1,6 @@
 import type { CollectionAfterReadHook } from 'payload'
-import xss, { whiteList } from 'xss'
+import xss from 'xss'
+import type { IWhiteList } from 'xss'
 import { EMAIL_LAYOUT_BLOCKS } from '@/components/email/blocks/config'
 import { getServerSideURL } from '@/lib/utilities/getURL'
 import { renderEmailLayoutFragment } from './renderEmail'
@@ -23,8 +24,10 @@ const layoutStyles = [
   'padding-right', 'padding-bottom', 'padding-left', 'text-align', 'text-decoration',
   'text-transform', 'vertical-align', 'white-space', 'width', 'word-break',
 ]
+// xss adds the default allowlist to its CommonJS function export at runtime.
+const defaultTags = (xss as typeof xss & { whiteList: IWhiteList }).whiteList
 const tags = Object.fromEntries(Object.entries({
-  ...whiteList,
+  ...defaultTags,
   a: ['href', 'target', 'rel'],
   img: ['src', 'alt', 'title'],
   table: ['cellspacing', 'cellpadding', 'border'],
@@ -59,5 +62,8 @@ export async function renderSharedPostLayout(layout: unknown[], origin: string) 
 
 export const populateSharedPostLayout: CollectionAfterReadHook = async ({ doc, req, context }) => {
   if (req.payloadAPI === 'local' || context.skipSharedPostHTML || !Array.isArray(doc.layout) || !doc.layout.some(isSharedPostBlock)) return doc
-  return { ...doc, sharedLayoutHTML: await renderSharedPostLayout(doc.layout, getServerSideURL()) }
+  // Thumbnail compositing and social icons are served by Payload, even when
+  // NEXT_PUBLIC_SERVER_URL is set to the public website for preview links.
+  const assetOrigin = process.env.PAYLOAD_PUBLIC_SERVER_URL || req.origin || getServerSideURL()
+  return { ...doc, sharedLayoutHTML: await renderSharedPostLayout(doc.layout, assetOrigin) }
 }

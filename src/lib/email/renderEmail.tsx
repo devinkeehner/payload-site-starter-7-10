@@ -27,6 +27,7 @@ type EmailBlock = Record<string, unknown> & {
 type EmailRenderContext = {
   assetOrigin: string | null
   nested?: boolean
+  web?: boolean
 }
 
 type LexicalNode = Record<string, unknown> & {
@@ -853,9 +854,10 @@ function EmailVideo({ block, context }: { block: EmailBlock; context: EmailRende
 
   const thumbnail = getMediaSource(block.thumbnailMedia) || getYoutubeThumbnail(youtubeUrl, fallbackTitle)
   const width = getNumber(block.width, EMAIL_CANVAS_WIDTH, 240, EMAIL_CANVAS_WIDTH)
+  const VideoContainer = context.web ? 'div' : Section
 
   return (
-    <Section style={{ margin: '10px auto 26px', maxWidth: '100%', width }}>
+    <VideoContainer style={{ margin: '10px auto 26px', maxWidth: context.web ? width : '100%', width: context.web ? '100%' : width }}>
       {title ? (
         <Text style={{ color: COLORS.foreground, fontSize: 18, fontWeight: 800, lineHeight: '24px', margin: '0 0 10px', textAlign: 'center' }}>
           {title}
@@ -892,11 +894,11 @@ function EmailVideo({ block, context }: { block: EmailBlock; context: EmailRende
           </span>
         )}
       </Link>
-    </Section>
+    </VideoContainer>
   )
 }
 
-function EmailArticleImageRight({ block }: { block: EmailBlock }) {
+function EmailArticleImageRight({ block, context }: { block: EmailBlock; context: EmailRenderContext }) {
   const heading = normalizeText(block.heading)
   const body = normalizeText(block.body)
   const url = normalizeText(block.url)
@@ -909,7 +911,7 @@ function EmailArticleImageRight({ block }: { block: EmailBlock }) {
   return (
     <Section style={{ ...softCardStyle, margin: '10px 0 26px', padding: 18 }}>
       <Row>
-        <Column style={{ paddingRight: 16, verticalAlign: 'top', width: '58%' }}>
+        <Column className={context.web && media ? 'email-grid-column' : undefined} style={{ paddingRight: 16, verticalAlign: 'top', width: '58%' }}>
           {heading ? (
                   <Text style={{ color: COLORS.foreground, fontSize: 20, fontWeight: 800, lineHeight: '25px', margin: 0 }}>
               {heading}
@@ -926,7 +928,7 @@ function EmailArticleImageRight({ block }: { block: EmailBlock }) {
             </Link>
           ) : null}
         </Column>
-        <Column style={{ verticalAlign: 'top', width: '42%' }}>
+        <Column className={context.web && media ? 'email-grid-column' : undefined} style={{ verticalAlign: 'top', width: '42%' }}>
           {media ? (
             <EmailSafeImage
               alt={alt}
@@ -1540,7 +1542,7 @@ function renderBlock(block: EmailBlock, index: number, context: EmailRenderConte
       element = <EmailVideo block={block} context={context} />
       break
     case 'emailArticleImageRight':
-      element = <EmailArticleImageRight block={block} />
+      element = <EmailArticleImageRight block={block} context={context} />
       break
     case 'emailArticleTwoCards':
       element = <EmailArticleTwoCards block={block} />
@@ -1576,6 +1578,9 @@ function renderBlock(block: EmailBlock, index: number, context: EmailRenderConte
   if (!element) return null
   if (block.blockType && EDGE_TO_EDGE_BLOCK_TYPES.has(block.blockType)) {
     return <React.Fragment key={index}>{element}</React.Fragment>
+  }
+  if (context.web && block.blockType === 'emailVideo') {
+    return <div key={index} style={contentBlockInsetStyle}>{element}</div>
   }
 
   return (
@@ -1650,5 +1655,6 @@ export async function renderEmail(input: RenderEmailInput) {
 export function renderEmailLayoutFragment(layout: unknown[], origin: string, startIndex: number) {
   const assetOrigin = normalizeOrigin(origin)
   const blocks = absolutizeRelativeMediaURLs(layout, assetOrigin) as EmailBlock[]
-  return render(<div>{blocks.map((block, index) => renderBlock(block, startIndex + index, { assetOrigin }))}</div>)
+  const context = { assetOrigin, web: true }
+  return render(<div>{blocks.map((block, index) => renderBlock(block, startIndex + index, context))}</div>)
 }

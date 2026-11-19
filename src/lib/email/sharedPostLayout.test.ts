@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createLexicalValueFromText } from '@/lib/live-editor/lexical'
 import { getEmailPuckBlockSchema, getSharedPostBuilderSchema } from '@/lib/puck/schema'
 import { convertEmailToPost } from './convertEmailToPost'
-import { renderSharedPostLayout } from './sharedPostLayout'
+import { populateSharedPostLayout, renderSharedPostLayout } from './sharedPostLayout'
 
 describe('shared email and post layouts', () => {
   const layout = [
@@ -47,5 +47,36 @@ describe('shared email and post layouts', () => {
     expect(runs[1]?.html).toContain('<strong')
     expect(runs[1]?.html).toContain('Saved preview')
     expect(runs[1]?.html).not.toMatch(/onerror|script|bad\(\)/)
+  })
+
+  it('uses the CMS origin for video thumbnails and footer icons on the website', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SERVER_URL', 'https://website.example.test')
+    vi.stubEnv('PAYLOAD_PUBLIC_SERVER_URL', '')
+    try {
+      const post = await populateSharedPostLayout({
+        doc: { layout: [
+          { blockType: 'emailVideo', title: 'District video', youtubeUrl: 'https://www.youtube.com/watch?v=E_TyM1zdqAg' },
+          { blockType: 'emailFooterOneColumn', socialLinks: [{ platform: 'facebook', url: 'https://www.facebook.com/example' }] },
+        ] },
+        context: {},
+        req: { payloadAPI: 'REST', origin: 'https://cms.example.test' },
+      } as Parameters<typeof populateSharedPostLayout>[0])
+      const html = post.sharedLayoutHTML[0].html
+      expect(html).toContain('src="https://cms.example.test/api/email-video-thumbnail?src=')
+      expect(html).toContain('src="https://cms.example.test/email-icons/facebook.png"')
+      expect(html).toMatch(/<div style="margin:10px auto 26px; max-width:640px; width:100%;"/)
+      expect(html).not.toContain('website.example.test')
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('exposes the article columns to the website mobile stacking rule', async () => {
+    const [run] = await renderSharedPostLayout([{
+      blockType: 'emailArticleImageRight',
+      heading: 'District news',
+      media: { id: 'banner', url: '/media/banner.jpg' },
+    }], 'https://cms.example.test')
+    expect(run?.html.match(/class="email-grid-column"/g)).toHaveLength(2)
   })
 })
