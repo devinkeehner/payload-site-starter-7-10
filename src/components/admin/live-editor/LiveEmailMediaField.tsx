@@ -137,7 +137,7 @@ export function LiveEmailMediaField({
   onChange: (value: unknown) => void
   readOnly?: boolean
 }) {
-  const { emailId } = useLiveEmailResourceScope()
+  const { apiURL } = useLiveEmailResourceScope()
   const [query, setQuery] = useState('')
   const [items, setItems] = useState<OptionItem[]>([])
   const [resolvedValue, setResolvedValue] = useState<MediaResource | null>(null)
@@ -151,7 +151,7 @@ export function LiveEmailMediaField({
   useEffect(() => {
     uploadLifetime.current++
     return () => { uploadLifetime.current++ }
-  }, [emailId])
+  }, [apiURL])
   const [error, setError] = useState<string | null>(null)
   const currentMedia = getMediaResource(value) || resolvedValue
   const currentURL = getMediaURL(currentMedia)
@@ -176,7 +176,7 @@ export function LiveEmailMediaField({
           collection: 'media',
           ids: mediaId,
         })
-        const res = await fetch(liveEmailOptionsURL(emailId, params), {
+        const res = await fetch(liveEmailOptionsURL(apiURL, params), {
           credentials: 'same-origin',
         })
         if (!res.ok) return
@@ -198,7 +198,7 @@ export function LiveEmailMediaField({
     return () => {
       cancelled = true
     }
-  }, [currentId, emailId, value])
+  }, [currentId, apiURL, value])
 
   useEffect(() => {
     if (!isExpanded) {
@@ -219,7 +219,7 @@ export function LiveEmailMediaField({
           collection: 'media',
           query,
         })
-        const res = await fetch(liveEmailOptionsURL(emailId, params), {
+        const res = await fetch(liveEmailOptionsURL(apiURL, params), {
           credentials: 'same-origin',
         })
         if (!res.ok) throw new Error(await res.text())
@@ -247,7 +247,7 @@ export function LiveEmailMediaField({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [emailId, isExpanded, query, uploadKind])
+  }, [apiURL, isExpanded, query, uploadKind])
 
 
   async function uploadFile(file: File) {
@@ -257,7 +257,7 @@ export function LiveEmailMediaField({
       return
     }
 
-    if (emailId == null) { setError('Save this email before uploading media.'); return }
+    if (apiURL == null) { setError('Save this draft before uploading media.'); return }
     if (file.size > 10 * 1024 * 1024) { setError('Choose a file smaller than 10 MB.'); return }
     const lifetime = uploadLifetime.current
     const alt = getDefaultAlt(file)
@@ -269,7 +269,7 @@ export function LiveEmailMediaField({
     setError(null)
 
     try {
-      const res = await fetch(`/api/live-editor/emails/${encodeURIComponent(String(emailId))}/media`, {
+      const res = await fetch(`${apiURL}/media`, {
         method: 'POST',
         body: formData,
         credentials: 'same-origin',

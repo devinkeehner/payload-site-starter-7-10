@@ -166,6 +166,10 @@ export function getPostPuckBlockSchema(): PuckBlockSchema[] {
   return POST_LAYOUT_BLOCKS.map(normalizeBlock)
 }
 
+export function getSharedPostBuilderSchema(): PuckBlockSchema[] {
+  return [...getEmailPuckBlockSchema(), ...getPostPuckBlockSchema()]
+}
+
 export function getFormPuckBlockSchema(): PuckBlockSchema[] {
   return FORM_FIELD_BLOCKS.map(normalizeBlock)
 }

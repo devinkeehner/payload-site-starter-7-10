@@ -1324,7 +1324,7 @@ function EmailGrid({ block, context }: { block: EmailBlock; context: EmailRender
     <Section style={{ margin: '10px -6px 26px' }}>
       <Row>
         {columns.map((column, index) => (
-          <Column key={index} style={{ padding: '0 6px', verticalAlign: 'top', width: column.width }}>
+          <Column key={index} className={columns.length > 1 ? 'email-grid-column' : undefined} style={{ padding: '0 6px', verticalAlign: 'top', width: column.width }}>
             {renderNestedBlocks(column.blocks, context)}
           </Column>
         ))}
@@ -1609,7 +1609,11 @@ export function EmailDocument({ layout, origin, preheader, webVersionUrl }: Rend
 
   return (
     <Html>
-      <Head />
+      <Head>
+        <style>{`@media only screen and (max-width: 480px) {
+          .email-grid-column { box-sizing: border-box; display: block !important; width: 100% !important; }
+        }`}</style>
+      </Head>
       {preheader ? <Preview>{preheader}</Preview> : null}
       <Body style={{ backgroundColor: COLORS.background, margin: 0, padding: 0 }}>
         <Container
@@ -1641,4 +1645,10 @@ export async function renderEmail(input: RenderEmailInput) {
   const text = await render(element, { plainText: true })
 
   return { html, text }
+}
+
+export function renderEmailLayoutFragment(layout: unknown[], origin: string, startIndex: number) {
+  const assetOrigin = normalizeOrigin(origin)
+  const blocks = absolutizeRelativeMediaURLs(layout, assetOrigin) as EmailBlock[]
+  return render(<div>{blocks.map((block, index) => renderBlock(block, startIndex + index, { assetOrigin }))}</div>)
 }

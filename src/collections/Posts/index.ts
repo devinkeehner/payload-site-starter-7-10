@@ -24,6 +24,8 @@ import { LunchComparisonGraphicBlockConfig } from '@/components/blocks/lunch-com
 import { PropertyTaxCreditTableBlockConfig } from '@/components/blocks/property-tax-credit-table/config'
 import { TenantTownTableBlockConfig } from '@/components/blocks/tenant-town-table/config'
 import { POST_LAYOUT_BLOCKS } from '@/lib/blocks/postLayoutBlocks'
+import { EMAIL_LAYOUT_BLOCKS } from '@/components/email/blocks/config'
+import { populateSharedPostLayout } from '@/lib/email/sharedPostLayout'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 import { revalidateDelete, revalidatePost } from './hooks/revalidatePost'
 import { rebuildSitemapsAfterPublishedChange, rebuildSitemapsAfterPublishedDelete } from '@/lib/hooks/rebuildSitemaps'
@@ -1132,7 +1134,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 description: 'Optional. Leave this closed to publish the rich-text article above exactly as before.',
                 initCollapsed: true,
               },
-              blocks: POST_LAYOUT_BLOCKS,
+              blocks: [...EMAIL_LAYOUT_BLOCKS, ...POST_LAYOUT_BLOCKS],
             },
           ],
           label: 'Write',
@@ -1340,6 +1342,7 @@ export const Posts: CollectionConfig<'posts'> = {
     ...slugField(),
   ],
   hooks: {
+    afterRead: [populateSharedPostLayout],
     beforeOperation: [captureContentOperation<'posts'>()],
     beforeChange: [protectLinkedContent],
     beforeDelete: [protectLinkedContentDelete],

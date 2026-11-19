@@ -243,6 +243,26 @@ export interface Post {
    */
   layout?:
     | (
+        | EmailHeaderSocialBlock
+        | EmailHeadingBlock
+        | EmailTextBlock
+        | EmailInlineLinkBlock
+        | EmailButtonBlock
+        | EmailTwoButtonBlock
+        | EmailImageBlock
+        | EmailVideoBlock
+        | EmailGalleryBlock
+        | EmailGridBlock
+        | EmailListBlock
+        | EmailMarkdownBlock
+        | EmailArticleImageRightBlock
+        | EmailArticleTwoCardsBlock
+        | EmailFeatureThreeCenteredBlock
+        | EmailBentoGridBlock
+        | EmailDividerBlock
+        | EmailSpacerBlock
+        | EmailCalloutBlock
+        | EmailFooterOneColumnBlock
         | PostBodyBlock
         | PostRichTextBlock
         | PostCalloutBlock
@@ -4240,6 +4260,26 @@ export interface PostsSelect<T extends boolean = true> {
   layout?:
     | T
     | {
+        emailHeaderSocial?: T | EmailHeaderSocialBlockSelect<T>;
+        emailHeading?: T | EmailHeadingBlockSelect<T>;
+        emailText?: T | EmailTextBlockSelect<T>;
+        emailInlineLink?: T | EmailInlineLinkBlockSelect<T>;
+        emailButton?: T | EmailButtonBlockSelect<T>;
+        emailTwoButtons?: T | EmailTwoButtonBlockSelect<T>;
+        emailImage?: T | EmailImageBlockSelect<T>;
+        emailVideo?: T | EmailVideoBlockSelect<T>;
+        emailGallery?: T | EmailGalleryBlockSelect<T>;
+        emailGrid?: T | EmailGridBlockSelect<T>;
+        emailList?: T | EmailListBlockSelect<T>;
+        emailMarkdown?: T | EmailMarkdownBlockSelect<T>;
+        emailArticleImageRight?: T | EmailArticleImageRightBlockSelect<T>;
+        emailArticleTwoCards?: T | EmailArticleTwoCardsBlockSelect<T>;
+        emailFeatureThreeCentered?: T | EmailFeatureThreeCenteredBlockSelect<T>;
+        emailBentoGrid?: T | EmailBentoGridBlockSelect<T>;
+        emailDivider?: T | EmailDividerBlockSelect<T>;
+        emailSpacer?: T | EmailSpacerBlockSelect<T>;
+        emailCallout?: T | EmailCalloutBlockSelect<T>;
+        emailFooterOneColumn?: T | EmailFooterOneColumnBlockSelect<T>;
         postBody?: T | PostBodyBlockSelect<T>;
         postRichText?: T | PostRichTextBlockSelect<T>;
         postCallout?: T | PostCalloutBlockSelect<T>;

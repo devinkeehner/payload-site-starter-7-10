@@ -12,7 +12,6 @@ import { isUnsteadyCompanionTextField } from '@/lib/live-editor/textCapabilities
 import { LiveEmailLexicalTextEditor } from './LiveEmailLexicalTextEditor'
 import { LiveEmailMediaField } from './LiveEmailMediaField'
 import { LiveEmailRelationshipField } from './LiveEmailRelationshipField'
-import { LiveEmailResourceContext } from './LiveEmailResourceContext'
 import styles from './live-editor-fields.module.css'
 
 type EmailFieldSchema = PuckFieldSchema & { hasMany?: boolean }
@@ -39,8 +38,6 @@ export type LiveEmailFieldsProps = {
   onChange: (next: RecordValue) => void
   lexicalBlockSchemas: PuckBlockSchema[]
   readOnly?: boolean
-  emailId?: string | number
-  tenantId?: string | number
   onArrayAction?: (action: LiveEmailArrayAction) => void
   renderText?: (props: LiveEmailTextRenderProps) => ReactNode
 }
@@ -58,10 +55,10 @@ const SWATCHES: Record<string, string> = {
 }
 
 export function LiveEmailFields(props: LiveEmailFieldsProps) {
-  return <LiveEmailResourceContext.Provider value={{ emailId: props.emailId, tenantId: props.tenantId }}><div className={styles.inspector} data-live-editor-inspector>
+  return <div className={styles.inspector} data-live-editor-inspector>
     <Fields fields={props.schema.fields} value={props.value} onChange={props.onChange} path={[]}
       context={{ ...props, blockType: props.schema.slug, textBase: 0 }} />
-  </div></LiveEmailResourceContext.Provider>
+  </div>
 }
 
 function Fields({ fields, value, onChange, path, context, conditionalLinkType }: {

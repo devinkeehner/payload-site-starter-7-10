@@ -293,7 +293,7 @@ export function readEditorSnapshot(state: EditorAgentState, blockId?: Id) {
   if (blockId != null && !blocks.some(block => String(block.id) === String(blockId))) throw new Error('This block no longer exists.')
   return { revision: state.revision, title: typeof state.document.title === 'string' ? state.document.title : '',
     blocks, slots: slots.map(slot => ({ id: slot.id, label: slot.label, address: slot.address, active: slot.active !== false, allowedSlugs: slot.active === false ? [] : slot.allowedSlugs, blockIds: slot.items.map(block => block.id) })),
-    persistence: 'Unsaved local draft. Saving the email draft requires the human editor. Delivery and sending are unavailable here.' }
+    persistence: 'Unsaved local draft. Saving the draft requires the human editor. Publishing and sending are unavailable here.' }
 }
 
 export function readEditorCatalog(schemas: readonly PuckBlockSchema[], blockType?: string) {

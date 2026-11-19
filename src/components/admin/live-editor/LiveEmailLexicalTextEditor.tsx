@@ -23,6 +23,7 @@ import {
   $setSelection,
   COMMAND_PRIORITY_LOW,
   FORMAT_ELEMENT_COMMAND,
+  HISTORY_MERGE_TAG,
   SELECTION_CHANGE_COMMAND,
   type ElementFormatType,
   type EditorState,
@@ -427,14 +428,6 @@ function ToolbarButton({
   onClick: () => void
   title: string
 }) {
-  const handledPointerRef = useRef(false)
-
-  const runAction = useCallback(() => {
-    if (!disabled) {
-      onClick()
-    }
-  }, [disabled, onClick])
-
   return (
     <button
       aria-pressed={active ? 'true' : 'false'}
@@ -443,12 +436,7 @@ function ToolbarButton({
       disabled={disabled}
       onClick={(event) => {
         event.stopPropagation()
-        if (handledPointerRef.current) {
-          handledPointerRef.current = false
-          return
-        }
-
-        runAction()
+        onClick()
       }}
       onMouseDown={(event) => {
         event.preventDefault()
@@ -457,8 +445,6 @@ function ToolbarButton({
       onPointerDown={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        handledPointerRef.current = true
-        runAction()
       }}
       title={title}
       type="button"
@@ -479,14 +465,6 @@ function ToolbarColorButton({
   onSelect: () => void
   option: { label: string, swatch: string, value: string }
 }) {
-  const handledPointerRef = useRef(false)
-
-  const runAction = useCallback(() => {
-    if (!disabled) {
-      onSelect()
-    }
-  }, [disabled, onSelect])
-
   return (
     <button
       aria-checked={active}
@@ -495,12 +473,7 @@ function ToolbarColorButton({
       disabled={disabled}
       onClick={(event) => {
         event.stopPropagation()
-        if (handledPointerRef.current) {
-          handledPointerRef.current = false
-          return
-        }
-
-        runAction()
+        onSelect()
       }}
       onMouseDown={(event) => {
         event.preventDefault()
@@ -509,8 +482,6 @@ function ToolbarColorButton({
       onPointerDown={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        handledPointerRef.current = true
-        runAction()
       }}
       role="radio"
       title={option.label}
@@ -1048,7 +1019,8 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
   const restoreToolbarSelection = useCallback((): RangeSelection | null => {
     const rootElement = editor.getRootElement()
     const domSelection = rootElement?.ownerDocument.getSelection() ?? null
-    const domRangeSelection = domSelection && domSelection.rangeCount > 0
+    const domRangeSelection = rootElement && domSelection && domSelection.rangeCount > 0
+      && rootElement.contains(domSelection.anchorNode) && rootElement.contains(domSelection.focusNode)
       ? $createRangeSelectionFromDom(domSelection, editor)
       : null
 
@@ -1372,7 +1344,7 @@ function RichTextToolbar({ readOnly }: { readOnly?: boolean }) {
       </div>
       <div className={styles.richTextToolbarCluster}>
         <details className={styles.richTextToolbarMenu}>
-          <summary aria-label="Text color" title="Text color">
+          <summary aria-label="Text color" title="Text color" onMouseDown={event => event.preventDefault()}>
             <Palette aria-hidden="true" />
           </summary>
           <div className={`${styles.richTextToolbarMenuPanel} ${styles.richTextColorMenuPanel}`}>
@@ -1416,7 +1388,9 @@ function ExternalValuePlugin({
     latestSerializedRef.current = serializedValue
 
     try {
-      editor.setEditorState(editor.parseEditorState(serializedValue))
+      // Host undo/redo updates the editor value. Do not echo Lexical's normalized
+      // copy back as a new edit, which would discard the host's redo history.
+      editor.setEditorState(editor.parseEditorState(serializedValue), { tag: HISTORY_MERGE_TAG })
       onParseError(null)
     } catch (error) {
       onParseError(error instanceof Error ? error.message : 'Unable to parse rich text')

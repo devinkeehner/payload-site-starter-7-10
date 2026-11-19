@@ -1,6 +1,6 @@
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 
-import { getEmailPuckBlockSchema } from '../../src/lib/puck/schema'
+import { getEmailPuckBlockSchema, getSharedPostBuilderSchema } from '../../src/lib/puck/schema'
 
 // Disconnected fixtures deliberately exercise Gov's real, native email schema.
 // Every API request is intercepted, including requests made by preview popups.
@@ -82,6 +82,12 @@ async function mockEditor(context: BrowserContext, page: Page, initialEmail = fi
       reads += 1
       return route.fulfill({ json: { email: stored, schemas } })
     }
+    if (url.pathname === `${apiPath}/options` && request.method() === 'GET' && url.searchParams.get('ids') === 'gallery-image') {
+      return route.fulfill({ json: { options: [{
+        value: 'gallery-image', label: 'Gallery test image',
+        resource: { id: 'gallery-image', alt: 'Gallery test image', url: '/gallery-test.svg' },
+      }] } })
+    }
     if (url.pathname === apiPath && request.method() === 'PATCH') {
       const body = request.postDataJSON() as (typeof writes)[number]
       writes.push(body)
@@ -141,6 +147,10 @@ function canvas(page: Page) {
   return page.frameLocator('iframe[data-unsteady-viewport]')
 }
 
+function canvasHeading(page: Page) {
+  return canvas(page).getByTestId('block-heading').getByRole('heading', { level: 1 })
+}
+
 async function draft(page: Page): Promise<Draft> {
   return JSON.parse(await page.locator('[data-unsteady-document]').textContent() || '{}') as Draft
 }
@@ -169,6 +179,73 @@ async function editHeading(page: Page, value: string) {
 test.describe('standalone native email Live Editor (mock APIs)', () => {
   test.setTimeout(90_000)
 
+  test('saves an email before creating a post and opens the same builder with a website preview', async ({ context, page }) => {
+    const server = await mockEditor(context, page)
+    const postId = 'shared-layout-post'
+    const postURL = `/live-editor/posts/${postId}`
+    const postAPI = `/api/live-editor/posts/${postId}`
+    let post: Draft | undefined
+    await context.route(`**/api/emails/${emailId}/create-post`, async route => {
+      expect(route.request().method()).toBe('POST')
+      expect(server.stored.layout[0]?.text).toBe('Copy this into the post')
+      post = { ...server.stored, id: postId }
+      return route.fulfill({ json: { adminUrl: postURL } })
+    })
+    await context.route(`**${postAPI}`, async route => {
+      expect(post).toBeDefined()
+      if (route.request().method() === 'PATCH') {
+        const body = route.request().postDataJSON()
+        expect(body.expectedUpdatedAt).toBe(post?.updatedAt)
+        expect(Object.keys(body.post).sort()).toEqual(['layout', 'title'])
+        post = { ...post!, ...body.post }
+      }
+      return route.fulfill({ json: { post, schemas: getSharedPostBuilderSchema() } })
+    })
+    await context.route(`**${postAPI}/preview`, route => route.fulfill({
+      contentType: 'text/html',
+      body: '<h1>Website post preview</h1>',
+    }))
+    await openEditor(page)
+    await editHeading(page, 'Copy this into the post')
+    await page.getByRole('button', { name: 'Create post', exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(postURL + '$'))
+    await expect(canvasHeading(page)).toHaveText('Copy this into the post')
+    await expect(page.getByRole('heading', { name: 'Add to your post' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Add Gallery', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Continue to Audience' })).toHaveCount(0)
+    await expect(canvas(page).getByTestId('block-nested')).toBeVisible()
+    const popup = page.waitForEvent('popup')
+    await page.getByRole('link', { name: 'Open preview in a new tab' }).click()
+    await expect((await popup).getByRole('heading', { name: 'Website post preview' })).toBeVisible()
+    expect(server.unexpected).toEqual([])
+  })
+
+  test('shows media assigned by ID immediately and stacks row columns in mobile preview', async ({ context, page }) => {
+    const initial = fixture()
+    initial.layout[2]!.rightBlocks = [{ id: 'gallery', blockType: 'emailGallery', layout: 'horizontalGrid', items: [{ id: 'gallery-item' }] }]
+    const server = await mockEditor(context, page, initial)
+    await context.route('**/gallery-test.svg', route => route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>' }))
+    await openEditor(page)
+
+    const result = await tool(page, 'live_editor_edit_draft', {
+      expectedRevision: (await snapshot(page)).revision,
+      command: { type: 'set_field', blockId: 'gallery', path: ['items', 0, 'media'], value: 'gallery-image' },
+    })
+    expect(result.isError).not.toBe(true)
+    await expect(canvas(page).getByRole('img', { name: 'Gallery test image' })).toBeVisible()
+    expect(server.writes).toHaveLength(0)
+    expect(server.reads).toBe(1)
+    expect((await draft(page)).layout[2]?.rightBlocks?.[0]?.items).toEqual([{ id: 'gallery-item', media: 'gallery-image' }])
+
+    const row = canvas(page).locator('[data-live-email-row]')
+    const columnCount = () => row.evaluate(element => getComputedStyle(element).gridTemplateColumns.split(' ').length)
+    await expect.poll(columnCount).toBe(2)
+    await page.getByRole('button', { name: 'Mobile preview' }).click()
+    await expect.poll(columnCount).toBe(1)
+    await expect(canvas(page).getByRole('img', { name: 'Gallery test image' })).toBeVisible()
+    expect(server.unexpected).toEqual([])
+  })
+
   test('opens without Payload chrome and exposes the email-only catalog and fields', async ({ context, page }, testInfo) => {
     const api = await mockEditor(context, page)
     const runtimeErrors: string[] = []
@@ -185,9 +262,22 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     await expect(page.locator('.nav-toggler, .payload__admin, [data-payload-admin]')).toHaveCount(0)
     await expect(page.getByRole('button', { name: /send|publish/i })).toHaveCount(0)
     await expect(page.getByRole('button', { name: /legacy|sections|elements/i })).toHaveCount(0)
+    const drawer = page.getByRole('complementary', { name: 'Builder panel' })
+    await expect(drawer.getByRole('heading', { level: 3 })).toHaveText([
+      'Text & content', 'Images & video', 'Buttons & links', 'Articles & features', 'Spacing', 'Header / Footer',
+    ])
+    await expect(drawer.getByRole('region', { name: 'Header / Footer' }).getByRole('button')).toHaveText(['Header', 'Footer'])
+    await page.screenshot({ path: testInfo.outputPath('email-add-drawer.png') })
+    await drawer.getByRole('button', { name: 'Media', exact: true }).click()
+    await expect(drawer.getByRole('heading', { level: 3 })).toHaveText(['Images & video'])
+    await expect(drawer.getByRole('region', { name: 'Images & video' }).getByRole('button')).toHaveText(['Image', 'Gallery', 'Video'])
     for (const schema of schemas) {
       await page.getByRole('textbox', { name: 'Search blocks' }).fill(schema.slug)
-      await expect(page.getByRole('button', { name: `Add ${schema.label}`, exact: true })).toBeVisible()
+      if (schema.slug === 'emailGrid') {
+        await expect(drawer.getByRole('button', { name: /^Add / })).toHaveCount(0)
+      } else {
+        await expect(drawer.getByTitle(`Click to add ${schema.label}, or drag it onto the email`, { exact: true })).toBeVisible()
+      }
     }
     await page.getByRole('textbox', { name: 'Search blocks' }).fill('columnsBlock')
     await expect(page.getByRole('button', { name: /^Add / })).toHaveCount(0)
@@ -206,11 +296,12 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     const api = await mockEditor(context, page)
     await openEditor(page)
     await editHeading(page, 'Edited heading')
-    await expect(canvas(page).getByRole('heading', { name: 'Edited heading', exact: true })).toBeVisible()
+    const heading = canvasHeading(page)
+    await expect(heading).toHaveText('Edited heading')
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
-    await expect(canvas(page).getByRole('heading', { name: 'Original heading', exact: true })).toBeVisible()
+    await expect(heading).toHaveText('Original heading')
     await page.getByRole('button', { name: 'Redo', exact: true }).click()
-    await expect(canvas(page).getByRole('heading', { name: 'Edited heading', exact: true })).toBeVisible()
+    await expect(heading).toHaveText('Edited heading')
 
     await canvas(page).getByTestId('block-body').focus()
     await canvas(page).getByTestId('block-body').press('Enter')
@@ -219,6 +310,7 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     await expect(canvas(page).getByTestId('block-body')).toContainText('Edited body copy')
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
     await expect(canvas(page).getByTestId('block-body')).toContainText('Original body copy')
+    await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeEnabled()
     await page.getByRole('button', { name: 'Redo', exact: true }).click()
     await expect(canvas(page).getByTestId('block-body')).toContainText('Edited body copy')
     expect((await draft(page)).layout[1]?.text).toHaveProperty('root')
@@ -233,7 +325,7 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     expect(right).toBeDefined()
     await page.getByRole('combobox', { name: 'New block destination' }).selectOption(right!.id)
     await page.getByRole('textbox', { name: 'Search blocks' }).fill('emailHeading')
-    await page.getByRole('button', { name: 'Add Email Heading', exact: true }).click()
+    await page.getByRole('button', { name: 'Add Heading', exact: true }).click()
     await expect.poll(async () => (await draft(page)).layout[2]?.rightBlocks?.length).toBe(1)
     const grid = (await draft(page)).layout[2]!
     const inserted = grid.rightBlocks![0]!
@@ -268,6 +360,26 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     await toolbar.getByRole('button', { name: 'Numbered list' }).click()
     await expect(body.locator('ol li')).toHaveCount(2)
     expect((await frame.boundingBox())?.y).toBe(initialTop)
+  })
+
+  test('keeps bold and color on selected text after leaving inline editing', async ({ context, page }) => {
+    await mockEditor(context, page)
+    await openEditor(page)
+    const body = canvas(page).getByTestId('block-body')
+    await body.getByRole('button', { name: /edit text/i }).click()
+    const editable = body.locator('[contenteditable="true"]').first()
+    await editable.press('Home')
+    await editable.press('Shift+End')
+    const toolbar = page.getByRole('toolbar', { name: 'Rich text formatting' })
+    await toolbar.getByRole('button', { name: 'Bold', exact: true }).click()
+    await expect.poll(async () => JSON.stringify((await draft(page)).layout[1]?.text)).toContain('"format":1')
+    await toolbar.getByLabel('Text color', { exact: true }).filter({ visible: true }).first().click()
+    await toolbar.getByRole('radio', { name: 'Accent' }).click()
+    await expect.poll(async () => JSON.stringify((await draft(page)).layout[1]?.text)).toContain('#7a0012')
+
+    await canvas(page).getByTestId('block-heading').click()
+    await expect(body.locator('strong')).toHaveText('Original body copy')
+    await expect(body.getByText('Original body copy', { exact: true })).toHaveCSS('color', 'rgb(122, 0, 18)')
   })
 
   test('drags a row layout to a specific position without appending a copy', async ({ context, page }) => {
@@ -323,7 +435,7 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     await expect(page.getByText('Unsaved changes', { exact: true })).toHaveCount(0)
     expect(api.writes[1]!.expectedUpdatedAt).toBe('2026-11-06T12:00:01.000Z')
     await page.reload()
-    await expect(canvas(page).getByRole('heading', { name: 'Second saved heading', exact: true })).toBeVisible()
+    await expect(canvasHeading(page)).toHaveText('Second saved heading')
     expect(api.stored.status).toBe('draft')
     expect(api.unexpected).toEqual([])
   })
@@ -341,9 +453,9 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     expect(api.reads).toBe(reads)
     await expect(page.getByText('Unsaved changes', { exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
-    await expect(canvas(page).getByRole('heading', { name: 'Original heading', exact: true })).toBeVisible()
+    await expect(canvasHeading(page)).toHaveText('Original heading')
     await page.getByRole('button', { name: 'Redo', exact: true }).click()
-    await expect(canvas(page).getByRole('heading', { name: 'Keep this local edit', exact: true })).toBeVisible()
+    await expect(canvasHeading(page)).toHaveText('Keep this local edit')
     expect(api.unexpected).toEqual([])
   })
 
@@ -402,7 +514,7 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
       command: { type: 'set_field', blockId: 'heading', path: ['text'], value: 'Agent heading' },
     })
     expect(changed.isError).not.toBe(true)
-    await expect(canvas(page).getByRole('heading', { name: 'Agent heading', exact: true })).toBeVisible()
+    await expect(canvasHeading(page)).toHaveText('Agent heading')
     const beforeStale = await draft(page)
     expect((await tool(page, 'live_editor_edit_draft', {
       expectedRevision: first.revision,
@@ -412,9 +524,9 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     expect((await tool(page, 'live_editor_undo', { expectedRevision: first.revision })).isError).toBe(true)
 
     expect((await tool(page, 'live_editor_undo', { expectedRevision: (await snapshot(page)).revision })).isError).not.toBe(true)
-    await expect(canvas(page).getByRole('heading', { name: 'Original heading', exact: true })).toBeVisible()
+    await expect(canvasHeading(page)).toHaveText('Original heading')
     expect((await tool(page, 'live_editor_redo', { expectedRevision: (await snapshot(page)).revision })).isError).not.toBe(true)
-    await expect(canvas(page).getByRole('heading', { name: 'Agent heading', exact: true })).toBeVisible()
+    await expect(canvasHeading(page)).toHaveText('Agent heading')
     expect((await tool(page, 'live_editor_read_preview')).isError).not.toBe(true)
     expect((await tool(page, 'live_editor_scroll_preview', { blockId: 'nested' })).isError).not.toBe(true)
     expect((await tool(page, 'live_editor_scroll_preview', { direction: 'top' })).isError).not.toBe(true)

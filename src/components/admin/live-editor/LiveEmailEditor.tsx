@@ -6,7 +6,8 @@ import type { PuckBlockSchema } from '@/lib/puck/types'
 import { applyTextAction, captureTextAddress, type FieldAddress, type TextAction } from '@/lib/live-editor/textFields'
 import { applyUnsteadyTextAction } from '@/lib/live-editor/text'
 import { getPlainTextFromLexical } from '@/lib/live-editor/lexical'
-import { createUnsteadyBlock, getUnsteadyBlockGroups } from '@/lib/live-editor/catalog'
+import { createUnsteadyBlock } from '@/lib/live-editor/catalog'
+import { getEmailPaletteGroups } from './emailBlockPalette'
 import { duplicateBlock, editOwnedArray, ensureDocumentIds, findBlock, getBlock, getSlot, getSlots, insertBlock, moveBlock, removeBlock, ROOT_SLOT, updateBlock, type PageDocument, type SlotAddress } from '@/lib/live-editor/document'
 import { LiveEmailBlockRenderer } from './LiveEmailBlockRenderer'
 import { LiveEmailInlineText } from './LiveEmailInlineText'
@@ -14,17 +15,20 @@ import { LiveEmailFields } from './LiveEmailFields'
 import { useUnsteadyDrag, type DragItem, type DropTarget } from './useUnsteadyDrag'
 import { useUnsteadyHistory } from './useUnsteadyHistory'
 import { useUnsteadyAgentTools } from './useUnsteadyAgentTools'
+import { useLiveEmailMedia } from './useLiveEmailMedia'
 import { LiveEmailViewport } from './LiveEmailViewport'
 import { readUnsteadyPreview, scrollUnsteadyPreview } from './previewNavigation'
 import { LiveEmailPanelResize } from './LiveEmailPanelResize'
+import { LiveEmailResourceContext } from './LiveEmailResourceContext'
 import { LiveEmailMoveMenu } from './LiveEmailMoveMenu'
 import styles from './live-editor.module.css'
 
 export type LiveEmailEditorProps = {
   initialPage: PageDocument
   schemas: PuckBlockSchema[]
-  emailId?: string | number
-  tenantId?: string | number
+  apiURL: string
+  kind?: 'email' | 'post'
+  onCreatePost?: () => Promise<string>
   tenantName?: string
   onSave: (email: PageDocument) => Promise<void>
   onPreview?: (email: PageDocument) => void | Promise<void>
@@ -41,7 +45,7 @@ function textLabel(block: Record<string, unknown>, schema?: PuckBlockSchema) {
   return typeof detail === 'string' ? detail.length > 72 ? `${detail.slice(0, 69)}…` : detail : schema?.label || String(block.blockType || 'Block')
 }
 
-export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previewURL, backToPayloadURL, nextStage, emailId, tenantId, tenantName, focusBlock, focusField, storageLabel = 'Compose' }: LiveEmailEditorProps) {
+export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previewURL, backToPayloadURL, nextStage, apiURL, kind = 'email', onCreatePost, tenantName, focusBlock, focusField, storageLabel = 'Compose' }: LiveEmailEditorProps) {
   const lexicalBlockSchemas = useMemo<PuckBlockSchema[]>(() => [], [])
   const [initialized] = useState(() => ensureDocumentIds(initialPage, { schemas }))
   const history = useUnsteadyHistory(initialized)
@@ -62,6 +66,7 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
   const [saved, setSaved] = useState(() => JSON.stringify(page))
   const savedDocument = useRef(saved)
   const [saving, setSaving] = useState(false)
+  const [creatingPost, setCreatingPost] = useState(false)
   const [copied, setCopied] = useState(false)
   const savingRef = useRef(false)
   const [moveMenu, setMoveMenu] = useState<string | null>(null)
@@ -69,10 +74,10 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
   const scroller = useRef<HTMLDivElement>(null)
   const workspace = useRef<HTMLDivElement>(null)
   const { slots, dropCache } = useMemo(() => ({ slots: getSlots(page, { schemas }), dropCache: new Map<string, boolean>() }), [page, schemas])
+  const resolveMedia = useLiveEmailMedia(apiURL, slots, schemas)
   const currentBlock = selected ? findBlock(page, selected, { schemas }) : undefined
   const currentSchema = schemas.find(schema => schema.slug === currentBlock?.blockType)
   const dirty = serialized !== saved
-  const groups = useMemo(() => getUnsteadyBlockGroups(schemas), [schemas])
   const gridSchema = schemas.find(schema => schema.slug === 'emailGrid')
   const rowLayouts = gridSchema?.fields.find(field => field.name === 'layout')?.options || []
 
@@ -129,7 +134,7 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     const slot = slots.find(candidate => candidate.id === target.slotId)
     if (!slot || slot.active === false) return false
     const type = item.kind === 'palette' ? item.type : String(findBlock(getCurrent().document, item.id, { schemas })?.blockType || '')
-    if (type === 'emailGrid' && slot.address.ownerId !== ROOT_SLOT.ownerId) return false
+    if ((type === 'emailGrid' || type === 'postGrid') && slot.address.ownerId !== ROOT_SLOT.ownerId) return false
     if (slot.allowedSlugs && !slot.allowedSlugs.includes(type)) return false
     if (item.kind === 'block') {
       try { moveBlock(getCurrent().document, item.id, slot.address, slot.items[target.index]?.id ?? null, { schemas }); dropCache.set(cacheKey, true); return true } catch { dropCache.set(cacheKey, false); return false }
@@ -216,12 +221,14 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     const targeted = drag?.target?.slotId === slot.id
     return <div className={styles.zone} data-unsteady-zone={slot.id} role="group" aria-label={slot.label} data-root={address.path === 'layout' || undefined} data-drop-active={targeted || undefined} key={slot.id}>
       {address.path !== 'layout' && <div className={styles.zoneCaption}>{slot.label}</div>}
+      {kind === 'post' && address.path === 'layout' && !slot.items.length &&
+        <p className={styles.emptyState}>This post uses its rich-text body while the layout is empty. Add a Post Body block to include it in a custom layout.</p>}
       {slot.items.map((block, index) => <div key={String(block.id)} data-unsteady-drop-item>
         {targeted && drag.target?.index === index && <div className={styles.dropIndicator}>Drop here</div>}
         {renderBlock(block)}
       </div>)}
       {targeted && drag.target?.index === slot.items.length && <div className={styles.dropIndicator}>Drop here</div>}
-      <button type="button" className={styles.addToZone} onClick={event => { event.stopPropagation(); chooseInsertion(slot.address) }} aria-label={`Add to ${slot.label}`}><Plus size={14} />{slot.items.length ? 'Add' : address.path === 'layout' ? 'Add your first email block' : 'Add or drop an email block'}</button>
+      <button type="button" className={styles.addToZone} onClick={event => { event.stopPropagation(); chooseInsertion(slot.address) }} aria-label={`Add to ${slot.label}`}><Plus size={14} />{slot.items.length ? 'Add' : address.path === 'layout' ? `Add your first ${kind} block` : `Add or drop a ${kind} block`}</button>
     </div>
   }
   const renderBlock = (block: Record<string, unknown>): ReactNode => {
@@ -258,14 +265,14 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
       {moveMenu === id && <LiveEmailMoveMenu id={id} label={label} onClose={() => setMoveMenu(null)}>
         {slots.filter(slot => canDrop({ kind: 'block', id, label }, { slotId: slot.id, index: slot.items.length })).map(slot => <button key={slot.id} type="button" onClick={() => attempt(() => { measure(); move(id, { slotId: slot.id, index: slot.items.length }) })}><Move size={13} />{slot.label}</button>)}
       </LiveEmailMoveMenu>}
-      <LiveEmailBlockRenderer block={block} schemas={schemas}
+      <LiveEmailBlockRenderer block={block} schemas={schemas} resolveMedia={resolveMedia} postContent={page.content}
         renderSlot={(ownerId, slotName) => renderSlot({ ownerId, path: slotName })}
         renderText={(owner, field, path, storage, fieldLabel) => {
           const address = captureTextAddress(block, path)
           const key = `${id}:${JSON.stringify(address)}`
           return <LiveEmailInlineText key={key} owner={owner} field={field} path={path} blockType={String(block.blockType)} label={fieldLabel || field} storage={storage}
             active={activeText === key} onActivate={() => { setActiveText(key); setSelected(id); setMoveMenu(null) }}
-            onAction={action => updateText(id, address, storage, action)} toolbarTarget={toolbarTarget} lexicalBlockSchemas={lexicalBlockSchemas} emailId={emailId ?? initialPage.id as string | number | undefined} tenantId={tenantId ?? initialPage.tenantId as string | number | undefined} />
+            onAction={action => updateText(id, address, storage, action)} toolbarTarget={toolbarTarget} lexicalBlockSchemas={lexicalBlockSchemas} />
         }} />
     </article>
   }
@@ -273,21 +280,24 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
   const selectedSlot = useMemo(() => {
     try { return getSlot(page, insertTarget, { schemas }) } catch { return undefined }
   }, [page, insertTarget, schemas])
-  const visibleGroups = groups.map(group => ({ ...group, blocks: group.blocks.filter(schema => {
-    if (query.trim()) return `${schema.label} ${schema.slug} ${group.label}`.toLowerCase().includes(query.toLowerCase())
-    if (library === 'Content') return ['emailHeading', 'emailText', 'emailInlineLink', 'emailButton', 'emailTwoButtons', 'emailList', 'emailMarkdown', 'emailCallout'].includes(schema.slug)
-    if (library === 'Media') return ['emailImage', 'emailVideo', 'emailGallery'].includes(schema.slug)
-    if (library === 'Layout') return ['emailGrid', 'emailArticleImageRight', 'emailArticleTwoCards', 'emailFeatureThreeCentered', 'emailBentoGrid', 'emailHeaderSocial', 'emailFooterOneColumn', 'emailDivider', 'emailSpacer'].includes(schema.slug)
-    return true
-  }) })).filter(group => group.blocks.length)
+  const isLegacyRow = kind === 'post' && selectedSlot?.allowedSlugs?.some(slug => slug.startsWith('post')) && selectedSlot.address.ownerId !== ROOT_SLOT.ownerId
+  const groups = getEmailPaletteGroups(schemas.filter(schema => !schema.slug.startsWith('post') || schema.slug === 'postBody' ||
+    (isLegacyRow && selectedSlot?.allowedSlugs?.includes(schema.slug))))
+  const search = query.trim().toLowerCase()
+  const visibleGroups = groups
+    .filter(group => search || library === 'All' || group.tab === library)
+    .map(group => ({ ...group, blocks: group.blocks.filter(({ schema, label }) =>
+      `${label} ${schema.label} ${schema.slug} ${group.label}`.toLowerCase().includes(search),
+    ) }))
+    .filter(group => group.blocks.length)
 
-  return <div className={styles.editor} data-unsteady-theme={theme} data-theme={theme} data-live-editor-site-tools={agentTools.status}>
+  return <LiveEmailResourceContext.Provider value={{ apiURL }}><div className={styles.editor} data-unsteady-theme={theme} data-theme={theme} data-live-editor-site-tools={agentTools.status}>
     <header className={styles.header}>
       <div className={styles.identity}>
         {backToPayloadURL && <a className={styles.payloadBack} href={backToPayloadURL}><ArrowLeft size={16} aria-hidden="true" />Back to Payload</a>}
         <button type="button" aria-expanded={panelOpen} aria-controls={panelOpen ? 'unsteady-builder-panel' : undefined} onClick={() => setPanelOpen(open => !open)}><PanelLeft size={18} />{panelOpen ? 'Done' : 'Tools'}</button>
         <div className={styles.campaignIdentity}>
-          <strong>{String(page.title || 'Untitled email')}</strong>
+          <strong>{String(page.title || `Untitled ${kind}`)}</strong>
           {tenantName && <span>{tenantName}</span>}
           <span>{storageLabel}</span>
         </div>
@@ -319,6 +329,18 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
             setCopied(true); announce('Preview link copied.'); window.setTimeout(() => setCopied(false), 2000)
           }).catch(() => setError('Unable to copy the preview link.'))
         }}>{copied ? <Check size={17} /> : <Copy size={17} />}</button>
+        {onCreatePost && <button type="button" disabled={saving || creatingPost} onClick={async () => {
+          setCreatingPost(true)
+          setError('')
+          try {
+            if (dirty && !await saveForNavigation()) return
+            window.location.assign(await onCreatePost())
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'Unable to create a post draft.')
+          } finally {
+            setCreatingPost(false)
+          }
+        }}>{creatingPost ? 'Opening post…' : 'Create post'}</button>}
         {nextStage && <button type="button" disabled={saving} onClick={() => { void saveForNavigation().then(success => { if (success) window.location.assign(nextStage.url) }) }}>{nextStage.label}<ChevronRight size={15} /></button>}
         <button className={styles.primaryButton} type="button" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save draft'}</button>
       </div>
@@ -342,22 +364,22 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
       {panelOpen && <aside className={styles.sidebar} id="unsteady-builder-panel" aria-label="Builder panel">
         <div className={styles.panelContent}>
           {panel === 'blocks' && <>
-            <div className={styles.panelTitle}><h2>Add to your email</h2></div>
+            <div className={styles.panelTitle}><h2>Add to your {kind}</h2></div>
             <label className={styles.search}><Search size={16} /><input aria-label="Search blocks" placeholder="Search blocks…" value={query} onChange={event => setQuery(event.target.value)} /></label>
             <div className={styles.libraryTabs}>{['All', 'Content', 'Media', 'Layout'].map(name => <button type="button" key={name} aria-pressed={library === name} onClick={() => { setLibrary(name); setQuery('') }}>{name}</button>)}</div>
             <label className={styles.destination}>Adding to<select aria-label="New block destination" value={selectedSlot?.id || ''} onChange={event => { const slot = slots.find(item => item.id === event.target.value); if (slot) setInsertTarget(slot.address) }}>{!selectedSlot && <option value="" disabled>Destination removed — choose another</option>}{slots.map(slot => <option key={slot.id} value={slot.id} disabled={slot.active === false}>{slot.label}</option>)}</select></label>
-            {visibleGroups.map(group => <section key={group.label} className={styles.blockGroup}><h3>{group.label}</h3><div className={styles.blockGrid}>{group.blocks.map(schema => <button className={styles.paletteItem} type="button" key={schema.slug} aria-label={`Add ${schema.label}`} title={`Click to add ${schema.label}, or drag it onto the email`}
+            {visibleGroups.map(group => <section key={group.label} aria-label={group.label} className={styles.blockGroup}><h3>{group.label}</h3><div className={styles.blockGrid}>{group.blocks.map(({ schema, label, Icon }) => <button className={styles.paletteItem} type="button" key={schema.slug} aria-label={`Add ${label}`} title={`Click to add ${schema.label}, or drag it onto the ${kind}`}
               onPointerDown={event => start(event, { kind: 'palette', type: schema.slug, label: schema.label })}
               onClick={() => { if (skipClick()) return; attempt(() => {
                 if (!selectedSlot) throw new Error('The selected destination was removed. Choose another destination.')
-                if (selectedSlot.allowedSlugs && !selectedSlot.allowedSlugs.includes(schema.slug)) throw new Error(`${schema.label} cannot go in ${selectedSlot.label}. Choose Email body as the destination.`)
+                if (selectedSlot.allowedSlugs && !selectedSlot.allowedSlugs.includes(schema.slug)) throw new Error(`${schema.label} cannot go in ${selectedSlot.label}. Choose the main layout as the destination.`)
                 measure(); add(schema.slug, selectedSlot.address)
-              }) }}><LayoutTemplate size={23} /><span>{schema.label}</span><Plus className={styles.palettePlus} size={13} /></button>)}</div></section>)}
+              }) }}><Icon size={25} aria-hidden /><span>{label}</span></button>)}</div></section>)}
             {!visibleGroups.length && <p className={styles.emptyState}>No blocks match “{query}”.</p>}
           </>}
           {panel === 'rows' && <>
             <h2>Add a row</h2>
-            <p>Drag a row into the email or click to add it at the end.</p>
+            <p>Drag a row into the {kind} or click to add it at the end.</p>
             <div className={styles.blockGrid}>
               {rowLayouts.map(option => typeof option.value === 'string' && <button className={styles.paletteItem} key={option.value} type="button"
                 onPointerDown={event => start(event, { kind: 'palette', type: 'emailGrid', layout: String(option.value), label: option.label || String(option.value) })}
@@ -371,13 +393,17 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
           </>}
           {panel === 'fields' && currentBlock && currentSchema ? <>
             <button type="button" className={styles.backButton} onClick={() => setPanel('blocks')}><ArrowLeft size={15} />Block library</button>
-            <div className={styles.panelTitle}><div><h2>{currentSchema.label}</h2><p>Edit text directly in the email, or adjust details here.</p></div></div>
-            <LiveEmailFields emailId={emailId ?? initialPage.id as string | number | undefined} tenantId={tenantId ?? initialPage.tenantId as string | number | undefined} key={selected!} schema={currentSchema} value={currentBlock} lexicalBlockSchemas={lexicalBlockSchemas}
+            <div className={styles.panelTitle}><div><h2>{currentSchema.label}</h2>
+              {currentSchema.slug === 'postBody'
+                ? <p>Uses the rich text from the post’s Editor tab.</p>
+                : <p>{currentSchema.slug.startsWith('post') ? 'Edit the block fields here.' : 'Edit text on the canvas or adjust details here.'}</p>}
+            </div></div>
+            <LiveEmailFields key={selected!} schema={currentSchema} value={currentBlock} lexicalBlockSchemas={lexicalBlockSchemas}
               onChange={next => attempt(() => history.commit(updateBlock(getCurrent().document, selected!, next, { schemas }).document))}
               onArrayAction={action => attempt(() => { setActiveText(null); measure(); history.commit(editOwnedArray(getCurrent().document, selected!, action.path, action, { schemas }).document) })} />
           </> : panel === 'fields' && <p className={styles.emptyState}>Select a block in the email.</p>}
           {panel === 'layers' && <>
-            <div className={styles.panelTitle}><h2>Email structure</h2></div>
+            <div className={styles.panelTitle}><h2>{kind === 'post' ? 'Post' : 'Email'} structure</h2></div>
             {slots.filter(slot => slot.active !== false && (slot.items.length || slot.path === 'layout')).map(slot => (
               <section className={styles.layerGroup} key={slot.id}>
                 <h3>{slot.label}</h3>
@@ -398,9 +424,9 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
               </section>
             ))}
           </>}
-          {panel === 'page' && <><div className={styles.panelTitle}><h2>Inbox details</h2></div>
-            {([['title', 'Email title'], ['subject', 'Subject'], ['preheader', 'Preview text'], ['replyTo', 'Reply-to email']] as const).map(([field, label]) => <label className={styles.pageField} key={field}>{label}<input type={field === 'replyTo' ? 'email' : 'text'} value={String(page[field] || '')} onChange={event => history.commit({ ...getCurrent().document, [field]: event.target.value }, `email:${field}`)} /></label>)}
-            <p>The sender and footer use this site’s email defaults. Leave reply-to blank to use the site default.</p>
+          {panel === 'page' && <><div className={styles.panelTitle}><h2>{kind === 'post' ? 'Post details' : 'Inbox details'}</h2></div>
+            {(kind === 'post' ? [['title', 'Post title']] as const : [['title', 'Email title'], ['subject', 'Subject'], ['preheader', 'Preview text'], ['replyTo', 'Reply-to email']] as const).map(([field, label]) => <label className={styles.pageField} key={field}>{label}<input type={field === 'replyTo' ? 'email' : 'text'} value={String(page[field] || '')} onChange={event => history.commit({ ...getCurrent().document, [field]: event.target.value }, `email:${field}`)} /></label>)}
+            {kind === 'email' && <p>The sender and footer use this site’s email defaults. Leave reply-to blank to use the site default.</p>}
           </>}
 
         </div>
@@ -432,5 +458,5 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     </div>
     {drag && <div className={styles.dragGhost} style={{ left: drag.x + 16, top: drag.y + 16 }} aria-hidden="true"><GripHorizontal size={18} /><strong>{drag.item.label}</strong><small>{drag.target ? 'Release to place' : 'Move over a drop zone'}</small></div>}
     <pre hidden data-live-editor-document data-unsteady-document data-revision={history.revision}>{serialized}</pre>
-  </div>
+  </div></LiveEmailResourceContext.Provider>
 }

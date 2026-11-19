@@ -4,14 +4,14 @@ import { useEffect, useRef } from 'react'
 import { type SerializedEditorState } from '@payloadcms/richtext-lexical/lexical'
 import { LinkJSXConverter, RichText } from '@payloadcms/richtext-lexical/react'
 import { LiveEmailLexicalTextEditor } from './LiveEmailLexicalTextEditor'
-import { LiveEmailResourceContext } from './LiveEmailResourceContext'
+import { parseEmailTextColor } from './LiveEmailBlockPreview'
 import { canEditRichText, defaultTextBlock, hasRichFormatting, readTextField, type TextAction } from '@/lib/live-editor/textFields'
 import { createLexicalValueFromText, getPlainTextFromLexical } from '@/lib/live-editor/lexical'
 import type { PuckBlockSchema } from '@/lib/puck/types'
 import { unsteadyTextOwner } from '@/lib/live-editor/text'
 import styles from './live-editor.module.css'
 
-export function LiveEmailInlineText({ owner, field, path, blockType, label, storage, active, onActivate, onAction, toolbarTarget, lexicalBlockSchemas = [], emailId, tenantId }: {
+export function LiveEmailInlineText({ owner, field, path, blockType, label, storage, active, onActivate, onAction, toolbarTarget, lexicalBlockSchemas = [] }: {
   owner: Record<string, unknown>
   field: string
   path: Array<string | number>
@@ -23,8 +23,6 @@ export function LiveEmailInlineText({ owner, field, path, blockType, label, stor
   onAction: (action: TextAction) => void
   toolbarTarget: HTMLElement | null
   lexicalBlockSchemas?: PuckBlockSchema[]
-  emailId?: string | number
-  tenantId?: string | number
 }) {
   const state = storage === 'plain'
     ? { plain: typeof owner[field] === 'string' ? owner[field] : '', rich: undefined, enabled: false }
@@ -48,7 +46,7 @@ export function LiveEmailInlineText({ owner, field, path, blockType, label, stor
     wasActive.current = active
   }, [state.plain, active, label])
 
-  return <LiveEmailResourceContext.Provider value={{ emailId, tenantId }}><TextRoot ref={(element: HTMLElement | null) => { root.current = element }} className={styles.inlineText} data-unsteady-text data-unsteady-text-path={JSON.stringify(path)} data-active={active || undefined}
+  return <TextRoot ref={(element: HTMLElement | null) => { root.current = element }} className={styles.inlineText} data-unsteady-text data-unsteady-text-path={JSON.stringify(path)} data-active={active || undefined}
     data-unsteady-text-default={storage === 'companion' ? defaultBlock : undefined}
     onClick={event => { event.stopPropagation(); if (!active) onActivate() }}
     onPointerDown={event => event.stopPropagation()}>
@@ -76,8 +74,14 @@ export function LiveEmailInlineText({ owner, field, path, blockType, label, stor
           const slug = doc && typeof doc === 'object' && 'slug' in doc && typeof doc.slug === 'string' ? doc.slug : ''
           return slug ? `/${linkNode.fields?.doc?.relationTo === 'posts' ? 'posts/' : ''}${slug}` : '#'
         } }),
+        text: args => {
+          const convertText = defaultConverters.text
+          const content = typeof convertText === 'function' ? convertText(args) : args.node.text
+          const color = parseEmailTextColor(args.node.style)
+          return color ? <span style={{ color }}>{content}</span> : content
+        },
       })} /> : <span style={{ whiteSpace: 'pre-wrap' }}>{state.plain || label}</span>}
       {active && !supported && <small className={styles.preserved}>This content is preserved. Its custom text nodes require the Payload editor.</small>}
     </div>}
-  </TextRoot></LiveEmailResourceContext.Provider>
+  </TextRoot>
 }

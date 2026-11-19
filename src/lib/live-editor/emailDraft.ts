@@ -120,17 +120,17 @@ function normalizeFields(value: RecordValue, fields: readonly DraftField[], regi
   return next
 }
 
-export function buildNativeEmailDraftPatch(email: unknown, fields: readonly DraftField[], registry: readonly DraftBlock[] = []): RecordValue {
-  if (!isRecord(email)) throw new NativeDraftError('A native email document is required.')
+export function buildNativeEmailDraftPatch(email: unknown, fields: readonly DraftField[], registry: readonly DraftBlock[] = [], kind: 'email' | 'post' = 'email'): RecordValue {
+  if (!isRecord(email)) throw new NativeDraftError(`A native ${kind} document is required.`)
   const patch: RecordValue = {}
-  for (const name of CONTENT_FIELDS) {
+  for (const name of kind === 'post' ? ['title', 'layout'] as const : CONTENT_FIELDS) {
     if (!Object.hasOwn(email, name)) continue
     const value = email[name]
     if (name !== 'layout' && typeof value !== 'string') throw new NativeDraftError(`${name} must be text.`)
     if (name === 'layout' && value !== null && !Array.isArray(value)) throw new NativeDraftError(`${name} must be an array.`)
     patch[name] = structuredClone(value)
   }
-  if (!Object.keys(patch).length) throw new NativeDraftError('No editable email content was supplied.')
+  if (!Object.keys(patch).length) throw new NativeDraftError(`No editable ${kind} content was supplied.`)
   return normalizeFields(patch, fields, registry)
 }
 
@@ -144,9 +144,9 @@ export function readNativeDraftRequest(body: unknown): { email: RecordValue; exp
   return { email: body.email, expectedUpdatedAt: token }
 }
 
-export function assertCurrentDraftRevision(current: { updatedAt?: unknown }, expectedUpdatedAt: string): void {
+export function assertCurrentDraftRevision(current: { updatedAt?: unknown }, expectedUpdatedAt: string, kind: 'email' | 'post' = 'email'): void {
   if (typeof current.updatedAt !== 'string' || current.updatedAt !== expectedUpdatedAt) {
-    throw new NativeDraftError('This email draft changed after you opened it. Reload the latest draft before saving again.', 409)
+    throw new NativeDraftError(`This ${kind} draft changed after you opened it. Reload the latest draft before saving again.`, 409)
   }
 }
 

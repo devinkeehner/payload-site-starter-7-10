@@ -1,149 +1,61 @@
-// Keep specific dynamic endpoints beside Payload's REST catch-all so Next routes them first.
 import configPromise from '@payload-config'
-import { createPayloadRequest } from 'payload'
-
+import { commitTransaction, createPayloadRequest, initTransaction, killTransaction } from 'payload'
 import { convertEmailToPost } from '@/lib/email/convertEmailToPost'
-import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
+import { LiveEditorAccessError, relationshipID } from '@/lib/live-editor/emailAccess'
+import { isSameOriginDraftRequest } from '@/lib/live-editor/emailDraft'
+import { editorFailure } from '@/lib/live-editor/emailHttp'
+import { assertDraftReferences, loadEditorEmail } from '@/lib/live-editor/emailService'
+import { assertPostSite, loadEditorPost, normalizePostLayoutPatch } from '@/lib/live-editor/postService'
+import { formatSlug } from '@/collections/fields/slug/formatSlug'
+import { randomBytes } from 'node:crypto'
 
-type EmailDoc = Record<string, unknown> & {
-  id?: string | number
-  layout?: unknown[] | null
-  preheader?: string | null
-  subject?: string | null
-  tenant?: string | number | { id?: string | number } | null
-  title?: string | null
-}
-
-function getRelationshipId(value: unknown): string | number | null {
-  if (typeof value === 'string' || typeof value === 'number') return value
-  if (value && typeof value === 'object' && 'id' in value) {
-    const id = (value as { id?: unknown }).id
-    return typeof id === 'string' || typeof id === 'number' ? id : null
-  }
-  return null
-}
-
-async function getTenantDefaultFeaturedImageId(
-  payload: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['payload'],
-  payloadReq: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['req'],
-  tenantId: string | number | null,
-) {
-  if (!tenantId) return null
-
-  const result = await payload.find({
-    collection: 'standard-media',
-    depth: 0,
-    limit: 1,
-    overrideAccess: false,
-    req: payloadReq,
-    select: {
-      defaultFeaturedImage: true,
-    },
-    where: {
-      tenant: {
-        equals: tenantId,
-      },
-    },
-  })
-
-  const doc = result.docs[0] as Record<string, unknown> | undefined
-  return getRelationshipId(doc?.defaultFeaturedImage)
-}
-
-async function getAuthenticatedPayloadRequest(req: Request) {
-  const payloadReq = await createPayloadRequest({
-    canSetHeaders: false,
-    config: configPromise,
-    request: req,
-  })
-
-  return { payload: payloadReq.payload, req: payloadReq, user: payloadReq.user }
-}
-
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
-
-  if (!user || !canUseEmailFeatures(user)) {
-    return new Response('Unauthorized', { status: 403 })
-  }
-
+const headers = { 'Cache-Control': 'private, no-store' }
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  if (!isSameOriginDraftRequest(request)) return Response.json({ error: 'Create a post from this site’s editor.' }, { status: 403, headers })
   try {
-    const email = await payload.findByID({
-      collection: 'emails',
-      id,
-      draft: true,
-      depth: 2,
-      overrideAccess: false,
-      req: payloadReq,
-    }) as unknown as EmailDoc
-
-    const relatedPostId = getRelationshipId(email.relatedPost)
-    if (relatedPostId) {
-      const post = await payload.findByID({
+    const req = await createPayloadRequest({ canSetHeaders: false, config: configPromise, request })
+    const { id } = await params
+    const shouldCommit = await initTransaction(req)
+    try {
+      const email = await loadEditorEmail(req, id)
+      const tenant = relationshipID(email.tenant)
+      if (!tenant) throw new LiveEditorAccessError('Assign this email to a site before creating a post.', 403)
+      assertPostSite(req, tenant)
+      const linkedId = relationshipID(email.relatedPost)
+      if (linkedId) {
+        const post = await loadEditorPost(req, linkedId, 0)
+        if (relationshipID(post.tenant) !== tenant) throw new LiveEditorAccessError('The linked post belongs to a different site.', 403)
+        if (shouldCommit) await commitTransaction(req)
+        return Response.json({ adminUrl: `/live-editor/posts/${encodeURIComponent(linkedId)}`, created: false, post }, { headers })
+      }
+      const text = (value: unknown) => typeof value === 'string' ? value.trim() : ''
+      const title = text(email.subject) || text(email.title) || 'Email update'
+      const preheader = text(email.preheader)
+      const { content, layout } = convertEmailToPost(email.layout, preheader || title)
+      const { fields, patch } = normalizePostLayoutPatch(req, { title, layout })
+      await assertDraftReferences(req, patch, {}, fields, tenant, 'post')
+      // Payload permits missing publish-time metadata on an unpublished draft.
+      const data: Record<string, unknown> = {
+        ...patch, title, tenant, content, _status: 'draft',
+        slug: `${formatSlug(title).slice(0, 100) || 'email-update'}-${randomBytes(5).toString('hex')}`,
+        meta: { description: preheader, title },
+      }
+      const post = await req.payload.create({
         collection: 'posts',
-        depth: 2,
-        draft: true,
-        id: relatedPostId,
-        overrideAccess: false,
-        req: payloadReq,
+        data,
+        depth: 0, draft: true, overrideAccess: false, req,
       })
-
-      return Response.json({
-        adminUrl: `/admin/collections/posts/${relatedPostId}/visual`,
-        created: false,
-        post,
+      await req.payload.update({
+        collection: 'emails', id, data: { relatedPost: post.id }, depth: 0,
+        draft: true, overrideAccess: false, overrideLock: false, req,
       })
+      if (shouldCommit) await commitTransaction(req)
+      return Response.json({ adminUrl: `/live-editor/posts/${encodeURIComponent(String(post.id))}`, created: true, post }, { headers })
+    } catch (error) {
+      if (shouldCommit) await killTransaction(req)
+      throw error
     }
-
-    const title = email.subject?.trim() || email.title?.trim() || 'Email update'
-    const tenantId = getRelationshipId(email.tenant)
-    const tenantDefaultFeaturedImageId = await getTenantDefaultFeaturedImageId(payload, payloadReq, tenantId)
-    const converted = convertEmailToPost(email.layout, email.preheader || title, {
-      tenantDefaultFeaturedImageId,
-    })
-    const data: Record<string, unknown> = {
-      _status: 'draft',
-      content: converted.content,
-      layout: converted.layout,
-      meta: {
-        description: email.preheader || undefined,
-        title,
-      },
-      title,
-    }
-
-    if (tenantId) {
-      data.tenant = tenantId
-    }
-
-    const post = await payload.create({
-      collection: 'posts',
-      data,
-      depth: 2,
-      draft: true,
-      overrideAccess: false,
-      req: payloadReq,
-    })
-    await payload.update({
-      collection: 'emails',
-      data: {
-        relatedPost: post.id,
-      },
-      draft: true,
-      id,
-      overrideAccess: false,
-      overrideLock: false,
-      req: payloadReq,
-    })
-
-    return Response.json({
-      adminUrl: `/admin/collections/posts/${post.id}/visual`,
-      created: true,
-      post,
-    })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to create post from email'
-    return new Response(message, { status: 500 })
+    return editorFailure(error, 'Unable to create a post from this email.')
   }
 }

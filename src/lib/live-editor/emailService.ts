@@ -86,6 +86,24 @@ function referenceKeys(value: unknown, fields: readonly DraftField[], refs = new
   return refs
 }
 
+export async function assertDraftReferences(
+  req: PayloadRequest,
+  patch: Record<string, unknown>,
+  current: unknown,
+  fields: DraftField[],
+  tenant: string | null,
+  kind: 'email' | 'post' = 'email',
+) {
+  const previous = referenceKeys(current, fields)
+  for (const [key, reference] of referenceKeys(patch, fields)) {
+    if (previous.has(key)) continue
+    const related = await req.payload.findByID({ collection: reference.collection as 'media', id: reference.id, depth: 0, overrideAccess: false, req })
+    if (!tenant || relationshipID(related.tenant) !== tenant) {
+      throw new LiveEditorAccessError(`Choose media and linked documents from this ${kind}’s site.`, 403)
+    }
+  }
+}
+
 export async function saveEditorEmail(req: PayloadRequest, id: string, body: unknown) {
   const { email: incoming, expectedUpdatedAt } = readNativeDraftRequest(body)
   const current = await loadEditorEmail(req, id, 0)
@@ -99,14 +117,7 @@ export async function saveEditorEmail(req: PayloadRequest, id: string, body: unk
   const fields = req.payload.config.collections.find(collection => collection.slug === 'emails')?.fields as unknown as DraftField[]
   if (!fields) throw new Error('Email schema is unavailable.')
   const patch = buildNativeEmailDraftPatch(incoming, fields)
-  const previous = referenceKeys(current, fields)
-  for (const [key, reference] of referenceKeys(patch, fields)) {
-    if (previous.has(key)) continue
-    const related = await req.payload.findByID({ collection: reference.collection as 'media', id: reference.id, depth: 0, overrideAccess: false, req })
-    if (!relationshipID(current.tenant) || relationshipID((related as unknown as { tenant?: unknown }).tenant) !== relationshipID(current.tenant)) {
-      throw new LiveEditorAccessError('Choose media and linked documents from this email’s site.', 403)
-    }
-  }
+  await assertDraftReferences(req, patch, current, fields, relationshipID(current.tenant))
   // Optimistic stale-save detection, with the normal collection lock/lifecycle hooks
   // still enforced. This is not a database-wide compare-and-swap transaction.
   const email = await req.payload.update({ collection: 'emails', id, data: patch, draft: true, depth: 2, overrideAccess: false, overrideLock: false, req }) as unknown as EmailRecord
@@ -115,9 +126,12 @@ export async function saveEditorEmail(req: PayloadRequest, id: string, body: unk
 
 export async function getEditorOptions(req: PayloadRequest, id: string, url: URL) {
   const email = await loadEditorEmail(req, id, 0)
+  return getDraftResourceOptions(req, relationshipID(email.tenant), url)
+}
+
+export async function getDraftResourceOptions(req: PayloadRequest, tenant: string | null, url: URL) {
   const collection = url.searchParams.get('collection') || 'media'
   if (!['media', 'pages', 'posts'].includes(collection)) throw new NativeDraftError('Unsupported collection.')
-  const tenant = relationshipID(email.tenant)
   if (!tenant) return { options: [] }
   const query = (url.searchParams.get('query') || '').trim().slice(0, 200)
   const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 100)
@@ -129,4 +143,14 @@ export async function getEditorOptions(req: PayloadRequest, id: string, url: URL
     ? result.docs.filter(doc => relationshipID(doc.tenant) === tenant)
     : result.docs
   return { options: docs.map(doc => ({ value: String(doc.id), label: String(('alt' in doc && doc.alt) || ('filename' in doc && doc.filename) || ('title' in doc && doc.title) || doc.id), resource: doc, thumbnailURL: 'url' in doc ? doc.url : null })) }
+}
+
+export async function uploadDraftMedia(req: PayloadRequest, tenant: string | null, request: Request) {
+  if (!tenant) throw new NativeDraftError('Assign this draft to a site before uploading media.')
+  const form = await request.formData()
+  const file = form.get('file')
+  if (!(file instanceof File) || !file.size || file.size > 10 * 1024 * 1024) throw new NativeDraftError('Choose an image up to 10 MB.')
+  if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(file.type)) throw new NativeDraftError('Choose a JPEG, PNG, GIF, WebP or AVIF image.')
+  return req.payload.create({ collection: 'media', data: { tenant, alt: String(form.get('alt') || file.name).slice(0, 500) },
+    file: { data: Buffer.from(await file.arrayBuffer()), mimetype: file.type, name: file.name, size: file.size }, overrideAccess: false, req })
 }

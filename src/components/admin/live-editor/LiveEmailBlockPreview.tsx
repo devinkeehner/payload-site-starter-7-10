@@ -215,7 +215,7 @@ function getNodeChildren(node: LexicalNode): LexicalNode[] {
   return Array.isArray(node.children) ? node.children : []
 }
 
-function parseTextColor(style?: string): string | undefined {
+export function parseEmailTextColor(style?: string): string | undefined {
   if (!style) return undefined
   const match = /(^|;)\s*color\s*:\s*([^;]+)/i.exec(style)
   const color = match?.[2]?.trim()
@@ -247,7 +247,7 @@ function getTextNodeStyle(node: LexicalNode): React.CSSProperties | undefined {
     style.padding = '1px 4px'
   }
 
-  const color = parseTextColor(node.style)
+  const color = parseEmailTextColor(node.style)
   if (color) style.color = color
 
   return Object.keys(style).length ? style : undefined
@@ -976,7 +976,7 @@ function EmailGridPreview({ children, props }: { children?: React.ReactNode; pro
   const columns = childrenArray.slice(0, columnCount)
 
   return (
-    <div style={{ display: 'grid', gap: 14, gridTemplateColumns: columnTemplates[layout] || columnTemplates.twoColumns, margin: '10px 0 26px' }}>
+    <div data-live-email-row style={{ display: 'grid', gap: 14, gridTemplateColumns: `var(--live-email-row-columns, ${columnTemplates[layout] || columnTemplates.twoColumns})`, margin: '10px 0 26px' }}>
       {columns.map((child, index) => (
         <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 176, minWidth: 0, padding: 6 }}>
           {child}

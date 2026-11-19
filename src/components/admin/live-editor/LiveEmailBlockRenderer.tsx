@@ -2,8 +2,12 @@
 
 import React, { type ReactNode } from 'react'
 import type { PuckBlockSchema, PuckFieldSchema } from '@/lib/puck/types'
+import { flattenUnsteadyFields } from '@/lib/live-editor/catalog'
 import { getEmailGridColumnFields } from '@/lib/live-editor/document'
 import { LiveEmailBlockPreview } from './LiveEmailBlockPreview'
+import dynamic from 'next/dynamic'
+
+const LegacyPostBlock = dynamic(() => import('../post/PuckPostBlockPreview').then(module => module.PuckPostBlockPreview))
 
 type BlockRecord = Record<string, unknown>
 export type LiveEmailTextRenderer = (
@@ -22,34 +26,57 @@ function record(value: unknown): value is BlockRecord {
 // URLs, alternate text, markdown, uploads and relationships keep their native values.
 const visibleTextFields = new Set(['logoText', 'subtitle', 'text', 'beforeText', 'afterText', 'markdown', 'label', 'primaryLabel', 'secondaryLabel', 'title', 'body', 'heading', 'linkLabel', 'caption', 'address', 'copyright', 'town'])
 
-/** Display-only projection: editor elements never enter the saved email document. */
-export function projectLiveEmailText(block: BlockRecord, schema: PuckBlockSchema | undefined, renderText: LiveEmailTextRenderer): BlockRecord {
+export function mapLiveEmailFields(block: BlockRecord, schema: PuckBlockSchema | undefined, mapField: (
+  owner: BlockRecord, field: PuckFieldSchema, path: Array<string | number>,
+) => unknown): BlockRecord {
   function visit(owner: BlockRecord, fields: PuckFieldSchema[], path: Array<string | number>): BlockRecord {
     const projected = { ...owner }
-    const flattened = (definitions: PuckFieldSchema[]): PuckFieldSchema[] => definitions.flatMap(field => ['row', 'collapsible', 'tabs'].includes(field.type) ? flattened(field.fields || []) : [field])
-    for (const field of flattened(fields)) {
+    for (const field of flattenUnsteadyFields(fields)) {
       const value = owner[field.name]
       const at = [...path, field.name]
-      if (field.type === 'richText') projected[field.name] = renderText(owner, field.name, at, 'native', field.label || field.name)
-      else if (['text', 'textarea'].includes(field.type) && visibleTextFields.has(field.name) && !(block.blockType === 'emailVideo' && field.name === 'title' && typeof value === 'string' && value.trim().toLowerCase() === 'watch this video')) projected[field.name] = renderText(owner, field.name, at, 'plain', field.label || field.name)
-      else if (field.type === 'array' && Array.isArray(value)) projected[field.name] = value.map((item, index) => record(item) ? visit(item, field.fields || [], [...at, index]) : item)
+      if (field.type === 'array' && Array.isArray(value)) projected[field.name] = value.map((item, index) => record(item) ? visit(item, field.fields || [], [...at, index]) : item)
       else if (field.type === 'group' && record(value)) projected[field.name] = visit(value, field.fields || [], at)
+      else {
+        const next = mapField(owner, field, at)
+        if (next !== value) projected[field.name] = next
+      }
     }
     return projected
   }
   return visit(block, schema?.fields || [], [])
 }
 
-export function LiveEmailBlockRenderer({ block, schemas, renderSlot, renderText }: {
+/** Display-only projection: editor elements and resolved media stay out of history and saves. */
+export function projectLiveEmailText(block: BlockRecord, schema: PuckBlockSchema | undefined, renderText: LiveEmailTextRenderer, resolveMedia: (value: unknown) => unknown = value => value): BlockRecord {
+  return mapLiveEmailFields(block, schema, (owner, field, path) => {
+    const value = owner[field.name]
+    const label = field.label || field.name
+    if (field.type === 'richText') return renderText(owner, field.name, path, 'native', label)
+    if (['text', 'textarea'].includes(field.type) && visibleTextFields.has(field.name) && !(block.blockType === 'emailVideo' && field.name === 'title' && typeof value === 'string' && value.trim().toLowerCase() === 'watch this video')) return renderText(owner, field.name, path, 'plain', label)
+    if (field.type === 'upload' && field.relationTo === 'media') return resolveMedia(value)
+    return value
+  })
+}
+
+export function LiveEmailBlockRenderer({ block, schemas, renderSlot, renderText, resolveMedia, postContent }: {
   block: BlockRecord
   schemas: PuckBlockSchema[]
   renderSlot: (ownerId: string, path: string) => ReactNode
   renderText: LiveEmailTextRenderer
+  resolveMedia: (value: unknown) => unknown
+  postContent?: unknown
 }) {
   const blockType = String(block.blockType || '')
   const schema = schemas.find(candidate => candidate.slug === blockType)
-  if (!schema) return <p role="status">{blockType || 'Unknown email block'} is preserved. Its block schema is unavailable.</p>
-  const projected = projectLiveEmailText(block, schema, renderText)
+  if (!schema) return <p role="status">{blockType || 'Unknown block'} is preserved. Its block schema is unavailable.</p>
+  if (blockType.startsWith('post')) {
+    const projected = mapLiveEmailFields(block, schema, (owner, field) =>
+      field.type === 'upload' && field.relationTo === 'media' ? resolveMedia(owner[field.name]) : owner[field.name])
+    if (blockType === 'postBody') projected.content = postContent
+    const columns = blockType === 'postGrid' ? getEmailGridColumnFields(block.layout).map(path => renderSlot(String(block.id), path)) : undefined
+    return <LegacyPostBlock blockType={blockType} props={projected}>{columns}</LegacyPostBlock>
+  }
+  const projected = projectLiveEmailText(block, schema, renderText, resolveMedia)
   const columns = blockType === 'emailGrid' ? getEmailGridColumnFields(block.layout).map(path => renderSlot(String(block.id), path)) : undefined
   return <div data-live-editor-block-preview={blockType} onSubmitCapture={event => { event.preventDefault(); event.stopPropagation() }}>
     <LiveEmailBlockPreview blockType={blockType} props={projected}>{columns}</LiveEmailBlockPreview>

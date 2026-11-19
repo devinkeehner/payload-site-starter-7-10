@@ -33,7 +33,7 @@ export function LiveEmailRelationshipField({
   onChange: (value: unknown) => void
   readOnly?: boolean
 }) {
-  const { emailId } = useLiveEmailResourceScope()
+  const { apiURL } = useLiveEmailResourceScope()
   const label = field.label || field.name
   const inputId = useId()
   const collections = Array.isArray(field.relationTo)
@@ -73,7 +73,7 @@ export function LiveEmailRelationshipField({
       Array.from(groups, async ([target, ids]) => {
         try {
           const params = new URLSearchParams({ collection: target, ids: ids.join(',') })
-          const response = await fetch(liveEmailOptionsURL(emailId, params), {
+          const response = await fetch(liveEmailOptionsURL(apiURL, params), {
             signal: controller.signal,
             credentials: 'same-origin',
           })
@@ -93,7 +93,7 @@ export function LiveEmailRelationshipField({
       }),
     )
     return () => controller.abort()
-  }, [emailId, selectedIds])
+  }, [apiURL, selectedIds])
 
   useEffect(() => {
     if (!open) return
@@ -105,7 +105,7 @@ export function LiveEmailRelationshipField({
       async () => {
         try {
           const params = new URLSearchParams({ collection, query })
-          const response = await fetch(liveEmailOptionsURL(emailId, params), {
+          const response = await fetch(liveEmailOptionsURL(apiURL, params), {
             signal: controller.signal,
             credentials: 'same-origin',
           })
@@ -138,7 +138,7 @@ export function LiveEmailRelationshipField({
       window.clearTimeout(timer)
       controller.abort()
     }
-  }, [collection, emailId, open, query, retry])
+  }, [collection, apiURL, open, query, retry])
 
   const remove = (index: number) =>
     onChange(field.hasMany ? selected.filter((_, itemIndex) => itemIndex !== index) : null)

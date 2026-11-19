@@ -1,11 +1,8 @@
 import type { DocumentViewServerProps } from 'payload'
 
 import { canUseBuilders } from '@/lib/access/isSuperUser'
-import { postToPuckData } from '@/lib/puck/converters'
-import { getPostPuckBlockSchema } from '@/lib/puck/schema'
+import { redirect } from 'next/navigation'
 import type { PuckPostDoc } from '@/lib/puck/types'
-
-import { PuckPostBuilderClient } from './PuckPostBuilderClient'
 
 export default function PuckPostBuilderView(props: DocumentViewServerProps) {
   const doc = props.doc as PuckPostDoc
@@ -28,13 +25,5 @@ export default function PuckPostBuilderView(props: DocumentViewServerProps) {
     )
   }
 
-  return (
-    <PuckPostBuilderClient
-      blockSchema={getPostPuckBlockSchema()}
-      initialData={postToPuckData(doc)}
-      initialPostContent={doc.content || null}
-      postId={String(id)}
-      title={typeof doc?.title === 'string' ? doc.title : 'Untitled post'}
-    />
-  )
+  redirect(`/live-editor/posts/${encodeURIComponent(String(id))}`)
 }

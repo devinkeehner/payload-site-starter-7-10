@@ -2,11 +2,11 @@
 
 import { createContext, useContext } from 'react'
 
-export type LiveEmailResourceScope = { emailId?: string | number; tenantId?: string | number }
+export type LiveEmailResourceScope = { apiURL?: string }
 export const LiveEmailResourceContext = createContext<LiveEmailResourceScope>({})
 export const useLiveEmailResourceScope = () => useContext(LiveEmailResourceContext)
 
-export function liveEmailOptionsURL(emailId: string | number | undefined, params: URLSearchParams): string {
-  if (emailId == null) throw new Error('Save this email before choosing media or linked documents.')
-  return `/api/live-editor/emails/${encodeURIComponent(String(emailId))}/options?${params.toString()}`
+export function liveEmailOptionsURL(apiURL: string | undefined, params: URLSearchParams): string {
+  if (!apiURL) throw new Error('Save this draft before choosing media or linked documents.')
+  return `${apiURL}/options?${params.toString()}`
 }

@@ -29,6 +29,19 @@ function legacyEmail(): PageDocument {
 }
 
 describe('production email renderer compatibility', () => {
+  it('preserves formatted text and desktop widths while allowing email rows to stack on narrow screens', async () => {
+    const page = legacyEmail()
+    const grid = page.layout![1]!
+    const rich = (grid.centerBlocks as BlockRecord[])[0]!.text as {
+      root: { children: Array<{ children: Array<{ style: string }> }> }
+    }
+    rich.root.children[0]!.children[0]!.style = 'color: #7a0012;'
+    const { html } = await render(persisted(page))
+    expect(html).toContain('@media only screen and (max-width: 480px)')
+    expect(html).toMatch(/class="email-grid-column"[^>]*width:33.333%/)
+    expect(html).toMatch(/<span\s+style="font-weight:800;color:#7a0012"\s*>Formatted native\s+copy<\/span\s*>/)
+  })
+
   it('renders identical HTML and plain text before and after ID initialization and native serialization', async () => {
     const original = legacyEmail()
     let sequence = 0

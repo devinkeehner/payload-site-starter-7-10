@@ -107,8 +107,9 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
             })
           } else if (field.type === 'blocks') {
             const pathString = nextPath.join('.')
-            const active = block.blockType !== 'emailGrid' || path.length > 0 || getEmailGridColumnFields(block.layout).includes(field.name as typeof EMAIL_GRID_FIELDS[number])
-            const columnLabel = block.blockType === 'emailGrid' && path.length === 0 ? emailColumnLabels[field.name] : undefined
+            const isGridColumn = (block.blockType === 'emailGrid' || block.blockType === 'postGrid') && path.length === 0
+            const active = !isGridColumn || getEmailGridColumnFields(block.layout).includes(field.name as typeof EMAIL_GRID_FIELDS[number])
+            const columnLabel = isGridColumn ? emailColumnLabels[field.name] : undefined
             const address: SlotAddress = { ownerId: id, path: pathString, ...(lastRowId == null ? {} : { itemId: lastRowId }) }
             addSlot({ id: `${id}:${nextStable.join(':')}`, ownerId: id, path: pathString,
               label: `${String(label)} → ${columnLabel || field.label || field.name}${active ? '' : ' (hidden column)'}`,
@@ -121,7 +122,7 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
       walk(block, fieldsFor(block, options), [], [])
     })
   }
-  addSlot({ id: 'root:layout', ...ROOT_SLOT, label: 'Email', items: records(document.layout, 'email layout'),
+  addSlot({ id: 'root:layout', ...ROOT_SLOT, label: document.collection === 'posts' ? 'Post layout' : 'Email', items: records(document.layout, 'layout'),
     address: ROOT_SLOT, allowedSlugs: options.schemas?.map(schema => schema.slug) || null, active: true,
     write: items => { document.layout = items },
   }, 0)
