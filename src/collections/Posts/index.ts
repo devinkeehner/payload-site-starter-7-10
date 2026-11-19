@@ -321,6 +321,10 @@ export const Posts: CollectionConfig<'posts'> = {
             collection: 'posts',
             id,
             draft: true,
+            depth: 2,
+            overrideAccess: false,
+            req,
+            context: { skipSharedPostHTML: true },
           })
           if (!post) {
             return send(404, { error: 'Post not found' })
@@ -353,16 +357,8 @@ export const Posts: CollectionConfig<'posts'> = {
           const userRecord = asRecord(req.user)
           const userId = getString(userRecord.id)
           const userEmail = getString(userRecord.email)
-          const content = post?.content
-          let contentHTML: string
-          if (typeof content === 'string') {
-            contentHTML = content
-          } else {
-            const { convertLexicalToHTML } = await import('@payloadcms/richtext-lexical/html')
-            contentHTML = convertLexicalToHTML({
-              data: Array.isArray(content) ? content : content || {},
-            })
-          }
+          const { generatePostSeo, getPostSeoArticleText } = await import('@/lib/seo/generatePostSeo')
+          const articleText = await getPostSeoArticleText(post, req.origin)
 
           // Gather options the model must choose from
           const [categories, articleTypes, assistantSettings] = await Promise.all([
@@ -396,13 +392,12 @@ export const Posts: CollectionConfig<'posts'> = {
 
           let generated
           try {
-            const { generatePostSeo } = await import('@/lib/seo/generatePostSeo')
             generated = await generatePostSeo({
               additionalInstructions,
               apiKey,
               articleTypeOptions,
               categoryOptions,
-              contentHtml: contentHTML,
+              articleText,
               metadata: buildOpenAIMetadata([
                 ['feature', 'post_seo_generation'],
                 ['post_id', post?.id],
