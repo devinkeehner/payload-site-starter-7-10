@@ -23,5 +23,5 @@ export async function PATCH(request: Request, context: Context) {
     try { body = JSON.parse(raw) } catch { throw new NativeDraftError('Invalid draft JSON.') }
     const req = await createPayloadRequest({ config: configPromise, request, canSetHeaders: false })
     return Response.json(await saveEditorEmail(req, (await context.params).id, body), { headers })
-  } catch (error) { return editorFailure(error) }
+  } catch (error) { return editorFailure(error, 'Unable to save this email draft.') }
 }

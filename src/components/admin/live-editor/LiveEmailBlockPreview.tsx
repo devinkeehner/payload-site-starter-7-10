@@ -62,8 +62,7 @@ const CONTENT_BLOCK_SIDE_PADDING = 20
 
 const contentBlockInsetStyle: React.CSSProperties = {
   boxSizing: 'border-box',
-  paddingLeft: CONTENT_BLOCK_SIDE_PADDING,
-  paddingRight: CONTENT_BLOCK_SIDE_PADDING,
+  paddingInline: `var(--email-preview-block-inset, ${CONTENT_BLOCK_SIDE_PADDING}px)`,
 }
 
 const EDGE_TO_EDGE_BLOCK_TYPES = new Set([
@@ -690,13 +689,13 @@ function PlayButtonOverlayPreview() {
         border: `2px solid ${COLORS.white}`,
         borderRadius: 999,
         display: 'inline-flex',
-        height: 64,
+        aspectRatio: '1',
         justifyContent: 'center',
         left: '50%',
         position: 'absolute',
         top: '50%',
         transform: 'translate(-50%, -50%)',
-        width: 64,
+        width: 'min(64px, 42%)',
       }}
     >
       <span
@@ -740,7 +739,7 @@ function EmailVideoPreview(props: BlockProps) {
           background: thumbnail ? 'transparent' : COLORS.surfaceAlt,
           border: thumbnail ? `1px solid ${COLORS.border}` : `1px dashed ${COLORS.borderStrong}`,
           color: COLORS.muted,
-          minHeight: 220,
+          aspectRatio: thumbnail ? undefined : '16 / 9',
           overflow: 'hidden',
           position: 'relative',
         }}
@@ -758,7 +757,7 @@ function EmailVideoPreview(props: BlockProps) {
             }}
           />
         ) : (
-          <div style={{ alignItems: 'center', display: 'flex', minHeight: 220, justifyContent: 'center', padding: 20, textAlign: 'center' }}>
+          <div style={{ alignItems: 'center', display: 'flex', minHeight: '100%', justifyContent: 'center', padding: 8, textAlign: 'center' }}>
             {hasTarget ? 'Upload a thumbnail image' : 'Add a video upload or YouTube URL'}
           </div>
         )}
@@ -964,8 +963,8 @@ function EmailGridPreview({ children, props }: { children?: React.ReactNode; pro
     oneColumn: 'minmax(0, 1fr)',
     threeColumns: 'repeat(3, minmax(0, 1fr))',
     twoColumns: 'repeat(2, minmax(0, 1fr))',
-    twoColumnsLeftWide: '2fr 1fr',
-    twoColumnsRightWide: '1fr 2fr',
+    twoColumnsLeftWide: 'minmax(0, 2fr) minmax(0, 1fr)',
+    twoColumnsRightWide: 'minmax(0, 1fr) minmax(0, 2fr)',
   }
   const columnCount = layout === 'oneColumn'
     ? 1
@@ -979,7 +978,7 @@ function EmailGridPreview({ children, props }: { children?: React.ReactNode; pro
   return (
     <div style={{ display: 'grid', gap: 14, gridTemplateColumns: columnTemplates[layout] || columnTemplates.twoColumns, margin: '10px 0 26px' }}>
       {columns.map((child, index) => (
-        <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 176, padding: 14 }}>
+        <div key={index} style={{ ...softCardStyle, borderStyle: 'dashed', minHeight: 176, minWidth: 0, padding: 6 }}>
           {child}
         </div>
       ))}

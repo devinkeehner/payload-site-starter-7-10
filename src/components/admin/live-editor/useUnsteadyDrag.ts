@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 
-export type DragItem = { kind: 'block'; id: string; label: string } | { kind: 'palette'; type: string; label: string }
+export type DragItem = { kind: 'block'; id: string; label: string } | { kind: 'palette'; type: string; label: string; layout?: string }
 export type DropTarget = { slotId: string; index: number }
 export type DragState = { item: DragItem; x: number; y: number; target: DropTarget | null }
 type Point = { x: number; y: number }

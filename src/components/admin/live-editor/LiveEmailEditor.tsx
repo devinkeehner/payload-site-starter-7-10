@@ -129,6 +129,7 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     const slot = slots.find(candidate => candidate.id === target.slotId)
     if (!slot || slot.active === false) return false
     const type = item.kind === 'palette' ? item.type : String(findBlock(getCurrent().document, item.id, { schemas })?.blockType || '')
+    if (type === 'emailGrid' && slot.address.ownerId !== ROOT_SLOT.ownerId) return false
     if (slot.allowedSlugs && !slot.allowedSlugs.includes(type)) return false
     if (item.kind === 'block') {
       try { moveBlock(getCurrent().document, item.id, slot.address, slot.items[target.index]?.id ?? null, { schemas }); dropCache.set(cacheKey, true); return true } catch { dropCache.set(cacheKey, false); return false }
@@ -140,7 +141,7 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
       if (item.kind === 'block') move(item.id, target)
       else {
         const slot = slots.find(candidate => candidate.id === target.slotId)
-        if (slot) add(item.type, slot.address, target.index)
+        if (slot) add(item.type, slot.address, target.index, item.layout)
       }
     }), onCancel: () => announce('Move cancelled.'), scroller, revision: history.revision,
   })
@@ -231,7 +232,11 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     const sourceIndex = source?.items.findIndex(item => String(item.id) === id) ?? -1
     return <article className={styles.block} data-unsteady-block={id} data-unsteady-block-type={String(block.blockType)} data-testid={`block-${id}`} aria-label={`${schema?.label || block.blockType}: ${label}`} tabIndex={0} data-selected={selected === id || undefined} data-drag-source={drag?.item.kind === 'block' && drag.item.id === id || undefined}
       onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter') { event.preventDefault(); selectBlock(id) } }}
-      onClick={event => { event.stopPropagation(); if (!skipClick()) selectBlock(id) }}>
+      onPointerDown={event => {
+        if (event.button !== 0 || (event.target as Element).closest('button, [role="dialog"]')) return
+        event.stopPropagation()
+        selectBlock(id)
+      }}>
       <div className={styles.blockTools} onClick={event => event.stopPropagation()}>
         <button type="button" className={styles.moveHandle} aria-label={`Move ${label}`} title="Drag to move; use arrow keys to reorder" onPointerDown={event => start(event, { kind: 'block', id, label })}
           aria-expanded={moveMenu === id} aria-controls={moveMenu === id ? `move-menu-${id}` : undefined} aria-haspopup="dialog" data-unsteady-move={id}
@@ -318,7 +323,7 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
         <button className={styles.primaryButton} type="button" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save draft'}</button>
       </div>
     </header>
-    <div className={styles.textToolbarDock} ref={setToolbarTarget} data-unsteady-text-toolbar-host data-active={Boolean(activeText)} />
+    <div className={styles.textToolbarDock} ref={setToolbarTarget} data-unsteady-text-toolbar-host />
     <div className={styles.workspace} ref={workspace} data-panel-open={panelOpen}>
       <nav className={styles.panelTabs} aria-label="Builder tools">
         {([
@@ -352,10 +357,14 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
           </>}
           {panel === 'rows' && <>
             <h2>Add a row</h2>
-            <p>Rows are added to the end of the email. Move the row on the canvas or in the outline.</p>
+            <p>Drag a row into the email or click to add it at the end.</p>
             <div className={styles.blockGrid}>
               {rowLayouts.map(option => typeof option.value === 'string' && <button className={styles.paletteItem} key={option.value} type="button"
-                onClick={() => attempt(() => { measure(); add('emailGrid', ROOT_SLOT, undefined, String(option.value)) })}>
+                onPointerDown={event => start(event, { kind: 'palette', type: 'emailGrid', layout: String(option.value), label: option.label || String(option.value) })}
+                onClick={() => {
+                  if (skipClick()) return
+                  attempt(() => { measure(); add('emailGrid', ROOT_SLOT, undefined, String(option.value)) })
+                }}>
                 <LayoutTemplate size={22} aria-hidden />{option.label || option.value}
               </button>)}
             </div>
@@ -403,7 +412,12 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
           <button type="button" aria-label="Show selected block in preview" title="Show selected block in preview" disabled={!selected} onClick={() => attempt(() => { if (selected) scrollUnsteadyPreview(scroller.current, { blockId: selected }) })}><LocateFixed size={16} /></button>
           <button type="button" aria-label="Scroll preview down" title="Scroll preview down" onClick={() => attempt(() => { scrollUnsteadyPreview(scroller.current, { direction: 'down' }) })}><ChevronDown size={16} /></button>
         </nav>
-        <div className={styles.canvasScroller} ref={scroller} onClick={() => { setActiveText(null); setMoveMenu(null) }}>
+        <div className={styles.canvasScroller} ref={scroller} onPointerDown={event => {
+          if (event.button === 0 && !(event.target as Element).closest('button, [role="dialog"]')) {
+            setActiveText(null)
+            setMoveMenu(null)
+          }
+        }}>
           <LiveEmailViewport mobile={width === 'mobile'} theme={theme}>
           <div className={styles.canvas} data-viewport={width} style={{ background: '#fff', color: '#111827', fontFamily: 'Arial, sans-serif' }}
             onSubmitCapture={event => event.preventDefault()} onClickCapture={event => {

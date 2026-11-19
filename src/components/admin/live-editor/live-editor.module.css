@@ -30,11 +30,8 @@
 .saveState { color: var(--ue-muted); font-size: 11px; white-space: nowrap; padding-inline: 8px; }
 .previewSizes { display: flex; align-items: center; gap: 2px; border-inline: 1px solid var(--ue-line); padding-inline: 4px; }
 .previewSizes button[aria-pressed='true'] { color: var(--ue-accent); background: var(--ue-tint); }
-.textToolbarDock { position: relative; min-height: 38px; flex: 0 0 auto; display: flex; align-items: center; padding: 2px 10px; border-bottom: 1px solid var(--ue-line); background: var(--ue-panel); z-index: 60; }
-.textToolbarDock[data-active='false'] { display: none; }
-.textToolbarDock > span { color: var(--ue-muted); font-size: 12px; }
-.textToolbarDock:has([data-docked]) > span { display: none; }
-.textToolbarDock :global([data-docked='true']) { position: static; inset: auto; width: 100%; max-width: none; min-height: 34px; border: 0; box-shadow: none; background: var(--ue-panel) !important; padding: 0; color: var(--ue-text); }
+.textToolbarDock { position: relative; flex: 0 0 40px; border-bottom: 1px solid var(--ue-line); background: var(--ue-panel); z-index: 60; }
+.textToolbarDock :global([data-docked='true']) { position: absolute; inset: 2px 10px auto; width: auto; max-width: none; min-height: 34px; border: 0; box-shadow: none; background: var(--ue-panel) !important; padding: 0; color: var(--ue-text); }
 .textToolbarDock :global([role='toolbar']) { background: var(--ue-panel) !important; }
 .workspace { display: grid; grid-template-columns: 66px var(--unsteady-panel-width, 310px) 6px minmax(0, 1fr); flex: 1; min-height: 0; }
 .workspace[data-panel-open='false'] { grid-template-columns: 66px minmax(0, 1fr); }
@@ -81,12 +78,14 @@
 .canvas[data-viewport='mobile'] { max-width: 390px; }
 .zone { position: relative; min-height: 62px; border: 1px dashed color-mix(in srgb, currentColor 22%, transparent); border-radius: 3px; padding: 5px; }
 .zone[data-root] { border: 0; padding: 0; }
+.zone:not([data-root]) { --email-preview-block-inset: 4px; }
 .zone[data-drop-active] { outline: 2px solid #9b1d35; outline-offset: 2px; background-color: #9b1d350b; }
 .zoneCaption { font: 10px/1.4 system-ui, sans-serif; color: currentColor; opacity: .6; margin: 2px 4px 5px; letter-spacing: .04em; text-transform: uppercase; }
 .addToZone { display: flex; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: 4px; width: 100%; padding: 7px; background: transparent; color: inherit; opacity: .6; font: 11px/1.5 system-ui, sans-serif !important; }
 .addToZone:hover { opacity: 1; background: #9b1d3515; }
 .zone[data-root] > .addToZone { padding: 18px; }
-.block { position: relative; min-width: 0; padding: 44px 0 6px; outline: 1px solid transparent; outline-offset: -1px; transition: outline-color 150ms, opacity 150ms; }
+.block { position: relative; min-width: 0; container: email-block / inline-size; overflow-wrap: anywhere; padding: 44px 0 6px; outline: 1px solid transparent; outline-offset: -1px; transition: outline-color 150ms, opacity 150ms; }
+.block img, .block video { max-width: 100%; }
 .block[data-selected], .block:hover { outline-color: #9b1d35; }
 .block[data-drag-source] { opacity: .35; }
 .blockTools { position: absolute; right: 6px; top: 5px; z-index: 20; display: flex; align-items: center; gap: 1px; max-width: calc(100% - 12px); border: 1px solid #cdd6e3; border-radius: 6px; padding: 2px; background: #fff; color: #142841; box-shadow: 0 2px 8px #1428411a; font: 11px/1.3 system-ui, sans-serif; }
@@ -95,6 +94,10 @@
 .blockTools button:hover { background: #faedf0; }
 .moveHandle { cursor: grab !important; touch-action: none; max-width: 170px; }
 .moveHandle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@container email-block (max-width: 210px) {
+  .moveHandle span { display: none; }
+  .blockTools button { min-width: 0; padding: 3px; }
+}
 .moveMenu { position: absolute; right: 6px; top: 44px; width: 245px; max-width: calc(100% - 10px); max-height: 280px; overflow: auto; z-index: 25; padding: 8px; border: 1px solid var(--ue-line); border-radius: 8px; background: var(--ue-panel); color: var(--ue-text); box-shadow: 0 8px 25px #0003; font: 12px/1.5 system-ui, sans-serif; }
 .moveMenu > div { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 7px; }
 .moveMenu button { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 7px; color: inherit; border: 0; background: transparent; border-radius: 4px; }
@@ -127,15 +130,18 @@
 :global(html[data-unsteady-dragging='true']) .editor * { cursor: grabbing !important; }
 @keyframes destinationIn { from { opacity: .3; transform: scaleY(.65); } to { opacity: 1; transform: scaleY(1); } }
 @media (max-width: 1100px) { .identity .campaignIdentity span:last-child { display: none; } .saveState { display: none; } .headerActions { gap: 2px; } }
+@media (max-width: 980px) { .textToolbarDock { flex-basis: 76px; } }
+@media (max-width: 520px) { .textToolbarDock { flex-basis: 112px; } }
 @media (max-width: 650px) {
   .header { flex-wrap: wrap; gap: 3px; min-height: 74px; padding-inline: 8px; } .identity { flex: 1; } .headerActions { flex-wrap: wrap; justify-content: flex-end; gap: 0; width: 100%; } .headerActions a span { display: none; } .header .primaryButton { padding-inline: 10px; }
-  .textToolbarDock { min-height: 38px; padding: 2px 8px; max-height: 100px; overflow-y: auto; } .textToolbarDock > span { font-size: 10px; }
   .workspace { position: relative; display: flex; }
   .stage { flex: 1; width: 100%; }
   .workspace[data-panel-open='true'] .stage { visibility: hidden; }
   .sidebar { position: absolute; inset: 0 0 0 58px; }
   .panelTabs { position: absolute; inset: 0 auto 0 0; width: 58px; z-index: 31; }
   .workspace[data-panel-open='false'] .panelTabs { display: none; }
+  :global(html[data-unsteady-dragging='true']) .workspace .stage { visibility: visible; }
+  :global(html[data-unsteady-dragging='true']) .workspace :is(.sidebar, .panelTabs) { opacity: 0; pointer-events: none; }
   .canvasScroller { padding: 4px 0 0; } .statusBar { left: 10px; right: 20px; max-width: calc(100% - 30px); }
   .blockTools { opacity: 1; pointer-events: auto; } .moveHandle span { max-width: 76px; }
 }

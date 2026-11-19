@@ -249,6 +249,64 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     expect(api.unexpected).toEqual([])
   })
 
+  test('keeps the dock stable while formatting multiple lines as lists', async ({ context, page }) => {
+    await mockEditor(context, page)
+    await openEditor(page)
+    const frame = page.locator('iframe[data-unsteady-viewport]')
+    const initialTop = (await frame.boundingBox())?.y
+    const body = canvas(page).getByTestId('block-body')
+    await body.getByRole('button', { name: /edit text/i }).click()
+    const editable = body.locator('[contenteditable="true"]').first()
+    await editable.press('End')
+    await editable.press('Enter')
+    await page.keyboard.insertText('Second line')
+    await editable.press('Control+Shift+Home')
+    const toolbar = page.getByRole('toolbar', { name: 'Rich text formatting' })
+    await expect(toolbar).toBeVisible()
+    await toolbar.getByRole('button', { name: 'Bullet list' }).click()
+    await expect(body.locator('ul li')).toHaveCount(2)
+    await toolbar.getByRole('button', { name: 'Numbered list' }).click()
+    await expect(body.locator('ol li')).toHaveCount(2)
+    expect((await frame.boundingBox())?.y).toBe(initialTop)
+  })
+
+  test('drags a row layout to a specific position without appending a copy', async ({ context, page }) => {
+    await mockEditor(context, page)
+    await openEditor(page)
+    await page.getByRole('button', { name: 'Rows', exact: true }).click()
+    const tile = await page.getByRole('button', { name: /left.*wide/i }).boundingBox()
+    const target = await canvas(page).getByTestId('block-heading').boundingBox()
+    expect(tile && target).toBeTruthy()
+    await page.mouse.move(tile!.x + tile!.width / 2, tile!.y + tile!.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(target!.x + target!.width / 2, target!.y + 14, { steps: 12 })
+    await page.mouse.up()
+    await expect.poll(async () => (await draft(page)).layout.map(block => block.blockType))
+      .toEqual(['emailGrid', 'emailHeading', 'emailText', 'emailGrid'])
+    expect((await draft(page)).layout[0]?.layout).toBe('twoColumnsLeftWide')
+  })
+
+  test('fits video thumbnails inside uneven columns at mobile preview width', async ({ context, page }) => {
+    const email = fixture()
+    Object.assign(email.layout[2]!, {
+      layout: 'twoColumnsRightWide',
+      rightBlocks: [{ id: 'video', blockType: 'emailVideo', title: 'Video title', width: 640, thumbnailMedia: {
+        id: 'thumbnail', url: 'data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22640%22%20height=%22360%22/%3E',
+        alt: 'Example thumbnail',
+      } }],
+    })
+    await mockEditor(context, page, email)
+    await openEditor(page)
+    await page.getByRole('button', { name: 'Mobile preview', exact: true }).click()
+    const video = canvas(page).getByTestId('block-video')
+    const current = await video.boundingBox()
+    const thumbnail = await video.getByRole('img', { name: 'Example thumbnail' }).boundingBox()
+    expect(thumbnail!.x + thumbnail!.width).toBeLessThanOrEqual(current!.x + current!.width + 1)
+    const move = video.getByRole('button', { name: 'Move Video title', exact: true })
+    await move.scrollIntoViewIfNeeded()
+    await expect(move).toBeInViewport()
+  })
+
   test('saves native content with revision tokens and reopens the stored draft', async ({ context, page }) => {
     const api = await mockEditor(context, page)
     await openEditor(page)

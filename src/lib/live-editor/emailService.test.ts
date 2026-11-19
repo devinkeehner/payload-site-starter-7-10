@@ -340,6 +340,17 @@ describe('Live Editor tenant-scoped resource options', () => {
     expect(payload.find).toHaveBeenCalledExactlyOnceWith({ collection: 'pages', where: { and: [{ tenant: { equals: 'site-a' } }, { id: { in: ['page-a', 'page-b'] } }] }, limit: 2, depth: 1, overrideAccess: false, req })
   })
 
+  it('excludes foreign and unassigned media from results even for super users', async () => {
+    const { req, payload } = mockRequest({ user: { roles: ['super'] }, cookie: 'payload-tenant=site-b' })
+    payload.find.mockResolvedValueOnce({ docs: [
+      { id: 'media-a', alt: 'Assigned', filename: 'a.jpg', url: '/a.jpg', tenant: 'site-a' },
+      { id: 'media-b', alt: 'Foreign', filename: 'b.jpg', url: '/b.jpg', tenant: 'site-b' },
+      { id: 'media-c', alt: 'Unassigned', filename: 'c.jpg', url: '/c.jpg', tenant: '' },
+    ] })
+    const { options } = await getEditorOptions(req, 'email-a', new URL('https://editor.example.gov/options?collection=media'))
+    expect(options.map(option => option.value)).toEqual(['media-a'])
+  })
+
   it.each(['pages', 'posts'])('searches native document titles and slugs in %s', async collection => {
     const { req, payload } = mockRequest()
     await getEditorOptions(req, 'email-a', new URL(`https://editor.example.gov/options?collection=${collection}&query=%20news%20`))

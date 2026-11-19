@@ -125,5 +125,8 @@ export async function getEditorOptions(req: PayloadRequest, id: string, url: URL
   if (ids.length) and.push({ id: { in: ids } })
   else if (query) and.push({ or: (collection === 'media' ? ['filename', 'alt'] : ['title', 'slug']).map(field => ({ [field]: { like: query } })) })
   const result = await req.payload.find({ collection: collection as 'media', where: { and }, limit: ids.length || 60, depth: 1, overrideAccess: false, req })
-  return { options: result.docs.map(doc => ({ value: String(doc.id), label: String(('alt' in doc && doc.alt) || ('filename' in doc && doc.filename) || ('title' in doc && doc.title) || doc.id), resource: doc, thumbnailURL: 'url' in doc ? doc.url : null })) }
+  const docs = collection === 'media'
+    ? result.docs.filter(doc => relationshipID(doc.tenant) === tenant)
+    : result.docs
+  return { options: docs.map(doc => ({ value: String(doc.id), label: String(('alt' in doc && doc.alt) || ('filename' in doc && doc.filename) || ('title' in doc && doc.title) || doc.id), resource: doc, thumbnailURL: 'url' in doc ? doc.url : null })) }
 }

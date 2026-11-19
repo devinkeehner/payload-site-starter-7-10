@@ -1554,7 +1554,7 @@ export function LiveEmailLexicalTextEditor({
   }, [shouldUseCanvasToolbar])
 
   useEffect(() => {
-    if (!shouldUseCanvasToolbar || !isCanvasToolbarOpen) return
+    if (!shouldUseCanvasToolbar || !isCanvasToolbarOpen || toolbarTarget) return
 
     const ownerDocument = fieldRef.current?.ownerDocument
     if (!ownerDocument) return
@@ -1580,7 +1580,7 @@ export function LiveEmailLexicalTextEditor({
         document.removeEventListener('pointerdown', handleOutsideInteraction, true)
       })
     }
-  }, [canvasToolbarTarget, isCanvasToolbarOpen, shouldUseCanvasToolbar])
+  }, [canvasToolbarTarget, isCanvasToolbarOpen, shouldUseCanvasToolbar, toolbarTarget])
 
   const initialConfig = useMemo<InitialConfigType>(
     () => ({
@@ -1635,7 +1635,7 @@ export function LiveEmailLexicalTextEditor({
       <PuckLexicalBlockContext.Provider value={{ blockSchemas, readOnly }}>
         <LexicalComposer initialConfig={initialConfig}>
           {shouldHideDefaultToolbar ? null : <RichTextToolbar readOnly={readOnly} />}
-          {shouldUseCanvasToolbar && isCanvasToolbarOpen && canvasToolbarTarget
+          {shouldUseCanvasToolbar && (toolbarTarget || isCanvasToolbarOpen) && canvasToolbarTarget
             ? createPortal(
                 <div
                   className={styles.richTextCanvasToolbar}

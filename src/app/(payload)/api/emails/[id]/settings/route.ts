@@ -1,6 +1,6 @@
 // Keep specific dynamic endpoints beside Payload's REST catch-all so Next routes them first.
 import configPromise from '@payload-config'
-import { createPayloadRequest } from 'payload'
+import { APIError, createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
 import {
@@ -198,13 +198,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           draft: true,
           id,
           overrideAccess: false,
+          overrideLock: false,
           req: payloadReq,
         })
       : currentEmail
 
     return Response.json({ email })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to save email settings'
-    return new Response(message, { status: 500 })
+    if (error instanceof APIError && error.status >= 400 && error.status < 500) {
+      return new Response(error.message, { status: error.status })
+    }
+    return new Response('Unable to save email settings.', { status: 500 })
   }
 }

@@ -4,6 +4,7 @@ import type {
   FieldHook,
   PayloadRequest,
 } from 'payload'
+import { APIError } from 'payload'
 
 import { getEmailCampaignStatus, isEmailContentLocked } from './lifecycle'
 import { isEmailLifecycleRequest } from './lifecycleContext'
@@ -43,18 +44,29 @@ function getId(value: unknown): string | number | null {
 }
 
 function comparable(value: unknown): unknown {
+  if (value instanceof Date) return value.toJSON()
   const id = getId(value)
   if (id != null && isRecord(value)) return id
   if (Array.isArray(value)) return value.map(comparable)
   if (!isRecord(value)) return value ?? null
   return Object.fromEntries(
-    Object.keys(value).sort().map((key) => [key, comparable(value[key])]),
+    Object.keys(value).filter((key) => value[key] != null).sort().map((key) => [key, comparable(value[key])]),
   )
 }
 
-function changed(data: UnknownRecord, original: UnknownRecord, field: string): boolean {
+function comparableLifecycleField(field: typeof LIFECYCLE_FIELDS[number], value: unknown): unknown {
+  // Payload fills missing fields and group members before collection hooks run.
+  // Match those representations against drafts written before the fields existed.
+  if (field === 'legacyScheduleNeedsReview') return value ?? false
+  if (field === 'status') return value ?? 'draft'
+  if (field === 'lastSend' || field === 'sendSummary') return comparable(value ?? {})
+  return comparable(value)
+}
+
+function changed(data: UnknownRecord, original: UnknownRecord, field: typeof LIFECYCLE_FIELDS[number]): boolean {
   if (!Object.prototype.hasOwnProperty.call(data, field)) return false
-  return JSON.stringify(comparable(data[field])) !== JSON.stringify(comparable(original[field]))
+  return JSON.stringify(comparableLifecycleField(field, data[field])) !==
+    JSON.stringify(comparableLifecycleField(field, original[field]))
 }
 
 export const syncEmailContentRevision: CollectionBeforeValidateHook = ({
@@ -105,12 +117,16 @@ export const protectEmailLifecycleFields: CollectionBeforeChangeHook = ({
     const instruction = status === 'scheduled'
       ? 'Cancel the scheduled send before editing this email.'
       : 'Duplicate this campaign to make content changes.'
-    throw new Error(`This email is ${status} and its send content is locked. ${instruction}`)
+    throw new APIError(`This email is ${status} and its send content is locked. ${instruction}`, 409, null, true)
   }
 
   if (LIFECYCLE_FIELDS.some((field) => changed(incoming, original, field))) {
-    throw new Error('Use the campaign delivery controls to change email delivery status or timing.')
+    throw new APIError('Use the campaign delivery controls to change email delivery status or timing.', 409, null, true)
   }
 
-  return data
+  return {
+    ...incoming,
+    legacyScheduleNeedsReview: incoming.legacyScheduleNeedsReview ?? original.legacyScheduleNeedsReview ?? false,
+    status: incoming.status ?? original.status ?? 'draft',
+  }
 }
