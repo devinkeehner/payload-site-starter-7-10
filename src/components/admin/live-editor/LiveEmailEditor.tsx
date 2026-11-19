@@ -11,7 +11,7 @@ import { duplicateBlock, editOwnedArray, ensureDocumentIds, findBlock, getBlock,
 import { LiveEmailBlockRenderer } from './LiveEmailBlockRenderer'
 import { LiveEmailInlineText } from './LiveEmailInlineText'
 import { LiveEmailFields } from './LiveEmailFields'
-import { findUnsteadyCanvasElement, useUnsteadyDrag, type DragItem, type DropTarget } from './useUnsteadyDrag'
+import { useUnsteadyDrag, type DragItem, type DropTarget } from './useUnsteadyDrag'
 import { useUnsteadyHistory } from './useUnsteadyHistory'
 import { useUnsteadyAgentTools } from './useUnsteadyAgentTools'
 import { LiveEmailViewport } from './LiveEmailViewport'
@@ -25,12 +25,15 @@ export type LiveEmailEditorProps = {
   schemas: PuckBlockSchema[]
   emailId?: string | number
   tenantId?: string | number
+  tenantName?: string
   onSave: (email: PageDocument) => Promise<void>
   onPreview?: (email: PageDocument) => void | Promise<void>
   previewURL: string | null
   backToPayloadURL?: string
-  audienceURL?: string
+  nextStage?: { label: string; url: string }
   storageLabel?: string
+  focusBlock?: string
+  focusField?: string
 }
 
 function textLabel(block: Record<string, unknown>, schema?: PuckBlockSchema) {
@@ -38,17 +41,17 @@ function textLabel(block: Record<string, unknown>, schema?: PuckBlockSchema) {
   return typeof detail === 'string' ? detail.length > 72 ? `${detail.slice(0, 69)}…` : detail : schema?.label || String(block.blockType || 'Block')
 }
 
-export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previewURL, backToPayloadURL, audienceURL, emailId, tenantId, storageLabel = 'Email draft' }: LiveEmailEditorProps) {
+export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previewURL, backToPayloadURL, nextStage, emailId, tenantId, tenantName, focusBlock, focusField, storageLabel = 'Compose' }: LiveEmailEditorProps) {
   const lexicalBlockSchemas = useMemo<PuckBlockSchema[]>(() => [], [])
   const [initialized] = useState(() => ensureDocumentIds(initialPage, { schemas }))
   const history = useUnsteadyHistory(initialized)
   const { commit, undo, redo, getCurrent } = history
   const page = history.value
   const serialized = useMemo(() => JSON.stringify(page), [page])
-  const [selected, setSelected] = useState<string | null>(null)
+  const [selected, setSelected] = useState<string | null>(() => focusBlock && findBlock(initialized, focusBlock, { schemas }) ? focusBlock : null)
   const [activeText, setActiveText] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'blocks' | 'layers' | 'fields' | 'page'>('blocks')
-  const [panelOpen, setPanelOpen] = useState(true)
+  const [panel, setPanel] = useState<'blocks' | 'rows' | 'layers' | 'fields' | 'page'>(() => selected ? 'fields' : 'blocks')
+  const [panelOpen, setPanelOpen] = useState(() => Boolean(selected) || !window.matchMedia('(max-width: 650px)').matches)
   const [query, setQuery] = useState('')
   const [library, setLibrary] = useState('All')
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
@@ -70,6 +73,21 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
   const currentSchema = schemas.find(schema => schema.slug === currentBlock?.blockType)
   const dirty = serialized !== saved
   const groups = useMemo(() => getUnsteadyBlockGroups(schemas), [schemas])
+  const gridSchema = schemas.find(schema => schema.slug === 'emailGrid')
+  const rowLayouts = gridSchema?.fields.find(field => field.name === 'layout')?.options || []
+
+  useEffect(() => {
+    if (!focusBlock || !focusField) return
+    const inspector = workspace.current?.querySelector('[data-live-editor-inspector]')
+    const field = Array.from(inspector?.querySelectorAll<HTMLElement>('[data-live-editor-field-path]') || [])
+      .find(element => element.dataset.liveEditorFieldPath === focusField)
+    if (!field) return
+    for (let parent: HTMLElement | null = field; parent && parent !== inspector; parent = parent.parentElement) {
+      if (parent instanceof HTMLDetailsElement) parent.open = true
+    }
+    field.scrollIntoView({ block: 'nearest' })
+    field.querySelector<HTMLElement>('input, textarea, select, [contenteditable], button')?.focus({ preventScroll: true })
+  }, [focusBlock, focusField])
 
   const announce = useCallback((message: string) => { setError(''); setAnnouncement(message) }, [])
   useEffect(() => {
@@ -93,12 +111,14 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     setSelected(String(result.selectedId || id)); setActiveText(null); setMoveMenu(null)
     announce(`Moved to ${slot.label}.`)
   }, [schemas, commit, announce, getCurrent])
-  const add = useCallback((type: string, address: SlotAddress, index?: number) => {
+  const add = useCallback((type: string, address: SlotAddress, index?: number, layout?: string) => {
     const schema = schemas.find(item => item.slug === type)
     if (!schema) return
     const slot = getSlot(getCurrent().document, address, { schemas })
     const before = index === undefined ? null : slot.items[index]?.id ?? null
-    const result = insertBlock(getCurrent().document, address, createUnsteadyBlock(schema), before, { schemas })
+    const block = createUnsteadyBlock(schema)
+    if (layout) block.layout = layout
+    const result = insertBlock(getCurrent().document, address, block, before, { schemas })
     commit(result.document)
     setSelected(String(result.selectedId)); setActiveText(null)
     announce(`Added ${schema.label}.`)
@@ -260,7 +280,12 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
     <header className={styles.header}>
       <div className={styles.identity}>
         {backToPayloadURL && <a className={styles.payloadBack} href={backToPayloadURL}><ArrowLeft size={16} aria-hidden="true" />Back to Payload</a>}
-        <button type="button" aria-label={panelOpen ? 'Hide left panel' : 'Show left panel'} onClick={() => setPanelOpen(!panelOpen)}><PanelLeft size={18} /></button><div><span>LIVE EDITOR <small>{storageLabel}</small></span><strong>{String(page.title || 'Untitled email')}</strong></div>
+        <button type="button" aria-expanded={panelOpen} aria-controls={panelOpen ? 'unsteady-builder-panel' : undefined} onClick={() => setPanelOpen(open => !open)}><PanelLeft size={18} />{panelOpen ? 'Done' : 'Tools'}</button>
+        <div className={styles.campaignIdentity}>
+          <strong>{String(page.title || 'Untitled email')}</strong>
+          {tenantName && <span>{tenantName}</span>}
+          <span>{storageLabel}</span>
+        </div>
       </div>
       <div className={styles.headerActions}>
         <button type="button" aria-label="Undo" disabled={!history.canUndo} onClick={() => { setActiveText(null); measure(); history.undo() }}><Undo2 size={17} /></button>
@@ -289,20 +314,30 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
             setCopied(true); announce('Preview link copied.'); window.setTimeout(() => setCopied(false), 2000)
           }).catch(() => setError('Unable to copy the preview link.'))
         }}>{copied ? <Check size={17} /> : <Copy size={17} />}</button>
-        {audienceURL && <button type="button" disabled={saving} onClick={() => { void saveForNavigation().then(success => { if (success) window.location.assign(audienceURL) }) }}>Continue to Audience<ChevronRight size={15} /></button>}
+        {nextStage && <button type="button" disabled={saving} onClick={() => { void saveForNavigation().then(success => { if (success) window.location.assign(nextStage.url) }) }}>{nextStage.label}<ChevronRight size={15} /></button>}
         <button className={styles.primaryButton} type="button" disabled={saving} onClick={() => void save()}>{saving ? 'Saving…' : 'Save draft'}</button>
       </div>
     </header>
     <div className={styles.textToolbarDock} ref={setToolbarTarget} data-unsteady-text-toolbar-host data-active={Boolean(activeText)} />
     <div className={styles.workspace} ref={workspace} data-panel-open={panelOpen}>
+      <nav className={styles.panelTabs} aria-label="Builder tools">
+        {([
+          ['blocks', Plus, 'Add'],
+          ['rows', LayoutTemplate, 'Rows'],
+          ['layers', Layers, 'Outline'],
+          ['fields', Settings2, 'Edit'],
+          ['page', Settings2, 'Settings'],
+        ] as const).map(([key, Icon, label]) => (
+          <button key={key} type="button" aria-pressed={panelOpen && panel === key}
+            onClick={() => { setPanel(key); setActiveText(null); setPanelOpen(true) }}>
+            <Icon size={16} aria-hidden />{label}
+          </button>
+        ))}
+      </nav>
       {panelOpen && <aside className={styles.sidebar} id="unsteady-builder-panel" aria-label="Builder panel">
-        <nav className={styles.panelTabs} aria-label="Builder tools">
-          {([['blocks', LayoutTemplate, 'Blocks'], ['layers', Layers, 'Layers'], ['page', Settings2, 'Email']] as const).map(([key, Icon, label]) => <button key={key} type="button" aria-pressed={panel === key} onClick={() => { setPanel(key); setActiveText(null) }}><Icon size={16} />{label}</button>)}
-          <button type="button" className={styles.closePanel} aria-label="Close left panel" onClick={() => setPanelOpen(false)}><X size={16} /></button>
-        </nav>
         <div className={styles.panelContent}>
           {panel === 'blocks' && <>
-            <div className={styles.panelTitle}><div><h2>Add to your email</h2><p>{schemas.length} block types · your existing library</p></div></div>
+            <div className={styles.panelTitle}><h2>Add to your email</h2></div>
             <label className={styles.search}><Search size={16} /><input aria-label="Search blocks" placeholder="Search blocks…" value={query} onChange={event => setQuery(event.target.value)} /></label>
             <div className={styles.libraryTabs}>{['All', 'Content', 'Media', 'Layout'].map(name => <button type="button" key={name} aria-pressed={library === name} onClick={() => { setLibrary(name); setQuery('') }}>{name}</button>)}</div>
             <label className={styles.destination}>Adding to<select aria-label="New block destination" value={selectedSlot?.id || ''} onChange={event => { const slot = slots.find(item => item.id === event.target.value); if (slot) setInsertTarget(slot.address) }}>{!selectedSlot && <option value="" disabled>Destination removed — choose another</option>}{slots.map(slot => <option key={slot.id} value={slot.id} disabled={slot.active === false}>{slot.label}</option>)}</select></label>
@@ -315,6 +350,16 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
               }) }}><LayoutTemplate size={23} /><span>{schema.label}</span><Plus className={styles.palettePlus} size={13} /></button>)}</div></section>)}
             {!visibleGroups.length && <p className={styles.emptyState}>No blocks match “{query}”.</p>}
           </>}
+          {panel === 'rows' && <>
+            <h2>Add a row</h2>
+            <p>Rows are added to the end of the email. Move the row on the canvas or in the outline.</p>
+            <div className={styles.blockGrid}>
+              {rowLayouts.map(option => typeof option.value === 'string' && <button className={styles.paletteItem} key={option.value} type="button"
+                onClick={() => attempt(() => { measure(); add('emailGrid', ROOT_SLOT, undefined, String(option.value)) })}>
+                <LayoutTemplate size={22} aria-hidden />{option.label || option.value}
+              </button>)}
+            </div>
+          </>}
           {panel === 'fields' && currentBlock && currentSchema ? <>
             <button type="button" className={styles.backButton} onClick={() => setPanel('blocks')}><ArrowLeft size={15} />Block library</button>
             <div className={styles.panelTitle}><div><h2>{currentSchema.label}</h2><p>Edit text directly in the email, or adjust details here.</p></div></div>
@@ -322,9 +367,31 @@ export function LiveEmailEditor({ initialPage, schemas, onSave, onPreview, previ
               onChange={next => attempt(() => history.commit(updateBlock(getCurrent().document, selected!, next, { schemas }).document))}
               onArrayAction={action => attempt(() => { setActiveText(null); measure(); history.commit(editOwnedArray(getCurrent().document, selected!, action.path, action, { schemas }).document) })} />
           </> : panel === 'fields' && <p className={styles.emptyState}>Select a block in the email.</p>}
-          {panel === 'layers' && <><div className={styles.panelTitle}><h2>Email structure</h2></div>{slots.filter(slot => slot.items.length || slot.path === 'layout').map(slot => <div className={styles.layerGroup} key={slot.id}><h3>{slot.label}</h3>{slot.items.map(block => <button type="button" key={String(block.id)} aria-pressed={String(block.id) === selected} onClick={() => { selectBlock(String(block.id)); findUnsteadyCanvasElement(scroller.current, `[data-unsteady-block="${CSS.escape(String(block.id))}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }}><ChevronRight size={14} /><span>{textLabel(block, schemas.find(item => item.slug === block.blockType))}</span></button>)}</div>)}</>}
-          {panel === 'page' && <><div className={styles.panelTitle}><h2>Email settings</h2></div>
+          {panel === 'layers' && <>
+            <div className={styles.panelTitle}><h2>Email structure</h2></div>
+            {slots.filter(slot => slot.active !== false && (slot.items.length || slot.path === 'layout')).map(slot => (
+              <section className={styles.layerGroup} key={slot.id}>
+                <h3>{slot.label}</h3>
+                {slot.items.map((block, index) => {
+                  const id = String(block.id)
+                  const label = textLabel(block, schemas.find(item => item.slug === block.blockType))
+                  return <div className={styles.layerRow} key={id}>
+                    <button type="button" aria-pressed={id === selected}
+                      onClick={() => attempt(() => { selectBlock(id); scrollUnsteadyPreview(scroller.current, { blockId: id }) })}>
+                      <ChevronRight size={14} aria-hidden /><span>{label}</span>
+                    </button>
+                    <button type="button" aria-label={'Move ' + label + ' up'} disabled={index === 0}
+                      onClick={() => attempt(() => move(id, { slotId: slot.id, index: index - 1 }))}><ChevronUp size={14} aria-hidden /></button>
+                    <button type="button" aria-label={'Move ' + label + ' down'} disabled={index === slot.items.length - 1}
+                      onClick={() => attempt(() => move(id, { slotId: slot.id, index: index + 2 }))}><ChevronDown size={14} aria-hidden /></button>
+                  </div>
+                })}
+              </section>
+            ))}
+          </>}
+          {panel === 'page' && <><div className={styles.panelTitle}><h2>Inbox details</h2></div>
             {([['title', 'Email title'], ['subject', 'Subject'], ['preheader', 'Preview text'], ['replyTo', 'Reply-to email']] as const).map(([field, label]) => <label className={styles.pageField} key={field}>{label}<input type={field === 'replyTo' ? 'email' : 'text'} value={String(page[field] || '')} onChange={event => history.commit({ ...getCurrent().document, [field]: event.target.value }, `email:${field}`)} /></label>)}
+            <p>The sender and footer use this site’s email defaults. Leave reply-to blank to use the site default.</p>
           </>}
 
         </div>

@@ -140,6 +140,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       dryRun?: unknown
       preparedListId?: unknown
       recipientEmail?: unknown
+      expectedRevision?: unknown
     }
     isDryRun = body.dryRun === true
     const email = (await payload.findByID({
@@ -161,6 +162,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       req: payloadReq,
     })
     contentRevision = readiness.contentRevision
+    const expectedRevision = getOptionalString(body.expectedRevision)
+    if (expectedRevision && expectedRevision !== contentRevision) {
+      return new Response('The campaign changed. Refresh the review and prepare the test again.', { status: 409 })
+    }
     const blockingLinks = getBlockingEmailLinks(readiness.quality?.links)
 
     if (blockingLinks.length) {
@@ -197,6 +202,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       const message = `Verified exactly one active recipient (${preparation.recipientEmail}) in iContact list “${preparation.listName}” (list ${preparation.listId}, folder ${preparation.clientFolderId}). No email was sent.`
       return Response.json({
         ...preparation,
+        contentRevision,
         message,
         status: 'verified',
       })
@@ -235,6 +241,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       text,
     })
 
+    if (expectedRevision && expectedRevision !== contentRevision) {
+      return new Response('The campaign changed. Refresh the review and prepare the test again.', { status: 409 })
+    }
+
     // Recheck the lifecycle immediately before the irreversible provider call.
     // The post-send write is also conditional, so a concurrent delivery
     // confirmation cannot make this campaign look like it was tested later.
@@ -253,6 +263,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       preheader,
       preparedListId: getRequiredString(body.preparedListId, 'Prepared iContact test list ID'),
       recipientEmail,
+      replyTo,
       subject,
       text,
     })

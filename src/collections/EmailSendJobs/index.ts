@@ -199,6 +199,9 @@ export const EmailSendJobs: CollectionConfig = {
           label: 'iContact send ID',
           type: 'text',
         },
+        { name: 'iContactClientFolderId', type: 'text' },
+        { name: 'iContactSourceListId', type: 'text', index: true },
+        { name: 'iContactDispatchListId', type: 'text' },
       ],
     },
     {

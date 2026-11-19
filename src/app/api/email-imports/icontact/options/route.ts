@@ -4,6 +4,7 @@ import { createPayloadRequest } from 'payload'
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import {
   getIContactConfigFromEnv,
+  isIContactManagedList,
   listIContactClientFolders,
   listIContactLists,
   resolveIContactAccountId,
@@ -85,7 +86,9 @@ export async function GET(req: Request) {
     const foldersPayload = await listIContactClientFolders(cfg, accountId)
     const folders = ((foldersPayload.clientfolders || []) as UnknownRecord[]).map(mapFolder)
     const listsPayload = clientFolderId ? await listIContactLists(cfg, accountId, clientFolderId) : null
-    const lists = ((listsPayload?.lists || []) as UnknownRecord[]).map(mapList)
+    const lists = ((listsPayload?.lists || []) as UnknownRecord[])
+      .filter(list => !isIContactManagedList(list.name))
+      .map(mapList)
 
     return Response.json({
       accountId,

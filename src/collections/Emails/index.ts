@@ -195,10 +195,11 @@ export const Emails: CollectionConfig<'emails'> = {
     update: roleRestrictedAccess('emails'),
   },
   admin: {
-    defaultColumns: ['title', 'subject', 'emailList', 'recipientEmail', 'updatedAt'],
+    defaultColumns: ['title', 'subject', 'status', 'emailList', 'updatedAt'],
     formatDocURL: ({ defaultURL, viewType }) => (viewType === 'trash' ? defaultURL : `${defaultURL}/campaign`),
     group: 'Email Marketing',
     hidden: isCollectionHiddenForRole('emails'),
+    listSearchableFields: ['title', 'subject'],
     useAsTitle: 'title',
     components: {
       views: {

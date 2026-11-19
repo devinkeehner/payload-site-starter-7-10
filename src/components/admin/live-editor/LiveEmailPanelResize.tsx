@@ -23,7 +23,8 @@ export function LiveEmailPanelResize({ workspaceRef }: { workspaceRef: RefObject
   const apply = useCallback((requested: number) => {
     const workspace = workspaceRef.current
     if (!workspace) return current.current
-    const available = Math.floor(workspace.getBoundingClientRect().width) - 6 - 320
+    const railWidth = workspace.querySelector('nav')?.getBoundingClientRect().width || 0
+    const available = Math.floor(workspace.getBoundingClientRect().width) - railWidth - 6 - 320
     const max = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, available))
     const width = Math.round(Math.max(MIN_WIDTH, Math.min(max, requested)))
     current.current = width

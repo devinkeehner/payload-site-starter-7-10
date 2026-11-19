@@ -63,11 +63,12 @@ export function EmailCampaignShell({
     <Gutter className="email-campaign">
       <header className="email-campaign__header">
         <div className="email-campaign__identity">
+          {workflow?.email.tenantName && <p className="email-campaign__site">{workflow.email.tenantName}</p>}
           <div className="email-campaign__title-row">
             <h1>{title}</h1>
             {workflow ? (
               <span className="email-campaign__status" data-status={workflow.email.status}>
-                {STATUS_LABELS[workflow.email.status]}
+                {workflow.delivery.outcomeUnknown ? 'Delivery outcome unknown' : STATUS_LABELS[workflow.email.status]}
               </span>
             ) : null}
           </div>

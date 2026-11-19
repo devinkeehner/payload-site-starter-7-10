@@ -62,24 +62,36 @@ async function getDeliveryContext({
   campaignId,
   clientFolderId,
   fromEmail,
+  replyTo,
 }: {
   campaignId?: string
   clientFolderId: string
   fromEmail?: string
+  replyTo?: string
 }) {
   const cfg = getIContactConfigFromEnv()
   if (!cfg) throw new Error('iContact API credentials are missing.')
 
   const accountId = await resolveIContactAccountId(cfg)
   let resolvedCampaignId = campaignId?.trim() || process.env.ICONTACT_CAMPAIGN_ID?.trim() || ''
-  if (!resolvedCampaignId && fromEmail?.trim()) {
+  const replyAddress = replyTo?.trim().toLowerCase()
+  const explicitReply = Boolean(replyAddress && replyAddress !== fromEmail?.trim().toLowerCase())
+  let replyToCampaignId: string | undefined
+  if ((!resolvedCampaignId && fromEmail?.trim()) || explicitReply) {
     const response = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/campaigns`)
     if (!response.ok) throw new Error(`Unable to resolve the iContact sender property: ${getIContactError(response.data, response.status)}`)
     const campaigns = isRecord(response.data) && Array.isArray(response.data.campaigns)
       ? response.data.campaigns.filter(isRecord)
       : []
-    const matchingCampaign = campaigns.find((value) => getString(value.fromEmail).toLowerCase() === fromEmail.trim().toLowerCase())
-    resolvedCampaignId = getString(matchingCampaign?.campaignId)
+    resolvedCampaignId ||= getString(campaigns.find(value =>
+      getString(value.fromEmail).toLowerCase() === fromEmail?.trim().toLowerCase(),
+    )?.campaignId)
+    if (explicitReply) {
+      replyToCampaignId = getString(campaigns.find(value =>
+        getString(value.replyToEmail || value.replyTo || value.fromEmail).toLowerCase() === replyAddress,
+      )?.campaignId)
+      if (!replyToCampaignId) throw new Error('The selected reply-to address needs a matching iContact sender property.')
+    }
   }
   if (!resolvedCampaignId) {
     throw new Error('Configure an iContact sender property ID on Rep & District Settings or set ICONTACT_CAMPAIGN_ID.')
@@ -89,6 +101,7 @@ async function getDeliveryContext({
     accountId,
     campaignId: resolvedCampaignId,
     cfg,
+    replyToCampaignId: replyToCampaignId || resolvedCampaignId,
   }
 }
 
@@ -109,7 +122,7 @@ async function createIContactMessage({
   subject: string
   text: string
 }) {
-  const { accountId, campaignId, cfg } = context
+  const { accountId, campaignId, cfg, replyToCampaignId } = context
   const response = await iContactFetch(
     cfg,
     `/icp/a/${accountId}/c/${clientFolderId}/messages`,
@@ -120,7 +133,7 @@ async function createIContactMessage({
         messageName,
         messageType: 'normal',
         ...(preheader ? { previewText: preheader } : {}),
-        replyToCampaignId: Number(campaignId),
+        replyToCampaignId: Number(replyToCampaignId),
         subject,
         textBody: text,
       }],
@@ -176,6 +189,7 @@ export function hasIContactDeliveryConfiguration(): boolean {
 }
 
 export async function sendIContactCampaign({
+  beforeSend,
   campaignId,
   clientFolderId,
   fromEmail,
@@ -183,9 +197,11 @@ export async function sendIContactCampaign({
   listId,
   messageName,
   preheader,
+  replyTo,
   subject,
   text,
 }: {
+  beforeSend?: (messageId: string) => Promise<void>
   campaignId?: string
   clientFolderId: string
   fromEmail?: string
@@ -193,11 +209,12 @@ export async function sendIContactCampaign({
   listId: string
   messageName: string
   preheader?: string
+  replyTo?: string
   subject: string
   text: string
 }): Promise<IContactEmailResult> {
   if (!clientFolderId || !listId) throw new Error('This audience is not linked to an iContact folder and list.')
-  const context = await getDeliveryContext({ campaignId, clientFolderId, fromEmail })
+  const context = await getDeliveryContext({ campaignId, clientFolderId, fromEmail, replyTo })
   const messageId = await createIContactMessage({
     context,
     clientFolderId,
@@ -207,6 +224,7 @@ export async function sendIContactCampaign({
     subject,
     text,
   })
+  await beforeSend?.(messageId)
   const send = await createIContactSend({ accountId: context.accountId, cfg: context.cfg, clientFolderId, listId, messageId })
   if (send.recipientCount < 1) {
     throw new Error(`iContact send ${send.sendId} has no recipients.`)
@@ -268,6 +286,7 @@ export async function sendIContactTestEmail({
   preheader,
   preparedListId,
   recipientEmail,
+  replyTo,
   subject,
   text,
 }: {
@@ -278,6 +297,7 @@ export async function sendIContactTestEmail({
   preheader?: string
   preparedListId: string
   recipientEmail: string
+  replyTo?: string
   subject: string
   text: string
 }): Promise<IContactEmailResult> {
@@ -297,6 +317,7 @@ export async function sendIContactTestEmail({
     listId: preparation.listId,
     messageName: `TEST — ${subject}`.slice(0, 255),
     preheader,
+    replyTo,
     subject: `[TEST] ${subject}`.slice(0, 255),
     text,
   })

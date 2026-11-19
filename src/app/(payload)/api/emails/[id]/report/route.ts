@@ -3,6 +3,7 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
+import { getIContactReport } from '@/lib/email/iContactReport'
 
 const EVENT_TYPES = ['queued', 'sent', 'delivered', 'opened', 'clicked', 'bounced', 'complaint', 'unsubscribed', 'failed'] as const
 
@@ -70,6 +71,32 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     overrideAccess: false,
     req: payloadReq,
   })
+  const jobId = getId(email.deliveryJob)
+  const job = jobId ? await payload.findByID({
+    collection: 'email-send-jobs',
+    depth: 0,
+    id: jobId,
+    overrideAccess: false,
+    req: payloadReq,
+  }).catch(() => null) : null
+  const sendJob = job && getId(job.email) === String(id) && getId(job.tenant) === getId(email.tenant) ? job : null
+  const providerMessageId = getString(email.sendSummary?.iContactMessageId) || getString(sendJob?.iContactMessageId)
+  const providerSendId = getString(email.sendSummary?.iContactSendId) || getString(sendJob?.iContactSendId)
+  const providerFolderId = getString(sendJob?.iContactClientFolderId)
+  const audienceId = getId(email.emailList)
+  const legacyAudience = providerMessageId && !providerFolderId && audienceId ? await payload.findByID({
+    collection: 'email-lists',
+    depth: 0,
+    id: audienceId,
+    overrideAccess: false,
+    req: payloadReq,
+  }).catch(() => null) : null
+  const folderId = providerFolderId || (legacyAudience && getId(legacyAudience.tenant) === getId(email.tenant)
+    ? getString(legacyAudience.iContactClientFolderId)
+    : '')
+  const provider = providerMessageId
+    ? await getIContactReport({ clientFolderId: folderId, messageId: providerMessageId, sendId: providerSendId })
+    : null
   const events = await payload.find({
     collection: 'email-send-events',
     depth: 1,
@@ -84,7 +111,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     },
   })
   if (url.searchParams.get('format') === 'csv') {
-    return new Response(toCSV(events.docs as EventDoc[]), {
+    const csv = provider
+      ? [['metric', 'count'], ['recipients', email.sendSummary?.recipientCount || 0], ...Object.entries(provider.counts)]
+          .map(row => row.map(csvEscape).join(',')).join('\n')
+      : toCSV(events.docs as EventDoc[])
+    return new Response(csv, {
       headers: {
         'Content-Disposition': `attachment; filename="email-${id}-events.csv"`,
         'Content-Type': 'text/csv; charset=utf-8',
@@ -141,6 +172,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       sentAt: campaign.sendSummary?.sentAt,
       title: campaign.title,
     })),
+    provider,
     rates: {
       bounce: percent(counts.bounced, recipientCount),
       click: percent(counts.clicked, recipientCount),

@@ -1,3 +1,5 @@
+import type { EmailLinkCheck } from './quality'
+
 export type EmailCampaignStatus =
   | 'draft'
   | 'failed'
@@ -42,15 +44,7 @@ export type EmailWorkflowReadinessItem = {
   status: 'fail' | 'pass' | 'warn'
 }
 
-export type EmailWorkflowLinkCheck = {
-  confirmed?: boolean
-  confirmedAt?: string
-  href: string
-  label: string
-  reason?: string
-  remoteStatus?: number
-  status: 'invalid' | 'merge' | 'ok' | 'warning'
-}
+export type EmailWorkflowLinkCheck = EmailLinkCheck
 
 export type EmailWorkflowAudience = {
   active: number
@@ -95,6 +89,7 @@ export type EmailWorkflowResponse = {
     confirmedAt: string | null
     error: string | null
     jobId: string | null
+    outcomeUnknown?: boolean
     mode: EmailWorkflowDeliveryMode
     requiresScheduleConfirmation: boolean
     scheduledAt: string | null
@@ -112,6 +107,7 @@ export type EmailWorkflowResponse = {
     status: EmailCampaignStatus
     subject: string
     tenantId: string | null
+    tenantName?: string
     title: string
   }
   phase: EmailWorkflowPhase

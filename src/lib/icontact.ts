@@ -95,18 +95,25 @@ const safeJson = (text: string): any => {
 export const iContactFetch = async (
   cfg: IContactConfig,
   path: string,
-  init: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown } = {},
+  init: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; signal?: AbortSignal } = {},
 ) => {
   const url = `${cfg.baseUrl}${path}`
   const res = await fetch(url, {
     method: init.method || 'GET',
     headers: getHeaders(cfg),
     body: typeof init.body === 'undefined' ? undefined : JSON.stringify(init.body),
+    signal: init.signal,
   })
 
   const raw = await res.text()
   const data = raw ? safeJson(raw) : null
   return { ok: res.ok, status: res.status, data, url }
+}
+
+export const ICONTACT_DISPATCH_LIST_PREFIX = 'HRO Web Delivery — '
+
+export function isIContactManagedList(name: unknown): boolean {
+  return typeof name === 'string' && /^hro web (?:delivery|test) — /i.test(name.trim())
 }
 
 export const resolveIContactAccountId = async (cfg: IContactConfig, preferred?: string) => {

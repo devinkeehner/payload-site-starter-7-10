@@ -797,10 +797,11 @@ export async function processEmailSendQueue({
         to: 'sending',
       })
       const sent = await sendProductionEmailSnapshotJob({
-        beforeProviderDispatch: async () => {
+        beforeProviderDispatch: async (dispatch) => {
           const attemptedAt = new Date().toISOString()
           const marked = await transitionEmailSendJob({
             data: {
+              ...dispatch,
               providerAttemptedAt: attemptedAt,
             },
             expected: {

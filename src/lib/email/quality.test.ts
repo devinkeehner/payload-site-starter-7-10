@@ -123,6 +123,21 @@ describe('checkRemoteEmailLinks network guard', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('retains the authored URL and returns the verified redirect destination', async () => {
+    const result = await checkRemoteEmailLinks(qualityFor('https://example.com/start'), {
+      resolve: async () => [{ address: '93.184.216.34', family: 4 }],
+      fetch: async ({ url }) => url.pathname === '/start'
+        ? { location: '/final', status: 302 }
+        : { status: 200 },
+    })
+    expect(result.links[0]).toMatchObject({
+      href: 'https://example.com/start',
+      finalUrl: 'https://example.com/final',
+      remoteStatus: 200,
+      status: 'ok',
+    })
+  })
+
   it('revalidates redirects and refuses a redirect to a private address', async () => {
     const resolve = vi.fn(async () => [{ address: '93.184.216.34', family: 4 as const }])
     const fetch = vi.fn(async () => ({
@@ -139,6 +154,7 @@ describe('checkRemoteEmailLinks network guard', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
     expect(result.links[0]?.status).toBe('warning')
     expect(result.links[0]?.reason).toContain('non-public network address')
+    expect(result.links[0]?.finalUrl).toBeUndefined()
   })
 
   it('resolves and validates the hostname at every redirect hop', async () => {

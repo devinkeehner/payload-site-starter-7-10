@@ -32,26 +32,24 @@ const DELIVERY_TIME_ZONE = 'America/New_York'
 type DeliveryChoice = 'schedule' | 'sendNow'
 
 type PendingConfirmation = {
+  audienceName: string
   choice: DeliveryChoice
+  recipientCount: number
+  revision: string
   scheduledAt: string | null
+  subject: string
 }
 
 function DeliveryConfirmationDialog({
-  audienceName,
   onCancel,
   onConfirm,
   pending,
-  recipientCount,
   submitting,
-  title,
 }: {
-  audienceName: string
   onCancel: () => void
   onConfirm: () => void
   pending: PendingConfirmation
-  recipientCount: number
   submitting: boolean
-  title: string
 }) {
   const cancelRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLElement>(null)
@@ -108,11 +106,13 @@ function DeliveryConfirmationDialog({
           {pending.choice === 'sendNow' ? 'Send this campaign now?' : 'Confirm this schedule?'}
         </h2>
         <p id="delivery-confirm-description">
-          This locks the reviewed version of “{title}” and its approved recipient candidates.
+          This locks the reviewed message and approved recipient candidates.
         </p>
         <dl>
-          <div><dt>Audience</dt><dd>{audienceName}</dd></div>
-          <div><dt>Eligible recipients</dt><dd>{recipientCount.toLocaleString()}</dd></div>
+          <div><dt>Subject</dt><dd>{pending.subject}</dd></div>
+          <div><dt>Audience</dt><dd>{pending.audienceName}</dd></div>
+          <div><dt>Eligible recipients</dt><dd>{pending.recipientCount.toLocaleString()}</dd></div>
+          <div><dt>Reviewed version</dt><dd>{pending.revision.slice(0, 8)}</dd></div>
           <div>
             <dt>Delivery</dt>
             <dd>
@@ -220,13 +220,20 @@ export function EmailDeliveryStageViewClient({
       return
     }
 
+    const approval = {
+      audienceName: audience?.listName || 'Selected audience',
+      choice: effectiveChoice,
+      recipientCount: audience?.eligible || 0,
+      revision: workflow.email.contentRevision,
+      subject: workflow.email.subject || title,
+    }
     if (effectiveChoice === 'sendNow') {
       if (!canSendNow) {
         setState('error')
         setMessage('This campaign cannot be queued for immediate delivery in its current state.')
         return
       }
-      setPending({ choice: effectiveChoice, scheduledAt: null })
+      setPending({ ...approval, scheduledAt: null })
       return
     }
 
@@ -248,7 +255,7 @@ export function EmailDeliveryStageViewClient({
       return
     }
 
-    setPending({ choice: effectiveChoice, scheduledAt: converted.iso })
+    setPending({ ...approval, scheduledAt: converted.iso })
   }
 
   async function confirmDelivery() {
@@ -262,11 +269,11 @@ export function EmailDeliveryStageViewClient({
       const isReschedule = !isSendNow && workflow.delivery.mode === 'scheduled'
       const body: EmailDeliveryPostRequest | EmailScheduleRequest = isSendNow
         ? {
-            expectedRevision: workflow.email.contentRevision,
+            expectedRevision: pending.revision,
             mode: 'sendNow',
           }
         : {
-            expectedRevision: workflow.email.contentRevision,
+            expectedRevision: pending.revision,
             ...(isReschedule ? {} : { mode: 'schedule' as const }),
             scheduledAt: pending.scheduledAt || '',
             timeZone: DELIVERY_TIME_ZONE,
@@ -512,13 +519,10 @@ export function EmailDeliveryStageViewClient({
 
       {pending ? (
         <DeliveryConfirmationDialog
-          audienceName={audience?.listName || 'Selected audience'}
           onCancel={() => setPending(null)}
           onConfirm={() => void confirmDelivery()}
           pending={pending}
-          recipientCount={audience?.eligible || 0}
           submitting={state === 'submitting'}
-          title={workflow?.email.subject || title}
         />
       ) : null}
     </EmailCampaignShell>

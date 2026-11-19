@@ -4,6 +4,7 @@ import {
   type IContactConfig,
   getIContactConfigFromEnv,
   listIContactContacts,
+  isIContactManagedList,
   listIContactLists,
   listIContactSubscriptions,
   resolveIContactAccountId,
@@ -732,6 +733,7 @@ export async function importIContactList({
   const accountId = await resolveIContactAccountId(cfg)
   const listsPayload = await listIContactLists(cfg, accountId, clientFolderId)
   const list = (listsPayload.lists || []).find((item: UnknownRecord) => getString(item.listId) === listId) || null
+  if (!list || isIContactManagedList(list.name)) throw new Error('Choose an importable list from the selected iContact folder.')
 
   return importIContactListWithContext({
     accountId,
@@ -762,7 +764,10 @@ export async function importIContactFolder({
   const accountId = await resolveIContactAccountId(cfg)
   const listsPayload = await listIContactLists(cfg, accountId, clientFolderId)
   const lists = (listsPayload.lists || []).filter(
-    (item: unknown): item is UnknownRecord => Boolean(item && typeof item === 'object' && !Array.isArray(item) && getString((item as UnknownRecord).listId)),
+    (item: unknown): item is UnknownRecord => Boolean(
+      item && typeof item === 'object' && !Array.isArray(item) &&
+      getString((item as UnknownRecord).listId) && !isIContactManagedList((item as UnknownRecord).name),
+    ),
   )
   if (!lists.length) throw new Error('No iContact lists were found in this folder.')
 

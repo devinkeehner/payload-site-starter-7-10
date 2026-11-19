@@ -135,7 +135,7 @@
 
 .email-flow__send-status[data-state='ready'],
 .email-flow__priority-panel[data-state='ok'] {
-  border-left-color: var(--theme-success-500, #2fab2f);
+  border-left-color: var(--theme-elevation-700);
 }
 
 .email-flow__send-status[data-state='blocked'],
@@ -422,7 +422,7 @@
 }
 
 .email-flow__bar i {
-  background: var(--theme-success-500);
+  background: var(--theme-elevation-700);
   display: block;
   height: 100%;
 }
@@ -490,7 +490,7 @@
 }
 
 .email-flow__link-gate {
-  border: 1px solid var(--theme-success-300, var(--theme-elevation-150));
+  border: 1px solid var(--theme-elevation-150);
   border-radius: 4px;
   display: grid;
   gap: 8px;

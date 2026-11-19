@@ -169,7 +169,7 @@ async function editHeading(page: Page, value: string) {
 test.describe('standalone native email Live Editor (mock APIs)', () => {
   test.setTimeout(90_000)
 
-  test('opens without Payload chrome and exposes the email-only catalog and fields', async ({ context, page }) => {
+  test('opens without Payload chrome and exposes the email-only catalog and fields', async ({ context, page }, testInfo) => {
     const api = await mockEditor(context, page)
     const runtimeErrors: string[] = []
     const consoleErrors: string[] = []
@@ -199,7 +199,7 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     expect(runtimeErrors).toEqual([])
     expect(consoleErrors).toEqual([])
     expect(api.unexpected).toEqual([])
-    await page.screenshot({ path: '/tmp/live-editor-desktop.png' })
+    await page.screenshot({ path: testInfo.outputPath('live-editor-desktop.png') })
   })
 
   test('edits native heading and rich text through shared undo and redo', async ({ context, page }) => {
@@ -306,19 +306,22 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
     await popup.close()
   })
 
-  test('keeps the editor contained and usable at a mobile viewport', async ({ context, page }) => {
+  test('keeps the editor contained and usable at a mobile viewport', async ({ context, page }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 })
     const api = await mockEditor(context, page)
     await openEditor(page)
     await page.getByRole('button', { name: 'Mobile preview', exact: true }).click()
     await expect(page.locator('iframe[data-unsteady-viewport="mobile"]')).toBeVisible()
-    await page.getByRole('button', { name: /hide left panel|close left panel/i }).first().click()
+    await page.getByRole('button', { name: 'Tools', exact: true }).click()
+    await expect(page.getByRole('navigation', { name: 'Builder tools' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Search blocks' })).toBeVisible()
+    await page.getByRole('button', { name: 'Done', exact: true }).click()
     await expect(canvas(page).getByTestId('block-heading')).toBeVisible()
     expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(390)
     const bounds = await page.locator('iframe[data-unsteady-viewport]').boundingBox()
     expect(bounds!.width).toBeLessThanOrEqual(390)
     await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeVisible()
-    await page.screenshot({ path: '/tmp/live-editor-mobile.png' })
+    await page.screenshot({ path: testInfo.outputPath('live-editor-mobile.png') })
     expect(api.unexpected).toEqual([])
   })
 

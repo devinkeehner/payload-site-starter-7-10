@@ -1,5 +1,7 @@
 import type { Payload, PayloadRequest } from 'payload'
 
+import { getEmailGridColumnFields } from '@/lib/live-editor/document'
+
 import { prepareEmailLayoutForRender } from './footerContext'
 import { applyConfirmedEmailLinks, checkRemoteEmailLinks, inspectEmailQuality, type DeclaredEmailLink, type EmailLinkCheck, type EmailQualityResult } from './quality'
 import { renderEmail } from './renderEmail'
@@ -112,34 +114,52 @@ function collectDeclaredEmailLinks(value: unknown): DeclaredEmailLink[] {
   const links: DeclaredEmailLink[] = []
   const linkKeys = new Set(['href', 'primaryUrl', 'secondaryUrl', 'url'])
 
-  function visit(node: unknown) {
+  function visit(node: unknown, blockId = '', path: (string | number)[] = []) {
     if (Array.isArray(node)) {
-      node.forEach(visit)
+      node.forEach((item, index) => visit(item, blockId, [...path, index]))
       return
     }
 
-    if (!isRecord(node)) return
+    if (!isRecord(node) || looksLikeMediaRecord(node)) return
+
+    if (typeof node.blockType === 'string' && getId(node.id)) {
+      blockId = getId(node.id) || ''
+      path = []
+    }
 
     if (node.type === 'link' || node.type === 'autolink') {
       const fields = isRecord(node.fields) ? node.fields : {}
       const href = getString(fields.url) || getString(node.url)
       const label = getNodeText(node.children) || 'Inline link'
-      if (href || label) {
-        links.push({ href, label })
+      links.push({ href, label, ...(blockId ? { location: { blockId, fieldPath: path.slice(0, 1) } } : {}) })
+      return
+    }
+
+    if (node.blockType === 'emailButton' && !Object.hasOwn(node, 'url')) {
+      links.push({ href: '', label: getLinkLabel(node, 'url'), ...(blockId ? { location: { blockId, fieldPath: ['url'] } } : {}) })
+    }
+    if (node.blockType === 'emailTwoButtons') {
+      for (const key of ['primaryUrl', 'secondaryUrl']) {
+        if (Object.hasOwn(node, key) || !hasDeclaredLinkIntent(node, key, '')) continue
+        links.push({ href: '', label: getLinkLabel(node, key), ...(blockId ? { location: { blockId, fieldPath: [key] } } : {}) })
       }
     }
 
+    const activeColumns = node.blockType === 'emailGrid' ? getEmailGridColumnFields(node.layout) : null
     Object.entries(node).forEach(([key, child]) => {
-      if (linkKeys.has(key) && typeof child === 'string') {
-        if (!(key === 'url' && looksLikeMediaRecord(node)) && hasDeclaredLinkIntent(node, key, child)) {
-          links.push({
-            href: child,
-            label: getLinkLabel(node, key),
-          })
-        }
+      if (activeColumns && /^(left|center|right|fourth)Blocks$/.test(key) && !activeColumns.some(column => column === key)) return
+      if (key === 'url' && node.type === 'reference' && node.reference) return
+      const childPath = [...path, key]
+      const href = getString(child)
+      if (linkKeys.has(key) && (node.blockType === 'emailButton' || hasDeclaredLinkIntent(node, key, href))) {
+        links.push({
+          href,
+          label: getLinkLabel(node, key),
+          ...(blockId ? { location: { blockId, fieldPath: childPath } } : {}),
+        })
       }
 
-      visit(child)
+      visit(child, blockId, childPath)
     })
   }
 
@@ -257,17 +277,17 @@ export async function getEmailReadiness({
     return block.links.some((link) => isRecord(link) && /preferences|unsubscribe/i.test(getString(link.label)) && getString(link.url))
   })
   const quality = rendered
-    ? await checkRemoteEmailLinks(applyConfirmedEmailLinks(
-        inspectEmailQuality({
+    ? applyConfirmedEmailLinks(
+        await checkRemoteEmailLinks(inspectEmailQuality({
           declaredLinks: collectDeclaredEmailLinks(prepared.layout),
           hasAddress: prepared.footerContext.hasAddress,
           hasUnsubscribeLink,
           html: rendered.html,
           subject,
           text: rendered.text,
-        }),
+        })),
         Array.isArray(email.linkReviewOverrides) ? email.linkReviewOverrides as Array<{ confirmedAt?: string; href?: string | null }> : undefined,
-      ))
+      )
     : undefined
   const blockingLinks = getBlockingEmailLinks(quality?.links)
 

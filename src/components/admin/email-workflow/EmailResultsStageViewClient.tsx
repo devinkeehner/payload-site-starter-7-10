@@ -20,11 +20,14 @@ import {
 import { formatAdminURL } from 'payload/shared'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import type { IContactReport } from '@/lib/email/iContactReport'
+
 import { EmailCampaignShell } from './EmailCampaignShell'
 import { useEmailWorkflow } from './useEmailWorkflow'
 
 type Report = {
   counts: Record<string, number>
+  provider?: IContactReport | null
   previousCampaigns?: Array<{
     id: string
     recipientCount: number
@@ -170,11 +173,24 @@ export function EmailResultsStageViewClient({
     }
   }
 
-  const deliveryMode = workflow?.delivery.mode || 'none'
+  const provider = report?.provider
+  const outcomeUnknown = workflow?.delivery.outcomeUnknown
+  const deliveryMode = outcomeUnknown ? 'failed' : provider?.delivery || workflow?.delivery.mode || 'none'
+  useEffect(() => {
+    if (deliveryMode !== 'queued' && deliveryMode !== 'sending') return
+    const timer = window.setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      void Promise.all([refreshWorkflow({ quiet: true }), loadReport()])
+    }, 15_000)
+    return () => window.clearInterval(timer)
+  }, [deliveryMode, loadReport, refreshWorkflow])
+
   const progressIndex = getProgressIndex(deliveryMode)
   const failed = deliveryMode === 'failed'
-  const reportCounts = report?.counts || {}
-  const reportRates = report?.rates || {}
+  const reportCounts: Record<string, number | undefined> = provider ? provider.counts : report?.counts || {}
+  const reportRates = provider ? {} : report?.rates || {}
+  const topLinks = provider ? provider.topLinks : report?.topLinks || []
+  const metric = (name: string) => reportCounts[name]?.toLocaleString() ?? '—'
 
   return (
     <EmailCampaignShell
@@ -200,10 +216,12 @@ export function EmailResultsStageViewClient({
             </span>
             <div>
               <h2>
-                {failed
+                {outcomeUnknown
+                  ? 'Provider outcome unknown'
+                  : failed
                   ? 'Delivery needs attention'
                   : deliveryMode === 'sent'
-                    ? 'Campaign delivered'
+                    ? provider?.delivery === 'sent' ? 'Provider send complete' : provider ? 'Accepted by iContact' : 'Campaign sent'
                     : deliveryMode === 'sending'
                       ? 'Campaign is sending'
                       : deliveryMode === 'queued'
@@ -216,7 +234,7 @@ export function EmailResultsStageViewClient({
                 {failed
                   ? workflow?.delivery.error || 'The delivery service reported a failure.'
                   : deliveryMode === 'sent'
-                    ? `Sent to ${report?.recipientCount || workflow?.audience?.eligible || 0} recipients.`
+                    ? `${(report?.recipientCount ?? 0).toLocaleString()} recipients in the send.`
                     : 'This page updates as the delivery service processes the immutable campaign snapshot.'}
               </p>
             </div>
@@ -231,7 +249,7 @@ export function EmailResultsStageViewClient({
               <RefreshCw aria-hidden="true" />
               {state === 'refreshing' ? 'Refreshing…' : 'Refresh'}
             </Button>
-            {failed && workflow?.availableActions.includes('retry') ? (
+            {failed && !outcomeUnknown && workflow?.availableActions.includes('retry') ? (
               <Button buttonStyle="primary" el="link" to={deliveryURL} type="button">
                 Review retry
                 <ArrowRight aria-hidden="true" />
@@ -282,13 +300,16 @@ export function EmailResultsStageViewClient({
 
           {report ? (
             <>
+              {provider && provider.state !== 'available' && <p role="status">
+                {provider.state === 'pending' ? 'iContact reporting is pending.' : 'iContact reporting is currently unavailable.'}
+              </p>}
               <div className="email-stage__metric-grid">
                 <div><UsersRound aria-hidden="true" /><strong>{report.recipientCount.toLocaleString()}</strong><span>Recipients</span></div>
-                <div><MailCheck aria-hidden="true" /><strong>{(reportCounts.delivered || 0).toLocaleString()}</strong><span>Delivered</span></div>
-                <div><FileText aria-hidden="true" /><strong>{(reportCounts.opened || 0).toLocaleString()}</strong><span>Opened</span></div>
-                <div><MousePointerClick aria-hidden="true" /><strong>{(reportCounts.clicked || 0).toLocaleString()}</strong><span>Clicked</span></div>
-                <div><CircleAlert aria-hidden="true" /><strong>{(reportCounts.bounced || 0).toLocaleString()}</strong><span>Bounced</span></div>
-                <div><UsersRound aria-hidden="true" /><strong>{(reportCounts.unsubscribed || 0).toLocaleString()}</strong><span>Unsubscribed</span></div>
+                <div><MailCheck aria-hidden="true" /><strong>{metric('delivered')}</strong><span>Delivered</span></div>
+                <div><FileText aria-hidden="true" /><strong>{metric('opened')}</strong><span>Opened</span></div>
+                <div><MousePointerClick aria-hidden="true" /><strong>{metric('clicked')}</strong><span>Clicked</span></div>
+                <div><CircleAlert aria-hidden="true" /><strong>{metric('bounced')}</strong><span>Bounced</span></div>
+                <div><UsersRound aria-hidden="true" /><strong>{metric('unsubscribed')}</strong><span>Unsubscribed</span></div>
               </div>
 
               {Object.keys(reportRates).length ? (
@@ -302,10 +323,10 @@ export function EmailResultsStageViewClient({
                 </div>
               ) : null}
 
-              {report.topLinks.length ? (
+              {topLinks.length ? (
                 <div className="email-stage__top-links">
                   <h3>Top clicked links</h3>
-                  {report.topLinks.map((link) => (
+                  {topLinks.map((link) => (
                     <a href={link.url} key={link.url} rel="noopener noreferrer" target="_blank">
                       <span>{link.url}</span>
                       <strong>{link.count.toLocaleString()} clicks</strong>

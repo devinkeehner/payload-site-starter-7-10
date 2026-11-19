@@ -15,6 +15,12 @@ export type DocumentResult = { document: PageDocument; selectedId: Id | null }
 export type OwnedArrayAction = { type: 'add' | 'duplicate' | 'remove' | 'move'; index?: number; toIndex?: number; item?: Record<string, unknown> }
 export const ROOT_SLOT: SlotAddress = { ownerId: 'root', path: 'layout' }
 export const EMAIL_GRID_FIELDS = ['leftBlocks', 'centerBlocks', 'rightBlocks', 'fourthBlocks'] as const
+const emailColumnLabels: Readonly<Record<string, string>> = {
+  leftBlocks: 'Left column',
+  centerBlocks: 'Center column',
+  rightBlocks: 'Right column',
+  fourthBlocks: 'Fourth column',
+}
 
 export function getEmailGridColumnFields(layout: unknown): readonly typeof EMAIL_GRID_FIELDS[number][] {
   if (layout === 'oneColumn') return ['leftBlocks']
@@ -102,9 +108,10 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
           } else if (field.type === 'blocks') {
             const pathString = nextPath.join('.')
             const active = block.blockType !== 'emailGrid' || path.length > 0 || getEmailGridColumnFields(block.layout).includes(field.name as typeof EMAIL_GRID_FIELDS[number])
+            const columnLabel = block.blockType === 'emailGrid' && path.length === 0 ? emailColumnLabels[field.name] : undefined
             const address: SlotAddress = { ownerId: id, path: pathString, ...(lastRowId == null ? {} : { itemId: lastRowId }) }
             addSlot({ id: `${id}:${nextStable.join(':')}`, ownerId: id, path: pathString,
-              label: `${String(label)} → ${field.label || field.name}${active ? '' : ' (hidden column)'}`,
+              label: `${String(label)} → ${columnLabel || field.label || field.name}${active ? '' : ' (hidden column)'}`,
               items: records(stored, pathString), allowedSlugs: field.blocks?.map(child => child.slug) || null, address, active,
               write: items => { owner[field.name] = items },
             }, depth + 1)

@@ -7,12 +7,14 @@ import { assertCurrentDraftRevision, buildNativeEmailDraftPatch, NativeDraftErro
 type EmailRecord = Record<string, unknown> & { id: string | number; updatedAt: string; tenant?: unknown }
 const exposed = ['id', 'title', 'subject', 'preheader', 'replyTo', 'layout', 'status', 'updatedAt', 'tenant'] as const
 export function editorEmail(email: EmailRecord) {
+  const tenant = email.tenant && typeof email.tenant === 'object' ? email.tenant as Record<string, unknown> : null
   return { ...Object.fromEntries(exposed.map(key => [key, email[key]])),
     title: typeof email.title === 'string' ? email.title : 'Untitled email',
     subject: typeof email.subject === 'string' ? email.subject : '',
     preheader: typeof email.preheader === 'string' ? email.preheader : '',
     replyTo: typeof email.replyTo === 'string' ? email.replyTo : '',
-    tenant: relationshipID(email.tenant), tenantId: relationshipID(email.tenant) }
+    tenant: relationshipID(email.tenant), tenantId: relationshipID(email.tenant),
+    tenantName: typeof tenant?.name === 'string' ? tenant.name : undefined }
 }
 
 export async function loadEditorEmail(req: PayloadRequest, id: string, depth = 2) {
@@ -22,9 +24,22 @@ export async function loadEditorEmail(req: PayloadRequest, id: string, depth = 2
   return email
 }
 
+async function hasUnknownDelivery(req: PayloadRequest, email: EmailRecord): Promise<boolean> {
+  if (email.status !== 'failed') return false
+  const jobId = relationshipID(email.deliveryJob)
+  if (!jobId) return false
+  const job = await req.payload.findByID({
+    collection: 'email-send-jobs', id: jobId, depth: 0, overrideAccess: false, req,
+  })
+  return job.status === 'delivery_unknown' && relationshipID(job.email) === String(email.id)
+}
+
 export async function getEditorEmail(req: PayloadRequest, id: string) {
   const email = await loadEditorEmail(req, id)
-  return { email: editorEmail(email), schemas: getEmailPuckBlockSchema() }
+  return {
+    email: await hasUnknownDelivery(req, email) ? { ...editorEmail(email), status: 'delivery_unknown' } : editorEmail(email),
+    schemas: getEmailPuckBlockSchema(),
+  }
 }
 
 function referenceKeys(value: unknown, fields: readonly DraftField[], refs = new Map<string, { collection: string; id: string }>()) {
@@ -76,6 +91,9 @@ export async function saveEditorEmail(req: PayloadRequest, id: string, body: unk
   const current = await loadEditorEmail(req, id, 0)
   if (isEmailContentLocked(getEmailCampaignStatus(current.status))) {
     throw new NativeDraftError('This campaign is locked. Cancel its schedule or duplicate it before editing.', 409)
+  }
+  if (await hasUnknownDelivery(req, current)) {
+    throw new NativeDraftError('Investigate the existing iContact send before editing this campaign.', 409)
   }
   assertCurrentDraftRevision(current, expectedUpdatedAt)
   const fields = req.payload.config.collections.find(collection => collection.slug === 'emails')?.fields as unknown as DraftField[]

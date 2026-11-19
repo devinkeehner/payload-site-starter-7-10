@@ -28,6 +28,12 @@ type EmailPreview = {
   text: string
 }
 
+type PreparedTest = {
+  contentRevision: string
+  listId: string
+  recipientEmail: string
+}
+
 function LinkStateIcon({ state }: { state: EmailWorkflowLinkCheck['status'] }) {
   if (state === 'invalid') return <X aria-hidden="true" />
   if (state === 'warning') return <TriangleAlert aria-hidden="true" />
@@ -55,7 +61,9 @@ export function EmailReviewStageViewClient({
   const [preview, setPreview] = useState<EmailPreview | null>(null)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewLoading, setPreviewLoading] = useState(true)
+  const [previewSize, setPreviewSize] = useState<'desktop' | 'mobile'>('desktop')
   const [testRecipientDraft, setTestRecipientDraft] = useState<string | null>(null)
+  const [preparedTest, setPreparedTest] = useState<PreparedTest | null>(null)
   const [state, setState] = useState<'error' | 'idle' | 'refreshing' | 'sendingTest' | 'sent'>('idle')
   const [message, setMessage] = useState<string | null>(null)
   const loadVersion = useRef(0)
@@ -63,10 +71,13 @@ export function EmailReviewStageViewClient({
     () => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }),
     [adminRoute, emailId],
   )
-  const builderURL = `${baseURL}/visual`
+  const builderURL = '/live-editor/emails/' + encodeURIComponent(emailId)
   const audienceURL = `${baseURL}/audience`
   const deliveryURL = `${baseURL}/delivery`
   const testRecipient = testRecipientDraft ?? workflow?.email.recipientEmail ?? ''
+  const currentRevision = workflow?.email.contentRevision
+  const confirmedPreparation = preparedTest?.contentRevision === currentRevision &&
+    preparedTest?.recipientEmail === testRecipient.trim().toLowerCase() ? preparedTest : null
 
   const loadPreview = useCallback(async () => {
     const version = ++loadVersion.current
@@ -105,7 +116,7 @@ export function EmailReviewStageViewClient({
 
   async function sendTest() {
     const recipientEmail = testRecipient.trim()
-    if (!recipientEmail) {
+    if (!recipientEmail || !currentRevision) {
       setState('error')
       setMessage('Enter the email address that should receive the test.')
       return
@@ -116,7 +127,11 @@ export function EmailReviewStageViewClient({
 
     try {
       const response = await fetch(`/api/emails/${encodeURIComponent(emailId)}/send-test`, {
-        body: JSON.stringify({ recipientEmail }),
+        body: JSON.stringify({
+          recipientEmail,
+          expectedRevision: currentRevision,
+          ...(confirmedPreparation ? { preparedListId: confirmedPreparation.listId } : { dryRun: true }),
+        }),
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -125,15 +140,32 @@ export function EmailReviewStageViewClient({
       })
       if (!response.ok) throw new Error(await response.text())
       const payload = await response.json() as {
+        activeRecipientCount?: number
         contentRevision?: string
+        listId?: string
         message?: string
         recipientEmail?: string
         testedRevisionHash?: string
       }
+      if (!confirmedPreparation) {
+        if (payload.activeRecipientCount !== 1 || !payload.listId || !payload.recipientEmail || payload.contentRevision !== currentRevision) {
+          throw new Error('The test recipient could not be verified for this version.')
+        }
+        setPreparedTest({
+          contentRevision: currentRevision,
+          listId: payload.listId,
+          recipientEmail: payload.recipientEmail,
+        })
+        setState('idle')
+        setMessage(null)
+        return
+      }
+      setPreparedTest(null)
       await refreshWorkflow({ quiet: true })
       setState('sent')
       setMessage(payload.message || `Test sent to ${payload.recipientEmail || recipientEmail}.`)
     } catch (sendError) {
+      setPreparedTest(null)
       setState('error')
       setMessage(sendError instanceof Error ? sendError.message : 'Unable to send test email')
     }
@@ -210,10 +242,14 @@ export function EmailReviewStageViewClient({
                 type="button"
               >
                 <RefreshCw aria-hidden="true" />
-                {state === 'refreshing' ? 'Refreshing…' : 'Refresh'}
+                {state === 'refreshing' ? 'Checking links…' : 'Recheck links'}
               </Button>
             </div>
-            <div className="email-stage__preview">
+            <div className="email-stage__actions" role="group" aria-label="Email preview size">
+              <button type="button" aria-pressed={previewSize === 'desktop'} onClick={() => setPreviewSize('desktop')}>Desktop</button>
+              <button type="button" aria-pressed={previewSize === 'mobile'} onClick={() => setPreviewSize('mobile')}>Mobile</button>
+            </div>
+            <div className="email-stage__preview" data-preview-size={previewSize}>
               {preview?.html ? (
                 <iframe sandbox="" srcDoc={preview.html} title={`Preview of ${title}`} />
               ) : (
@@ -238,7 +274,7 @@ export function EmailReviewStageViewClient({
                 <div><dt>Preheader</dt><dd>{workflow?.email.preheader || 'No preheader'}</dd></div>
                 <div><dt>Reply-to</dt><dd>{workflow?.email.replyTo || 'Default sender'}</dd></div>
               </dl>
-              {!editingLocked ? <a className="email-stage__text-link" href={builderURL}>Edit message</a> : null}
+              {!editingLocked ? <a className="email-stage__text-link" href={builderURL + '?from=review'}>Edit message</a> : null}
             </section>
 
             <section className="email-stage__panel">
@@ -285,7 +321,10 @@ export function EmailReviewStageViewClient({
                   autoComplete="email"
                   disabled={editingLocked || state === 'sendingTest'}
                   inputMode="email"
-                  onChange={(event) => setTestRecipientDraft(event.target.value)}
+                  onChange={(event) => {
+                    setTestRecipientDraft(event.target.value)
+                    setPreparedTest(null)
+                  }}
                   placeholder="name@example.com"
                   type="email"
                   value={testRecipient}
@@ -293,12 +332,15 @@ export function EmailReviewStageViewClient({
               </label>
               <Button
                 buttonStyle="primary"
-                disabled={editingLocked || invalidLinks.length > 0 || state === 'sendingTest'}
+                disabled={editingLocked || !workflow?.availableActions.includes('sendTest') || invalidLinks.length > 0 || state === 'sendingTest'}
                 onClick={() => void sendTest()}
                 type="button"
               >
-                {state === 'sendingTest' ? 'Sending test…' : 'Send Test Email'}
+                {state === 'sendingTest'
+                  ? confirmedPreparation ? 'Sending test…' : 'Verifying recipient…'
+                  : confirmedPreparation ? 'Confirm and send test' : 'Verify test recipient'}
               </Button>
+              {confirmedPreparation && <p role="status">iContact verified one active recipient for this version: {confirmedPreparation.recipientEmail}.</p>}
             </section>
           </aside>
         </div>
@@ -336,12 +378,9 @@ export function EmailReviewStageViewClient({
           <div className="email-stage__section-heading">
             <div>
               <h2>Links</h2>
-              <p>Destinations found in the rendered email.</p>
+              {currentRevision && <p>Links for version {currentRevision.slice(0, 8)}</p>}
             </div>
-            <span className="email-stage__readiness-count">
-              <Link2 aria-hidden="true" />
-              {links.length} checked
-            </span>
+            <span className="email-stage__readiness-count"><Link2 aria-hidden="true" />{links.length} links</span>
           </div>
           {links.length ? (
             <div className="email-stage__link-list">
@@ -352,16 +391,30 @@ export function EmailReviewStageViewClient({
                     <strong>{link.label || 'Link'}</strong>
                     {link.status === 'invalid' || !link.href ? (
                       <small>{link.href || 'Missing destination'}</small>
+                    ) : link.status === 'merge' ? (
+                      <small>Personalized for each recipient</small>
                     ) : (
                       <a href={link.href} rel="noopener noreferrer" target="_blank">
-                        {link.href}
+                        {link.finalUrl && link.finalUrl !== link.href ? 'In email: ' : ''}{link.href}
                         <ExternalLink aria-hidden="true" />
                       </a>
                     )}
+                    {link.finalUrl && link.finalUrl !== link.href && (
+                      <a href={link.finalUrl} rel="noopener noreferrer" target="_blank">Lands on: {link.finalUrl}<ExternalLink aria-hidden="true" /></a>
+                    )}
                   </span>
                   <span className="email-stage__link-note">
-                    {link.confirmed ? 'Confirmed' : link.remoteStatus ? `HTTP ${link.remoteStatus}` : link.reason || link.status}
+                    {link.confirmed ? 'Manually confirmed' : link.status === 'merge' ? 'Recipient-specific' : link.reason || (link.remoteStatus ? `HTTP ${link.remoteStatus}` : 'Address format checked')}
                   </span>
+                  {link.status === 'invalid' && !editingLocked && (
+                    <a className="email-stage__text-link" href={link.location
+                      ? builderURL + '?' + new URLSearchParams({
+                          from: 'review',
+                          block: link.location.blockId,
+                          field: JSON.stringify(link.location.fieldPath),
+                        })
+                      : builderURL + '?from=review'}>Fix in Compose</a>
+                  )}
                   {link.status === 'warning' && !link.confirmed ? (
                     <button disabled={state === 'refreshing'} onClick={() => void confirmLink(link)} type="button">
                       Confirm

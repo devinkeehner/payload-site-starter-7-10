@@ -60,9 +60,9 @@
 }
 
 .email-campaign__status[data-status='sent'] {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 10%, var(--theme-elevation-0));
-  border-color: color-mix(in srgb, var(--theme-success-500, #278742) 25%, var(--theme-elevation-0));
-  color: var(--theme-success-700, #17662f);
+  background: color-mix(in srgb, var(--theme-elevation-700) 10%, var(--theme-elevation-0));
+  border-color: color-mix(in srgb, var(--theme-elevation-700) 25%, var(--theme-elevation-0));
+  color: var(--theme-elevation-700);
 }
 
 .email-campaign__status[data-status='scheduled'],
@@ -224,7 +224,7 @@
 }
 
 .email-campaign__stage-nav li[data-state='complete'] .email-campaign__stage-marker {
-  color: var(--theme-success-600, #278742);
+  color: var(--theme-elevation-700);
 }
 
 .email-campaign__stage-copy {
@@ -477,8 +477,8 @@
 }
 
 .email-stage__notice[data-state='success'] {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 7%, var(--theme-elevation-0));
-  border-left-color: var(--theme-success-500, #278742);
+  background: color-mix(in srgb, var(--theme-elevation-700) 7%, var(--theme-elevation-0));
+  border-left-color: var(--theme-elevation-700);
 }
 
 .email-stage__notice[data-state='error'] {
@@ -682,6 +682,25 @@
   padding: 18px 18px 0;
 }
 
+.email-stage__preview-panel > [aria-label='Email preview size'] {
+  display: flex;
+  gap: 4px;
+  padding-inline: 18px;
+}
+
+.email-stage__preview-panel > [aria-label='Email preview size'] button {
+  background: var(--theme-elevation-0);
+  border: 1px solid var(--email-border);
+  border-radius: 4px;
+  color: var(--theme-elevation-900);
+  padding: 6px 12px;
+}
+
+.email-stage__preview-panel > [aria-label='Email preview size'] button[aria-pressed='true'] {
+  border-color: var(--email-brand);
+  color: var(--email-brand);
+}
+
 .email-stage__preview {
   background: var(--theme-elevation-75);
   border-top: 1px solid var(--email-border);
@@ -699,6 +718,10 @@
   margin: 0 auto;
   max-width: 100%;
   width: 640px;
+}
+
+.email-stage__preview[data-preview-size='mobile'] iframe {
+  width: 390px;
 }
 
 .email-stage__preview-loading {
@@ -760,7 +783,7 @@
 }
 
 .email-stage__test-panel[data-state='current'] {
-  border-top-color: var(--theme-success-500, #278742);
+  border-top-color: var(--theme-elevation-700);
 }
 
 .email-stage__test-state {
@@ -782,8 +805,8 @@
 }
 
 .email-stage__test-panel[data-state='current'] .email-stage__test-state {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 8%, var(--theme-elevation-0));
-  color: var(--theme-success-750, #166534);
+  background: color-mix(in srgb, var(--theme-elevation-700) 8%, var(--theme-elevation-0));
+  color: var(--theme-elevation-700);
 }
 
 .email-stage__readiness-count,
@@ -840,8 +863,8 @@
 }
 
 .email-stage__checklist > div[data-state='pass'] .email-stage__check-icon {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 12%, var(--theme-elevation-0));
-  color: var(--theme-success-650, #278742);
+  background: color-mix(in srgb, var(--theme-elevation-700) 12%, var(--theme-elevation-0));
+  color: var(--theme-elevation-700);
 }
 
 .email-stage__checklist > div[data-state='warn'] .email-stage__check-icon {
@@ -900,7 +923,7 @@
 }
 
 .email-stage__link-state {
-  color: var(--theme-success-600, #278742);
+  color: var(--theme-elevation-700);
   display: inline-flex;
 }
 
@@ -1119,7 +1142,7 @@
 
 .email-stage__success-text {
   align-items: center;
-  color: var(--theme-success-700, #19713a) !important;
+  color: var(--theme-elevation-700) !important;
   display: flex;
   gap: 5px;
 }
@@ -1256,8 +1279,8 @@
 }
 
 .email-stage__result-hero[data-state='sent'] {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 5%, var(--theme-elevation-0));
-  border-left-color: var(--theme-success-500, #278742);
+  background: color-mix(in srgb, var(--theme-elevation-700) 5%, var(--theme-elevation-0));
+  border-left-color: var(--theme-elevation-700);
 }
 
 .email-stage__result-hero[data-state='failed'] {
@@ -1285,8 +1308,8 @@
 }
 
 .email-stage__result-hero[data-state='sent'] .email-stage__result-icon {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 11%, var(--theme-elevation-0));
-  color: var(--theme-success-650, #278742);
+  background: color-mix(in srgb, var(--theme-elevation-700) 11%, var(--theme-elevation-0));
+  color: var(--theme-elevation-700);
 }
 
 .email-stage__result-hero[data-state='failed'] .email-stage__result-icon {
@@ -1337,7 +1360,7 @@
 }
 
 .email-stage__delivery-progress li[data-state='complete']:not(:last-child)::after {
-  background: var(--theme-success-500, #278742);
+  background: var(--theme-elevation-700);
 }
 
 .email-stage__delivery-progress li > span {
@@ -1367,12 +1390,12 @@
 }
 
 .email-stage__delivery-progress li[data-state='complete'] {
-  color: var(--theme-success-650, #278742);
+  color: var(--theme-elevation-700);
 }
 
 .email-stage__delivery-progress li[data-state='complete'] > span {
-  background: color-mix(in srgb, var(--theme-success-500, #278742) 11%, var(--theme-elevation-0));
-  border-color: var(--theme-success-500, #278742);
+  background: color-mix(in srgb, var(--theme-elevation-700) 11%, var(--theme-elevation-0));
+  border-color: var(--theme-elevation-700);
 }
 
 .email-stage__delivery-progress li[data-state='active'] {

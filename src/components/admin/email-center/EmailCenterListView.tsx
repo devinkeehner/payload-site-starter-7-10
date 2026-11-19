@@ -50,7 +50,7 @@ function EmailCenterSummary() {
     <div className="email-flow__summary">
       <Pill pillStyle="light-gray">{docs.length} total</Pill>
       <Pill pillStyle={drafts ? 'warning' : 'light-gray'}>{drafts} in progress</Pill>
-      <Pill pillStyle={sent ? 'success' : 'light-gray'}>{sent} sent</Pill>
+      <Pill pillStyle="light-gray">{sent} sent</Pill>
       {docs[0] ? <span>Last updated: {formatDate(docs[0].updatedAt)}</span> : <span>No emails yet</span>}
       {docs[0] ? <span>Latest audience: {getListName(docs[0].emailList)}</span> : null}
     </div>
@@ -69,9 +69,7 @@ function EmailCenterHero({
   return (
     <Gutter className="email-flow email-flow--list">
       <div className="email-flow__header">
-        <p className="email-flow__eyebrow">Email Marketing</p>
-        <h1>Emails</h1>
-        <p>Start with a campaign name, build the email, choose the audience, then review and send.</p>
+        <h1>Email campaigns</h1>
       </div>
       <div className="email-flow__toolbar">
         <Button buttonStyle="primary" el="link" to={createURL} type="button">

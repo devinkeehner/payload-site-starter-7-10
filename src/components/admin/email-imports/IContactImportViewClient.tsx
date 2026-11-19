@@ -126,6 +126,7 @@ export function IContactImportViewClient() {
           clientFolderId,
           dryRun,
           listId,
+          ...(dryRun ? {} : { previewJobId: result?.jobId }),
           scope: importScope,
           tenantId,
         }),
@@ -235,7 +236,7 @@ export function IContactImportViewClient() {
           <Button buttonStyle="secondary" disabled={!canRun} onClick={() => void runImport(true)} type="button">
             {status === 'dryRun' ? 'Checking...' : importScope === 'folder' ? 'Run folder dry-run' : 'Run dry-run'}
           </Button>
-          <Button buttonStyle="primary" disabled={!canRun} onClick={() => void runImport(false)} type="button">
+          <Button buttonStyle="primary" disabled={!canRun || !result?.dryRun} onClick={() => void runImport(false)} type="button">
             {status === 'importing' ? 'Importing...' : importScope === 'folder' ? 'Import all lists' : 'Import contacts'}
           </Button>
           <Button buttonStyle="secondary" el="link" to={emailListsURL} type="button">

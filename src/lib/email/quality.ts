@@ -7,12 +7,16 @@ export type EmailLinkCheck = {
   checkedAt?: string
   confirmed?: boolean
   confirmedAt?: string
+  finalUrl?: string
   href: string
   label: string
+  location?: EmailLinkLocation
   reason?: string
   remoteStatus?: number
   status: 'invalid' | 'merge' | 'ok' | 'warning'
 }
+
+export type EmailLinkLocation = { blockId: string; fieldPath: (string | number)[] }
 
 export type EmailQualityResult = {
   label: 'Good' | 'Needs review' | 'Risky'
@@ -24,6 +28,7 @@ export type EmailQualityResult = {
 export type DeclaredEmailLink = {
   href: string
   label: string
+  location?: EmailLinkLocation
 }
 
 export type RemoteLinkAddress = {
@@ -89,11 +94,13 @@ function addLinkCheck({
   href,
   label,
   links,
+  location,
   seen,
 }: {
   href: string
   label: string
   links: EmailLinkCheck[]
+  location?: EmailLinkLocation
   seen: Set<string>
 }) {
   const normalizedHref = decodeEntities(href).trim()
@@ -102,6 +109,7 @@ function addLinkCheck({
   links.push({
     href: normalizedHref,
     label: stripTags(label || normalizedHref).slice(0, 80) || normalizedHref || 'Missing URL',
+    ...(location ? { location } : {}),
     status,
   })
 }
@@ -346,7 +354,8 @@ async function fetchWithSafeRedirects(
       url: destination.url,
     })
 
-    if (!isRedirectStatus(response.status) || !response.location) return response
+    if (!isRedirectStatus(response.status)) return { ...response, finalUrl: destination.url.href }
+    if (!response.location) throw new Error('Remote check could not resolve the redirect destination.')
     if (followedRedirects >= maxRedirects) {
       throw new Error(`Remote check skipped: redirect limit of ${maxRedirects} exceeded.`)
     }
@@ -381,6 +390,7 @@ async function checkRemoteLink(
     return {
       ...link,
       checkedAt,
+      finalUrl: response.finalUrl,
       reason: remoteStatus >= 200 && remoteStatus < 400 ? undefined : `Remote check returned ${remoteStatus}`,
       remoteStatus,
       status: remoteStatus >= 200 && remoteStatus < 400 ? link.status : 'warning',
@@ -404,7 +414,14 @@ export async function checkRemoteEmailLinks(
     if (link.confirmed || !link.href || link.status === 'invalid' || link.status === 'merge' || /^(mailto|tel):/i.test(link.href)) return link
     if (!uniqueChecks.has(link.href)) uniqueChecks.set(link.href, checkRemoteLink(link, dependencies))
     const checked = await uniqueChecks.get(link.href)
-    return checked ? { ...link, ...checked } : link
+    return checked ? {
+      ...link,
+      checkedAt: checked.checkedAt,
+      finalUrl: checked.finalUrl,
+      reason: checked.reason,
+      remoteStatus: checked.remoteStatus,
+      status: checked.status === 'warning' || checked.status === 'invalid' ? checked.status : link.status,
+    } : link
   }))
   const remoteWarnings = checkedLinks.filter((link) => link.reason && link.status === 'warning').length
   const warnings = [...quality.warnings]
@@ -501,22 +518,33 @@ export function inspectEmailQuality({
   if (imageCount >= 3 && plainText.length < 600) warnings.push('Email may be image-heavy compared with text.')
   if (/<img\b(?![^>]*\balt=)/i.test(html)) warnings.push('At least one image is missing alt text.')
 
+  const declarations = declaredLinks.map(link => ({
+    ...link,
+    href: decodeEntities(link.href).trim(),
+  }))
+  const matchedDeclarations = new Set<DeclaredEmailLink>()
   for (const match of getHrefMatches(html)) {
+    const href = decodeEntities(match.href).trim()
+    const label = stripTags(decodeEntities(match.label))
+    const candidates = declarations.filter(link => link.href === href && !matchedDeclarations.has(link))
+    const declared = candidates.find(link => link.label === label) || (candidates.length === 1 ? candidates[0] : undefined)
+    if (declared) matchedDeclarations.add(declared)
     addLinkCheck({
-      href: match.href,
-      label: match.label,
+      href,
+      label: label || declared?.label || '',
       links,
+      location: declared?.location,
       seen,
     })
   }
 
-  for (const link of declaredLinks) {
-    const href = decodeEntities(link.href).trim()
-    if (href && seen.has(href)) continue
+  for (const link of declarations) {
+    if (matchedDeclarations.has(link)) continue
     addLinkCheck({
-      href,
+      href: link.href,
       label: link.label,
       links,
+      location: link.location,
       seen,
     })
   }

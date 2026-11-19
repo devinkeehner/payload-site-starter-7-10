@@ -278,6 +278,7 @@ export async function getEmailWorkflow({
         (job?.status === 'failed' || deliveryUnknown ? getString(job?.message) : '') ||
         null,
       jobId: getEmailRelationshipId(job),
+      outcomeUnknown: deliveryUnknown,
       mode: getDeliveryMode(resolvedStatus),
       requiresScheduleConfirmation,
       scheduledAt: getString(email.scheduledAt) || null,
@@ -295,6 +296,7 @@ export async function getEmailWorkflow({
       status: resolvedStatus,
       subject: getString(email.subject),
       tenantId: getEmailRelationshipId(email.tenant),
+      tenantName: isRecord(email.tenant) ? getString(email.tenant.name) : undefined,
       title: getString(email.title) || 'Untitled email',
     },
     phase: getWorkflowPhase({

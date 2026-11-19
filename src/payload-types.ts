@@ -3607,6 +3607,9 @@ export interface EmailSendJob {
   suppressedRecipientCount?: number | null;
   iContactMessageId?: string | null;
   iContactSendId?: string | null;
+  iContactClientFolderId?: string | null;
+  iContactSourceListId?: string | null;
+  iContactDispatchListId?: string | null;
   message?: string | null;
   updatedAt: string;
   createdAt: string;
@@ -6392,6 +6395,9 @@ export interface EmailSendJobsSelect<T extends boolean = true> {
   suppressedRecipientCount?: T;
   iContactMessageId?: T;
   iContactSendId?: T;
+  iContactClientFolderId?: T;
+  iContactSourceListId?: T;
+  iContactDispatchListId?: T;
   message?: T;
   updatedAt?: T;
   createdAt?: T;

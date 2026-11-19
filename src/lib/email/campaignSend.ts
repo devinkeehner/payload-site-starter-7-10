@@ -1,5 +1,6 @@
 import type { Payload, PayloadRequest } from 'payload'
 
+import { prepareIContactDispatch, type IContactDispatch } from './iContactAudience'
 import { sendIContactCampaign } from './iContactEmail'
 import {
   assertEmailAudienceTenantMatch,
@@ -22,7 +23,7 @@ export async function sendProductionEmailSnapshotJob({
   payload,
   req,
 }: {
-  beforeProviderDispatch?: () => Promise<void>
+  beforeProviderDispatch?: (dispatch: IContactDispatch & { iContactMessageId: string }) => Promise<void>
   jobId: string
   overrideAccess?: boolean
   payload: Payload
@@ -63,36 +64,70 @@ export async function sendProductionEmailSnapshotJob({
   }
 
   const clientFolderId = getString(currentAudience.list.iContactClientFolderId)
-  const listId = getString(currentAudience.list.iContactListId)
-  await beforeProviderDispatch?.()
+  const sourceListId = getString(currentAudience.list.iContactListId)
+  if ((snapshot.iContactClientFolderId && snapshot.iContactClientFolderId !== clientFolderId) ||
+      (snapshot.iContactSourceListId && snapshot.iContactSourceListId !== sourceListId)) {
+    throw new Error('The linked iContact audience changed after approval. Review and confirm the new audience.')
+  }
+  const priorDispatches = await payload.find({
+    collection: 'email-send-jobs',
+    depth: 0,
+    pagination: false,
+    overrideAccess,
+    req,
+    where: {
+      and: [
+        { id: { not_equals: jobId } },
+        { tenant: { equals: snapshot.tenantId } },
+        { iContactClientFolderId: { equals: clientFolderId } },
+        { iContactSourceListId: { equals: sourceListId } },
+        { iContactDispatchListId: { exists: true } },
+        { status: { in: ['completed', 'delivery_unknown'] } },
+      ],
+    },
+  })
+  const target = await prepareIContactDispatch({
+    approvedEmails: suppression.recipients.map(recipient => recipient.email),
+    clientFolderId,
+    jobId,
+    priorDispatchLists: priorDispatches.docs.map(job => getString(job.iContactDispatchListId)).filter(Boolean),
+    sourceListId,
+  })
   const iContactSend = await sendIContactCampaign({
+    beforeSend: async (messageId) => {
+      const [, latest] = await Promise.all([
+        target.verify(),
+        resolveEmailAudience({ listId: snapshot.audienceListId, overrideAccess, payload, req }),
+      ])
+      assertEmailAudienceTenantMatch({ audienceTenant: latest.list.tenant, campaignTenant: snapshot.tenantId })
+      const stillEligible = suppressIneligibleSnapshotRecipients(suppression.recipients, latest.recipients)
+      if (stillEligible.suppressedCount || getString(latest.list.iContactClientFolderId) !== clientFolderId ||
+          getString(latest.list.iContactListId) !== sourceListId) {
+        throw new Error('The campaign audience changed during send preparation. Review it before trying again.')
+      }
+      await beforeProviderDispatch?.({ ...target.dispatch, iContactMessageId: messageId })
+    },
     clientFolderId,
     campaignId: snapshot.iContactCampaignId,
     fromEmail: snapshot.fromEmail,
     html: snapshot.html,
-    listId,
-    messageName: `${snapshot.subject} — ${jobId}`.slice(0, 255),
+    listId: target.dispatch.iContactDispatchListId,
+    messageName: `HRO ${jobId} — ${snapshot.subject}`.slice(0, 255),
     preheader: snapshot.preheader,
+    replyTo: snapshot.replyTo,
     subject: snapshot.subject,
     text: snapshot.text,
   })
 
-  await payload.update({
-    collection: 'email-lists',
-    data: {
-      activeContactCount: suppression.recipients.length,
-    },
-    id: snapshot.audienceListId,
-    overrideAccess,
-    overrideLock: false,
-    req,
-  })
+  if (iContactSend.recipientCount > target.recipientCount) {
+    throw new Error('iContact reported more recipients than the verified audience. Investigate this send before retrying.')
+  }
 
   return {
     iContactMessageId: iContactSend.messageId,
     iContactSendId: iContactSend.sendId,
     message: iContactSend.message,
-    recipientCount: iContactSend.recipientCount || suppression.recipients.length,
-    suppressedRecipientCount: suppression.suppressedCount,
+    recipientCount: iContactSend.recipientCount,
+    suppressedRecipientCount: snapshotRecipients.length - iContactSend.recipientCount,
   }
 }

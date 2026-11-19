@@ -3,6 +3,7 @@ import { createPayloadRequest, type PayloadRequest } from 'payload'
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { importIContactFolder, importIContactList } from '@/lib/email/importIContact'
+import { getEmailRelationshipId } from '@/lib/email/recipients'
 
 async function getAuthenticatedPayloadRequest(req: Request) {
   const payloadReq = await createPayloadRequest({
@@ -44,13 +45,32 @@ export async function POST(req: Request) {
     if (scope === 'list' && !listId) return new Response('listId is required', { status: 400 })
 
     const scopedReq = getBatchReq(payloadReq, tenantId)
+    const sourceListId = scope === 'folder' ? 'all' : listId
+    if (!dryRun) {
+      const previewJobId = getString(body.previewJobId)
+      const preview = previewJobId
+        ? await payload.findByID({
+            collection: 'email-import-jobs',
+            depth: 0,
+            id: previewJobId,
+            overrideAccess: false,
+            req: scopedReq,
+          }).catch(() => null)
+        : null
+      if (!preview || preview.source !== 'icontact' || !preview.dryRun ||
+          preview.status !== 'completed' || getEmailRelationshipId(preview.tenant) !== tenantId ||
+          preview.iContactClientFolderId !== clientFolderId || preview.iContactListId !== sourceListId) {
+        return new Response('Run and review a dry run for this site, folder, and list scope first.', { status: 409 })
+      }
+    }
+
     const startedAt = new Date().toISOString()
     const job = await payload.create({
       collection: 'email-import-jobs',
       data: {
         dryRun,
         iContactClientFolderId: clientFolderId,
-        iContactListId: scope === 'folder' ? 'all' : listId,
+        iContactListId: sourceListId,
         source: 'icontact',
         startedAt,
         status: 'running',

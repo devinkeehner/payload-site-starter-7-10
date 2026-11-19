@@ -71,6 +71,7 @@ export function EmailAudienceStageViewClient({
     () => `${formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` })}/review`,
     [adminRoute, emailId],
   )
+  const audiencesURL = formatAdminURL({ adminRoute, path: '/collections/email-lists' })
   const selectedList = useMemo(
     () => lists.find((list) => list.id === settings?.emailList) || null,
     [lists, settings?.emailList],
@@ -173,7 +174,9 @@ export function EmailAudienceStageViewClient({
               <h2>Audience list</h2>
               <p>Select one list for this site. Suppressed and invalid contacts are excluded automatically.</p>
             </div>
-            <UsersRound aria-hidden="true" />
+            <a className="email-stage__text-link" href={audiencesURL} target="_blank" rel="noopener noreferrer">
+              <UsersRound aria-hidden="true" /> Manage audiences <span className="sr-only"> (opens in a new tab)</span>
+            </a>
           </div>
 
           {settings ? (
