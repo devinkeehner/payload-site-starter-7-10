@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 
 import { canAccessCollection } from '@/lib/access/roles'
+import { siteSettingsURL } from '@/components/admin/site-settings/sections'
 import {
   getAdminWorkspaceLabel,
   getDashboardWorkspaceSlugs,
@@ -808,7 +809,7 @@ export async function NavbarLinksWidget(props: WidgetServerProps) {
 
   const { doc, links, tenantID } = await findNavbarForDashboard(props)
   const editHref = doc?.id
-    ? adminURL(props.req, `/collections/navbars/${doc.id}`)
+    ? siteSettingsURL(props.req.payload.config.routes.admin, tenantID, 'navigation')
     : withTenant(adminURL(props.req, '/collections/navbars/create'), tenantID)
 
   return (
@@ -867,14 +868,14 @@ export async function MySitesWidget(props: WidgetServerProps) {
     findAvailableSites(props),
   ])
   const selectedTenantID = getSelectedTenantID(props.req)
-  const canEditSiteSettings = canAccessCollection(props.req.user as DashboardUser, 'tenants')
+  const canEditSiteSettings = canAccessCollection(props.req.user as DashboardUser, 'rep-info')
   const sitesByID = new Map(availableSites.map((site) => [site.id, site]))
   for (const site of assignedSites) sitesByID.set(site.id, site)
   const sites: DashboardSiteOption[] = Array.from(sitesByID.values()).map((site) => ({
     ...site,
     editHref: withTenant(adminURL(props.req, '/'), site.id),
     settingsHref: canEditSiteSettings
-      ? adminURL(props.req, `/collections/tenants/${site.id}`)
+      ? siteSettingsURL(props.req.payload.config.routes.admin, site.id)
       : null,
     viewHref: getPublicSiteURL(site.slug),
   }))

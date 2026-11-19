@@ -42,9 +42,12 @@ import { default as default_ba1864c9a769a36011f463d5faeeb745 } from '@/component
 import { default as default_37461efde84e27dbdd00177f6b8a1329 } from '@/components/admin/graphics/GraphicDesignDefaultView'
 import { default as default_2d682d98f90fd2c18ebb1d4d5c0fcb05 } from '@/components/admin/graphics/GraphicDesignStudioView'
 import { default as default_6a1a3f7f0fa75e58b07b878e7a315d5c } from '@/components/admin/graphics/GraphicDesignGalleryListView'
-import { TinyURLImportField as TinyURLImportField_4534fa6394497dc0a66fe8420aa590b1 } from '@/components/admin/TinyURLField'
+import { TownRowLabel as TownRowLabel_ac5a319bd6e62f0841d6d59a6e72327c } from '@/components/admin/site-settings/SiteSettingsFields'
 import { FacebookConnectionField as FacebookConnectionField_0cb92cbece99572909a34da846678f78 } from '@/components/admin/FacebookConnectionField'
+import { TinyURLImportField as TinyURLImportField_4534fa6394497dc0a66fe8420aa590b1 } from '@/components/admin/TinyURLField'
+import { default as default_e75cc0f5d7225556ff5f0d2a7b854cac } from '@/components/admin/site-settings/SiteSettingsEditView'
 import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/components/site/navbar/row-label'
+import { HomepageSearchPreview as HomepageSearchPreview_ac5a319bd6e62f0841d6d59a6e72327c } from '@/components/admin/site-settings/SiteSettingsFields'
 import { FormShareField as FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f } from '@/components/admin/FormShareField'
 import { FormIContactBackfillField as FormIContactBackfillField_d9538333f17a5dd3581e50e6e5fb922a } from '@/components/admin/FormIContactBackfillField'
 import { default as default_5227e444aa3025f379371ab29789d5c0 } from '@/components/admin/form/PuckFormBuilderView'
@@ -79,6 +82,7 @@ import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/component
 import { default as default_03d18d5b1bbb31219221c8c0e6fd3737 } from '@/components/admin/TenantHeaderIndicator'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
+import { default as default_aa691302439d4695591f698acb157d3b } from '@/components/admin/site-settings/SiteSettingsView'
 import { default as default_3cda562e46cb983ee8837a8b588c188c } from '@/components/admin/mail-tool/MailToolView'
 import { default as default_1a60547ff0383fa586cb898a7f7ad4a3 } from '@/components/admin/email-start/EmailStartView'
 import { default as default_9f1b385a792e6f20bbc6f2fff4efda7b } from '@/components/admin/email-imports/IContactImportView'
@@ -136,9 +140,12 @@ export const importMap = {
   "@/components/admin/graphics/GraphicDesignDefaultView#default": default_37461efde84e27dbdd00177f6b8a1329,
   "@/components/admin/graphics/GraphicDesignStudioView#default": default_2d682d98f90fd2c18ebb1d4d5c0fcb05,
   "@/components/admin/graphics/GraphicDesignGalleryListView#default": default_6a1a3f7f0fa75e58b07b878e7a315d5c,
-  "@/components/admin/TinyURLField#TinyURLImportField": TinyURLImportField_4534fa6394497dc0a66fe8420aa590b1,
+  "@/components/admin/site-settings/SiteSettingsFields#TownRowLabel": TownRowLabel_ac5a319bd6e62f0841d6d59a6e72327c,
   "@/components/admin/FacebookConnectionField#FacebookConnectionField": FacebookConnectionField_0cb92cbece99572909a34da846678f78,
+  "@/components/admin/TinyURLField#TinyURLImportField": TinyURLImportField_4534fa6394497dc0a66fe8420aa590b1,
+  "@/components/admin/site-settings/SiteSettingsEditView#default": default_e75cc0f5d7225556ff5f0d2a7b854cac,
   "@/components/site/navbar/row-label#RowLabel": RowLabel_049f819b8cc5e95a74082f1d6b1ff31a,
+  "@/components/admin/site-settings/SiteSettingsFields#HomepageSearchPreview": HomepageSearchPreview_ac5a319bd6e62f0841d6d59a6e72327c,
   "@/components/admin/FormShareField#FormShareField": FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f,
   "@/components/admin/FormIContactBackfillField#FormIContactBackfillField": FormIContactBackfillField_d9538333f17a5dd3581e50e6e5fb922a,
   "@/components/admin/form/PuckFormBuilderView#default": default_5227e444aa3025f379371ab29789d5c0,
@@ -173,6 +180,7 @@ export const importMap = {
   "@/components/admin/TenantHeaderIndicator#default": default_03d18d5b1bbb31219221c8c0e6fd3737,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
+  "@/components/admin/site-settings/SiteSettingsView#default": default_aa691302439d4695591f698acb157d3b,
   "@/components/admin/mail-tool/MailToolView#default": default_3cda562e46cb983ee8837a8b588c188c,
   "@/components/admin/email-start/EmailStartView#default": default_1a60547ff0383fa586cb898a7f7ad4a3,
   "@/components/admin/email-imports/IContactImportView#default": default_9f1b385a792e6f20bbc6f2fff4efda7b,

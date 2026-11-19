@@ -7,6 +7,7 @@ import {
   clearAdminUnsavedChanges,
   setAdminUnsavedChanges,
 } from '@/components/admin/adminUnsavedChanges'
+import { setSelectedTenantCookie } from '@/components/admin/hooks/useActiveTenant'
 
 export type DashboardSiteOption = {
   archived: boolean
@@ -16,10 +17,6 @@ export type DashboardSiteOption = {
   settingsHref?: string | null
   slug: string
   viewHref: string
-}
-
-function setTenantCookie(tenantID: string) {
-  document.cookie = `payload-tenant=${encodeURIComponent(tenantID)}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`
 }
 
 export function MySitesWidgetClient({
@@ -68,11 +65,12 @@ export function MySitesWidgetClient({
   }
 
   const editSite = (event: MouseEvent<HTMLAnchorElement>, site: DashboardSiteOption) => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
     event.preventDefault()
 
     // Persist the selection before the full-page dashboard navigation so the
     // server-rendered dashboard and the navbar selector agree on the site.
-    setTenantCookie(site.id)
+    setSelectedTenantCookie(site.id)
 
     if (String(activeTenantID ?? '') !== site.id) {
       const isKnownTenant = tenantOptions.some((option) => String(option.value) === site.id)
@@ -81,7 +79,7 @@ export function MySitesWidgetClient({
       }
     }
 
-    window.location.assign(site.editHref)
+    window.location.assign(event.currentTarget.href)
   }
 
   const save = async () => {
@@ -173,7 +171,7 @@ export function MySitesWidgetClient({
                 <a href={site.viewHref} rel="noreferrer" target="_blank">
                   View site
                 </a>
-                {site.settingsHref ? <a href={site.settingsHref}>Settings</a> : null}
+                {site.settingsHref ? <a href={site.settingsHref} onClick={event => editSite(event, site)}>Settings</a> : null}
                 <button onClick={() => removeSite(site.id)} type="button">
                   Remove
                 </button>

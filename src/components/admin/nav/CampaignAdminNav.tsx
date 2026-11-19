@@ -17,6 +17,7 @@ import {
 import { canAccessCollection } from '@/lib/access/roles'
 
 import { CampaignAdminNavClient } from './CampaignAdminWorkspaceNavClient'
+import { siteSettingsURL } from '@/components/admin/site-settings/sections'
 
 type Props = ServerProps & {
   documentSubViewType?: string
@@ -121,6 +122,12 @@ async function getSidebarQuickLinks(
   const contactPage = contactResult?.docs?.[0] as NavDocument | undefined
 
   return {
+    website: [{
+      href: siteSettingsURL(req.payload.config.routes.admin, tenantID),
+      kind: 'action',
+      label: 'Site settings',
+      description: 'Manage the current site’s profile, images, navigation, and defaults.',
+    }],
     canvas: [{
       href: adminURL(req, '/mail-tool'),
       kind: 'action',

@@ -12,7 +12,8 @@ import ReactSelect, {
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import { type TenantOption, useActiveTenantOptions } from './TenantOptionsContext'
 import { hasAdminUnsavedChanges } from './adminUnsavedChanges'
-import { useActiveTenant } from './hooks/useActiveTenant'
+import { setSelectedTenantCookie, useActiveTenant } from './hooks/useActiveTenant'
+import { getSiteSettingsSection, siteSettingsURL } from './site-settings/sections'
 
 const confirmSwitchTenantSlug = 'custom-tenant-selector-confirm-switch'
 const confirmLeaveWithoutSavingSlug = 'custom-tenant-selector-confirm-leave'
@@ -47,11 +48,10 @@ const toTenantID = (candidate: unknown): string | undefined => {
   return toTenantID(relation.id ?? relation.value)
 }
 
-const setTenantCookieFallback = (tenantID?: string) => {
-  const value = tenantID ? encodeURIComponent(tenantID) : ''
-  const maxAge = tenantID ? 60 * 60 * 24 * 365 : -1
-  document.cookie = `payload-tenant=${value}; path=/; max-age=${maxAge}; samesite=lax`
-  window.location.reload()
+const changeTenantLocation = (tenantID?: string, href?: string) => {
+  setSelectedTenantCookie(tenantID)
+  if (href) window.location.assign(href)
+  else window.location.reload()
 }
 
 const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOverride }) => {
@@ -177,12 +177,21 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOver
   const switchTenant = useCallback(
     (option: TenantOption | undefined) => {
       setPendingSelection(undefined)
+      const url = new URL(window.location.href)
+      const section = getSiteSettingsSection(
+        url.searchParams.get('hroSettings') ||
+          (url.pathname === '/admin/site-settings' ? url.searchParams.get('section') || 'profile' : null),
+      )
+      if (section) {
+        changeTenantLocation(option?.value, siteSettingsURL('/admin', option?.value, section.key))
+        return
+      }
       const pluginOptionIDs = Array.isArray(options)
         ? options.map((candidate) => toOption(candidate)?.value).filter(Boolean)
         : []
 
       if (pluginOptionIDs.length === 0) {
-        setTenantCookieFallback(option?.value)
+        changeTenantLocation(option?.value)
         return
       }
 
@@ -197,16 +206,16 @@ const TenantDropdown: React.FC<Props> = ({ optionsOverride, selectedTenantIDOver
 
   const attemptTenantChange = useCallback(
     (parsed: TenantOption | undefined) => {
-      if (!parsed) {
-        switchTenant(undefined)
-        return
-      }
-
-      if (parsed.value === selectedValue) return
+      if (parsed && parsed.value === selectedValue) return
 
       if (hasAdminUnsavedChanges()) {
         setPendingSelection(parsed)
         openModal(confirmLeaveWithoutSavingSlug)
+        return
+      }
+
+      if (!parsed) {
+        switchTenant(undefined)
         return
       }
 

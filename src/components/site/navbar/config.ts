@@ -2,6 +2,7 @@ import type { CollectionConfig, CollectionAfterChangeHook, CollectionAfterDelete
 import { triggerFrontendRevalidate } from '../../../lib/utilities/revalidateFrontend'
 
 import { link } from '@/collections/fields/link'
+import { siteSettingsEditComponent } from '@/components/admin/site-settings/sections'
 
 
 export const Navbar: CollectionConfig = {
@@ -14,6 +15,7 @@ export const Navbar: CollectionConfig = {
     useAsTitle: 'name',
     defaultColumns: ['name', 'updatedAt'],
     group: 'Site Settings',
+    components: { views: { edit: { default: { Component: siteSettingsEditComponent } } } },
   },
   access: {
     read: () => true,
@@ -64,15 +66,16 @@ export const Navbar: CollectionConfig = {
   fields: [
     {
       name: 'name',
+      label: 'Menu name',
       type: 'text',
       required: true,
     },
     {
       name: 'navItems',
-      label: 'Nav Items',
+      label: 'Menu links',
       type: 'array',
       admin: {
-        initCollapsed: false,
+        initCollapsed: true,
         components: {
           RowLabel: '@/components/site/navbar/row-label#RowLabel',
         },
@@ -89,7 +92,7 @@ export const Navbar: CollectionConfig = {
           name: 'subNav',
           label: 'Sub-Items',
           type: 'array',
-          admin: { initCollapsed: true },
+          admin: { initCollapsed: true, components: { RowLabel: '@/components/site/navbar/row-label#RowLabel' } },
           fields: [
             link({ appearances: false }),
             {
@@ -102,7 +105,7 @@ export const Navbar: CollectionConfig = {
               name: 'subSubNav',
               label: 'Tertiary Items',
               type: 'array',
-              admin: { initCollapsed: true },
+              admin: { initCollapsed: true, components: { RowLabel: '@/components/site/navbar/row-label#RowLabel' } },
               fields: [
                 link({ appearances: false }),
                 {

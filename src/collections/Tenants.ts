@@ -1,8 +1,12 @@
 import { POST_GRAPHIC_TEMPLATE_FILTER } from '@/lib/graphics/templates'
 import type { CollectionConfig } from 'payload'
 import { isSuperUser } from '@/lib/access/isSuperUser'
-import { rebuildSitemapsAfterTenantChange, rebuildSitemapsAfterTenantDelete } from '@/lib/hooks/rebuildSitemaps'
+import {
+  rebuildSitemapsAfterTenantChange,
+  rebuildSitemapsAfterTenantDelete,
+} from '@/lib/hooks/rebuildSitemaps'
 import { tenantPreviewEndpoint } from '@/lib/tenantPreviewEndpoint'
+import { siteSettingsEditComponent } from '@/components/admin/site-settings/sections'
 
 export const Tenants: CollectionConfig = {
   slug: 'tenants',
@@ -14,6 +18,7 @@ export const Tenants: CollectionConfig = {
     useAsTitle: 'name',
     group: 'Admin',
     preview: (doc) => `/api/tenants/${doc.id}/preview`,
+    components: { views: { edit: { default: { Component: siteSettingsEditComponent } } } },
   },
   endpoints: [{ path: '/:id/preview', method: 'get', handler: tenantPreviewEndpoint }],
   access: {
@@ -25,11 +30,13 @@ export const Tenants: CollectionConfig = {
   fields: [
     {
       name: 'name',
+      label: 'Internal site name',
       type: 'text',
       required: true,
     },
     {
       name: 'slug',
+      label: 'Routing slug',
       type: 'text',
       required: true,
     },
@@ -45,22 +52,27 @@ export const Tenants: CollectionConfig = {
       },
     },
     {
-      name: 'isPrivate',
-      label: 'Private site',
-      type: 'checkbox',
-      defaultValue: false,
-      index: true,
-      admin: {
-        position: 'sidebar',
-        description: 'Hide the entire website from public visitors. Authorized editors and tenant preview links can still view it. Turn off when ready to launch.',
-      },
-    },
-    {
-      name: 'archived',
-      label: 'Archived',
-      type: 'checkbox',
-      defaultValue: false,
-      admin: { position: 'sidebar' },
+      type: 'collapsible',
+      label: 'Availability',
+      fields: [
+        {
+          name: 'isPrivate',
+          label: 'Private site',
+          type: 'checkbox',
+          defaultValue: false,
+          index: true,
+          admin: {
+            description:
+              'Hide the entire website from public visitors. Authorized editors and tenant preview links can still view it. Turn off when ready to launch.',
+          },
+        },
+        {
+          name: 'archived',
+          label: 'Archived',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+      ],
     },
     // add more site-level metadata here (e.g., domain, theme)
   ],
@@ -70,4 +82,4 @@ export const Tenants: CollectionConfig = {
   },
 }
 
-export default Tenants;
+export default Tenants

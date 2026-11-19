@@ -200,6 +200,10 @@ export default buildConfig({
         Logo: '@/components/admin/brand/Logo#default',
       },
       views: {
+        siteSettings: {
+          path: '/site-settings',
+          Component: '@/components/admin/site-settings/SiteSettingsView#default',
+        },
         mailTool: {
           path: '/mail-tool',
           Component: '@/components/admin/mail-tool/MailToolView#default',

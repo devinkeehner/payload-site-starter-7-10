@@ -32,6 +32,12 @@ export const readSelectedTenantIDFromCookies = (): string | undefined => {
   return undefined
 }
 
+export const setSelectedTenantCookie = (tenantID?: string) => {
+  const value = tenantID ? encodeURIComponent(tenantID) : ''
+  const maxAge = tenantID ? 60 * 60 * 24 * 365 : -1
+  document.cookie = `payload-tenant=${value}; path=/; max-age=${maxAge}; samesite=lax`
+}
+
 export const readSelectedTenantIDFromStorage = (): string | undefined => {
   if (typeof window === 'undefined') return undefined
   try {

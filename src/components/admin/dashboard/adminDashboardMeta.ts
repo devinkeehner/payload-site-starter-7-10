@@ -3,6 +3,7 @@ import { formatAdminURL } from 'payload/shared'
 import { getTenantFromCookie } from '@payloadcms/plugin-multi-tenant/utilities'
 
 import { CONTENT_EDITOR_COLLECTIONS, canAccessCollection } from '@/lib/access/roles'
+import { siteSettingsURL } from '@/components/admin/site-settings/sections'
 import {
   ADMIN_WORKSPACE_ENTRIES,
   getAdminWorkspaceDescription,
@@ -88,13 +89,6 @@ function appendTenantQuery(href: string, tenantID: string | null) {
   return `${href}${separator}tenant=${encodeURIComponent(tenantID)}`
 }
 
-function appendEditTarget(href: string, tab: string, field?: string) {
-  const params = new URLSearchParams({ hroTab: tab })
-  if (field) params.set('hroField', field)
-  const separator = href.includes('?') ? '&' : '?'
-  return `${href}${separator}${params.toString()}`
-}
-
 type DashboardUser = Parameters<typeof canAccessCollection>[0]
 
 function adminURL(req: PayloadRequest, path: `/${string}`) {
@@ -102,49 +96,6 @@ function adminURL(req: PayloadRequest, path: `/${string}`) {
     adminRoute: getAdminRoute(req),
     path,
   })
-}
-
-async function findTenantDocument(
-  req: PayloadRequest,
-  collection: 'navbars' | 'rep-info' | 'standard-media' | 'site-seo',
-) {
-  const tenantID = getSelectedTenantID(req)
-  if (!tenantID) return null
-
-  try {
-    const result = await req.payload.find({
-      collection,
-      depth: 0,
-      limit: 1,
-      overrideAccess: false,
-      pagination: false,
-      req,
-      where: {
-        tenant: {
-          equals: tenantID,
-        },
-      },
-    })
-
-    const doc = result.docs[0] as { id?: string | number } | undefined
-    return doc?.id ? String(doc.id) : null
-  } catch {
-    return null
-  }
-}
-
-async function singletonTaskURL(
-  req: PayloadRequest,
-  collection: 'navbars' | 'rep-info' | 'standard-media' | 'site-seo',
-) {
-  const tenantID = getSelectedTenantID(req)
-  const existingID = await findTenantDocument(req, collection)
-
-  if (existingID) {
-    return adminURL(req, `/collections/${collection}/${existingID}`)
-  }
-
-  return appendTenantQuery(adminURL(req, `/collections/${collection}/create`), tenantID)
 }
 
 export function getPrimaryQuickTasks(req: PayloadRequest): AdminTask[] {
@@ -249,49 +200,45 @@ const websiteShortcutTasksByRequest = new WeakMap<PayloadRequest, Promise<AdminT
 
 async function buildWebsiteShortcutTasks(req: PayloadRequest): Promise<AdminTask[]> {
   const user = req.user as DashboardUser
+  const tenantID = getSelectedTenantID(req)
+  const adminRoute = getAdminRoute(req)
   const canChangeHomePageBanner = canAccessCollection(user, 'standard-media')
   const canUpdateRepInfo = canAccessCollection(user, 'rep-info')
   const canEditNavbar = canAccessCollection(user, 'navbars')
 
-  const [standardMediaURL, repInfoURL, navbarURL] = await Promise.all([
-    canChangeHomePageBanner ? singletonTaskURL(req, 'standard-media') : null,
-    canUpdateRepInfo ? singletonTaskURL(req, 'rep-info') : null,
-    canEditNavbar ? singletonTaskURL(req, 'navbars') : null,
-  ])
-
   return orderAdminTasks(
     [
-      ...(standardMediaURL
+      ...(canChangeHomePageBanner
         ? [
             {
               description: quickTaskDescriptions.changeHomePageBanner,
-              href: standardMediaURL,
+              href: siteSettingsURL(adminRoute, tenantID, 'images'),
               key: 'changeHomePageBanner' as const,
               label: 'Update Home Page Images',
             },
           ]
         : []),
-      ...(repInfoURL
+      ...(canUpdateRepInfo
         ? [
             {
               description: quickTaskDescriptions.updateSocialMedia,
-              href: appendEditTarget(repInfoURL, 'Social & Facebook', 'field-facebook'),
+              href: siteSettingsURL(adminRoute, tenantID, 'social'),
               key: 'updateSocialMedia' as const,
               label: 'Update Social Media',
             },
             {
               description: quickTaskDescriptions.editTowns,
-              href: appendEditTarget(repInfoURL, 'Profile & Towns', 'field-towns'),
+              href: siteSettingsURL(adminRoute, tenantID, 'profile'),
               key: 'editTowns' as const,
               label: 'Edit Towns',
             },
           ]
         : []),
-      ...(navbarURL
+      ...(canEditNavbar
         ? [
             {
               description: quickTaskDescriptions.editNavbar,
-              href: navbarURL,
+              href: siteSettingsURL(adminRoute, tenantID, 'navigation'),
               key: 'editNavbar' as const,
               label: 'Edit Navbar',
             },

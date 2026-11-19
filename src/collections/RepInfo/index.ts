@@ -7,6 +7,7 @@ import type {
 
 import { isSuperUser } from '@/lib/access/isSuperUser'
 import { triggerFrontendRevalidate } from '../../lib/utilities/revalidateFrontend'
+import { siteSettingsEditComponent } from '@/components/admin/site-settings/sections'
 
 type TenantDoc = { slug?: string | null }
 type TenantQueryResult = { docs?: TenantDoc[] }
@@ -39,6 +40,7 @@ export const RepInfo: CollectionConfig = {
     description: 'Identity, towns, social profiles, and email defaults for each website.',
     group: 'Site Settings',
     useAsTitle: 'name',
+    components: { views: { edit: { default: { Component: siteSettingsEditComponent } } } },
   },
   access: {
     read: () => true,
@@ -74,11 +76,8 @@ export const RepInfo: CollectionConfig = {
   fields: [
     {
       type: 'tabs',
+      admin: { className: 'hro-profile-tabs' },
       tabs: [
-        { label: 'TinyURL', fields: [
-          { name: 'tinyURLDomain', label: 'Existing TinyURL domain', type: 'text', unique: true, index: true, admin: { description: 'Domain already set up in TinyURL for this site, without https:// or a path. Each domain belongs to one site.' } },
-          { name: 'tinyURLImport', type: 'ui', admin: { components: { Field: '@/components/admin/TinyURLField#TinyURLImportField' } } },
-        ] },
         {
           label: 'Profile & Towns',
           description: 'Public identity, district information, and towns shown on this website.',
@@ -112,6 +111,8 @@ export const RepInfo: CollectionConfig = {
               type: 'array',
               minRows: 1,
               admin: {
+                initCollapsed: true,
+                components: { RowLabel: '@/components/admin/site-settings/SiteSettingsFields#TownRowLabel' },
                 description: 'Add each represented town and its optional public details.',
               },
               fields: [
@@ -154,24 +155,31 @@ export const RepInfo: CollectionConfig = {
               ],
             },
             {
-              name: 'form',
-              label: 'Default contact form',
-              type: 'relationship',
-              relationTo: 'forms',
-              required: false,
-            },
-            {
-              name: 'postTakeawaysPlacement',
-              label: 'Post takeaways display',
-              type: 'select',
-              defaultValue: 'featured',
-              options: [
-                { label: 'Featured near the top', value: 'featured' },
-                { label: 'Collapsible at the bottom', value: 'footer' },
+              type: 'collapsible',
+              label: 'Website defaults',
+              admin: { initCollapsed: true },
+              fields: [
+                {
+                  name: 'form',
+                  label: 'Default contact form',
+                  type: 'relationship',
+                  relationTo: 'forms',
+                  required: false,
+                },
+                {
+                  name: 'postTakeawaysPlacement',
+                  label: 'Post takeaways display',
+                  type: 'select',
+                  defaultValue: 'featured',
+                  options: [
+                    { label: 'Featured near the top', value: 'featured' },
+                    { label: 'Collapsible at the bottom', value: 'footer' },
+                  ],
+                  admin: {
+                    description: 'Choose where approved key takeaways appear on posts for this website.',
+                  },
+                },
               ],
-              admin: {
-                description: 'Choose where approved key takeaways appear on posts for this website.',
-              },
             },
           ],
         },
@@ -370,6 +378,28 @@ export const RepInfo: CollectionConfig = {
                   ],
                 },
               ],
+            },
+          ],
+        },
+        {
+          label: 'TinyURL',
+          fields: [
+            {
+              name: 'tinyURLDomain',
+              label: 'Existing TinyURL domain',
+              type: 'text',
+              unique: true,
+              index: true,
+              admin: {
+                description: 'Domain already set up in TinyURL for this site, without https:// or a path. Each domain belongs to one site.',
+              },
+            },
+            {
+              name: 'tinyURLImport',
+              type: 'ui',
+              admin: {
+                components: { Field: '@/components/admin/TinyURLField#TinyURLImportField' },
+              },
             },
           ],
         },
