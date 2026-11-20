@@ -12,7 +12,6 @@ import {
   RefreshCw,
   Send,
   TriangleAlert,
-  UsersRound,
   X,
 } from 'lucide-react'
 import { formatAdminURL } from 'payload/shared'
@@ -33,6 +32,8 @@ type PreparedTest = {
   listId: string
   recipientEmail: string
 }
+
+const omittedReviewChecks = new Set(['test-recipient', 'compliance-address', 'unsubscribe', 'send-status', 'audience'])
 
 function LinkStateIcon({ state }: { state: EmailWorkflowLinkCheck['status'] }) {
   if (state === 'invalid') return <X aria-hidden="true" />
@@ -72,7 +73,6 @@ export function EmailReviewStageViewClient({
     [adminRoute, emailId],
   )
   const builderURL = '/live-editor/emails/' + encodeURIComponent(emailId)
-  const audienceURL = `${baseURL}/audience`
   const deliveryURL = `${baseURL}/delivery`
   const testRecipient = testRecipientDraft ?? workflow?.email.recipientEmail ?? ''
   const currentRevision = workflow?.email.contentRevision
@@ -199,12 +199,16 @@ export function EmailReviewStageViewClient({
   }
 
   const readiness = workflow?.readiness || null
-  const audience = workflow?.audience || readiness?.audience || null
   const links = readiness?.quality?.links || []
   const checklist = useMemo(() => {
     const order = { fail: 0, warn: 1, pass: 2 } as const
-    return [...(readiness?.items || [])].sort((left, right) => order[left.status] - order[right.status])
+    return (readiness?.items || [])
+      .filter((item) => !omittedReviewChecks.has(item.key))
+      .sort((left, right) => order[left.status] - order[right.status])
   }, [readiness?.items])
+  const visibleFailures = checklist.filter((item) => item.status === 'fail').length
+  const visibleWarnings = checklist.filter((item) => item.status === 'warn').length
+  const otherBlockers = readiness?.items.filter((item) => omittedReviewChecks.has(item.key) && item.status === 'fail')
   const invalidLinks = links.filter((link) => link.status === 'invalid')
   const testMatches = workflow?.test.state === 'current'
   const canContinue = Boolean(testMatches && readiness?.canSend)
@@ -213,7 +217,7 @@ export function EmailReviewStageViewClient({
   return (
     <EmailCampaignShell
       activeStage="review"
-      description="Confirm the message, links, and audience, then test this exact version."
+      description="Review the message and links, then send a test of this version."
       emailId={emailId}
       error={workflowError || previewError}
       isLoading={workflowLoading}
@@ -228,39 +232,70 @@ export function EmailReviewStageViewClient({
         ) : null}
 
         <div className="email-stage__review-layout">
-          <section className="email-stage__preview-panel">
-            <div className="email-stage__section-heading">
-              <div>
-                <h2>Email preview</h2>
-                <p>Rendered from the latest saved content.</p>
-              </div>
-              <Button
-                buttonStyle="secondary"
-                disabled={state === 'refreshing'}
-                onClick={() => void refreshReview()}
-                size="small"
-                type="button"
-              >
-                <RefreshCw aria-hidden="true" />
-                {state === 'refreshing' ? 'Checking links…' : 'Recheck links'}
-              </Button>
-            </div>
-            <div className="email-stage__actions" role="group" aria-label="Email preview size">
-              <button type="button" aria-pressed={previewSize === 'desktop'} onClick={() => setPreviewSize('desktop')}>Desktop</button>
-              <button type="button" aria-pressed={previewSize === 'mobile'} onClick={() => setPreviewSize('mobile')}>Mobile</button>
-            </div>
-            <div className="email-stage__preview" data-preview-size={previewSize}>
-              {preview?.html ? (
-                <iframe sandbox="" srcDoc={preview.html} title={`Preview of ${title}`} />
-              ) : (
-                <div className="email-stage__preview-loading">
-                  {previewLoading ? 'Rendering preview…' : 'Preview is unavailable.'}
+          <div className="email-stage__review-column">
+            <section className="email-stage__preview-panel">
+              <div className="email-stage__section-heading">
+                <div>
+                  <h2>Email preview</h2>
+                  <p>Rendered from the latest saved content.</p>
                 </div>
-              )}
-            </div>
-          </section>
+                <Button
+                  buttonStyle="secondary"
+                  disabled={state === 'refreshing'}
+                  onClick={() => void refreshReview()}
+                  size="small"
+                  type="button"
+                >
+                  <RefreshCw aria-hidden="true" />
+                  {state === 'refreshing' ? 'Checking links…' : 'Recheck links'}
+                </Button>
+              </div>
+              <div className="email-stage__actions" role="group" aria-label="Email preview size">
+                <button type="button" aria-pressed={previewSize === 'desktop'} onClick={() => setPreviewSize('desktop')}>Desktop</button>
+                <button type="button" aria-pressed={previewSize === 'mobile'} onClick={() => setPreviewSize('mobile')}>Mobile</button>
+              </div>
+              <div className="email-stage__preview" data-preview-size={previewSize}>
+                {preview?.html ? (
+                  <iframe sandbox="" srcDoc={preview.html} title={`Preview of ${title}`} />
+                ) : (
+                  <div className="email-stage__preview-loading">
+                    {previewLoading ? 'Rendering preview…' : 'Preview is unavailable.'}
+                  </div>
+                )}
+              </div>
+            </section>
 
-          <aside className="email-stage__review-sidebar">
+            <section className="email-stage__panel email-stage__checklist-panel">
+              <div className="email-stage__section-heading">
+                <div>
+                  <h2>Readiness checklist</h2>
+                  <p>Review the content and test status of this version.</p>
+                </div>
+                <span className="email-stage__readiness-count">
+                  {readiness ? `${visibleFailures} blocking · ${visibleWarnings} warning${visibleWarnings === 1 ? '' : 's'}` : 'Checking…'}
+                </span>
+              </div>
+              <div className="email-stage__checklist">
+                {checklist.map((item) => (
+                  <div data-state={item.status} key={item.key}>
+                    <span className="email-stage__check-icon">
+                      {item.status === 'pass'
+                        ? <Check aria-hidden="true" />
+                        : item.status === 'warn'
+                          ? <TriangleAlert aria-hidden="true" />
+                          : <X aria-hidden="true" />}
+                    </span>
+                    <span>
+                      <strong>{item.label}</strong>
+                      <small>{item.message}</small>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="email-stage__review-column">
             <section className="email-stage__panel">
               <div className="email-stage__section-heading">
                 <div>
@@ -277,22 +312,56 @@ export function EmailReviewStageViewClient({
               {!editingLocked ? <a className="email-stage__text-link" href={builderURL + '?from=review'}>Edit message</a> : null}
             </section>
 
-            <section className="email-stage__panel">
+            <section className="email-stage__panel email-stage__links-panel">
               <div className="email-stage__section-heading">
                 <div>
-                  <h2>Audience</h2>
-                  <p>Final send eligibility.</p>
+                  <h2>Links</h2>
+                  {currentRevision && <p>Links for version {currentRevision.slice(0, 8)}</p>}
                 </div>
-                <UsersRound aria-hidden="true" />
+                <span className="email-stage__readiness-count"><Link2 aria-hidden="true" />{links.length} links</span>
               </div>
-              {audience ? (
-                <dl className="email-stage__summary-list">
-                  <div><dt>List</dt><dd>{audience.listName}</dd></div>
-                  <div><dt>Eligible</dt><dd>{audience.eligible.toLocaleString()}</dd></div>
-                  <div><dt>Excluded</dt><dd>{Math.max(0, audience.total - audience.eligible).toLocaleString()}</dd></div>
-                </dl>
-              ) : <p className="email-stage__empty">No audience selected.</p>}
-              {!editingLocked ? <a className="email-stage__text-link" href={audienceURL}>Edit audience</a> : null}
+              {links.length ? (
+                <div className="email-stage__link-list">
+                  {links.map((link, index) => (
+                    <div data-state={link.status} key={`${link.href}-${index}`}>
+                      <span className="email-stage__link-state"><LinkStateIcon state={link.status} /></span>
+                      <span className="email-stage__link-copy">
+                        <strong>{link.label || 'Link'}</strong>
+                        {link.status === 'invalid' || !link.href ? (
+                          <small>{link.href || 'Missing destination'}</small>
+                        ) : link.status === 'merge' ? (
+                          <small>Personalized for each recipient</small>
+                        ) : (
+                          <a href={link.href} rel="noopener noreferrer" target="_blank">
+                            {link.finalUrl && link.finalUrl !== link.href ? 'In email: ' : ''}{link.href}
+                            <ExternalLink aria-hidden="true" />
+                          </a>
+                        )}
+                        {link.finalUrl && link.finalUrl !== link.href && (
+                          <a href={link.finalUrl} rel="noopener noreferrer" target="_blank">Lands on: {link.finalUrl}<ExternalLink aria-hidden="true" /></a>
+                        )}
+                      </span>
+                      <span className="email-stage__link-note">
+                        {link.confirmed ? 'Manually confirmed' : link.status === 'merge' ? 'Recipient-specific' : link.reason || (link.remoteStatus ? `HTTP ${link.remoteStatus}` : 'Address format checked')}
+                      </span>
+                      {link.status === 'invalid' && !editingLocked && (
+                        <a className="email-stage__text-link" href={link.location
+                          ? builderURL + '?' + new URLSearchParams({
+                              from: 'review',
+                              block: link.location.blockId,
+                              field: JSON.stringify(link.location.fieldPath),
+                            })
+                          : builderURL + '?from=review'}>Fix in Compose</a>
+                      )}
+                      {link.status === 'warning' && !link.confirmed ? (
+                        <button disabled={state === 'refreshing'} onClick={() => void confirmLink(link)} type="button">
+                          Confirm
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="email-stage__empty">No links were found in this email.</p>}
             </section>
 
             <section className="email-stage__panel email-stage__test-panel" data-state={workflow?.test.state || 'never'}>
@@ -342,89 +411,8 @@ export function EmailReviewStageViewClient({
               </Button>
               {confirmedPreparation && <p role="status">iContact verified one active recipient for this version: {confirmedPreparation.recipientEmail}.</p>}
             </section>
-          </aside>
+          </div>
         </div>
-
-        <section className="email-stage__panel email-stage__checklist-panel">
-          <div className="email-stage__section-heading">
-            <div>
-              <h2>Readiness checklist</h2>
-              <p>One consolidated view of everything required before delivery.</p>
-            </div>
-            <span className="email-stage__readiness-count">
-              {readiness ? `${readiness.failures} blocking · ${readiness.warnings} warnings` : 'Checking…'}
-            </span>
-          </div>
-          <div className="email-stage__checklist">
-            {checklist.map((item) => (
-              <div data-state={item.status} key={item.key}>
-                <span className="email-stage__check-icon">
-                  {item.status === 'pass'
-                    ? <Check aria-hidden="true" />
-                    : item.status === 'warn'
-                      ? <TriangleAlert aria-hidden="true" />
-                      : <X aria-hidden="true" />}
-                </span>
-                <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.message}</small>
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="email-stage__panel email-stage__links-panel">
-          <div className="email-stage__section-heading">
-            <div>
-              <h2>Links</h2>
-              {currentRevision && <p>Links for version {currentRevision.slice(0, 8)}</p>}
-            </div>
-            <span className="email-stage__readiness-count"><Link2 aria-hidden="true" />{links.length} links</span>
-          </div>
-          {links.length ? (
-            <div className="email-stage__link-list">
-              {links.map((link, index) => (
-                <div data-state={link.status} key={`${link.href}-${index}`}>
-                  <span className="email-stage__link-state"><LinkStateIcon state={link.status} /></span>
-                  <span className="email-stage__link-copy">
-                    <strong>{link.label || 'Link'}</strong>
-                    {link.status === 'invalid' || !link.href ? (
-                      <small>{link.href || 'Missing destination'}</small>
-                    ) : link.status === 'merge' ? (
-                      <small>Personalized for each recipient</small>
-                    ) : (
-                      <a href={link.href} rel="noopener noreferrer" target="_blank">
-                        {link.finalUrl && link.finalUrl !== link.href ? 'In email: ' : ''}{link.href}
-                        <ExternalLink aria-hidden="true" />
-                      </a>
-                    )}
-                    {link.finalUrl && link.finalUrl !== link.href && (
-                      <a href={link.finalUrl} rel="noopener noreferrer" target="_blank">Lands on: {link.finalUrl}<ExternalLink aria-hidden="true" /></a>
-                    )}
-                  </span>
-                  <span className="email-stage__link-note">
-                    {link.confirmed ? 'Manually confirmed' : link.status === 'merge' ? 'Recipient-specific' : link.reason || (link.remoteStatus ? `HTTP ${link.remoteStatus}` : 'Address format checked')}
-                  </span>
-                  {link.status === 'invalid' && !editingLocked && (
-                    <a className="email-stage__text-link" href={link.location
-                      ? builderURL + '?' + new URLSearchParams({
-                          from: 'review',
-                          block: link.location.blockId,
-                          field: JSON.stringify(link.location.fieldPath),
-                        })
-                      : builderURL + '?from=review'}>Fix in Compose</a>
-                  )}
-                  {link.status === 'warning' && !link.confirmed ? (
-                    <button disabled={state === 'refreshing'} onClick={() => void confirmLink(link)} type="button">
-                      Confirm
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : <p className="email-stage__empty">No links were found in this email.</p>}
-        </section>
 
         <footer className="email-stage__footer email-stage__footer--review">
           <div>
@@ -436,7 +424,9 @@ export function EmailReviewStageViewClient({
             ) : (
               <>
                 <CircleAlert aria-hidden="true" />
-                <span>Resolve blocking checks and send a successful test to continue.</span>
+                <span>{otherBlockers?.length
+                  ? otherBlockers.map((item) => item.message).join(' ')
+                  : 'Resolve blocking checks and send a successful test to continue.'}</span>
               </>
             )}
           </div>

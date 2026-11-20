@@ -326,65 +326,6 @@
   }
 }
 
-@media (min-width: 1101px) {
-  .email-stage--review {
-    align-items: start;
-    grid-auto-flow: row dense;
-    grid-template-columns: minmax(0, 1.08fr) minmax(440px, 0.92fr);
-  }
-
-  .email-stage--review > .email-stage__notice {
-    grid-column: 1 / -1;
-    order: 0;
-  }
-
-  .email-stage--review > .email-stage__review-layout,
-  .email-stage--review .email-stage__review-sidebar {
-    display: contents;
-  }
-
-  .email-stage--review .email-stage__preview-panel {
-    grid-column: 1;
-    grid-row: span 6;
-    order: 1;
-  }
-
-  .email-stage--review .email-stage__review-sidebar > .email-stage__panel {
-    grid-column: 2;
-  }
-
-  .email-stage--review .email-stage__review-sidebar > .email-stage__panel:nth-child(1) {
-    order: 2;
-  }
-
-  .email-stage--review .email-stage__review-sidebar > .email-stage__panel:nth-child(2) {
-    order: 3;
-  }
-
-  .email-stage--review > .email-stage__checklist-panel {
-    grid-column: 2;
-    order: 4;
-  }
-
-  .email-stage--review > .email-stage__links-panel {
-    grid-column: 2;
-    order: 5;
-  }
-
-  .email-stage--review .email-stage__review-sidebar > .email-stage__test-panel {
-    order: 6;
-  }
-
-  .email-stage--review > .email-stage__footer--review {
-    grid-column: 2;
-    order: 7;
-  }
-
-  .email-stage--review .email-stage__checklist {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .email-campaign__loading > span {
     animation-duration: 1600ms;
@@ -666,10 +607,11 @@
   align-items: start;
   display: grid;
   gap: 18px;
-  grid-template-columns: minmax(0, 1.55fr) minmax(290px, 0.68fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(440px, 0.92fr);
 }
 
-.email-stage__review-sidebar {
+.email-stage__review-column {
+  min-width: 0;
   display: grid;
   gap: 14px;
 }
@@ -1622,10 +1564,6 @@
     grid-template-columns: 1fr;
   }
 
-  .email-stage__review-sidebar {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .email-stage__metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1641,7 +1579,6 @@
     grid-column: auto;
   }
 
-  .email-stage__review-sidebar,
   .email-stage__checklist,
   .email-stage__reuse-actions {
     grid-template-columns: 1fr;
