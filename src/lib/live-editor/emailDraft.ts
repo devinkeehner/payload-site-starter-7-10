@@ -76,7 +76,7 @@ function normalizeRichText(value: unknown, path: string): unknown {
   return { ...value, root: visit(value.root, `${path}.root`) }
 }
 
-function normalizeFields(value: RecordValue, fields: readonly DraftField[], registry: readonly DraftBlock[], prefix = ''): RecordValue {
+export function normalizeFields(value: RecordValue, fields: readonly DraftField[], registry: readonly DraftBlock[] = [], prefix = ''): RecordValue {
   const next = { ...value }
   for (const field of fields) {
     if (field.type === 'tabs') {
@@ -137,16 +137,21 @@ export function buildNativeEmailDraftPatch(email: unknown, fields: readonly Draf
 export function readNativeDraftRequest(body: unknown): { email: RecordValue; expectedUpdatedAt: string } {
   if (!isRecord(body) || !isRecord(body.email)) throw new NativeDraftError('A native email document is required.')
   if (Object.keys(body).some(key => !['email', 'expectedUpdatedAt'].includes(key))) throw new NativeDraftError('Only email and expectedUpdatedAt may be submitted.')
-  const token = body.expectedUpdatedAt
+  return { email: body.email, expectedUpdatedAt: readExpectedUpdatedAt(body.expectedUpdatedAt) }
+}
+
+export function readExpectedUpdatedAt(token: unknown): string {
   if (typeof token !== 'string' || token.length > 64 || !/^\d{4}-\d{2}-\d{2}T/.test(token) || !Number.isFinite(Date.parse(token))) {
     throw new NativeDraftError('Load the latest draft before saving; a valid expectedUpdatedAt is required.')
   }
-  return { email: body.email, expectedUpdatedAt: token }
+  return token
 }
 
-export function assertCurrentDraftRevision(current: { updatedAt?: unknown }, expectedUpdatedAt: string, kind: 'email' | 'post' = 'email'): void {
+export function assertCurrentDraftRevision(current: { updatedAt?: unknown }, expectedUpdatedAt: string, kind: 'email' | 'post' | 'form' = 'email'): void {
   if (typeof current.updatedAt !== 'string' || current.updatedAt !== expectedUpdatedAt) {
-    throw new NativeDraftError(`This ${kind} draft changed after you opened it. Reload the latest draft before saving again.`, 409)
+    const document = kind === 'form' ? 'form' : `${kind} draft`
+    const latest = kind === 'form' ? 'version' : 'draft'
+    throw new NativeDraftError(`This ${document} changed after you opened it. Reload the latest ${latest} before saving again.`, 409)
   }
 }
 

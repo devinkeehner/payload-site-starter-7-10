@@ -389,7 +389,7 @@ export default buildConfig({
                 ...editViewsWithoutLegacyVisual,
                 default: {
                   ...(existingEditViews.default || {}),
-                  Component: '@/components/admin/form/PuckFormBuilderView#default',
+                  Component: '@/components/admin/form/LiveFormBuilderView#default',
                   tab: {
                     ...(existingEditViews.default?.tab || {}),
                     href: '/',

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import type { LiveEditorKind } from './editorVariants'
 import styles from './live-editor.module.css'
 
 export const UNSTEADY_CANVAS_URL = '/live-editor/canvas'
@@ -17,8 +18,9 @@ export function getLiveEmailCanvasMount(frame: HTMLIFrameElement): HTMLElement |
 
 /** The same frontend stylesheet document serves both sizes. Resizing preserves
  * its portal, text selection, and document state; Payload styles never enter it. */
-export function LiveEmailViewport({ children, mobile, theme }: {
+export function LiveEmailViewport({ children, kind, mobile, theme }: {
   children: ReactNode
+  kind: LiveEditorKind
   mobile: boolean
   theme: 'light' | 'dark'
 }) {
@@ -87,15 +89,15 @@ export function LiveEmailViewport({ children, mobile, theme }: {
 
   const readyMount = frame && mount && getLiveEmailCanvasMount(frame) === mount ? mount : null
   return <>
-    {!readyMount && !failed && <div role="status">Loading email canvas…</div>}
-    {failed && <div role="alert">The email canvas could not load. Your edits remain in the editor. <button type="button" onClick={() => {
+    {!readyMount && !failed && <div role="status">Loading {kind} canvas…</div>}
+    {failed && <div role="alert">The {kind} canvas could not load. Your edits remain in the editor. <button type="button" onClick={() => {
       setFailed(false); setMount(null); setFrameDocument(null); setLoad(value => value + 1)
     }}>Retry canvas</button></div>}
     <iframe
       key={load}
       ref={setFrame}
       data-unsteady-viewport={mobile ? 'mobile' : 'desktop'}
-      title={mobile ? 'Mobile email canvas' : 'Desktop email canvas'}
+      title={`${mobile ? 'Mobile' : 'Desktop'} ${kind} canvas`}
       src={UNSTEADY_CANVAS_URL}
       onLoad={event => {
         const doc = event.currentTarget.contentDocument

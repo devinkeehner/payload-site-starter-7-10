@@ -35,5 +35,11 @@ export function useUnsteadyHistory<T>(initial: T) {
     setValue(next)
     setRevision(++version.current)
   }, [])
-  return { value, commit, reset, getCurrent: useCallback(() => ({ document: stack.current.entries[stack.current.index]!, revision: version.current }), []), undo: useCallback(() => travel(-1), [travel]), redo: useCallback(() => travel(1), [travel]), canUndo: stack.current.index > 0, canRedo: stack.current.index < stack.current.entries.length - 1, revision }
+  const reconcile = useCallback((normalize: (snapshot: T) => T) => {
+    const history = stack.current
+    const entries = history.entries.map(normalize)
+    stack.current = { ...history, entries }
+    setValue(entries[history.index]!)
+  }, [])
+  return { value, commit, reconcile, reset, getCurrent: useCallback(() => ({ document: stack.current.entries[stack.current.index]!, revision: version.current }), []), undo: useCallback(() => travel(-1), [travel]), redo: useCallback(() => travel(1), [travel]), canUndo: stack.current.index > 0, canRedo: stack.current.index < stack.current.entries.length - 1, revision }
 }

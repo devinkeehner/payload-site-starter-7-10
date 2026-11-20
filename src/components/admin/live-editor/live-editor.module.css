@@ -81,6 +81,11 @@
 .canvasScroller { display: flex; flex-direction: column; overflow: hidden; flex: 1; min-height: 0; padding: 8px 10px 0; }
 .canvas { width: 100%; max-width: 640px; margin: 0 auto; min-height: 70vh; background: var(--background, #fff); color: var(--foreground, #142841); box-shadow: 0 3px 22px #0001; color-scheme: light; font-family: Arial, sans-serif; }
 .canvas[data-viewport='mobile'] { max-width: 390px; }
+.canvas[data-kind='form'] { padding: clamp(12px, 4vw, 24px); }
+.formTitle { margin: 0 0 16px; font-size: 1.4rem; overflow-wrap: anywhere; }
+.formSubmit { display: inline-block; margin-top: 12px; padding: 10px 18px; border-radius: 6px; background: #7a0012; color: #fff; font-weight: 600; overflow-wrap: anywhere; }
+.formRow { display: grid; gap: 8px; grid-template-columns: var(--form-columns); }
+.canvas[data-viewport='mobile'] .formRow { grid-template-columns: minmax(0, 1fr); }
 @media (max-width: 480px) {
   .editor [data-live-email-row] { --live-email-row-columns: minmax(0, 1fr); }
 }

@@ -92,7 +92,7 @@ export async function assertDraftReferences(
   current: unknown,
   fields: DraftField[],
   tenant: string | null,
-  kind: 'email' | 'post' = 'email',
+  kind: 'email' | 'post' | 'form' = 'email',
 ) {
   const previous = referenceKeys(current, fields)
   for (const [key, reference] of referenceKeys(patch, fields)) {

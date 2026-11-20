@@ -1,4 +1,4 @@
-import { LiveEditorDocumentClient } from '@/components/admin/email-live-editor/LiveEmailEditorClient'
+import { LiveEditorDocumentClient } from '@/components/admin/live-editor/LiveEditorDocumentClient'
 
 export default async function LivePostEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -50,7 +50,7 @@ import { RowLabel as RowLabel_049f819b8cc5e95a74082f1d6b1ff31a } from '@/compone
 import { HomepageSearchPreview as HomepageSearchPreview_ac5a319bd6e62f0841d6d59a6e72327c } from '@/components/admin/site-settings/SiteSettingsFields'
 import { FormShareField as FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f } from '@/components/admin/FormShareField'
 import { FormIContactBackfillField as FormIContactBackfillField_d9538333f17a5dd3581e50e6e5fb922a } from '@/components/admin/FormIContactBackfillField'
-import { default as default_5227e444aa3025f379371ab29789d5c0 } from '@/components/admin/form/PuckFormBuilderView'
+import { default as default_03a1a54336db0d15c16b854f9757276f } from '@/components/admin/form/LiveFormBuilderView'
 import { default as default_44e21f512ac54b28cfdda7a38ee35dcb } from '@/components/admin/form/FormAdvancedEditView'
 import { default as default_f947c8c711b9789ffe849c3dce394ff8 } from '@/components/admin/FormResultsDashboard'
 import { FormSubmissionCooldownNotice as FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472 } from '@/components/admin/FormSubmissionCooldownNotice'
@@ -148,7 +148,7 @@ export const importMap = {
   "@/components/admin/site-settings/SiteSettingsFields#HomepageSearchPreview": HomepageSearchPreview_ac5a319bd6e62f0841d6d59a6e72327c,
   "@/components/admin/FormShareField#FormShareField": FormShareField_1a1b6b2bad9da64ea71fd3d9970d174f,
   "@/components/admin/FormIContactBackfillField#FormIContactBackfillField": FormIContactBackfillField_d9538333f17a5dd3581e50e6e5fb922a,
-  "@/components/admin/form/PuckFormBuilderView#default": default_5227e444aa3025f379371ab29789d5c0,
+  "@/components/admin/form/LiveFormBuilderView#default": default_03a1a54336db0d15c16b854f9757276f,
   "@/components/admin/form/FormAdvancedEditView#default": default_44e21f512ac54b28cfdda7a38ee35dcb,
   "@/components/admin/FormResultsDashboard#default": default_f947c8c711b9789ffe849c3dce394ff8,
   "@/components/admin/FormSubmissionCooldownNotice#FormSubmissionCooldownNotice": FormSubmissionCooldownNotice_c972814b05163f50b16d6516f0f57472,

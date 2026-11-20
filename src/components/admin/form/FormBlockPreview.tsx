@@ -2,7 +2,7 @@
 
 import React from 'react'
 
-import styles from '@/components/admin/puck/puck-page-builder.module.css'
+import styles from './form-preview.module.css'
 import { normalizeMediaResource } from '@/lib/utilities/image'
 
 type FormBlockPreviewProps = {
@@ -208,11 +208,11 @@ function ChoicePreview({ props, type }: { props: Record<string, unknown>; type: 
   )
 }
 
-export function PuckFormBlockPreview({ blockType, props }: FormBlockPreviewProps) {
+export function FormBlockPreview({ blockType, props }: FormBlockPreviewProps) {
   if (blockType === 'message') {
     return (
       <div className={styles.formMessagePreview}>
-        {getLexicalText(props.message) || 'Helpful text or instructions'}
+        {React.isValidElement(props.message) ? props.message : getLexicalText(props.message) || 'Helpful text or instructions'}
       </div>
     )
   }

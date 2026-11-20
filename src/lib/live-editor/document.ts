@@ -1,4 +1,4 @@
-/** Native Payload email document editing. Serialized host fields remain authoritative. */
+/** Shared editing model. Each collection adapter owns the native storage format. */
 import type { PuckBlockSchema, PuckFieldSchema } from '@/lib/puck/types'
 import { flattenUnsteadyFields } from './catalog'
 
@@ -8,7 +8,7 @@ export type PageDocument = Record<string, unknown> & { id?: Id; title?: string |
 export type SlotAddress = { ownerId: Id; path: string; itemId?: Id }
 export type SlotDescriptor = {
   id: string; ownerId: Id; path: string; label: string; items: BlockRecord[]
-  allowedSlugs: readonly string[] | null; address: SlotAddress; active?: boolean
+  allowedSlugs: readonly string[] | null; address: SlotAddress; active?: boolean; capacity?: number
 }
 export type DocumentOptions = { schemas?: readonly PuckBlockSchema[]; createId?: () => string }
 export type DocumentResult = { document: PageDocument; selectedId: Id | null }
@@ -87,7 +87,7 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
       if (id === 'root' || blocks.has(String(id)) || rowIds.has(String(id))) throw new Error(`Duplicate block ID or cyclic content: ${id}`)
       blocks.set(String(id), { block, slot, index })
       const schema = findBlockSchema(block.blockType, options.schemas || [])
-      const label = [block.heading, block.title, block.blockName, schema?.label, block.blockType].find(value => typeof value === 'string' && value.trim()) || 'Block'
+      const label = [block.heading, block.title, block.blockName, block.label, schema?.label, block.blockType].find(value => typeof value === 'string' && value.trim()) || 'Block'
       const walk = (owner: Record<string, unknown>, fields: readonly PuckFieldSchema[], path: string[], stable: string[], lastRowId?: Id) => {
         for (const field of flattenUnsteadyFields(fields)) {
           safeKey(field.name)
@@ -114,6 +114,7 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
             addSlot({ id: `${id}:${nextStable.join(':')}`, ownerId: id, path: pathString,
               label: `${String(label)} → ${columnLabel || field.label || field.name}${active ? '' : ' (hidden column)'}`,
               items: records(stored, pathString), allowedSlugs: field.blocks?.map(child => child.slug) || null, address, active,
+              ...(document.collection === 'forms' && field.maxRows != null ? { capacity: field.maxRows } : {}),
               write: items => { owner[field.name] = items },
             }, depth + 1)
           }
@@ -122,7 +123,7 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
       walk(block, fieldsFor(block, options), [], [])
     })
   }
-  addSlot({ id: 'root:layout', ...ROOT_SLOT, label: document.collection === 'posts' ? 'Post layout' : 'Email', items: records(document.layout, 'layout'),
+  addSlot({ id: 'root:layout', ...ROOT_SLOT, label: document.collection === 'posts' ? 'Post layout' : document.collection === 'forms' ? 'Form' : 'Email', items: records(document.layout, 'layout'),
     address: ROOT_SLOT, allowedSlugs: options.schemas?.map(schema => schema.slug) || null, active: true,
     write: items => { document.layout = items },
   }, 0)
@@ -142,8 +143,11 @@ const requireBlock = (index: DocumentIndex, id: Id): BlockEntry => {
   return found
 }
 const allowed = (slot: SlotDescriptor, block: BlockRecord) => {
-  if (slot.active === false) throw new Error('Choose a column that is active in the current email row layout')
+  if (slot.active === false) throw new Error('Choose a column that is active in the current row layout')
   if (slot.allowedSlugs && !slot.allowedSlugs.includes(block.blockType || '')) throw new Error(`This slot does not accept ${block.blockType || 'this block'}`)
+}
+const requireSpace = (slot: SlotDescriptor) => {
+  if (slot.capacity != null && slot.items.length >= slot.capacity) throw new Error('This column already has a field. Choose an empty column.')
 }
 const position = (items: BlockRecord[], beforeId: Id | null): number => {
   if (beforeId === null) return items.length
@@ -232,6 +236,7 @@ export function insertBlock(page: PageDocument, to: SlotAddress, block: BlockRec
   const index = inspect(document, options)
   const slot = resolveSlot(index, to)
   allowed(slot, block)
+  requireSpace(slot)
   validateNewContent(block, options)
   const temporary = structuredClone({ layout: [block] })
   identifyTree(temporary, options, freshId({ ...document, pendingContent: temporary }, options), false)
@@ -249,6 +254,7 @@ export function moveBlock(page: PageDocument, id: Id, to: SlotAddress, beforeId:
   const target = resolveSlot(index, to)
   allowed(target, source.block)
   const same = source.slot.id === target.id
+  if (!same) requireSpace(target)
   if (same && sameId(beforeId, id)) return { document: page, selectedId: id }
   if (!same && target.ownerId !== 'root' && inspect({ layout: [source.block] }, options).blocks.has(String(target.ownerId))) throw new Error('A block cannot be moved inside itself or its descendants')
   const remaining = source.slot.items.filter((_, at) => at !== source.index)
@@ -263,6 +269,7 @@ export function duplicateBlock(page: PageDocument, id: Id, options: DocumentOpti
   const document = structuredClone(page)
   const source = requireBlock(inspect(document, options), id)
   allowed(source.slot, source.block)
+  requireSpace(source.slot)
   validateNewContent(source.block, options)
   const copy = copyBlock(source.block, document, options)
   source.slot.write([...source.slot.items.slice(0, source.index + 1), copy, ...source.slot.items.slice(source.index + 1)])

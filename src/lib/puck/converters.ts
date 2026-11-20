@@ -566,7 +566,7 @@ function stripPostBodyContentFromLayout(layout: Array<Record<string, unknown>>):
   })
 }
 
-function slugifyFieldName(value: unknown, fallback: string): string {
+export function slugifyFieldName(value: unknown, fallback: string): string {
   const source = typeof value === 'string' && value.trim() ? value : fallback
   const slug = source
     .trim()
@@ -602,7 +602,7 @@ function normalizeFormFieldName(
   }
 }
 
-function normalizeFormOptions(value: unknown, fallbackBase = 'option') {
+export function normalizeFormOptions(value: unknown, fallbackBase = 'option') {
   if (!Array.isArray(value)) return value
 
   return value.map((option, index) => {

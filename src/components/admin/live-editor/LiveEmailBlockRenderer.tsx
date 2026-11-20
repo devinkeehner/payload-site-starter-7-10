@@ -1,10 +1,14 @@
 'use client'
 
-import React, { type ReactNode } from 'react'
+import React, { type CSSProperties, type ReactNode } from 'react'
 import type { PuckBlockSchema, PuckFieldSchema } from '@/lib/puck/types'
 import { flattenUnsteadyFields } from '@/lib/live-editor/catalog'
 import { getEmailGridColumnFields } from '@/lib/live-editor/document'
+import { getFormRowWidths } from '@/lib/live-editor/formRowWidths'
+import { FormBlockPreview } from '../form/FormBlockPreview'
 import { LiveEmailBlockPreview } from './LiveEmailBlockPreview'
+import type { LiveEditorKind } from './editorVariants'
+import styles from './live-editor.module.css'
 import dynamic from 'next/dynamic'
 
 const LegacyPostBlock = dynamic(() => import('../post/PuckPostBlockPreview').then(module => module.PuckPostBlockPreview))
@@ -58,9 +62,11 @@ export function projectLiveEmailText(block: BlockRecord, schema: PuckBlockSchema
   })
 }
 
-export function LiveEmailBlockRenderer({ block, schemas, renderSlot, renderText, resolveMedia, postContent }: {
+export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, renderSlot, renderText, resolveMedia, postContent }: {
   block: BlockRecord
   schemas: PuckBlockSchema[]
+  kind: LiveEditorKind
+  insideRow: boolean
   renderSlot: (ownerId: string, path: string) => ReactNode
   renderText: LiveEmailTextRenderer
   resolveMedia: (value: unknown) => unknown
@@ -69,6 +75,23 @@ export function LiveEmailBlockRenderer({ block, schemas, renderSlot, renderText,
   const blockType = String(block.blockType || '')
   const schema = schemas.find(candidate => candidate.slug === blockType)
   if (!schema) return <p role="status">{blockType || 'Unknown block'} is preserved. Its block schema is unavailable.</p>
+  if (kind === 'form') {
+    if (blockType === 'emailGrid') {
+      const widths = getFormRowWidths(block)
+      const remainder = 100 - widths.reduce((total, width) => total + width, 0)
+      const columns = [...widths, ...(remainder > 1 ? [remainder] : [])]
+        .map(width => `minmax(0, ${width}fr)`).join(' ')
+      return <div className={styles.formRow} style={{ '--form-columns': columns } as CSSProperties}>
+        {getEmailGridColumnFields(block.layout).map(path => renderSlot(String(block.id), path))}
+      </div>
+    }
+    const projected = mapLiveEmailFields(block, schema, (owner, field, path) => {
+      if (field.type === 'richText') return renderText(owner, field.name, path, 'native', field.label || field.name)
+      if (field.type === 'upload' && field.relationTo === 'media') return resolveMedia(owner[field.name])
+      return owner[field.name]
+    })
+    return <FormBlockPreview blockType={blockType} props={insideRow ? { ...projected, width: 100 } : projected} />
+  }
   if (blockType.startsWith('post')) {
     const projected = mapLiveEmailFields(block, schema, (owner, field) =>
       field.type === 'upload' && field.relationTo === 'media' ? resolveMedia(owner[field.name]) : owner[field.name])

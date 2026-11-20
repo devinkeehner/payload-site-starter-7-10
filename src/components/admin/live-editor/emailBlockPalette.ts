@@ -1,9 +1,11 @@
 import {
-  AlignCenter, AlignLeft, CodeXml, Columns2, GalleryHorizontal, Grid2X2, Heading, Image,
-  LayoutDashboard, LayoutTemplate, Link2, List, MessageSquareQuote, Minus, MousePointerClick,
-  Newspaper, PanelBottom, PanelTop, PlaySquare, UnfoldVertical, type LucideIcon,
+  AlignCenter, AlignLeft, AtSign, CheckSquare, ChevronDownSquare, CircleDot, CodeXml, Columns2,
+  GalleryHorizontal, Globe, Grid2X2, Hash, Heading, Image, LayoutDashboard, LayoutTemplate,
+  Link2, List, ListChecks, MapPin, MessageSquareQuote, Minus, MousePointerClick, Newspaper,
+  PanelBottom, PanelTop, PlaySquare, UnfoldVertical, type LucideIcon,
 } from 'lucide-react'
 import type { PuckBlockSchema } from '@/lib/puck/types'
+import type { LiveEditorKind } from './editorVariants'
 
 type Group = {
   label: string
@@ -37,10 +39,22 @@ const groups: Group[] = [
   ] },
 ]
 
-export function getEmailPaletteGroups(schemas: readonly PuckBlockSchema[]) {
+const formGroups: Group[] = [
+  { label: 'Text & numbers', tab: 'Content', tiles: [
+    ['text', 'Text', Heading], ['textarea', 'Textarea', AlignLeft], ['email', 'Email', AtSign], ['number', 'Number', Hash],
+  ] },
+  { label: 'Choices', tab: 'Content', tiles: [
+    ['select', 'Select', ChevronDownSquare], ['radio', 'Radio', CircleDot], ['checkbox', 'Checkbox', CheckSquare],
+    ['checkbox-group', 'Checkboxes', ListChecks], ['state', 'State', MapPin], ['country', 'Country', Globe],
+  ] },
+  { label: 'Images & video', tab: 'Media', tiles: [['image-select', 'Image choice', Image], ['video-capture', 'Video capture', PlaySquare]] },
+  { label: 'Instructions', tab: 'Layout', tiles: [['message', 'Message', MessageSquareQuote]] },
+]
+
+export function getEditorPaletteGroups(schemas: readonly PuckBlockSchema[], kind: LiveEditorKind) {
   const available = new Map(schemas.map(schema => [schema.slug, schema]))
   available.delete('emailGrid') // The Rows drawer owns the row presets.
-  const result = groups.map(({ label, tab, tiles }) => ({
+  const result = (kind === 'form' ? formGroups : groups).map(({ label, tab, tiles }) => ({
     label, tab,
     blocks: tiles.flatMap(([slug, label, Icon]) => {
       const schema = available.get(slug)
@@ -55,5 +69,5 @@ export function getEmailPaletteGroups(schemas: readonly PuckBlockSchema[]) {
       blocks: Array.from(available.values(), schema => ({ schema, label: schema.label, Icon: LayoutTemplate })),
     })
   }
-  return result
+  return result.filter(group => group.blocks.length > 0)
 }
