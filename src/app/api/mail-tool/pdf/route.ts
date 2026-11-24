@@ -52,6 +52,34 @@ async function readPDF(request: Request) {
   return pdf
 }
 
+function getPublicDownloadURL(key: string) {
+  const base = process.env.R2_PUBLIC_BASE_URL?.trim()
+  if (!base || !/^https:\/\//i.test(base) || /[?#]/.test(base)) return null
+
+  try {
+    const url = new URL(base)
+    if (!url.hostname || url.username || url.password) return null
+
+    url.pathname = `${url.pathname.replace(/\/+$/u, '')}/${key}`
+    return url.toString()
+  } catch {
+    return null
+  }
+}
+
+async function getDownloadLink(client: S3Client, bucket: string, key: string) {
+  const publicURL = getPublicDownloadURL(key)
+  if (publicURL) return { downloadUrl: publicURL, expiresAt: null }
+
+  const signingDate = new Date(Math.floor(Date.now() / 1000) * 1000)
+  const downloadUrl = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
+    expiresIn: downloadLifetimeSeconds,
+    signingDate,
+  })
+  const expiresAt = new Date(signingDate.getTime() + downloadLifetimeSeconds * 1000).toISOString()
+  return { downloadUrl, expiresAt }
+}
+
 export async function POST(request: Request): Promise<Response> {
   const { payload, user } = await createPayloadRequest({ config: configPromise, request, canSetHeaders: false })
   if (!user) return Response.json({ message: 'Sign in to save a print PDF.' }, { status: 401 })
@@ -84,11 +112,7 @@ export async function POST(request: Request): Promise<Response> {
     responseChecksumValidation: 'WHEN_REQUIRED',
   })
   try {
-    const signingDate = new Date(Math.floor(Date.now() / 1000) * 1000)
-    const downloadUrl = await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), {
-      expiresIn: downloadLifetimeSeconds,
-      signingDate,
-    })
+    const download = await getDownloadLink(client, bucket, key)
     await client.send(new PutObjectCommand({
       Body: pdf,
       Bucket: bucket,
@@ -98,8 +122,7 @@ export async function POST(request: Request): Promise<Response> {
       ContentType: pdfContentType,
       Key: key,
     }))
-    const expiresAt = new Date(signingDate.getTime() + downloadLifetimeSeconds * 1000).toISOString()
-    return Response.json({ downloadUrl, expiresAt }, {
+    return Response.json(download, {
       headers: { 'Cache-Control': 'private, no-store' },
       status: 201,
     })

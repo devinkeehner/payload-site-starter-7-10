@@ -6,7 +6,7 @@ import styles from './mail-tool.module.css'
 type SaveResult =
   | { status: 'saving' }
   | { status: 'failed'; message: string }
-  | { status: 'saved'; downloadURL: string; expiresAt: Date }
+  | { status: 'saved'; downloadURL: string; expiresAt: Date | null }
 
 const saveFailure = 'Could not save a shareable link. You can still download your PDF here.'
 
@@ -70,12 +70,15 @@ export default function MailToolClient() {
         return
       }
       const data = await response.json() as { downloadUrl?: unknown; expiresAt?: unknown } | null
-      if (typeof data?.downloadUrl !== 'string' || !data.downloadUrl || typeof data.expiresAt !== 'string') {
+      if (
+        typeof data?.downloadUrl !== 'string' || !data.downloadUrl ||
+        (typeof data.expiresAt !== 'string' && data.expiresAt !== null)
+      ) {
         throw new Error('The download link is missing.')
       }
       if (new URL(data.downloadUrl).protocol !== 'https:') throw new Error('The download link is invalid.')
-      const expiresAt = new Date(data.expiresAt)
-      if (Number.isNaN(expiresAt.getTime())) throw new Error('The download link expiry is invalid.')
+      const expiresAt = data.expiresAt === null ? null : new Date(data.expiresAt)
+      if (expiresAt && Number.isNaN(expiresAt.getTime())) throw new Error('The download link expiry is invalid.')
       if (!signal.aborted) setSaveResult({ status: 'saved', downloadURL: data.downloadUrl, expiresAt })
     } catch {
       if (!signal.aborted) setSaveResult({ status: 'failed', message: saveFailure })
@@ -156,7 +159,7 @@ export default function MailToolClient() {
             )}
           </fieldset>
           <button className={styles.button} disabled={busy || (mode === 'combined' ? !combined : !front || !back)} type="submit">{busy ? 'Preparing PDF…' : 'Create print PDF'}</button>
-          <p className={styles.note}>Your original artwork stays in your browser. The finished PDF is saved for download with a seven-day link.</p>
+          <p className={styles.note}>Your original artwork stays in your browser. The finished PDF is saved for download.</p>
           {error ? <p role="alert" className={styles.error}>{error}</p> : null}
           <div aria-live="polite">
             {downloadURL ? <div className={styles.result}>
@@ -168,7 +171,9 @@ export default function MailToolClient() {
                     <a className={styles.button} href={saveResult.downloadURL} download="mailer-two-up-letter.pdf">Download print PDF</a>
                     <button className={`${styles.button} ${styles.secondary}`} onClick={() => void copyLink(saveResult.downloadURL)} type="button">Copy link</button>
                   </div>
-                  <p className={styles.note}>Link expires {saveResult.expiresAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.</p>
+                  {saveResult.expiresAt ? (
+                    <p className={styles.note}>Link expires {saveResult.expiresAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.</p>
+                  ) : null}
                   {copyResult?.url === saveResult.downloadURL ? <p>{copyResult.message}</p> : null}
                 </>
               ) : (

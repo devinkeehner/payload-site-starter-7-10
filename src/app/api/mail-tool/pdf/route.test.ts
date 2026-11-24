@@ -1,4 +1,5 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createPayloadRequest } from 'payload'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,10 @@ const send = vi.hoisted(() => vi.fn())
 vi.mock('@aws-sdk/client-s3', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@aws-sdk/client-s3')>()
   return { ...actual, S3Client: class extends actual.S3Client { override send = send } }
+})
+vi.mock('@aws-sdk/s3-request-presigner', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@aws-sdk/s3-request-presigner')>()
+  return { ...actual, getSignedUrl: vi.fn(actual.getSignedUrl) }
 })
 vi.mock('@payload-config', () => ({ default: Promise.resolve({}) }))
 vi.mock('payload', () => ({ createPayloadRequest: vi.fn() }))
@@ -33,6 +38,7 @@ beforeEach(() => {
   vi.stubEnv('R2_BUCKET', 'private-mail')
   vi.stubEnv('R2_ACCESS_KEY_ID', 'fixture-key')
   vi.stubEnv('R2_SECRET_ACCESS_KEY', 'fixture-secret')
+  vi.stubEnv('R2_PUBLIC_BASE_URL', undefined)
   mockUser({ id: 'staff' })
   send.mockResolvedValue({ $metadata: {} })
 })
@@ -46,7 +52,7 @@ describe('Mail Tool PDF storage', () => {
     expect(send).not.toHaveBeenCalled()
   })
 
-  it('stores the original PDF and returns a signed link to the same object', async () => {
+  it('stores the original PDF and signs the same object when a public base is missing', async () => {
     const response = await POST(upload())
     expect(response.status).toBe(201)
     expect(response.headers.get('Cache-Control')).toBe('private, no-store')
@@ -73,6 +79,41 @@ describe('Mail Tool PDF storage', () => {
     expect(download.searchParams.get('X-Amz-Date')).toBe(
       signingDate.toISOString().replace(/[:-]|\.\d{3}/g, ''),
     )
+  })
+
+  it('returns an unsigned, unexpiring link on a configured HTTPS media base', async () => {
+    vi.stubEnv('R2_PUBLIC_BASE_URL', ' https://media.example.com/downloads/// ')
+
+    const response = await POST(upload())
+
+    expect(response.status).toBe(201)
+    expect(send).toHaveBeenCalledOnce()
+    const [{ input }] = send.mock.calls[0] as [PutObjectCommand]
+    expect(input).toMatchObject({ Body: bytes, ContentType: 'application/pdf' })
+    expect(await response.json()).toEqual({
+      downloadUrl: `https://media.example.com/downloads/${input.Key}`,
+      expiresAt: null,
+    })
+    expect(getSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'https://',
+    'http://media.example.com',
+    'https://user:password@media.example.com',
+    'https://media.example.com/?token=fixture',
+    'https://media.example.com/#anchor',
+  ])('falls back to a signed URL when the media base is invalid (%s)', async (base) => {
+    vi.stubEnv('R2_PUBLIC_BASE_URL', base)
+
+    const response = await POST(upload())
+
+    expect(response.status).toBe(201)
+    const result = await response.json() as { downloadUrl: string; expiresAt: string }
+    const download = new URL(result.downloadUrl)
+    expect(download.origin).toBe('https://account.r2.cloudflarestorage.com')
+    expect(download.searchParams.get('X-Amz-Expires')).toBe('604800')
+    expect(result.expiresAt).toBeTypeOf('string')
   })
 
   it('rejects the wrong media type, invalid PDF prefix, and declared oversize', async () => {
