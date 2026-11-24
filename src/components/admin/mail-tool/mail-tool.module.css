@@ -15,12 +15,15 @@
 .file input { display: block; width: 100%; margin-top: 8px; font: inherit; font-size: 14px; padding: 10px; border: 1px dashed var(--mail-border); border-radius: 6px; background: transparent; color: inherit; }
 .button { display: inline-block; border: 0; border-radius: var(--hro-control-radius, 8px); padding: 12px 18px; background: var(--mail-primary); color: white; font: inherit; font-weight: 650; text-decoration: none; cursor: pointer; }
 .button:hover:not(:disabled) { background: var(--hro-brand-red-hover, #aa2229); }
+.button.secondary { border: 1px solid var(--mail-border); background: var(--mail-surface); color: var(--mail-ink); }
+.button.secondary:hover { background: var(--theme-elevation-50, #f6f6f7); }
 .button:disabled { opacity: .5; cursor: default; }
 .button:focus-visible, .tool input:focus-visible { outline: 3px solid var(--hro-focus-ring, rgba(199, 43, 50, 0.2)); outline-offset: 3px; }
 .tool .note { font-size: 13px; opacity: .75; margin-top: 14px; }
 .error { border-left: 3px solid var(--theme-error-500, var(--mail-primary)); padding: 12px; margin-top: 20px !important; }
 .result { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--mail-border); }
 .result strong { display: block; margin-bottom: 12px; }
+.resultActions { display: flex; flex-wrap: wrap; gap: 10px; }
 .sheet { width: 215px; max-width: 100%; aspect-ratio: 8.5 / 11; margin: 24px auto;  position: relative; background: #fff; border: 1px solid var(--mail-border); box-shadow: var(--hro-panel-shadow, 0 8px 24px rgba(15, 23, 42, 0.06)); }
 .artwork { position: absolute; left: 2.941176%; width: 94.117647%; top: 2.272727%; height: 45.454545%; display: flex; align-items: center; justify-content: center; flex-direction: column; background: var(--hro-brand-red-soft, #fbedee); border: 1px solid color-mix(in srgb, var(--mail-primary) 35%, transparent); color: var(--hro-brand-red-text, #c72b32); font-size: 24px; }
 .artwork:nth-child(2) { top: 52.272727%; }

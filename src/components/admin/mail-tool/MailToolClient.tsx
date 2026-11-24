@@ -3,6 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import styles from './mail-tool.module.css'
 
+type SaveResult =
+  | { status: 'saving' }
+  | { status: 'failed'; message: string }
+  | { status: 'saved'; downloadURL: string; expiresAt: Date }
+
+const saveFailure = 'Could not save a shareable link. You can still download your PDF here.'
+
 export default function MailToolClient() {
   const [mode, setMode] = useState<'combined' | 'separate'>('combined')
   const [combined, setCombined] = useState<File | null>(null)
@@ -12,14 +19,24 @@ export default function MailToolClient() {
   const [error, setError] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
   const [downloadURL, setDownloadURL] = useState('')
+  const [saveResult, setSaveResult] = useState<SaveResult | null>(null)
+  const [copyResult, setCopyResult] = useState<{ url: string; message: string } | null>(null)
   const resultURL = useRef('')
+  const activeRequest = useRef<AbortController | null>(null)
 
-  useEffect(() => () => { if (resultURL.current) URL.revokeObjectURL(resultURL.current) }, [])
+  useEffect(() => () => {
+    activeRequest.current?.abort()
+    if (resultURL.current) URL.revokeObjectURL(resultURL.current)
+  }, [])
 
   function clearResult() {
+    activeRequest.current?.abort()
+    activeRequest.current = null
     if (resultURL.current) URL.revokeObjectURL(resultURL.current)
     resultURL.current = ''
     setDownloadURL('')
+    setSaveResult(null)
+    setCopyResult(null)
     setError('')
     setWarnings([])
   }
@@ -32,24 +49,73 @@ export default function MailToolClient() {
     setMode(next)
   }
 
+  async function savePDF(pdf: Blob, signal: AbortSignal) {
+    setSaveResult({ status: 'saving' })
+
+    try {
+      const response = await fetch('/api/mail-tool/pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/pdf' },
+        credentials: 'same-origin',
+        body: pdf,
+        signal,
+      })
+      if (!response.ok) {
+        if (!signal.aborted) setSaveResult({
+          status: 'failed',
+          message: response.status === 413
+            ? 'This PDF is too large to save online. You can still download it here.'
+            : saveFailure,
+        })
+        return
+      }
+      const data = await response.json() as { downloadUrl?: unknown; expiresAt?: unknown } | null
+      if (typeof data?.downloadUrl !== 'string' || !data.downloadUrl || typeof data.expiresAt !== 'string') {
+        throw new Error('The download link is missing.')
+      }
+      if (new URL(data.downloadUrl).protocol !== 'https:') throw new Error('The download link is invalid.')
+      const expiresAt = new Date(data.expiresAt)
+      if (Number.isNaN(expiresAt.getTime())) throw new Error('The download link expiry is invalid.')
+      if (!signal.aborted) setSaveResult({ status: 'saved', downloadURL: data.downloadUrl, expiresAt })
+    } catch {
+      if (!signal.aborted) setSaveResult({ status: 'failed', message: saveFailure })
+    }
+  }
+
+  async function copyLink(url: string) {
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopyResult({ url, message: 'Download link copied.' })
+    } catch {
+      setCopyResult({ url, message: 'Could not copy automatically. Copy the address of the download link.' })
+    }
+  }
+
   async function generate(event: React.FormEvent) {
     event.preventDefault()
     clearResult()
     if (mode === 'combined' ? !combined : !front || !back) return
+    const request = new AbortController()
+    activeRequest.current = request
     setBusy(true)
     try {
       const { createMailPDF } = await import('@/lib/mail-tool/createMailPDF')
       const result = await createMailPDF(mode === 'combined'
         ? { mode, file: combined! }
         : { mode, front: front!, back: back! })
-      const url = URL.createObjectURL(new Blob([new Uint8Array(result.bytes)], { type: 'application/pdf' }))
+      if (request.signal.aborted) return
+      const pdf = new Blob([new Uint8Array(result.bytes)], { type: 'application/pdf' })
+      const url = URL.createObjectURL(pdf)
       resultURL.current = url
       setDownloadURL(url)
       setWarnings(result.warnings)
+      void savePDF(pdf, request.signal)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create the PDF. Please try again.')
+      if (!request.signal.aborted) {
+        setError(err instanceof Error ? err.message : 'Could not create the PDF. Please try again.')
+      }
     } finally {
-      setBusy(false)
+      if (!request.signal.aborted) setBusy(false)
     }
   }
 
@@ -90,13 +156,28 @@ export default function MailToolClient() {
             )}
           </fieldset>
           <button className={styles.button} disabled={busy || (mode === 'combined' ? !combined : !front || !back)} type="submit">{busy ? 'Preparing PDF…' : 'Create print PDF'}</button>
-          <p className={styles.note}>Your files stay in your browser. Nothing is uploaded or saved to the site.</p>
+          <p className={styles.note}>Your original artwork stays in your browser. The finished PDF is saved for download with a seven-day link.</p>
           {error ? <p role="alert" className={styles.error}>{error}</p> : null}
           <div aria-live="polite">
             {downloadURL ? <div className={styles.result}>
               <strong>Your two-page PDF is ready.</strong>
               {warnings.map((warning) => <p key={warning}>{warning}</p>)}
-              <a className={styles.button} href={downloadURL} download="mailer-two-up-letter.pdf">Download print PDF</a>
+              {saveResult?.status === 'saved' ? (
+                <>
+                  <div className={styles.resultActions}>
+                    <a className={styles.button} href={saveResult.downloadURL} download="mailer-two-up-letter.pdf">Download print PDF</a>
+                    <button className={`${styles.button} ${styles.secondary}`} onClick={() => void copyLink(saveResult.downloadURL)} type="button">Copy link</button>
+                  </div>
+                  <p className={styles.note}>Link expires {saveResult.expiresAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}.</p>
+                  {copyResult?.url === saveResult.downloadURL ? <p>{copyResult.message}</p> : null}
+                </>
+              ) : (
+                <>
+                  <a className={styles.button} href={downloadURL} download="mailer-two-up-letter.pdf">Download print PDF</a>
+                  {saveResult?.status === 'saving' ? <p className={styles.note}>Saving a shareable download link…</p> : null}
+                  {saveResult?.status === 'failed' ? <p className={styles.error}>{saveResult.message}</p> : null}
+                </>
+              )}
             </div> : null}
           </div>
         </form>
