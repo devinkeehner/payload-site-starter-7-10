@@ -21,6 +21,7 @@ import {
   resolveIContactAccountId,
   syncSubmissionToIContact,
 } from '@/lib/icontact'
+import { createTenantShareMediaCloner } from '@/lib/tenant-share-media'
 
 import { Page, Post } from '@/payload-types'
 import { getServerSideURL } from '@/lib/utilities/getURL'
@@ -1022,33 +1023,29 @@ export const plugins: Plugin[] = [
 
               let source: any
               try {
-                if (sourceTenantID) {
-                  source = await req.payload.findByID({
-                    collection: 'forms',
-                    id,
-                    draft: true,
-                    depth: 2,
-                    req: { ...(req as any), tenant: sourceTenantID } as any,
-                  })
-                } else {
-                  source = await req.payload.findByID({
-                    collection: 'forms',
-                    id,
-                    draft: true,
-                    depth: 2,
-                  })
-                }
+                source = await req.payload.findByID({
+                  collection: 'forms',
+                  id,
+                  draft: true,
+                  depth: 0,
+                  overrideAccess: false,
+                  req: sourceTenantID ? { ...req, tenant: sourceTenantID } : req,
+                })
               } catch {
                 return send(404, { error: 'Form not found or inaccessible for the current tenant scope' })
               }
 
               if (!source) return send(404, { error: 'Form not found' })
               const sourceTenantId: string | undefined =
-                typeof (source as any)?.tenant === 'string' ? (source as any).tenant : (source as any)?.tenant?.id
+                typeof source.tenant === 'string' ? source.tenant : source.tenant?.id
+              if (
+                (sourceTenantID && sourceTenantID !== sourceTenantId) ||
+                (!isSuper && (!sourceTenantId || !userTenantIDs.includes(sourceTenantId)))
+              ) {
+                return send(404, { error: 'Form not found or inaccessible for the current tenant scope' })
+              }
 
-              const tenantCache = new Map<string, { id: string; slug?: string | null }>()
-              const mediaDocCache = new Map<string, any>()
-              const mediaCloneCache = new Map<string, string>()
+              const ensureMediaClone = createTenantShareMediaCloner(req, sourceTenantId)
 
               const extractMediaId = (value: any): string | undefined => {
                 if (!value) return undefined
@@ -1060,123 +1057,6 @@ export const plugins: Plugin[] = [
                   if (typeof value.value === 'object') return extractMediaId(value.value)
                 }
                 return undefined
-              }
-
-              const getTenantInfo = async (tenantId: string) => {
-                if (tenantCache.has(tenantId)) return tenantCache.get(tenantId)!
-                const tenantDoc = await req.payload.findByID({
-                  collection: 'tenants',
-                  id: tenantId,
-                  depth: 0,
-                  overrideAccess: true,
-                })
-                const info = { id: tenantId, slug: (tenantDoc as any)?.slug ?? undefined }
-                tenantCache.set(tenantId, info)
-                return info
-              }
-
-              const buildMediaUrl = (doc: any): string | undefined => {
-                if (typeof doc?.url === 'string' && doc.url) return doc.url
-                const base = process.env.R2_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_MEDIA_BASE_URL
-                if (!base) return undefined
-                const prefix = typeof doc?.prefix === 'string' ? doc.prefix.replace(/\/+$/u, '') : ''
-                const filename = typeof doc?.filename === 'string' ? doc.filename.replace(/^\/+/, '') : ''
-                if (!filename) return undefined
-                const key = prefix ? `${prefix}/${filename}` : filename
-                return `${base.replace(/\/+$/u, '')}/${key.replace(/^\/+/, '')}`
-              }
-
-              const fetchMediaDoc = async (mediaId: string) => {
-                if (mediaDocCache.has(mediaId)) return mediaDocCache.get(mediaId)!
-                const scopedSourceReq = sourceTenantId
-                  ? ({ ...(req as any), tenant: sourceTenantId } as any)
-                  : (req as any)
-                const doc = await req.payload.findByID({
-                  collection: 'media',
-                  id: mediaId,
-                  depth: 0,
-                  overrideAccess: true,
-                  req: scopedSourceReq,
-                })
-                mediaDocCache.set(mediaId, doc)
-                return doc
-              }
-
-              const ensureMediaClone = async (
-                mediaId: string | undefined,
-                tenantId: string,
-                scopedReq: any,
-              ): Promise<string | undefined> => {
-                if (!mediaId) return undefined
-                const cacheKey = `${mediaId}:${tenantId}`
-                if (mediaCloneCache.has(cacheKey)) return mediaCloneCache.get(cacheKey)!
-
-                const mediaDoc = await fetchMediaDoc(mediaId).catch((error: any) => {
-                  throw new Error(`Failed to load media ${mediaId}: ${error?.message || error}`)
-                })
-                if (!mediaDoc) throw new Error(`Media ${mediaId} not found`)
-
-                const mediaUrl = buildMediaUrl(mediaDoc)
-                if (!mediaUrl) throw new Error(`Media ${mediaId} is missing a resolvable URL`)
-
-                const response = await fetch(mediaUrl)
-                if (!response.ok) throw new Error(`Unable to download media ${mediaId} (status ${response.status})`)
-                const arrayBuffer = await response.arrayBuffer()
-                const fileBuffer = Buffer.from(arrayBuffer)
-
-                const tenantInfo = await getTenantInfo(tenantId)
-                const filename =
-                  typeof mediaDoc?.filename === 'string' && mediaDoc.filename
-                    ? mediaDoc.filename.replace(/\\/gu, '/').split('/').pop() || mediaDoc.filename
-                    : `${mediaId}`
-                const mimeType = typeof mediaDoc?.mimeType === 'string' ? mediaDoc.mimeType : 'application/octet-stream'
-                const captionClone = mediaDoc?.caption ? JSON.parse(JSON.stringify(mediaDoc.caption)) : undefined
-
-                const dot = filename.lastIndexOf('.')
-                const base = dot > 0 ? filename.slice(0, dot) : filename
-                const ext = dot > 0 ? filename.slice(dot) : ''
-                const tenantSlug = typeof tenantInfo?.slug === 'string' ? tenantInfo.slug : ''
-                const safeTenant = (tenantSlug || tenantId).replace(/[^a-z0-9_-]+/giu, '-')
-                const preferredFilename = `${safeTenant}-${base}-${mediaId}${ext}`
-
-                const createWithName = async (name: string) =>
-                  await req.payload.create({
-                    collection: 'media',
-                    data: {
-                      alt: (mediaDoc as any)?.alt || name,
-                      caption: captionClone,
-                      tenant: tenantId,
-                    },
-                    file: {
-                      data: fileBuffer,
-                      size: fileBuffer.length,
-                      name,
-                      mimetype: mimeType,
-                    } as any,
-                    req: scopedReq,
-                    overrideAccess: true,
-                    context: { disableRevalidate: true } as any,
-                  })
-
-                let createdMedia: any
-                try {
-                  createdMedia = await createWithName(preferredFilename)
-                } catch (error: any) {
-                  const message = String(error?.message || error)
-                  if (message.includes('filename')) {
-                    const nonce = Date.now().toString(36)
-                    const uniqueFilename = `${safeTenant}-${base}-${mediaId}-${nonce}${ext}`
-                    createdMedia = await createWithName(uniqueFilename)
-                  } else {
-                    throw error
-                  }
-                }
-
-                const newId = (createdMedia as any)?.id
-                if (typeof newId !== 'string') throw new Error(`Cloned media for ${mediaId} did not return an ID`)
-
-                mediaCloneCache.set(cacheKey, newId)
-                return newId
               }
 
               const cloneRichTextUploads = async (value: any, tenantId: string, scopedReq: any): Promise<any> => {

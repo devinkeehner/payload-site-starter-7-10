@@ -1,6 +1,10 @@
-import type { PayloadRequest } from 'payload'
+import { APIError, type PayloadRequest } from 'payload'
 
+import { isSuperUser } from '@/lib/access/isSuperUser'
 import { buildDefaultEmailLayout } from '@/lib/email/defaultEmailLayout'
+import { createTenantShareMediaCloner as ensureMediaCloneFactory } from '@/lib/tenant-share-media'
+import type { Media } from '@/payload-types'
+import { relationshipID } from '@/lib/live-editor/emailAccess'
 
 type UnknownRecord = Record<string, unknown>
 
@@ -65,148 +69,6 @@ const extractFormId = (value: unknown): string | undefined => {
   )
 }
 
-const getTenantInfo = async (
-  req: PayloadRequest,
-  tenantId: string,
-  cache: Map<string, { id: string; slug?: string | null }>,
-) => {
-  if (cache.has(tenantId)) return cache.get(tenantId)!
-  const tenantDoc = await req.payload.findByID({
-    collection: 'tenants',
-    id: tenantId,
-    depth: 0,
-    overrideAccess: true,
-    req,
-  })
-
-  const info = {
-    id: tenantId,
-    slug: getString(asRecord(tenantDoc).slug) ?? undefined,
-  }
-  cache.set(tenantId, info)
-  return info
-}
-
-const buildMediaUrl = (doc: unknown): string | undefined => {
-  const record = asRecord(doc)
-  if (typeof record.url === 'string' && record.url) return record.url
-
-  const base = process.env.R2_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_MEDIA_BASE_URL
-  if (!base) return undefined
-
-  const prefix = typeof record.prefix === 'string' ? record.prefix.replace(/\/+$/u, '') : ''
-  const filename = typeof record.filename === 'string' ? record.filename.replace(/^\/+/, '') : ''
-  if (!filename) return undefined
-
-  const key = prefix ? `${prefix}/${filename}` : filename
-  return `${base.replace(/\/+$/u, '')}/${key.replace(/^\/+/, '')}`
-}
-
-const ensureMediaCloneFactory = (
-  req: PayloadRequest,
-  sourceTenantID: string | undefined,
-  tenantCache: Map<string, { id: string; slug?: string | null }>,
-  mediaDocCache: Map<string, unknown>,
-  mediaCloneCache: Map<string, string>,
-) => {
-  const fetchMediaDoc = async (mediaId: string) => {
-    if (mediaDocCache.has(mediaId)) return mediaDocCache.get(mediaId)!
-    const scopedSourceReq = sourceTenantID
-      ? ({ ...req, tenant: sourceTenantID } as PayloadRequest & { tenant: string })
-      : req
-    const doc = await req.payload.findByID({
-      collection: 'media',
-      id: mediaId,
-      depth: 0,
-      overrideAccess: true,
-      req: scopedSourceReq,
-    })
-    mediaDocCache.set(mediaId, doc)
-    return doc
-  }
-
-  return async (mediaId: string | undefined, tenantId: string, scopedReq: PayloadRequest | (PayloadRequest & { tenant: string })) => {
-    if (!mediaId) return undefined
-    const cacheKey = `${mediaId}:${tenantId}`
-    if (mediaCloneCache.has(cacheKey)) return mediaCloneCache.get(cacheKey)!
-
-    const mediaDoc = await fetchMediaDoc(mediaId).catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error)
-      throw new Error(`Failed to load media ${mediaId}: ${message}`)
-    })
-
-    if (!mediaDoc) throw new Error(`Media ${mediaId} not found`)
-
-    const mediaUrl = buildMediaUrl(mediaDoc)
-    if (!mediaUrl) throw new Error(`Media ${mediaId} is missing a resolvable URL`)
-
-    const response = await fetch(mediaUrl)
-    if (!response.ok) {
-      throw new Error(`Unable to download media ${mediaId} (status ${response.status})`)
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    const fileBuffer = Buffer.from(arrayBuffer)
-
-    const tenantInfo = await getTenantInfo(req, tenantId, tenantCache)
-    const mediaRecord = asRecord(mediaDoc)
-    const filename =
-      typeof mediaRecord.filename === 'string' && mediaRecord.filename
-        ? mediaRecord.filename.replace(/\\/gu, '/').split('/').pop() || mediaRecord.filename
-        : `${mediaId}`
-    const mimeType = typeof mediaRecord.mimeType === 'string' ? mediaRecord.mimeType : 'application/octet-stream'
-    const captionClone = mediaRecord.caption ? JSON.parse(JSON.stringify(mediaRecord.caption)) : undefined
-
-    const dot = filename.lastIndexOf('.')
-    const base = dot > 0 ? filename.slice(0, dot) : filename
-    const ext = dot > 0 ? filename.slice(dot) : ''
-    const tenantSlug = typeof tenantInfo.slug === 'string' ? tenantInfo.slug : ''
-    const safeTenant = (tenantSlug || tenantId).replace(/[^a-z0-9_-]+/giu, '-')
-    const preferredFilename = `${safeTenant}-${base}-${mediaId}${ext}`
-
-    const context = { disableRevalidate: true } as NonNullable<Parameters<typeof req.payload.create>[0]['context']>
-
-    const createWithName = async (name: string) =>
-      await req.payload.create({
-        collection: 'media',
-        data: {
-          alt: getString(mediaRecord.alt) || name,
-          caption: captionClone,
-          tenant: tenantId,
-        },
-        file: {
-          data: fileBuffer,
-          size: fileBuffer.length,
-          name,
-          mimetype: mimeType,
-        },
-        req: scopedReq,
-        overrideAccess: true,
-        context,
-      })
-
-    let createdMedia: unknown
-    try {
-      createdMedia = await createWithName(preferredFilename)
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      if (message.includes('filename')) {
-        const nonce = Date.now().toString(36)
-        const uniqueFilename = `${safeTenant}-${base}-${mediaId}-${nonce}${ext}`
-        createdMedia = await createWithName(uniqueFilename)
-      } else {
-        throw error
-      }
-    }
-
-    const newId = getString(asRecord(createdMedia).id)
-    if (!newId) throw new Error(`Cloned media for ${mediaId} did not return an ID`)
-
-    mediaCloneCache.set(cacheKey, newId)
-    return newId
-  }
-}
-
 const cloneRichTextUploadsFactory = (
   ensureMediaClone: ReturnType<typeof ensureMediaCloneFactory>,
   ensureFormClone?: (formId: string | undefined, tenantId: string, scopedReq: PayloadRequest | (PayloadRequest & { tenant: string })) => Promise<string | undefined>,
@@ -228,10 +90,12 @@ const cloneRichTextUploadsFactory = (
 
     const record = asRecord(node)
 
-    if (record.type === 'upload' && record.relationTo === 'media') {
-      const uploadId = extractMediaId(record.value)
-      const clonedId = await ensureMediaClone(uploadId, tenantId, scopedReq)
-      return { ...record, value: clonedId }
+    if (record.relationTo === 'media' || record.relationTo === 'forms') {
+      const clone = record.relationTo === 'media' ? ensureMediaClone : ensureFormClone
+      const relationId = extractMediaId(record.value)
+      if (relationId && clone) {
+        return { ...record, value: await clone(relationId, tenantId, scopedReq) }
+      }
     }
 
     const entries = Object.entries(record)
@@ -242,7 +106,9 @@ const cloneRichTextUploadsFactory = (
         continue
       }
 
-      if (key === 'media' || key === 'image') {
+      const isPolymorphic = typeof asRecord(val).relationTo === 'string'
+
+      if (!isPolymorphic && ['media', 'image', 'videoMedia', 'thumbnailMedia'].includes(key)) {
         const relationId = extractMediaId(val)
         if (relationId) {
           updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
@@ -250,29 +116,11 @@ const cloneRichTextUploadsFactory = (
         }
       }
 
-      if (key === 'form') {
+      if (!isPolymorphic && key === 'form') {
         const relationId = extractFormId(val)
         if (relationId && ensureFormClone) {
           updated[key] = await ensureFormClone(relationId, tenantId, scopedReq)
           continue
-        }
-      }
-
-      if (!Array.isArray(val) && typeof val === 'object') {
-        const nested = asRecord(val)
-        if (nested.relationTo === 'media') {
-          const relationId = extractMediaId(val)
-          if (relationId) {
-            updated[key] = await ensureMediaClone(relationId, tenantId, scopedReq)
-            continue
-          }
-        }
-        if (nested.relationTo === 'forms' && ensureFormClone) {
-          const relationId = extractFormId(val)
-          if (relationId) {
-            updated[key] = await ensureFormClone(relationId, tenantId, scopedReq)
-            continue
-          }
         }
       }
 
@@ -361,8 +209,8 @@ const cloneFormToTenant = async (
   sourceTenantID: string | undefined,
   formDocCache: Map<string, unknown>,
   tenantCache: Map<string, { id: string; slug?: string | null }>,
-  mediaDocCache: Map<string, unknown>,
-  mediaCloneCache: Map<string, string>,
+  mediaDocCache: Map<string, Promise<Media>>,
+  mediaCloneCache: Map<string, Promise<string>>,
 ): Promise<string> => {
   const cacheKey = `${formId}:${tenantId}`
   const formCloneCacheKey = `${cacheKey}:form`
@@ -378,8 +226,8 @@ const cloneFormToTenant = async (
     const doc = await req.payload.findByID({
       collection: 'forms',
       id: formId,
-      depth: 2,
-      overrideAccess: true,
+      depth: 0,
+      overrideAccess: false,
       req: sourceReq,
     })
     formDocCache.set(formId, doc)
@@ -394,7 +242,17 @@ const cloneFormToTenant = async (
   if (!formDoc) throw new Error(`Form ${formId} not found`)
 
   const formDocRecord = asRecord(formDoc)
-  const ensureMediaClone = ensureMediaCloneFactory(req, sourceTenantID, tenantCache, mediaDocCache, mediaCloneCache)
+  const actualSourceTenantID = relationshipID(formDocRecord.tenant)
+  const assignments = asRecord(req.user).tenants
+  const hasSourceAccess = isSuperUser(req.user) || Boolean(
+    actualSourceTenantID && Array.isArray(assignments) &&
+    assignments.some((assignment) => relationshipID(asRecord(assignment).tenant) === actualSourceTenantID),
+  )
+  if (!hasSourceAccess || (sourceTenantID && sourceTenantID !== actualSourceTenantID)) {
+    throw new Error(`Form ${formId} is outside the source tenant scope`)
+  }
+
+  const ensureMediaClone = ensureMediaCloneFactory(req, actualSourceTenantID ?? undefined, tenantCache, mediaDocCache, mediaCloneCache)
 
   const cloneRichText = cloneRichTextUploadsFactory(ensureMediaClone)
 
@@ -406,6 +264,8 @@ const cloneFormToTenant = async (
     'confirmationMessage',
     'redirect',
     'emails',
+    'enableHoneypot',
+    'enableTurnstile',
     'enableIntro',
     'introContent',
   ]
@@ -448,31 +308,46 @@ const cloneFormToTenant = async (
   return newId
 }
 
+const loadPostShareSource = async (req: PayloadRequest, postId: string) => {
+  if (!req.user) throw new APIError('Unauthorized', 401)
+
+  const postDoc = await req.payload.findByID({
+    collection: 'posts',
+    id: postId,
+    context: { skipSharedPostHTML: true },
+    depth: 0,
+    draft: true,
+    overrideAccess: true,
+    req,
+  }).catch(() => {
+    throw new APIError('Post not found or inaccessible for the current tenant scope', 404)
+  })
+  if (!postDoc) throw new APIError('Post not found', 404)
+
+  const postRecord = asRecord(postDoc)
+  const sourceTenantID = relationshipID(postRecord.tenant) ?? undefined
+  const assignments = asRecord(req.user).tenants
+  const hasSourceAccess = isSuperUser(req.user) || Boolean(
+    sourceTenantID && Array.isArray(assignments) &&
+    assignments.some((assignment) => relationshipID(asRecord(assignment).tenant) === sourceTenantID),
+  )
+  if (!hasSourceAccess) throw new APIError('You do not have access to the source post site', 403)
+
+  return { postRecord, sourceTenantID }
+}
+
 const clonePostToTenant = async (
   req: PayloadRequest,
-  postId: string,
+  postRecord: UnknownRecord,
   tenantId: string,
   scopedReq: PayloadRequest | (PayloadRequest & { tenant: string }),
   sourceTenantID: string | undefined,
   formDocCache: Map<string, unknown>,
   tenantCache: Map<string, { id: string; slug?: string | null }>,
-  mediaDocCache: Map<string, unknown>,
-  mediaCloneCache: Map<string, string>,
+  mediaDocCache: Map<string, Promise<Media>>,
+  mediaCloneCache: Map<string, Promise<string>>,
   formCloneCache: Map<string, string>,
 ): Promise<{ id: string; slug?: string | null; _status?: string | null }> => {
-  const sourceReq = sourceTenantID
-    ? ({ ...req, tenant: sourceTenantID } as PayloadRequest & { tenant: string })
-    : req
-
-  const postDoc = await req.payload.findByID({
-    collection: 'posts',
-    id: postId,
-    depth: 0,
-    overrideAccess: true,
-    req: sourceReq,
-  })
-
-  const postRecord = asRecord(postDoc)
   const ensureMediaClone = ensureMediaCloneFactory(req, sourceTenantID, tenantCache, mediaDocCache, mediaCloneCache)
   const ensureFormClone = async (formId: string | undefined, nextTenantId: string, nextReq: PayloadRequest | (PayloadRequest & { tenant: string })) => {
     if (!formId) return undefined
@@ -496,32 +371,22 @@ const clonePostToTenant = async (
 
   const categories = Array.isArray(postRecord.categories)
     ? postRecord.categories
-        .map((entry) => (typeof entry === 'string' ? entry : getString(asRecord(entry).id)))
-        .filter((entry): entry is string => Boolean(entry))
-    : []
-  const tags = Array.isArray(postRecord.tags)
-    ? postRecord.tags
-        .map((entry) => (typeof entry === 'string' ? entry : getString(asRecord(entry).id)))
+        .map(relationshipID)
         .filter((entry): entry is string => Boolean(entry))
     : []
 
+  const meta = asRecord(postRecord.meta)
   const heroImageId = extractMediaId(postRecord.heroImage)
-  const metaImageId = extractMediaId(asRecord(postRecord.meta).image)
+  const metaImageId = extractMediaId(meta.image)
   const keyTakeaways = Array.isArray(postRecord.keyTakeaways)
     ? postRecord.keyTakeaways
         .map((entry) => ({ point: String(asRecord(entry).point || '') }))
         .filter((entry) => entry.point)
     : []
-  const articleType =
-    typeof postRecord.articleType === 'string'
-      ? postRecord.articleType
-      : getString(asRecord(postRecord.articleType).id)
-
-  const [clonedHeroImage, clonedMetaImage, clonedContent] = await Promise.all([
-    ensureMediaClone(heroImageId, tenantId, scopedReq),
-    ensureMediaClone(metaImageId, tenantId, scopedReq),
-    cloneRichText(postRecord.content, tenantId, scopedReq),
-  ])
+  const clonedHeroImage = await ensureMediaClone(heroImageId, tenantId, scopedReq)
+  const clonedMetaImage = await ensureMediaClone(metaImageId, tenantId, scopedReq)
+  const clonedContent = await cloneRichText(postRecord.content, tenantId, scopedReq)
+  const clonedLayout = await cloneRichText(postRecord.layout, tenantId, scopedReq)
 
   const data: Record<string, unknown> = {
     title: postRecord.title,
@@ -530,16 +395,18 @@ const clonePostToTenant = async (
     heroExternalURL: postRecord.heroExternalURL,
     heroImageLinkURL: postRecord.heroImageLinkURL,
     content: clonedContent,
+    layout: clonedLayout,
+    graphicTemplate: relationshipID(postRecord.graphicTemplate) ?? undefined,
     meta: {
-      title: asRecord(postRecord.meta).title,
-      description: asRecord(postRecord.meta).description,
+      title: meta.title,
+      description: meta.description,
       image: clonedMetaImage,
+      descriptionApproved: false,
     },
     categories,
     keyTakeaways,
-    articleType,
-    tags,
-    relatedPosts: undefined,
+    keyTakeawaysApproved: false,
+    articleType: relationshipID(postRecord.articleType) ?? undefined,
     publishedAt: null,
     slug: postRecord.slug,
     slugLock: postRecord.slugLock,
@@ -557,7 +424,7 @@ const clonePostToTenant = async (
 
   const createdRecord = asRecord(created)
   const id = getString(createdRecord.id)
-  if (!id) throw new Error(`Cloned post for ${postId} did not return an ID`)
+  if (!id) throw new Error('Cloned post did not return an ID')
 
   return {
     id,
@@ -691,8 +558,8 @@ const cloneEmailToTenant = async (
   scopedReq: PayloadRequest | (PayloadRequest & { tenant: string }),
   sourceTenantID: string | undefined,
   tenantCache: Map<string, { id: string; slug?: string | null }>,
-  mediaDocCache: Map<string, unknown>,
-  mediaCloneCache: Map<string, string>,
+  mediaDocCache: Map<string, Promise<Media>>,
+  mediaCloneCache: Map<string, Promise<string>>,
 ): Promise<{ id: string; _status?: string | null }> => {
   const sourceReq = sourceTenantID
     ? ({ ...req, tenant: sourceTenantID } as PayloadRequest & { tenant: string })
@@ -770,17 +637,20 @@ export async function shareDocumentToTenants({
   sourceTenantID,
   req,
 }: ShareArgs): Promise<{ count: number; results: ShareResultRow[] }> {
+  const postSource = collection === 'posts' ? await loadPostShareSource(req, docId) : undefined
+  const actualSourceTenantID = postSource ? postSource.sourceTenantID : sourceTenantID
+  const targets = postSource ? Array.from(new Set(tenantIDs)) : tenantIDs
   const tenantCache = new Map<string, { id: string; slug?: string | null }>()
-  const mediaDocCache = new Map<string, unknown>()
-  const mediaCloneCache = new Map<string, string>()
+  const mediaDocCache = new Map<string, Promise<Media>>()
+  const mediaCloneCache = new Map<string, Promise<string>>()
   const formDocCache = new Map<string, unknown>()
   const formCloneCache = new Map<string, string>()
 
   const results: ShareResultRow[] = []
   let count = 0
 
-  for (const tenantId of tenantIDs) {
-    if (tenantId && sourceTenantID && tenantId === sourceTenantID) {
+  for (const tenantId of targets) {
+    if (tenantId && actualSourceTenantID && tenantId === actualSourceTenantID) {
       results.push({ tenantID: tenantId, skipped: true, reason: 'same-tenant' })
       continue
     }
@@ -788,6 +658,24 @@ export async function shareDocumentToTenants({
     const scopedReq = { ...req, tenant: tenantId } as PayloadRequest & { tenant: string }
 
     try {
+      if (postSource) {
+        const cloned = await clonePostToTenant(
+          req,
+          postSource.postRecord,
+          tenantId,
+          scopedReq,
+          actualSourceTenantID,
+          formDocCache,
+          tenantCache,
+          mediaDocCache,
+          mediaCloneCache,
+          formCloneCache,
+        )
+        results.push({ tenantID: tenantId, id: cloned.id, slug: cloned.slug ?? null, _status: cloned._status ?? 'draft' })
+        count += 1
+        continue
+      }
+
       if (collection === 'emails') {
         const cloned = await cloneEmailToTenant(
           req,
@@ -821,21 +709,6 @@ export async function shareDocumentToTenants({
         continue
       }
 
-      const cloned = await clonePostToTenant(
-        req,
-        docId,
-        tenantId,
-        scopedReq,
-        sourceTenantID,
-        formDocCache,
-        tenantCache,
-        mediaDocCache,
-        mediaCloneCache,
-        formCloneCache,
-      )
-
-      results.push({ tenantID: tenantId, id: cloned.id, slug: cloned.slug ?? null, _status: cloned._status ?? 'draft' })
-      count += 1
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       results.push({ tenantID: tenantId, error: message })

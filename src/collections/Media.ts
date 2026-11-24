@@ -106,10 +106,10 @@ export const Media: CollectionConfig = {
           }
         }
 
-        const buildKey = (file: unknown): string | undefined => {
+        const buildKey = (file: unknown, parentPrefix?: string): string | undefined => {
           const parsedFile = asFileLike(file)
           if (!parsedFile) return undefined
-          const prefix = parsedFile.prefix
+          const prefix = parsedFile.prefix || parentPrefix
           const filename = parsedFile.filename
           if (prefix && filename) return `${prefix.replace(/\/+$/, '')}/${filename.replace(/^\/+/, '')}`
           if (filename) return filename
@@ -117,10 +117,10 @@ export const Media: CollectionConfig = {
           return keyFromUrl
         }
 
-        const setAbsUrl = (file: unknown) => {
+        const setAbsUrl = (file: unknown, parentPrefix?: string) => {
           const fileRecord = getObject(file)
           if (!fileRecord) return
-          const key = buildKey(file)
+          const key = buildKey(file, parentPrefix)
           if (base && key) {
             fileRecord.url = `${base.replace(/\/+$/, '')}/${key}`
           }
@@ -131,7 +131,8 @@ export const Media: CollectionConfig = {
 
         // Generated sizes
         if (doc?.sizes && typeof doc.sizes === 'object') {
-          Object.values(doc.sizes).forEach((size) => setAbsUrl(size))
+          const prefix = asFileLike(doc)?.prefix
+          Object.values(doc.sizes).forEach((size) => setAbsUrl(size, prefix))
         }
 
         return doc
