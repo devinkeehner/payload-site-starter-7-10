@@ -3,8 +3,19 @@ import configPromise from '@payload-config'
 import { createPayloadRequest } from 'payload'
 
 import { canUseEmailFeatures } from '@/lib/access/isSuperUser'
-import { prepareIContactTestEmail, sendIContactTestEmail } from '@/lib/email/iContactEmail'
 import { prepareEmailLayoutForRender } from '@/lib/email/footerContext'
+import {
+  getIContactAutomationTestTarget,
+  sendIContactAutomationTestEmail,
+} from '@/lib/email/iContactAutomationTest'
+import {
+  advanceAutomationPilotRun,
+  beginAutomationPilotRun,
+  confirmAutomationPilotReceipt,
+  getAutomationPilotRun,
+  releaseUntriggeredAutomationPilotRun,
+} from '@/lib/email/iContactAutomationPilotRun'
+import { prepareIContactTestEmail, sendIContactTestEmail } from '@/lib/email/iContactEmail'
 import {
   canSendEmailTest,
   getEmailCampaignStatus,
@@ -62,10 +73,12 @@ function getRequestOrigin(req: Request): string {
 
 async function getTestClientFolderId({
   email,
+  optional = false,
   payload,
   req,
 }: {
   email: Email
+  optional?: boolean
   payload: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['payload']
   req: Awaited<ReturnType<typeof getAuthenticatedPayloadRequest>>['req']
 }): Promise<string> {
@@ -77,6 +90,7 @@ async function getTestClientFolderId({
 
   const emailListId = getEmailRelationshipId(relationship)
   if (!emailListId) {
+    if (optional) return ''
     throw new Error('Choose an iContact-backed audience before sending a test email.')
   }
   const emailList = await payload.findByID({
@@ -86,6 +100,7 @@ async function getTestClientFolderId({
     overrideAccess: false,
     req,
   })
+  if (optional) return getOptionalString(emailList.iContactClientFolderId) || ''
   return getRequiredString(
     emailList.iContactClientFolderId,
     'The selected audience’s iContact client folder',
@@ -123,6 +138,34 @@ async function updateLastTestSend({
   })
 }
 
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
+  if (!user || !canUseEmailFeatures(user)) return new Response('Unauthorized', { status: 403 })
+
+  if (!process.env.ICONTACT_TEST_AUTOMATIONS?.trim()) return Response.json(null)
+
+  try {
+    const email = await payload.findByID({
+      collection: 'emails', id, draft: true, depth: 1, overrideAccess: false, req: payloadReq,
+    })
+    const folderId = await getTestClientFolderId({ email, optional: true, payload, req: payloadReq })
+    const target = getIContactAutomationTestTarget(folderId)
+    if (!target) return Response.json(null)
+
+    const run = await getAutomationPilotRun(payload, folderId)
+    const confirmable = run && run.emailId === id && ['triggered', 'uncertain'].includes(run.phase)
+
+    return Response.json({
+      busy: Boolean(run),
+      pending: confirmable ? { runId: run.runId, subject: run.subject } : null,
+      recipientEmail: target.recipientEmail,
+    }, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    return new Response(error instanceof Error ? error.message : 'Unable to load the automation pilot.', { status: 500 })
+  }
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const { payload, req: payloadReq, user } = await getAuthenticatedPayloadRequest(req)
@@ -132,16 +175,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   let contentRevision = ''
+  let isAutomationPilot = false
   let isDryRun = false
   let recipientEmail = ''
 
   try {
     const body = (await req.json().catch(() => ({}))) as {
+      automationPilot?: unknown
+      confirmAutomationRunId?: unknown
       dryRun?: unknown
       preparedListId?: unknown
       recipientEmail?: unknown
       expectedRevision?: unknown
     }
+    const confirmationRunId = getOptionalString(body.confirmAutomationRunId)
+    isAutomationPilot = body.automationPilot === true || Boolean(confirmationRunId)
     isDryRun = body.dryRun === true
     const email = (await payload.findByID({
       collection: 'emails',
@@ -151,6 +199,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       overrideAccess: false,
       req: payloadReq,
     })) as Email
+
+    const clientFolderId = await getTestClientFolderId({ email, payload, req: payloadReq })
+    const automationTarget = getIContactAutomationTestTarget(clientFolderId)
+    if (isAutomationPilot && !automationTarget) {
+      throw new Error('This iContact folder has no automation test configuration.')
+    }
+    if (confirmationRunId) {
+      await confirmAutomationPilotReceipt({ emailId: id, folderId: clientFolderId, payload, runId: confirmationRunId })
+      return Response.json({ message: 'Automation test receipt confirmed.', status: 'received' })
+    }
+
     if (!canSendEmailTest(getEmailCampaignStatus(email.status))) {
       const statusError = new Error('Duplicate this campaign before sending another test.')
       ;(statusError as Error & { status?: number }).status = 409
@@ -177,10 +236,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     recipientEmail = getRequiredString(
-      getOptionalString(body.recipientEmail) || email.recipientEmail,
+      isAutomationPilot ? automationTarget?.recipientEmail : getOptionalString(body.recipientEmail) || email.recipientEmail,
       'Test recipient email',
     )
     assertValidEmail(recipientEmail)
+    // Preparing an ordinary test list can subscribe the recipient. For this list,
+    // subscribing is already a delivery operation owned by the automation pilot.
+    if (!isAutomationPilot && automationTarget?.recipientEmail === recipientEmail.toLowerCase()) {
+      isAutomationPilot = true
+      throw Object.assign(new Error('Use Send Automation Test for the configured pilot inbox.'), { status: 409 })
+    }
+    if (isAutomationPilot && isDryRun) throw new Error('Submit an automation test without dry-run mode.')
     const subject = getRequiredString(email.subject, 'Subject')
     const preheader = typeof email.preheader === 'string' ? email.preheader : ''
     const senderSettings = await getTenantEmailSenderSettings({
@@ -188,14 +254,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       payload,
       req: payloadReq,
     })
-    const clientFolderId = await getTestClientFolderId({
-      email,
-      payload,
-      req: payloadReq,
-    })
-
     if (isDryRun) {
       const preparation = await prepareIContactTestEmail({
+        blockedListId: automationTarget?.listId,
         clientFolderId,
         recipientEmail,
       })
@@ -245,9 +306,46 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return new Response('The campaign changed. Refresh the review and prepare the test again.', { status: 409 })
     }
 
-    // Recheck the lifecycle immediately before the irreversible provider call.
-    // The post-send write is also conditional, so a concurrent delivery
-    // confirmation cannot make this campaign look like it was tested later.
+    if (isAutomationPilot && automationTarget) {
+      const run = await beginAutomationPilotRun({ emailId: id, folderId: clientFolderId, payload, subject })
+      let triggerStarted = false
+
+      try {
+        await sendIContactAutomationTestEmail({
+          beforeTrigger: async () => {
+            await updateEmailIfStatus({ allowedStatuses: ['draft', 'failed'], data: {}, emailId: id, payload })
+            await advanceAutomationPilotRun(payload, run, 'preparing', 'triggering')
+            triggerStarted = true
+          },
+          clientFolderId,
+          expectedCampaignId: senderSettings.iContactCampaignId,
+          html,
+          preheader,
+          recipientEmail,
+          subject: run.subject,
+          target: automationTarget,
+          text,
+        })
+        await advanceAutomationPilotRun(payload, run, 'triggering', 'triggered')
+      } catch (error) {
+        if (triggerStarted) {
+          await advanceAutomationPilotRun(payload, run, 'triggering', 'uncertain')
+            .catch(() => undefined)
+          const detail = error instanceof Error ? error.message : 'Subscription outcome unavailable.'
+          throw new Error(`iContact may have triggered the automation. Check for “${run.subject}” before confirming receipt. ${detail}`)
+        }
+        await releaseUntriggeredAutomationPilotRun(payload, run)
+        throw error
+      }
+
+      return Response.json({
+        message: `Automation triggered for ${recipientEmail}. Look for “${run.subject}”.`,
+        status: 'triggered',
+      })
+    }
+
+    // Recheck the lifecycle immediately before dispatch. The post-send write
+    // is also conditional in case delivery is confirmed concurrently.
     await updateEmailIfStatus({
       allowedStatuses: ['draft', 'failed'],
       data: {},
@@ -256,6 +354,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
 
     const result = await sendIContactTestEmail({
+      blockedListId: automationTarget?.listId,
       campaignId: senderSettings.iContactCampaignId,
       clientFolderId,
       fromEmail: senderSettings.fromEmail,
@@ -292,7 +391,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to send test email'
 
-    if (recipientEmail && !isDryRun) {
+    if (recipientEmail && !isDryRun && !isAutomationPilot) {
       try {
         await updateLastTestSend({
           contentRevision,

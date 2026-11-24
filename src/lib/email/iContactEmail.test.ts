@@ -136,4 +136,27 @@ describe('iContact campaign delivery', () => {
     expect(fetchMock).toHaveBeenCalledTimes(4)
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/messages') || String(url).endsWith('/sends'))).toBe(false)
   })
+
+  it('does not subscribe during ordinary verification when the list is reserved for an automation', async () => {
+    process.env.ICONTACT_ACCOUNT_ID = '373633'
+    process.env.ICONTACT_API_BASE = 'https://provider.example.test'
+    process.env.ICONTACT_APP_ID = 'app-id'
+    process.env.ICONTACT_PASSWORD = 'password'
+    process.env.ICONTACT_USERNAME = 'username'
+
+    const recipientEmail = 'tester@example.com'
+    const recipientKey = createHash('sha256').update(recipientEmail).digest('hex').slice(0, 10)
+    const listName = `HRO Web Test — ${recipientEmail} — ${recipientKey}`
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ lists: [{ listId: '700', name: listName }] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(prepareIContactTestEmail({
+      blockedListId: '700',
+      clientFolderId: '147941',
+      recipientEmail,
+    })).rejects.toThrow('reserved for the automation pilot')
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('GET')
+  })
 })

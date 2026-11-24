@@ -238,11 +238,19 @@ export async function sendIContactCampaign({
   }
 }
 
+export function getIContactTestListName(recipientEmail: string) {
+  const normalizedEmail = recipientEmail.trim().toLowerCase()
+  const recipientKey = createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 10)
+  return `HRO Web Test — ${normalizedEmail} — ${recipientKey}`.slice(0, 255)
+}
+
 export async function prepareIContactTestEmail({
+  blockedListId,
   clientFolderId,
   expectedListId,
   recipientEmail,
 }: {
+  blockedListId?: string
   clientFolderId: string
   expectedListId?: string
   recipientEmail: string
@@ -251,13 +259,15 @@ export async function prepareIContactTestEmail({
     throw new Error('Choose an iContact-backed audience before sending a test email.')
   }
   const normalizedEmail = recipientEmail.trim().toLowerCase()
-  const recipientKey = createHash('sha256').update(normalizedEmail).digest('hex').slice(0, 10)
-  const listName = `HRO Web Test — ${normalizedEmail} — ${recipientKey}`.slice(0, 255)
+  const listName = getIContactTestListName(normalizedEmail)
   const { listId } = await ensureIContactList({
     clientFolderId,
     description: 'Single-recipient test list managed automatically by HRO Web.',
     name: listName,
   })
+  if (listId === blockedListId) {
+    throw Object.assign(new Error('This iContact list is reserved for the automation pilot.'), { status: 409 })
+  }
   if (expectedListId && listId !== expectedListId) {
     throw new Error('Safety check failed: the prepared iContact test list changed. Run the dry run again. No email was sent.')
   }
@@ -279,6 +289,7 @@ export async function prepareIContactTestEmail({
 }
 
 export async function sendIContactTestEmail({
+  blockedListId,
   campaignId,
   clientFolderId,
   fromEmail,
@@ -290,6 +301,7 @@ export async function sendIContactTestEmail({
   subject,
   text,
 }: {
+  blockedListId?: string
   campaignId?: string
   clientFolderId: string
   fromEmail?: string
@@ -305,6 +317,7 @@ export async function sendIContactTestEmail({
     throw new Error('Run the recipient dry run before sending a test email.')
   }
   const preparation = await prepareIContactTestEmail({
+    blockedListId,
     clientFolderId,
     expectedListId: preparedListId,
     recipientEmail,

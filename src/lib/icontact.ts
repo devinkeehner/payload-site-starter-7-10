@@ -95,13 +95,14 @@ const safeJson = (text: string): any => {
 export const iContactFetch = async (
   cfg: IContactConfig,
   path: string,
-  init: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; signal?: AbortSignal } = {},
+  init: { method?: 'GET' | 'POST' | 'PUT'; body?: unknown; cache?: RequestCache; signal?: AbortSignal } = {},
 ) => {
   const url = `${cfg.baseUrl}${path}`
   const res = await fetch(url, {
     method: init.method || 'GET',
     headers: getHeaders(cfg),
     body: typeof init.body === 'undefined' ? undefined : JSON.stringify(init.body),
+    cache: init.cache,
     signal: init.signal,
   })
 
@@ -258,19 +259,28 @@ export const listIContactSubscriptions = async (
   accountId: string,
   clientFolderId: string,
   listId?: string,
+  { requireComplete = false }: { requireComplete?: boolean } = {},
 ) => {
-  const limit = 500
+  const limit = requireComplete ? 100 : 500
   let offset = 0
   let total: number | null = null
   const subscriptions: any[] = []
   const listQuery = sanitize(listId) ? `&listId=${encodeURIComponent(sanitize(listId))}` : ''
   let includeTotalStatus = Boolean(sanitize(listId))
 
+  if (requireComplete && !listQuery) {
+    throw new Error('An iContact list ID is required to verify test subscriptions.')
+  }
+
   while (true) {
     const statusQuery = includeTotalStatus ? '&status=total' : ''
-    const res = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/subscriptions?offset=${offset}&limit=${limit}${listQuery}${statusQuery}`)
+    const res = await iContactFetch(
+      cfg,
+      `/icp/a/${encodeURIComponent(accountId)}/c/${encodeURIComponent(clientFolderId)}/subscriptions?offset=${offset}&limit=${limit}${listQuery}${statusQuery}`,
+      { cache: requireComplete ? 'no-store' : undefined },
+    )
     if (!res.ok) {
-      if (includeTotalStatus && offset === 0) {
+      if (!requireComplete && includeTotalStatus && offset === 0) {
         includeTotalStatus = false
         continue
       }
@@ -280,20 +290,164 @@ export const listIContactSubscriptions = async (
 
     const payload = (res.data && typeof res.data === 'object' ? res.data : {}) as JsonRecord
     const batch = Array.isArray(payload.subscriptions) ? (payload.subscriptions as any[]) : []
-    const batchTotal = typeof payload.total === 'number' ? payload.total : null
+    const batchTotal = typeof payload.total === 'number' ? payload.total
+      : requireComplete && /^\d+$/.test(sanitize(payload.total)) ? Number(payload.total) : null
+    if (requireComplete && (
+      !Array.isArray(payload.subscriptions) || batchTotal === null ||
+      !Number.isSafeInteger(batchTotal) || batchTotal < 0 || (total !== null && batchTotal !== total)
+    )) {
+      throw new Error(`iContact returned an unverifiable subscription count for test list ${listId}.`)
+    }
     if (total === null && batchTotal !== null) total = batchTotal
 
     subscriptions.push(...batch)
     if (batch.length === 0) break
     if (total !== null && subscriptions.length >= total) break
-    if (batch.length < limit) break
-    offset += limit
+    if (!requireComplete && batch.length < limit) break
+    offset += requireComplete ? batch.length : limit
+  }
+
+  if (requireComplete && subscriptions.length !== total) {
+    throw new Error(`iContact did not return all subscriptions for test list ${listId}.`)
   }
 
   return {
     subscriptions,
     total: total ?? subscriptions.length,
   }
+}
+
+type IContactTestFolder = {
+  cfg: IContactConfig
+  accountId: string
+  clientFolderId: string
+}
+
+type IContactTestListTarget = IContactTestFolder & {
+  contactId: string
+  listId: string
+}
+
+type IContactTestListMembership = 'absent' | 'normal' | 'unsubscribed'
+
+const readIContactId = (value: unknown) => {
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0 ? String(value) : ''
+  const id = sanitize(value)
+  return /^[1-9]\d*$/.test(id) ? id : ''
+}
+
+export const findIContactTestContactId = async ({
+  cfg,
+  accountId,
+  clientFolderId,
+  recipientEmail,
+}: IContactTestFolder & { recipientEmail: string }) => {
+  const email = recipientEmail.trim().toLowerCase()
+  if (!/^[1-9]\d*$/.test(accountId) || !/^[1-9]\d*$/.test(clientFolderId) || !email) {
+    throw new Error('An iContact account, client folder, and test recipient email are required.')
+  }
+
+  const response = await iContactFetch(
+    cfg,
+    `/icp/a/${accountId}/c/${clientFolderId}/contacts?email=${encodeURIComponent(email)}&status=total&limit=2`,
+    { cache: 'no-store' },
+  )
+  if (!response.ok || !Array.isArray(response.data?.contacts)) {
+    throw new Error(`Unable to verify the iContact test recipient in folder ${clientFolderId} (${response.status}).`)
+  }
+
+  const [contact] = response.data.contacts
+  const contactId = readIContactId(contact?.contactId)
+  if (
+    response.data.contacts.length !== 1 || !contactId ||
+    sanitize(contact?.email).toLowerCase() !== email || sanitize(contact?.status).toLowerCase() !== 'normal'
+  ) {
+    throw new Error('The configured test recipient must match one active contact in the iContact client folder.')
+  }
+
+  return contactId
+}
+
+export const inspectIContactTestList = async ({
+  cfg,
+  accountId,
+  clientFolderId,
+  contactId,
+  listId,
+}: IContactTestListTarget): Promise<{
+  activeRecipientCount: 0 | 1
+  membershipStatus: IContactTestListMembership
+}> => {
+  if (![accountId, clientFolderId, contactId, listId].every((id) => /^[1-9]\d*$/.test(id))) {
+    throw new Error('Exact iContact account, client folder, contact, and test list IDs are required.')
+  }
+
+  const { subscriptions } = await listIContactSubscriptions(cfg, accountId, clientFolderId, listId, {
+    requireComplete: true,
+  })
+  let membershipStatus: IContactTestListMembership = 'absent'
+  for (const subscription of subscriptions) {
+    const subscriptionContactId = readIContactId(subscription?.contactId)
+    const status = sanitize(subscription?.status).toLowerCase()
+    if (readIContactId(subscription?.listId) !== listId || !subscriptionContactId) {
+      throw new Error(`iContact returned a subscription outside the verified scope of test list ${listId}.`)
+    }
+    if (status !== 'normal' && status !== 'unsubscribed') {
+      throw new Error(`iContact test list ${listId} contains a pending or unrecognized subscription.`)
+    }
+    if (subscriptionContactId !== contactId) {
+      if (status === 'normal') {
+        throw new Error(`iContact test list ${listId} contains an active recipient other than the configured contact.`)
+      }
+      continue
+    }
+    if (membershipStatus !== 'absent') {
+      throw new Error(`iContact test list ${listId} contains multiple subscriptions for the configured contact.`)
+    }
+    membershipStatus = status
+  }
+
+  return { activeRecipientCount: membershipStatus === 'normal' ? 1 : 0, membershipStatus }
+}
+
+const setIContactTestListSubscriptionStatus = async ({
+  cfg,
+  accountId,
+  clientFolderId,
+  contactId,
+  listId,
+}: IContactTestListTarget, status: 'normal' | 'unsubscribed') => {
+  // This subscription status belongs to the contact/list pair, not the contact record.
+  const response = await iContactFetch(cfg, `/icp/a/${accountId}/c/${clientFolderId}/subscriptions`, {
+    method: 'POST',
+    body: [{ contactId, listId, status }],
+  })
+  if (!response.ok) {
+    throw new Error(`Unable to set the iContact test list subscription to ${status} (${response.status}).`)
+  }
+}
+
+export const triggerIContactTestListSubscription = async ({
+  beforeTrigger,
+  ...target
+}: IContactTestListTarget & { beforeTrigger?: () => Promise<void> }) => {
+  const current = await inspectIContactTestList(target)
+  if (current.membershipStatus === 'normal') {
+    await setIContactTestListSubscriptionStatus(target, 'unsubscribed')
+    const reset = await inspectIContactTestList(target)
+    if (reset.membershipStatus !== 'unsubscribed') {
+      throw new Error('iContact did not verify that the test list subscription was reset.')
+    }
+  }
+
+  await beforeTrigger?.()
+  await setIContactTestListSubscriptionStatus(target, 'normal')
+
+  const verified = await inspectIContactTestList(target)
+  if (verified.activeRecipientCount !== 1) {
+    throw new Error('iContact did not verify the test recipient subscription after enrollment.')
+  }
+  return verified
 }
 
 const toSubmissionMap = (submissionData: unknown) => {

@@ -434,3 +434,22 @@ Local validation commands:
 A real authenticated database save/upload and provider delivery need separate
 integration verification with the intended local/staging environment. Browser
 fixture tests are not evidence of production deployment or iContact delivery.
+
+### iContact automation test pilot
+
+Set `ICONTACT_TEST_AUTOMATIONS` to a JSON object keyed by iContact client folder ID. Each
+entry specifies `listId`, `messageId`, and `recipientEmail`. Include `messageName` if the
+attached message does not start with `TEST — `. Use the ID of the message attached to the
+automation. iContact returns this ID when it creates an automation through the API, and
+it may differ from the ID of the source draft.
+
+Use an existing WebsiteGov one-recipient test list for the specified inbox. In iContact,
+scope the automation to that list, enable API-triggered subscriptions, and select an
+immediate Send Message step. Then open an email with an audience in the configured folder
+and choose **Review & Test → Send Automation Test**. Verify the uniquely tagged subject in
+the inbox and select **Confirm Automation Test Received** in the same campaign.
+
+Confirmation releases the folder for the next test. The pilot keeps a pending record
+when the outcome of a subscription request is uncertain. Resolve any undelivered pending
+run against the iContact automation's activity before an operator clears its record from
+`email_automation_pilot_runs`. The pilot results are separate from campaign test approval.

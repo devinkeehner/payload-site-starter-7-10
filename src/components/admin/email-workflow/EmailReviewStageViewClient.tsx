@@ -35,6 +35,12 @@ type PreparedTest = {
 
 const omittedReviewChecks = new Set(['test-recipient', 'compliance-address', 'unsubscribe', 'send-status', 'audience'])
 
+type AutomationPilot = {
+  busy: boolean
+  pending: { runId: string; subject: string } | null
+  recipientEmail: string
+}
+
 function LinkStateIcon({ state }: { state: EmailWorkflowLinkCheck['status'] }) {
   if (state === 'invalid') return <X aria-hidden="true" />
   if (state === 'warning') return <TriangleAlert aria-hidden="true" />
@@ -67,6 +73,9 @@ export function EmailReviewStageViewClient({
   const [preparedTest, setPreparedTest] = useState<PreparedTest | null>(null)
   const [state, setState] = useState<'error' | 'idle' | 'refreshing' | 'sendingTest' | 'sent'>('idle')
   const [message, setMessage] = useState<string | null>(null)
+  const [automationPilot, setAutomationPilot] = useState<AutomationPilot | null>(null)
+  const [pilotError, setPilotError] = useState<string | null>(null)
+  const [pilotBusy, setPilotBusy] = useState(false)
   const loadVersion = useRef(0)
   const baseURL = useMemo(
     () => formatAdminURL({ adminRoute, path: `/collections/emails/${emailId}` }),
@@ -78,6 +87,9 @@ export function EmailReviewStageViewClient({
   const currentRevision = workflow?.email.contentRevision
   const confirmedPreparation = preparedTest?.contentRevision === currentRevision &&
     preparedTest?.recipientEmail === testRecipient.trim().toLowerCase() ? preparedTest : null
+  const sendTestURL = `/api/emails/${encodeURIComponent(emailId)}/send-test`
+  const isPilotRecipient = testRecipient.trim().toLowerCase() === automationPilot?.recipientEmail
+  const pendingAutomationTest = automationPilot?.pending
 
   const loadPreview = useCallback(async () => {
     const version = ++loadVersion.current
@@ -104,12 +116,34 @@ export function EmailReviewStageViewClient({
     void loadPreview()
   }, [loadPreview])
 
+  const loadAutomationPilot = useCallback((signal?: AbortSignal) => (
+    fetch(sendTestURL, { cache: 'no-store', credentials: 'include', signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await response.text())
+        const result = await response.json() as AutomationPilot | null
+        if (signal?.aborted) return
+        setAutomationPilot(result)
+        setPilotError(null)
+      })
+      .catch((error: unknown) => {
+        if (signal?.aborted) return
+        setPilotError(error instanceof Error ? error.message : 'Unable to load the automation pilot.')
+      })
+  ), [sendTestURL])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadAutomationPilot(controller.signal)
+    return () => controller.abort()
+  }, [loadAutomationPilot])
+
   async function refreshReview() {
     setState('refreshing')
     setMessage(null)
     await Promise.all([
       refreshWorkflow({ quiet: true }),
       loadPreview(),
+      loadAutomationPilot(),
     ])
     setState('idle')
   }
@@ -126,7 +160,7 @@ export function EmailReviewStageViewClient({
     setMessage(null)
 
     try {
-      const response = await fetch(`/api/emails/${encodeURIComponent(emailId)}/send-test`, {
+      const response = await fetch(sendTestURL, {
         body: JSON.stringify({
           recipientEmail,
           expectedRevision: currentRevision,
@@ -168,6 +202,31 @@ export function EmailReviewStageViewClient({
       setPreparedTest(null)
       setState('error')
       setMessage(sendError instanceof Error ? sendError.message : 'Unable to send test email')
+    }
+  }
+
+  async function submitAutomationPilot(body: { automationPilot: true; expectedRevision: string } | { confirmAutomationRunId: string }) {
+    setPilotBusy(true)
+    setPilotError(null)
+    setMessage(null)
+
+    try {
+      const response = await fetch(sendTestURL, {
+        body: JSON.stringify(body),
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+      })
+      if (!response.ok) throw new Error(await response.text())
+      const result = await response.json() as { message: string }
+      setState('idle')
+      setMessage(result.message)
+    } catch (error) {
+      setState('error')
+      setMessage(error instanceof Error ? error.message : 'Unable to run the automation test.')
+    } finally {
+      await loadAutomationPilot()
+      setPilotBusy(false)
     }
   }
 
@@ -401,7 +460,7 @@ export function EmailReviewStageViewClient({
               </label>
               <Button
                 buttonStyle="primary"
-                disabled={editingLocked || !workflow?.availableActions.includes('sendTest') || invalidLinks.length > 0 || state === 'sendingTest'}
+                disabled={editingLocked || !workflow?.availableActions.includes('sendTest') || invalidLinks.length > 0 || state === 'sendingTest' || isPilotRecipient}
                 onClick={() => void sendTest()}
                 type="button"
               >
@@ -410,6 +469,36 @@ export function EmailReviewStageViewClient({
                   : confirmedPreparation ? 'Confirm and send test' : 'Verify test recipient'}
               </Button>
               {confirmedPreparation && <p role="status">iContact verified one active recipient for this version: {confirmedPreparation.recipientEmail}.</p>}
+              {pilotError ? <p role="alert">{pilotError}</p> : null}
+              {automationPilot ? (
+                <>
+                  <p>Automation pilot inbox: {automationPilot.recipientEmail}</p>
+                  {pendingAutomationTest ? (
+                    <>
+                      <p>Look for “{pendingAutomationTest.subject}” before confirming receipt.</p>
+                      <Button
+                        buttonStyle="secondary"
+                        disabled={pilotBusy}
+                        onClick={() => void submitAutomationPilot({ confirmAutomationRunId: pendingAutomationTest.runId })}
+                        type="button"
+                      >
+                        Confirm Automation Test Received
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      buttonStyle="secondary"
+                      disabled={editingLocked || !currentRevision || invalidLinks.length > 0 || state === 'sendingTest' || pilotBusy || automationPilot.busy}
+                      onClick={() => {
+                        if (currentRevision) void submitAutomationPilot({ automationPilot: true, expectedRevision: currentRevision })
+                      }}
+                      type="button"
+                    >
+                      {automationPilot.busy ? 'Automation Test Pending' : 'Send Automation Test'}
+                    </Button>
+                  )}
+                </>
+              ) : null}
             </section>
           </div>
         </div>
