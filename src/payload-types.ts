@@ -223,6 +223,10 @@ export interface Post {
   heroSource?: ('upload' | 'link') | null;
   heroImage?: (string | null) | Media;
   heroExternalURL?: string | null;
+  /**
+   * Where visitors go when they click the featured image. Enter a full HTTP(S) URL or a site path such as /contact.
+   */
+  heroImageLinkURL?: string | null;
   content: {
     root: {
       type: string;
@@ -4256,6 +4260,7 @@ export interface PostsSelect<T extends boolean = true> {
   heroSource?: T;
   heroImage?: T;
   heroExternalURL?: T;
+  heroImageLinkURL?: T;
   content?: T;
   layout?:
     | T

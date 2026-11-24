@@ -1,7 +1,7 @@
 import { POST_GRAPHIC_TEMPLATE_FILTER } from '@/lib/graphics/templates'
 import { tinyURLAliasField } from '@/lib/tinyurl/fields'
 import { contentLinkEndpoint, syncPublishedContent, protectLinkedContentDelete, captureContentOperation, protectLinkedContent } from '@/lib/tinyurl/service'
-import type { CheckboxFieldValidation, CollectionConfig, PayloadHandler, PayloadRequest } from 'payload'
+import type { CheckboxFieldValidation, CollectionConfig, PayloadHandler, PayloadRequest, TextFieldSingleValidation } from 'payload'
 
 import {
   BlocksFeature,
@@ -92,6 +92,24 @@ const validateKeyTakeawaysApproval: CheckboxFieldValidation = (value, options) =
   }
 
   return true
+}
+
+const validateHeroImageLinkURL: TextFieldSingleValidation = (value) => {
+  if (value == null) return true
+
+  const message = 'Enter a full HTTP or HTTPS URL or a site path starting with a single slash.'
+  if (typeof value !== 'string' || /[\\\p{Cc}]/u.test(value)) return message
+
+  const destination = value.trim()
+  if (!destination || /^\/(?!\/)/.test(destination)) return true
+  if (!/^https?:\/\/(?!\/)/i.test(destination)) return message
+
+  try {
+    new URL(destination)
+    return true
+  } catch {
+    return message
+  }
 }
 
 const toMetadataValue = (value: unknown): string | undefined => {
@@ -1008,6 +1026,7 @@ export const Posts: CollectionConfig<'posts'> = {
                 heroSource: sourceRecord.heroSource,
                 heroImage: clonedHeroImage,
                 heroExternalURL: sourceRecord.heroExternalURL,
+                heroImageLinkURL: sourceRecord.heroImageLinkURL,
                 content: clonedContent,
                 meta: {
                   title: asRecord(sourceRecord.meta).title,
@@ -1089,6 +1108,15 @@ export const Posts: CollectionConfig<'posts'> = {
               type: 'text',
               admin: {
                 condition: (_data, siblingData) => siblingData?.heroSource === 'link',
+              },
+            },
+            {
+              name: 'heroImageLinkURL',
+              label: 'Hero image click destination (optional)',
+              type: 'text',
+              validate: validateHeroImageLinkURL,
+              admin: {
+                description: 'Where visitors go when they click the featured image. Enter a full HTTP(S) URL or a site path such as /contact.',
               },
             },
             {

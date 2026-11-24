@@ -528,6 +528,7 @@ const clonePostToTenant = async (
     heroSource: postRecord.heroSource,
     heroImage: clonedHeroImage,
     heroExternalURL: postRecord.heroExternalURL,
+    heroImageLinkURL: postRecord.heroImageLinkURL,
     content: clonedContent,
     meta: {
       title: asRecord(postRecord.meta).title,
