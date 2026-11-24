@@ -1,15 +1,17 @@
 import { GetObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import configPromise from '@payload-config'
-import { randomUUID } from 'node:crypto'
+import { randomBytes } from 'node:crypto'
 import { createPayloadRequest } from 'payload'
+
+import { getMailPDFStem, mailPDFNameHeader } from '@/lib/mail-tool/filename'
 
 export const runtime = 'nodejs'
 
 const pdfContentType = 'application/pdf'
 const maxPDFBytes = 100 * 1024 * 1024
 const downloadLifetimeSeconds = 7 * 24 * 60 * 60
-const filename = 'mailer-two-up-letter.pdf'
+const maxUploadAttempts = 3
 
 class PDFUploadError extends Error {
   constructor(message: string, readonly status: number) {
@@ -50,6 +52,22 @@ async function readPDF(request: Request) {
     throw new PDFUploadError('Upload a valid print PDF.', 400)
   }
   return pdf
+}
+
+function getRequestStem(request: Request) {
+  try {
+    return getMailPDFStem(decodeURIComponent(request.headers.get(mailPDFNameHeader) ?? ''))
+  } catch {
+    return getMailPDFStem()
+  }
+}
+
+function getAttachmentDisposition(stem: string) {
+  const filename = `${stem}.pdf`
+  if (/^[a-z0-9-]+$/.test(stem)) return `attachment; filename="${filename}"`
+
+  const ascii = getMailPDFStem(stem.normalize('NFKD').replace(/[^a-z0-9-]/g, ''))
+  return `attachment; filename="${ascii}.pdf"; filename*=UTF-8''${encodeURIComponent(filename)}`
 }
 
 function getPublicDownloadURL(key: string) {
@@ -102,7 +120,8 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ message: 'Could not read the print PDF.' }, { status: 400 })
   }
 
-  const key = `mail-tool/${randomUUID()}.pdf`
+  const stem = getRequestStem(request)
+  const disposition = getAttachmentDisposition(stem)
   const client = new S3Client({
     credentials: { accessKeyId, secretAccessKey },
     endpoint,
@@ -112,20 +131,31 @@ export async function POST(request: Request): Promise<Response> {
     responseChecksumValidation: 'WHEN_REQUIRED',
   })
   try {
-    const download = await getDownloadLink(client, bucket, key)
-    await client.send(new PutObjectCommand({
-      Body: pdf,
-      Bucket: bucket,
-      CacheControl: 'private, no-store',
-      ContentDisposition: `attachment; filename="${filename}"`,
-      ContentLength: pdf.byteLength,
-      ContentType: pdfContentType,
-      Key: key,
-    }))
-    return Response.json(download, {
-      headers: { 'Cache-Control': 'private, no-store' },
-      status: 201,
-    })
+    for (let attempt = 0; attempt < maxUploadAttempts; attempt++) {
+      const key = `mail-tool/${stem}-${randomBytes(6).toString('base64url')}.pdf`
+      const download = await getDownloadLink(client, bucket, key)
+      try {
+        await client.send(new PutObjectCommand({
+          Body: pdf,
+          Bucket: bucket,
+          CacheControl: 'private, no-store',
+          ContentDisposition: disposition,
+          ContentLength: pdf.byteLength,
+          ContentType: pdfContentType,
+          IfNoneMatch: '*',
+          Key: key,
+        }))
+      } catch (error) {
+        const response = error as { $metadata?: { httpStatusCode?: number } } | null
+        if (response?.$metadata?.httpStatusCode === 412) continue
+        throw error
+      }
+      return Response.json(download, {
+        headers: { 'Cache-Control': 'private, no-store' },
+        status: 201,
+      })
+    }
+    throw new Error('Could not reserve a unique Mail Tool PDF key.')
   } catch (error) {
     payload.logger.error({ err: error }, 'Could not store Mail Tool print PDF')
     return Response.json({ message: 'Could not save the print PDF.' }, { status: 502 })

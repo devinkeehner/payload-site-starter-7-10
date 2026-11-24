@@ -3,6 +3,8 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { createPayloadRequest } from 'payload'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { mailPDFNameHeader } from '@/lib/mail-tool/filename'
+
 import { POST } from './route'
 
 const send = vi.hoisted(() => vi.fn())
@@ -30,6 +32,10 @@ function mockUser(user: unknown) {
 
 function upload(body: BodyInit = bytes, headers: HeadersInit = { 'Content-Type': 'application/pdf' }) {
   return new Request(routeURL, { body, headers, method: 'POST' })
+}
+
+function uploadWithFilename(filename: string) {
+  return upload(bytes, { 'Content-Type': 'application/pdf', [mailPDFNameHeader]: encodeURIComponent(filename) })
 }
 
 beforeEach(() => {
@@ -65,7 +71,8 @@ describe('Mail Tool PDF storage', () => {
       ContentDisposition: 'attachment; filename="mailer-two-up-letter.pdf"',
       ContentLength: bytes.byteLength,
       ContentType: 'application/pdf',
-      Key: expect.stringMatching(/^mail-tool\/[0-9a-f-]{36}\.pdf$/),
+      IfNoneMatch: '*',
+      Key: expect.stringMatching(/^mail-tool\/mailer-two-up-letter-[A-Za-z0-9_-]{8}\.pdf$/),
     })
 
     const result = await response.json() as { downloadUrl: string; expiresAt: string }
@@ -84,17 +91,76 @@ describe('Mail Tool PDF storage', () => {
   it('returns an unsigned, unexpiring link on a configured HTTPS media base', async () => {
     vi.stubEnv('R2_PUBLIC_BASE_URL', ' https://media.example.com/downloads/// ')
 
-    const response = await POST(upload())
+    const response = await POST(uploadWithFilename('budget-update'))
 
     expect(response.status).toBe(201)
     expect(send).toHaveBeenCalledOnce()
     const [{ input }] = send.mock.calls[0] as [PutObjectCommand]
-    expect(input).toMatchObject({ Body: bytes, ContentType: 'application/pdf' })
+    expect(input).toMatchObject({
+      Body: bytes,
+      ContentDisposition: 'attachment; filename="budget-update.pdf"',
+      ContentType: 'application/pdf',
+      Key: expect.stringMatching(/^mail-tool\/budget-update-[A-Za-z0-9_-]{8}\.pdf$/),
+    })
     expect(await response.json()).toEqual({
       downloadUrl: `https://media.example.com/downloads/${input.Key}`,
       expiresAt: null,
     })
     expect(getSignedUrl).not.toHaveBeenCalled()
+  })
+
+  it('normalizes an encoded filename and gives Unicode downloads a safe ASCII alternative', async () => {
+    const response = await POST(uploadWithFilename('..\\district\\Café Update"\r\n.pdf'))
+
+    expect(response.status).toBe(201)
+    const [{ input }] = send.mock.calls[0] as [PutObjectCommand]
+    expect(input).toMatchObject({
+      ContentDisposition: 'attachment; filename="cafe-update.pdf"; filename*=UTF-8\'\'caf%C3%A9-update.pdf',
+      Key: expect.stringMatching(/^mail-tool\/café-update-[A-Za-z0-9_-]{8}\.pdf$/u),
+    })
+    const { downloadUrl } = await response.json() as { downloadUrl: string }
+    expect(decodeURIComponent(new URL(downloadUrl).pathname)).toBe(`/private-mail/${input.Key}`)
+  })
+
+  it('uses the default filename when the encoded filename is malformed', async () => {
+    const response = await POST(upload(bytes, {
+      'Content-Type': 'application/pdf',
+      [mailPDFNameHeader]: 'partial%F0%9F',
+    }))
+
+    expect(response.status).toBe(201)
+    const [{ input }] = send.mock.calls[0] as [PutObjectCommand]
+    expect(input.ContentDisposition).toBe('attachment; filename="mailer-two-up-letter.pdf"')
+    expect(input.Key).toMatch(/^mail-tool\/mailer-two-up-letter-[A-Za-z0-9_-]{8}\.pdf$/)
+  })
+
+  it('retries a key collision and returns the URL for the successful conditional write', async () => {
+    send.mockRejectedValueOnce(Object.assign(new Error('Already exists'), { $metadata: { httpStatusCode: 412 } }))
+
+    const response = await POST(uploadWithFilename('budget-update'))
+
+    expect(response.status).toBe(201)
+    expect(send).toHaveBeenCalledTimes(2)
+    const [[firstUpload], [secondUpload]] = send.mock.calls as [[PutObjectCommand], [PutObjectCommand]]
+    const first = firstUpload.input
+    const second = secondUpload.input
+    expect(first.IfNoneMatch).toBe('*')
+    expect(second.IfNoneMatch).toBe('*')
+    expect(first.Key).not.toBe(second.Key)
+    const { downloadUrl } = await response.json() as { downloadUrl: string }
+    expect(new URL(downloadUrl).pathname).toBe(`/private-mail/${second.Key}`)
+    expect(logError).not.toHaveBeenCalled()
+  })
+
+  it('returns a storage failure after three key collisions', async () => {
+    send.mockRejectedValue(Object.assign(new Error('Already exists'), { $metadata: { httpStatusCode: 412 } }))
+
+    const response = await POST(upload())
+
+    expect(response.status).toBe(502)
+    expect(await response.json()).toEqual({ message: 'Could not save the print PDF.' })
+    expect(send).toHaveBeenCalledTimes(3)
+    expect(logError).toHaveBeenCalledOnce()
   })
 
   it.each([
@@ -148,6 +214,7 @@ describe('Mail Tool PDF storage', () => {
 
     expect(response.status).toBe(502)
     expect(await response.json()).toEqual({ message: 'Could not save the print PDF.' })
+    expect(send).toHaveBeenCalledOnce()
     expect(logError).toHaveBeenCalledOnce()
   })
 })

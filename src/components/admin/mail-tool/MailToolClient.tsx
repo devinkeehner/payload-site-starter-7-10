@@ -1,6 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+
+import { getMailPDFStem, mailPDFNameHeader } from '@/lib/mail-tool/filename'
+
 import styles from './mail-tool.module.css'
 
 type SaveResult =
@@ -23,6 +26,8 @@ export default function MailToolClient() {
   const [copyResult, setCopyResult] = useState<{ url: string; message: string } | null>(null)
   const resultURL = useRef('')
   const activeRequest = useRef<AbortController | null>(null)
+  const pdfStem = getMailPDFStem((mode === 'combined' ? combined : front)?.name)
+  const pdfFilename = `${pdfStem}.pdf`
 
   useEffect(() => () => {
     activeRequest.current?.abort()
@@ -55,7 +60,10 @@ export default function MailToolClient() {
     try {
       const response = await fetch('/api/mail-tool/pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/pdf' },
+        headers: {
+          'Content-Type': 'application/pdf',
+          [mailPDFNameHeader]: encodeURIComponent(pdfStem),
+        },
         credentials: 'same-origin',
         body: pdf,
         signal,
@@ -168,7 +176,7 @@ export default function MailToolClient() {
               {saveResult?.status === 'saved' ? (
                 <>
                   <div className={styles.resultActions}>
-                    <a className={styles.button} href={saveResult.downloadURL} download="mailer-two-up-letter.pdf">Download print PDF</a>
+                    <a className={styles.button} href={saveResult.downloadURL} download={pdfFilename}>Download print PDF</a>
                     <button className={`${styles.button} ${styles.secondary}`} onClick={() => void copyLink(saveResult.downloadURL)} type="button">Copy link</button>
                   </div>
                   {saveResult.expiresAt ? (
@@ -178,7 +186,7 @@ export default function MailToolClient() {
                 </>
               ) : (
                 <>
-                  <a className={styles.button} href={downloadURL} download="mailer-two-up-letter.pdf">Download print PDF</a>
+                  <a className={styles.button} href={downloadURL} download={pdfFilename}>Download print PDF</a>
                   {saveResult?.status === 'saving' ? <p className={styles.note}>Saving a shareable download link…</p> : null}
                   {saveResult?.status === 'failed' ? <p className={styles.error}>{saveResult.message}</p> : null}
                 </>
