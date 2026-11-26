@@ -114,7 +114,7 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
             addSlot({ id: `${id}:${nextStable.join(':')}`, ownerId: id, path: pathString,
               label: `${String(label)} → ${columnLabel || field.label || field.name}${active ? '' : ' (hidden column)'}`,
               items: records(stored, pathString), allowedSlugs: field.blocks?.map(child => child.slug) || null, address, active,
-              ...(document.collection === 'forms' && field.maxRows != null ? { capacity: field.maxRows } : {}),
+              ...((document.collection === 'forms' || document.collection === 'pages') && field.maxRows != null ? { capacity: field.maxRows } : {}),
               write: items => { owner[field.name] = items },
             }, depth + 1)
           }
@@ -123,7 +123,7 @@ function inspect(document: PageDocument, options: DocumentOptions): DocumentInde
       walk(block, fieldsFor(block, options), [], [])
     })
   }
-  addSlot({ id: 'root:layout', ...ROOT_SLOT, label: document.collection === 'posts' ? 'Post layout' : document.collection === 'forms' ? 'Form' : 'Email', items: records(document.layout, 'layout'),
+  addSlot({ id: 'root:layout', ...ROOT_SLOT, label: document.collection === 'posts' ? 'Post layout' : document.collection === 'forms' ? 'Form' : document.collection === 'pages' ? 'Page layout' : 'Email', items: records(document.layout, 'layout'),
     address: ROOT_SLOT, allowedSlugs: options.schemas?.map(schema => schema.slug) || null, active: true,
     write: items => { document.layout = items },
   }, 0)
@@ -216,9 +216,9 @@ function copyBlock(block: BlockRecord, document: PageDocument, options: Document
   identifyTree({ layout: [copy] }, options, freshId(document, options), true)
   return copy
 }
-function validateNewContent(block: BlockRecord, options: DocumentOptions, schemas: readonly PuckBlockSchema[] = options.schemas || []) {
-  if (!schemas.length) return
-  const schema = schemas.find(candidate => candidate.slug === block.blockType)
+function validateNewContent(block: BlockRecord, options: DocumentOptions, candidates?: readonly PuckBlockSchema[]) {
+  if (!options.schemas?.length) return
+  const schema = candidates ? candidates.find(candidate => candidate.slug === block.blockType) : findBlockSchema(block.blockType, options.schemas)
   if (!schema) throw new Error(`This slot does not accept ${block.blockType || 'this block'}`)
   const row = (value: BlockRecord, fields: readonly PuckFieldSchema[]) => {
     for (const field of flattenUnsteadyFields(fields)) {

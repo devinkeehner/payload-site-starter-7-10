@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { PuckBlockSchema } from '@/lib/puck/types'
-import type { SlotDescriptor } from '@/lib/live-editor/document'
+import { findBlockSchema, type SlotDescriptor } from '@/lib/live-editor/document'
 import { relationshipId, type RelationshipOption } from '@/lib/live-editor/relationships'
 import { liveEmailOptionsURL } from './LiveEmailResourceContext'
 import { mapLiveEmailFields } from './LiveEmailBlockRenderer'
@@ -17,13 +17,15 @@ function collectLiveEmailMedia(slots: SlotDescriptor[], schemas: PuckBlockSchema
   for (const slot of slots) {
     if (slot.active === false) continue
     for (const block of slot.items) {
-      mapLiveEmailFields(block, schemas.find(schema => schema.slug === block.blockType), (owner, field) => {
+      mapLiveEmailFields(block, findBlockSchema(block.blockType, schemas), (owner, field) => {
         const value = owner[field.name]
         if (field.type === 'upload' && field.relationTo === 'media') {
-          const id = relationshipId(value)
-          if (id) {
-            if (hasMediaURL(value)) populated.set(id, value)
-            else referenced.add(id)
+          for (const item of field.hasMany && Array.isArray(value) ? value : [value]) {
+            const id = relationshipId(item)
+            if (id) {
+              if (hasMediaURL(item)) populated.set(id, item)
+              else referenced.add(id)
+            }
           }
         }
         return value

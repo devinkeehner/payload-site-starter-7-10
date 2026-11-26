@@ -7,6 +7,9 @@ import { getEmailGridColumnFields } from '@/lib/live-editor/document'
 import { getFormRowWidths } from '@/lib/live-editor/formRowWidths'
 import { FormBlockPreview } from '../form/FormBlockPreview'
 import { LiveEmailBlockPreview } from './LiveEmailBlockPreview'
+import { SectionElement } from '@/components/blocks/composable-section/SectionElement'
+import { PAGE_SECTION } from '@/lib/live-editor/pageSections'
+import { findBlockSchema } from '@/lib/live-editor/document'
 import type { LiveEditorKind } from './editorVariants'
 import styles from './live-editor.module.css'
 import dynamic from 'next/dynamic'
@@ -73,8 +76,20 @@ export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, render
   postContent?: unknown
 }) {
   const blockType = String(block.blockType || '')
-  const schema = schemas.find(candidate => candidate.slug === blockType)
+  const schema = findBlockSchema(blockType, schemas)
   if (!schema) return <p role="status">{blockType || 'Unknown block'} is preserved. Its block schema is unavailable.</p>
+  if (kind === 'page') {
+    if (blockType === PAGE_SECTION || blockType.startsWith('section')) {
+      return <SectionElement block={block} editing resolveMedia={resolveMedia}
+        text={name => renderText(block, name, [name], 'plain', name === 'text' ? schema.label : name)}
+        richText={schema.fields.some(field => field.name === 'body') ? renderText(block, 'body', ['body'], 'native', 'Body') : undefined}
+        form={blockType === 'sectionForm' && block.form ? <span>{typeof block.form === 'object' && 'title' in block.form ? String(block.form.title) : 'Linked form'}</span> : undefined}>
+        {schema.fields.some(field => field.name === 'children') ? renderSlot(String(block.id), 'children') : undefined}
+      </SectionElement>
+    }
+    const headline = [block.heading, block.title, block.blockName].find(value => typeof value === 'string')
+    return <div data-live-editor-legacy-page-block={blockType}><strong>{schema.label}</strong>{typeof headline === 'string' && <p>{headline}</p>}<p>See this block in the site preview.</p></div>
+  }
   if (kind === 'form') {
     if (blockType === 'emailGrid') {
       const widths = getFormRowWidths(block)

@@ -122,7 +122,7 @@ function Field({ field, owner, onOwnerChange, path, context }: {
       </label>)}
     </div>
   } else if (field.type === 'relationship' || field.type === 'upload') {
-    input = field.relationTo === 'media' && !field.hasMany
+    input = field.relationTo === 'media' && !field.hasMany && field.name !== 'file'
       ? <LiveEmailMediaField value={value} onChange={change} readOnly={context.readOnly} uploadAccept={field.mimeTypes?.join(',') || 'image/*'} />
       : <LiveEmailRelationshipField field={field} value={value} onChange={change} readOnly={context.readOnly} />
   } else if (field.options?.length) {

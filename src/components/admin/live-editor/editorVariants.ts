@@ -1,6 +1,6 @@
 import type { PuckBlockSchema } from '@/lib/puck/types'
 
-export type LiveEditorKind = 'email' | 'post' | 'form'
+export type LiveEditorKind = 'email' | 'post' | 'form' | 'page'
 
 export const liveEditorVariants = {
   email: {
@@ -19,6 +19,15 @@ export const liveEditorVariants = {
     saveLabel: 'Save draft',
     settingsTitle: 'Post details',
     settings: [['title', 'Post title']],
+    saveKeys: ['layout', 'title'],
+  },
+  page: {
+    label: 'Page',
+    collection: 'pages',
+    storageLabel: 'Layout',
+    saveLabel: 'Save draft',
+    settingsTitle: 'Page details',
+    settings: [['title', 'Page title']],
     saveKeys: ['layout', 'title'],
   },
   form: {

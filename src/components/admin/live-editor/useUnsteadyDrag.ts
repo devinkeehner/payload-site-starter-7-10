@@ -170,7 +170,14 @@ export function useUnsteadyDrag({ canDrop, onDrop, onCancel, scroller, revision 
         if (seen.has(slotId)) continue
         seen.add(slotId)
         const items = Array.from(zone.children).filter(child => child.hasAttribute('data-unsteady-drop-item'))
-        const index = items.findIndex(child => { const rect = child.getBoundingClientRect(); return local.y < rect.top + rect.height / 2 })
+        const grid = zone.hasAttribute('data-unsteady-grid') && items.length > 1
+          && items.some(child => child.getBoundingClientRect().left !== items[0]!.getBoundingClientRect().left)
+        const index = items.findIndex(child => {
+          const rect = child.getBoundingClientRect()
+          return grid
+            ? local.y < rect.top || (local.y <= rect.bottom && local.x < rect.left + rect.width / 2)
+            : local.y < rect.top + rect.height / 2
+        })
         const target = { slotId, index: index < 0 ? items.length : index }
         try { if (latest.current.canDrop(item, target)) return target } catch { /* A concurrent edit invalidated this destination. */ }
       }
@@ -219,7 +226,14 @@ export function useUnsteadyDrag({ canDrop, onDrop, onCancel, scroller, revision 
       const stop = (click: MouseEvent) => {
         // Keyboard activation is independent of the pointer gesture.
         if (click.detail === 0) return
-        click.preventDefault(); click.stopImmediatePropagation(); release()
+        const clicked = pointToUnsteadyRoot({ x: click.clientX, y: click.clientY }, click.currentTarget as Document, root)
+        if (Math.hypot(clicked.x - point.x, clicked.y - point.y) <= 12) {
+          click.preventDefault()
+          click.stopImmediatePropagation()
+        } else {
+          suppressClickUntil.current = 0
+        }
+        release()
       }
       documents.forEach(doc => doc.addEventListener('click', stop, true))
       win.setTimeout(release, 400)

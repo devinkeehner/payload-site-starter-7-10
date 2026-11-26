@@ -53,6 +53,7 @@ export type PuckFieldSchema = {
   mimeTypes?: string[]
   minRows?: number
   maxRows?: number
+  maxLength?: number
   options?: Array<{ label: string; value: unknown }>
   fields?: PuckFieldSchema[]
   blocks?: PuckBlockSchema[]

@@ -6,9 +6,11 @@ import type { PuckBlockSchema } from '@/lib/puck/types'
 import { applyTextAction, captureTextAddress, type FieldAddress, type TextAction } from '@/lib/live-editor/textFields'
 import { applyUnsteadyTextAction } from '@/lib/live-editor/text'
 import { getPlainTextFromLexical } from '@/lib/live-editor/lexical'
-import { createUnsteadyBlock } from '@/lib/live-editor/catalog'
+import { buildPageSection, collectSectionSchemas, PAGE_SECTION, PAGE_SECTION_STARTERS } from '@/lib/live-editor/pageSections'
+import { usePageSectionLibrary } from './usePageSectionLibrary'
+import { cloneUnsteadyRow, createUnsteadyBlock } from '@/lib/live-editor/catalog'
 import { getEditorPaletteGroups } from './emailBlockPalette'
-import { duplicateBlock, editOwnedArray, ensureDocumentIds, findBlock, getBlock, getSlot, getSlots, insertBlock, moveBlock, removeBlock, ROOT_SLOT, updateBlock, type PageDocument, type SlotAddress } from '@/lib/live-editor/document'
+import { duplicateBlock, editOwnedArray, ensureDocumentIds, findBlock, findBlockSchema, getBlock, getSlot, getSlots, insertBlock, moveBlock, removeBlock, ROOT_SLOT, updateBlock, type BlockRecord, type PageDocument, type SlotAddress } from '@/lib/live-editor/document'
 import { getFormSettingsSchema, liveEditorVariants, type LiveEditorKind } from './editorVariants'
 import { LiveEmailBlockRenderer } from './LiveEmailBlockRenderer'
 import { LiveEmailInlineText } from './LiveEmailInlineText'
@@ -60,7 +62,10 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   const [panel, setPanel] = useState<'blocks' | 'rows' | 'layers' | 'fields' | 'page'>(() => selected ? 'fields' : 'blocks')
   const [panelOpen, setPanelOpen] = useState(() => Boolean(selected) || !window.matchMedia('(max-width: 650px)').matches)
   const [query, setQuery] = useState('')
-  const [library, setLibrary] = useState('All')
+  const [library, setLibrary] = useState(kind === 'page' ? 'Sections' : 'All')
+  const pageLibrary = usePageSectionLibrary(kind === 'page' ? apiURL : undefined)
+  const [sectionName, setSectionName] = useState('')
+  const [savingSection, setSavingSection] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
   const [width, setWidth] = useState<'desktop' | 'mobile'>('desktop')
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
@@ -79,7 +84,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   const { slots, dropCache } = useMemo(() => ({ slots: getSlots(page, { schemas }), dropCache: new Map<string, boolean>() }), [page, schemas])
   const resolveMedia = useLiveEmailMedia(apiURL, slots, schemas)
   const currentBlock = selected ? findBlock(page, selected, { schemas }) : undefined
-  const currentSchema = schemas.find(schema => schema.slug === currentBlock?.blockType)
+  const currentSchema = findBlockSchema(currentBlock?.blockType, schemas)
   const currentSlot = selected ? slots.find(slot => slot.items.some(item => String(item.id) === selected)) : undefined
   const inspectorSchema = kind === 'form' && currentSchema ? {
     ...currentSchema,
@@ -125,7 +130,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     announce(`Moved to ${slot.label}.`)
   }, [schemas, commit, announce, getCurrent])
   const add = useCallback((type: string, address: SlotAddress, index?: number, layout?: string) => {
-    const schema = schemas.find(item => item.slug === type)
+    const schema = findBlockSchema(type, schemas)
     if (!schema) return
     const slot = getSlot(getCurrent().document, address, { schemas })
     const before = index === undefined ? null : slot.items[index]?.id ?? null
@@ -136,6 +141,17 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     setSelected(String(result.selectedId)); setActiveText(null)
     announce(`Added ${schema.label}.`)
   }, [schemas, commit, announce, getCurrent])
+  const addSection = (section: BlockRecord, label: string) => attempt(() => {
+    const schema = findBlockSchema(PAGE_SECTION, schemas)
+    if (!schema) throw new Error('Sections are unavailable on this page.')
+    measure()
+    const copy = cloneUnsteadyRow(schema.fields, section)
+    const result = insertBlock(getCurrent().document, ROOT_SLOT, copy, null, { schemas })
+    commit(result.document)
+    selectBlock(String(result.selectedId))
+    announce(`Added ${label}.`)
+  })
+
   const canDrop = useCallback((item: DragItem, target: DropTarget) => {
     const cacheKey = JSON.stringify([item, target])
     if (dropCache.has(cacheKey)) return dropCache.get(cacheKey)!
@@ -162,6 +178,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   })
 
   const agentTools = useUnsteadyAgentTools({
+    ...(kind === 'page' ? { sections: { save: pageLibrary.save } } : {}),
     getState: () => ({ ...getCurrent(), schemas }),
     commit: result => {
       setActiveText(null); measure(); commit(result.document)
@@ -230,13 +247,19 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     history.commit(result.document, `${id}:${JSON.stringify(address)}`)
   })
   const chooseInsertion = (address: SlotAddress) => {
-    setInsertTarget(address); setLibrary('All'); setQuery(''); setPanel('blocks'); setPanelOpen(true); setActiveText(null)
+    if (kind === 'page') setLibrary(address.ownerId === ROOT_SLOT.ownerId ? 'Sections' : 'Elements')
+    if (kind !== 'page') setLibrary('All')
+    setInsertTarget(address)
+    setQuery('')
+    setPanel('blocks')
+    setPanelOpen(true)
+    setActiveText(null)
   }
-  const renderSlot = (address: SlotAddress): ReactNode => {
+  const renderSlot = (address: SlotAddress, grid = false): ReactNode => {
     const slot = slots.find(item => String(item.ownerId) === String(address.ownerId) && item.path === address.path)
     if (!slot) return null
     const targeted = drag?.target?.slotId === slot.id
-    return <div className={styles.zone} data-unsteady-zone={slot.id} role="group" aria-label={slot.label} data-root={address.path === 'layout' || undefined} data-drop-active={targeted || undefined} key={slot.id}>
+    return <div className={styles.zone} data-unsteady-zone={slot.id} data-unsteady-grid={grid || undefined} role="group" aria-label={slot.label} data-root={address.path === 'layout' || undefined} data-drop-active={targeted || undefined} key={slot.id}>
       {address.path !== 'layout' && <div className={styles.zoneCaption}>{slot.label}</div>}
       {kind === 'post' && address.path === 'layout' && !slot.items.length &&
         <p className={styles.emptyState}>This post uses its rich-text body while the layout is empty. Add a Post Body block to include it in a custom layout.</p>}
@@ -250,7 +273,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   }
   const renderBlock = (block: Record<string, unknown>): ReactNode => {
     const id = String(block.id)
-    const schema = schemas.find(item => item.slug === block.blockType)
+    const schema = findBlockSchema(block.blockType, schemas)
     const label = textLabel(block, schema)
     const source = slots.find(slot => slot.items.some(item => String(item.id) === id))
     const sourceIndex = source?.items.findIndex(item => String(item.id) === id) ?? -1
@@ -266,9 +289,10 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
           aria-expanded={moveMenu === id} aria-controls={moveMenu === id ? `move-menu-${id}` : undefined} aria-haspopup="dialog" data-unsteady-move={id}
           onClick={() => { if (!skipClick()) { setActiveText(null); setSelected(id); setMoveMenu(moveMenu === id ? null : id) } }}
           onKeyDown={event => {
-            if (!source || !['ArrowUp', 'ArrowDown'].includes(event.key)) return
+            const horizontal = event.currentTarget.closest('[data-unsteady-zone]')?.hasAttribute('data-unsteady-grid')
+            if (!source || !['ArrowUp', 'ArrowDown', ...(horizontal ? ['ArrowLeft', 'ArrowRight'] : [])].includes(event.key)) return
             event.preventDefault(); measure()
-            const index = event.key === 'ArrowUp' ? Math.max(0, sourceIndex - 1) : Math.min(source.items.length, sourceIndex + 2)
+            const index = ['ArrowUp', 'ArrowLeft'].includes(event.key) ? Math.max(0, sourceIndex - 1) : Math.min(source.items.length, sourceIndex + 2)
             attempt(() => move(id, { slotId: source.id, index }))
           }}><Move size={14} /><span>{schema?.label || block.blockType as string}</span></button>
         <button type="button" aria-label={`Edit ${label}`} title="Edit block" onClick={() => selectBlock(id)}><Settings2 size={14} /></button>
@@ -283,7 +307,8 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
         {slots.filter(slot => canDrop({ kind: 'block', id, label }, { slotId: slot.id, index: slot.items.length })).map(slot => <button key={slot.id} type="button" onClick={() => attempt(() => { measure(); move(id, { slotId: slot.id, index: slot.items.length }) })}><Move size={13} />{slot.label}</button>)}
       </LiveEmailMoveMenu>}
       <LiveEmailBlockRenderer block={block} schemas={schemas} kind={kind} insideRow={source?.path !== ROOT_SLOT.path} resolveMedia={resolveMedia} postContent={page.content}
-        renderSlot={(ownerId, slotName) => renderSlot({ ownerId, path: slotName })}
+        renderSlot={(ownerId, slotName) => renderSlot({ ownerId, path: slotName },
+          kind === 'page' && (block.blockType === 'sectionGrid' || block.blockType === 'sectionColumns') && block.variant !== 'stacked')}
         renderText={(owner, field, path, storage, fieldLabel) => {
           const address = captureTextAddress(block, path)
           const key = `${id}:${JSON.stringify(address)}`
@@ -298,13 +323,18 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     try { return getSlot(page, insertTarget, { schemas }) } catch { return undefined }
   }, [page, insertTarget, schemas])
   const isLegacyRow = kind === 'post' && selectedSlot?.allowedSlugs?.some(slug => slug.startsWith('post')) && selectedSlot.address.ownerId !== ROOT_SLOT.ownerId
-  const groups = getEditorPaletteGroups(schemas.filter(schema => !schema.slug.startsWith('post') || schema.slug === 'postBody' ||
+  const pageGroups = kind === 'page' ? [
+    { label: 'Sections', tab: 'Sections', blocks: schemas.filter(schema => schema.slug === PAGE_SECTION).map(schema => ({ schema, label: 'Blank section', Icon: LayoutTemplate })) },
+    { label: 'Elements', tab: 'Elements', blocks: collectSectionSchemas(schemas).filter(schema => schema.slug !== PAGE_SECTION).map(schema => ({ schema, label: schema.label, Icon: Plus })) },
+    { label: 'Existing blocks', tab: 'Existing blocks', blocks: schemas.filter(schema => schema.slug !== PAGE_SECTION).map(schema => ({ schema, label: schema.label, Icon: LayoutTemplate })) },
+  ] : []
+  const groups = kind === 'page' ? pageGroups : getEditorPaletteGroups(schemas.filter(schema => !schema.slug.startsWith('post') || schema.slug === 'postBody' ||
     (isLegacyRow && selectedSlot?.allowedSlugs?.includes(schema.slug))), kind)
   const search = query.trim().toLowerCase()
   const visibleGroups = groups
     .filter(group => search || library === 'All' || group.tab === library)
     .map(group => ({ ...group, blocks: group.blocks.filter(({ schema, label }) =>
-      `${label} ${schema.label} ${schema.slug} ${group.label}`.toLowerCase().includes(search),
+      `${label} ${schema.label} ${schema.slug} ${group.label}`.toLowerCase().includes(search) && (kind !== 'page' || group.tab !== 'Elements' || selectedSlot?.allowedSlugs?.includes(schema.slug)),
     ) }))
     .filter(group => group.blocks.length)
 
@@ -384,8 +414,18 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
           {panel === 'blocks' && <>
             <div className={styles.panelTitle}><h2>Add to your {kind}</h2></div>
             <label className={styles.search}><Search size={16} /><input aria-label="Search blocks" placeholder="Search blocks…" value={query} onChange={event => setQuery(event.target.value)} /></label>
-            <div className={styles.libraryTabs}>{Array.from(new Set(['All', ...groups.map(group => group.tab)])).map(name => <button type="button" key={name} aria-pressed={library === name} onClick={() => { setLibrary(name); setQuery('') }}>{name}</button>)}</div>
-            <label className={styles.destination}>Adding to<select aria-label="New block destination" value={selectedSlot?.id || ''} onChange={event => { const slot = slots.find(item => item.id === event.target.value); if (slot) setInsertTarget(slot.address) }}>{!selectedSlot && <option value="" disabled>Destination removed — choose another</option>}{slots.map(slot => <option key={slot.id} value={slot.id} disabled={slot.active === false}>{slot.label}</option>)}</select></label>
+            <div className={styles.libraryTabs}>{Array.from(new Set([...(kind === 'page' ? [] : ['All']), ...groups.map(group => group.tab)])).map(name => <button type="button" key={name} aria-pressed={library === name} onClick={() => { setLibrary(name); setQuery(''); if (kind === 'page' && name !== 'Elements') setInsertTarget(ROOT_SLOT) }}>{name}</button>)}</div>
+            <label className={styles.destination}>Adding to<select aria-label="New block destination" value={selectedSlot?.id || ''} onChange={event => { const slot = slots.find(item => item.id === event.target.value); if (slot) { setInsertTarget(slot.address); if (kind === 'page') setLibrary(slot.ownerId === ROOT_SLOT.ownerId ? 'Sections' : 'Elements') } }}>{!selectedSlot && <option value="" disabled>Destination removed — choose another</option>}{slots.map(slot => <option key={slot.id} value={slot.id} disabled={slot.active === false}>{slot.label}</option>)}</select></label>
+            {kind === 'page' && (library === 'Sections' || search) && <section className={styles.blockGroup} aria-label="Section templates">
+              <h3>Section templates</h3>
+              <div className={styles.blockGrid}>
+                {PAGE_SECTION_STARTERS.filter(item => item.name.toLowerCase().includes(search)).map(item =>
+                  <button type="button" className={styles.paletteItem} key={item.name} onClick={() => attempt(() => addSection(buildPageSection(item.recipe, schemas), item.name))}><LayoutTemplate size={22} aria-hidden />{item.name}</button>)}
+                {pageLibrary.sections.filter(item => item.name.toLowerCase().includes(search)).map(item =>
+                  <button type="button" className={styles.paletteItem} key={item.id} onClick={() => addSection(item.section, item.name)}><LayoutTemplate size={22} aria-hidden />{item.name}</button>)}
+              </div>
+              {pageLibrary.error && <p role="status">{pageLibrary.error}</p>}
+            </section>}
             {visibleGroups.map(group => <section key={group.label} aria-label={group.label} className={styles.blockGroup}><h3>{group.label}</h3><div className={styles.blockGrid}>{group.blocks.map(({ schema, label, Icon }) => <button className={styles.paletteItem} type="button" key={schema.slug} aria-label={`Add ${label}`} title={`Click to add ${schema.label}, or drag it onto the ${kind}`}
               onPointerDown={event => start(event, { kind: 'palette', type: schema.slug, label: schema.label })}
               onClick={() => { if (skipClick()) return; attempt(() => {
@@ -393,7 +433,8 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
                 if (selectedSlot.allowedSlugs && !selectedSlot.allowedSlugs.includes(schema.slug)) throw new Error(`${schema.label} cannot go in ${selectedSlot.label}. Choose the main layout as the destination.`)
                 measure(); add(schema.slug, selectedSlot.address)
               }) }}><Icon size={25} aria-hidden /><span>{label}</span></button>)}</div></section>)}
-            {!visibleGroups.length && <p className={styles.emptyState}>No blocks match “{query}”.</p>}
+            {!visibleGroups.length && kind === 'page' && library === 'Elements' && <p className={styles.emptyState}>Choose a section or container as the destination.</p>}
+            {!visibleGroups.length && kind !== 'page' && <p className={styles.emptyState}>No blocks match “{query}”.</p>}
           </>}
           {panel === 'rows' && <>
             <h2>Add a row</h2>
@@ -416,6 +457,17 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
                 ? <p>Uses the rich text from the post’s Editor tab.</p>
                 : <p>{kind === 'form' || currentSchema.slug.startsWith('post') ? 'Edit the block fields here.' : 'Edit text on the canvas or adjust details here.'}</p>}
             </div></div>
+            {currentSchema.slug === PAGE_SECTION && <form className={styles.destination} onSubmit={event => {
+              event.preventDefault()
+              if (savingSection || !sectionName.trim()) return
+              setSavingSection(true)
+              void pageLibrary.save(sectionName.trim(), currentBlock).then(template => {
+                setSectionName(''); announce(`Saved ${template.name} to Sections.`)
+              }).catch(reason => setError(reason.message)).finally(() => setSavingSection(false))
+            }}>
+              <label>Reusable section name<input value={sectionName} onChange={event => setSectionName(event.target.value)} maxLength={100} required /></label>
+              <button type="submit" disabled={savingSection || !sectionName.trim() || !Array.isArray(currentBlock.children) || !currentBlock.children.length}>{savingSection ? 'Saving section…' : 'Save as Section'}</button>
+            </form>}
             <LiveEmailFields key={selected!} schema={inspectorSchema} value={currentBlock} lexicalBlockSchemas={lexicalBlockSchemas}
               onChange={next => attempt(() => history.commit(updateBlock(getCurrent().document, selected!, next, { schemas }).document))}
               onArrayAction={action => attempt(() => { setActiveText(null); measure(); history.commit(editOwnedArray(getCurrent().document, selected!, action.path, action, { schemas }).document) })} />
@@ -427,7 +479,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
                 <h3>{slot.label}</h3>
                 {slot.items.map((block, index) => {
                   const id = String(block.id)
-                  const label = textLabel(block, schemas.find(item => item.slug === block.blockType))
+                  const label = textLabel(block, findBlockSchema(block.blockType, schemas))
                   return <div className={styles.layerRow} key={id}>
                     <button type="button" aria-pressed={id === selected}
                       onClick={() => attempt(() => { selectBlock(id); scrollUnsteadyPreview(scroller.current, { blockId: id }) })}>

@@ -120,10 +120,10 @@ export function normalizeFields(value: RecordValue, fields: readonly DraftField[
   return next
 }
 
-export function buildNativeEmailDraftPatch(email: unknown, fields: readonly DraftField[], registry: readonly DraftBlock[] = [], kind: 'email' | 'post' = 'email'): RecordValue {
+export function buildNativeEmailDraftPatch(email: unknown, fields: readonly DraftField[], registry: readonly DraftBlock[] = [], kind: 'email' | 'post' | 'page' = 'email'): RecordValue {
   if (!isRecord(email)) throw new NativeDraftError(`A native ${kind} document is required.`)
   const patch: RecordValue = {}
-  for (const name of kind === 'post' ? ['title', 'layout'] as const : CONTENT_FIELDS) {
+  for (const name of kind === 'email' ? CONTENT_FIELDS : ['title', 'layout'] as const) {
     if (!Object.hasOwn(email, name)) continue
     const value = email[name]
     if (name !== 'layout' && typeof value !== 'string') throw new NativeDraftError(`${name} must be text.`)
@@ -147,7 +147,7 @@ export function readExpectedUpdatedAt(token: unknown): string {
   return token
 }
 
-export function assertCurrentDraftRevision(current: { updatedAt?: unknown }, expectedUpdatedAt: string, kind: 'email' | 'post' | 'form' = 'email'): void {
+export function assertCurrentDraftRevision(current: { updatedAt?: unknown }, expectedUpdatedAt: string, kind: 'email' | 'post' | 'form' | 'page' = 'email'): void {
   if (typeof current.updatedAt !== 'string' || current.updatedAt !== expectedUpdatedAt) {
     const document = kind === 'form' ? 'form' : `${kind} draft`
     const latest = kind === 'form' ? 'version' : 'draft'

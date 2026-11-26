@@ -1,5 +1,6 @@
 import type { Block, Field } from 'payload'
 
+import { PAGE_LAYOUT_BLOCKS } from '@/lib/blocks/pageLayoutBlocks'
 import { POST_LAYOUT_BLOCKS } from '@/lib/blocks/postLayoutBlocks'
 import { EMAIL_LAYOUT_BLOCKS } from '@/lib/email/blocks'
 import { FORM_FIELD_BLOCKS } from '@/lib/forms/puckFormBlocks'
@@ -110,6 +111,7 @@ function normalizeField(field: Field): PuckFieldSchema | null {
   if (typeof defaultValue !== 'undefined') normalized.defaultValue = defaultValue
   if ('minRows' in field && typeof field.minRows === 'number') normalized.minRows = field.minRows
   if ('maxRows' in field && typeof field.maxRows === 'number') normalized.maxRows = field.maxRows
+  if ('maxLength' in field && typeof field.maxLength === 'number') normalized.maxLength = field.maxLength
   if ('relationTo' in field) normalized.relationTo = field.relationTo as string | string[]
   if ('mimeTypes' in field && Array.isArray(field.mimeTypes)) normalized.mimeTypes = field.mimeTypes
 
@@ -176,4 +178,8 @@ export function getFormPuckBlockSchema(): PuckBlockSchema[] {
 
 export function getFooterPuckBlockSchema(): PuckBlockSchema[] {
   return []
+}
+
+export function getPageBuilderSchema(): PuckBlockSchema[] {
+  return PAGE_LAYOUT_BLOCKS.map(normalizeBlock)
 }

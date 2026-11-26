@@ -37,6 +37,7 @@ import { MetaTitleComponent as MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c08
 import { MetaImageComponent as MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { MetaDescriptionComponent as MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
 import { PreviewComponent as PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
+import { default as default_71258e24978d9a2df15129fd7dd85a3b } from '@/components/admin/page/LivePageBuilderView'
 import { GenerateSEOButton as GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae } from '../../../components/admin/GenerateSEOButton'
 import { default as default_ba1864c9a769a36011f463d5faeeb745 } from '@/components/admin/media/MediaGalleryListView'
 import { default as default_37461efde84e27dbdd00177f6b8a1329 } from '@/components/admin/graphics/GraphicDesignDefaultView'
@@ -135,6 +136,7 @@ export const importMap = {
   "@payloadcms/plugin-seo/client#MetaImageComponent": MetaImageComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#MetaDescriptionComponent": MetaDescriptionComponent_a8a977ebc872c5d5ea7ee689724c0860,
   "@payloadcms/plugin-seo/client#PreviewComponent": PreviewComponent_a8a977ebc872c5d5ea7ee689724c0860,
+  "@/components/admin/page/LivePageBuilderView#default": default_71258e24978d9a2df15129fd7dd85a3b,
   "./components/admin/GenerateSEOButton#GenerateSEOButton": GenerateSEOButton_11389cac6e22fcbf93330ad3b4c895ae,
   "@/components/admin/media/MediaGalleryListView#default": default_ba1864c9a769a36011f463d5faeeb745,
   "@/components/admin/graphics/GraphicDesignDefaultView#default": default_37461efde84e27dbdd00177f6b8a1329,

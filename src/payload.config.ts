@@ -1,3 +1,4 @@
+import { PageSectionTemplates } from '@/collections/PageSectionTemplates'
 import { ShortLinks } from './collections/ShortLinks'
 import { mongooseAdapter } from '@payloadcms/db-mongodb';
 import { resendAdapter } from '@payloadcms/email-resend';
@@ -313,6 +314,7 @@ export default buildConfig({
     // Content
     Posts,
     Pages,
+    PageSectionTemplates,
     BadBills,
     Media,
     GraphicTemplates,

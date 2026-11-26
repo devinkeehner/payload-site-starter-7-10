@@ -9,7 +9,7 @@ import { liveEditorVariants, type LiveEditorKind } from './editorVariants'
 
 const Editor = dynamic(() => import('./LiveDocumentEditor').then(module => module.LiveDocumentEditor), { ssr: false })
 type EditorDraft = PageDocument & { id: string | number; title?: string; updatedAt: string; status?: string; tenantId?: string | null; tenantName?: string }
-type EditorPayload = { email?: EditorDraft; post?: EditorDraft; form?: EditorDraft; schemas: PuckBlockSchema[] }
+type EditorPayload = { email?: EditorDraft; post?: EditorDraft; form?: EditorDraft; page?: EditorDraft; schemas: PuckBlockSchema[] }
 async function readResponse(response: Response): Promise<EditorPayload> {
   const body = await response.json().catch(() => null)
   if (!response.ok) throw new Error(body?.error || 'Unable to load this draft.')
@@ -67,7 +67,7 @@ export function LiveEditorDocumentClient({ id, kind, focusBlock, focusField, ret
     if (!response.ok || typeof body?.adminUrl !== 'string') throw new Error(body?.error || 'Unable to create a post draft.')
     return body.adminUrl as string
   }
-  if (error) return <main className="live-editor-message" role="alert"><h1>Live Editor</h1><p>{error}</p><a href={homeURL}>Back to {kind === 'email' ? 'campaign' : kind === 'form' ? 'forms' : 'post'}</a></main>
+  if (error) return <main className="live-editor-message" role="alert"><h1>Live Editor</h1><p>{error}</p><a href={homeURL}>Back to {kind === 'email' ? 'campaign' : kind === 'form' ? 'forms' : kind}</a></main>
   if (!loaded) return <main className="live-editor-message" role="status">Loading Live Editor…</main>
   if (kind === 'email' && loaded.draft.status === 'delivery_unknown') return <main className="live-editor-message"><h1>Delivery outcome unknown</h1><p>Investigate the existing iContact send before editing this campaign.</p><a href={homeURL}>View campaign</a></main>
   if (kind === 'email' && ['scheduled', 'queued', 'sending', 'sent'].includes(loaded.draft.status || '')) return <main className="live-editor-message"><h1>This campaign is locked</h1><p>Cancel its schedule or duplicate the campaign before editing its content.</p><a href={homeURL}>Back to campaign</a></main>
@@ -76,7 +76,7 @@ export function LiveEditorDocumentClient({ id, kind, focusBlock, focusField, ret
     tenantName={loaded.draft.tenantName}
     apiURL={apiURL} kind={kind}
     onCreatePost={kind === 'email' ? createPost : undefined}
-    previewURL={kind === 'post' ? `${apiURL}/preview` : kind === 'email' ? `/live-editor/emails/${encodeURIComponent(id)}/preview` : null}
+    previewURL={(kind === 'post' || kind === 'page') ? `${apiURL}/preview` : kind === 'email' ? `/live-editor/emails/${encodeURIComponent(id)}/preview` : null}
     backToPayloadURL={kind === 'form' ? collectionURL : adminURL}
     advancedURL={kind === 'form' ? `${adminURL}/advanced` : undefined}
     nextStage={kind === 'email' ? {

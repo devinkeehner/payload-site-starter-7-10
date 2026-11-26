@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { collectSectionSchemas, PAGE_SECTION, type SectionTemplate } from '@/lib/live-editor/pageSections'
+import { findBlock } from '@/lib/live-editor/document'
 import { applyEditorCommand, readEditorCatalog, readEditorSnapshot, type EditorAgentState, type EditorCommandResult } from '@/lib/live-editor/agent'
 import type { PreviewScrollTarget, readUnsteadyPreview } from './previewNavigation'
 
@@ -8,6 +10,7 @@ export type UnsteadyAgentBinding = {
   getState: () => EditorAgentState
   /** Apply through the editor's normal undo history and synchronously update its state ref. */
   commit: (result: EditorCommandResult) => void
+  sections?: { save: (name: string, section: SectionTemplate['section']) => Promise<SectionTemplate> }
   undo?: () => void
   redo?: () => void
   preview?: {
@@ -63,7 +66,7 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
   const execute = (fn: (input: unknown) => unknown) => async (input: unknown, options?: { signal?: AbortSignal }): Promise<ToolResult> => {
     try {
       if (lifetime?.aborted || options?.signal?.aborted) throw new Error('This editor tool session is no longer active.')
-      return output(fn(input))
+      return output(await fn(input))
     } catch (cause) { return output({ error: cause instanceof Error ? cause.message : 'The editor command failed.' }, true) }
   }
   const tools: UnsteadySiteTool[] = [
@@ -104,6 +107,54 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
       }),
     },
   ]
+  if (binding.getState().document.collection === 'pages') {
+    tools.push({
+      name: 'live_editor_read_section_elements', title: 'Read page section and element schemas',
+      description: 'Read the allowed children, fields, and options for composing a page section. Pass a blockType for one exact schema. The summary includes the allowed nesting structure.',
+      inputSchema: inputSchema({ blockType: { type: 'string' } }),
+      annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: false },
+      execute: execute(value => {
+        const { blockType } = inputObject(value, ['blockType'])
+        const schemas = collectSectionSchemas(stateNow().schemas)
+        if (blockType != null) {
+          const schema = schemas.find(item => item.slug === blockType)
+          if (!schema) throw new Error('Unknown section element.')
+          return { ...schema, fields: schema.fields.map(({ blocks, ...field }) => ({ ...field, ...(blocks ? { allowedChildren: blocks.map(block => block.slug) } : {}) })) }
+        }
+        return { root: PAGE_SECTION, elements: schemas.map(item => ({ blockType: item.slug, label: item.label, children: item.fields.find(field => field.name === 'children')?.blocks?.map(block => block.slug) ?? [] })) }
+      }),
+    }, {
+      name: 'live_editor_insert_section', title: 'Compose a section in the page draft',
+      description: 'Insert a nested section in one undo step. Use the element catalog first. Supply native blockType, editable fields and children; rich text fields take plain text here. Optional beforeId selects a root block to insert before.',
+      inputSchema: inputSchema({ expectedRevision: revisionSchema, beforeId: idSchema, section: { type: 'object' } }, ['expectedRevision', 'section']),
+      annotations: { readOnlyHint: false, untrustedContentHint: true, consequentialHint: false },
+      execute: execute(value => {
+        const input = inputObject(value, ['expectedRevision', 'section', 'beforeId'])
+        const current = stateNow()
+        const result = applyEditorCommand(current.document, { type: 'insert_section', section: input.section, ...(input.beforeId == null ? {} : { beforeId: input.beforeId }) }, { ...current, expectedRevision: input.expectedRevision as number })
+        binding.commit(result)
+        minimumRevision = result.revision
+        return { revision: result.revision, sectionId: result.selectedId }
+      }),
+    })
+    if (binding.sections) tools.push({
+      name: 'live_editor_save_section', title: 'Save a reusable section to this site',
+      description: 'When the user requests reuse, save an editable copy of one section to this site’s library. Does not save or publish the page.',
+      inputSchema: inputSchema({ expectedRevision: revisionSchema, sectionId: idSchema, name: { type: 'string', maxLength: 100 } }, ['expectedRevision', 'sectionId', 'name']),
+      annotations: { readOnlyHint: false, untrustedContentHint: true, consequentialHint: true },
+      execute: execute(async value => {
+        const { expectedRevision, sectionId, name } = inputObject(value, ['expectedRevision', 'sectionId', 'name'])
+        const current = stateNow()
+        if (expectedRevision !== current.revision) throw new Error('The draft changed. Read the latest revision first.')
+        if (typeof name !== 'string' || !name.trim() || name.trim().length > 100 || (typeof sectionId !== 'string' && typeof sectionId !== 'number')) throw new Error('Provide a section ID and a name of up to 100 characters.')
+        const section = findBlock(current.document, sectionId, { schemas: current.schemas })
+        if (section?.blockType !== PAGE_SECTION) throw new Error('Only composable sections can be saved to the library.')
+        const template = await binding.sections!.save(name.trim(), section)
+        return { id: template.id, name: template.name }
+      }),
+    })
+  }
+
   if (binding.preview) {
     const preview = binding.preview
     tools.push({
@@ -181,6 +232,7 @@ export function useUnsteadyAgentTools(binding: UnsteadyAgentBinding & { enabled?
   const hasUndo = Boolean(binding.undo)
   const hasRedo = Boolean(binding.redo)
   const hasPreview = Boolean(binding.preview)
+  const hasSections = Boolean(binding.sections)
   useEffect(() => {
     if (!enabled) { setStatus('unavailable'); return }
     // Current draft: document.modelContext + abortable registration.
@@ -195,6 +247,7 @@ export function useUnsteadyAgentTools(binding: UnsteadyAgentBinding & { enabled?
     let cleanup: (() => void) | undefined
     const tools = createUnsteadyAgentTools({ getState: () => latest.current.getState(), commit: result => latest.current.commit(result),
       ...(hasUndo ? { undo: () => latest.current.undo?.() } : {}), ...(hasRedo ? { redo: () => latest.current.redo?.() } : {}),
+      ...(hasSections ? { sections: { save: (name, section) => latest.current.sections!.save(name, section) } } : {}),
       ...(hasPreview ? { preview: { read: () => latest.current.preview!.read(), scroll: (target: PreviewScrollTarget) => latest.current.preview!.scroll(target) } } : {}),
     }, controller.signal)
     void registerUnsteadyAgentTools(context, tools, controller).then(remove => {
@@ -203,6 +256,6 @@ export function useUnsteadyAgentTools(binding: UnsteadyAgentBinding & { enabled?
       else setStatus('ready')
     }).catch(() => { if (!disposed) setStatus('error') })
     return () => { disposed = true; controller.abort(); cleanup?.() }
-  }, [enabled, hasUndo, hasRedo, hasPreview])
+  }, [enabled, hasUndo, hasRedo, hasPreview, hasSections])
   return { available: status === 'ready', status }
 }

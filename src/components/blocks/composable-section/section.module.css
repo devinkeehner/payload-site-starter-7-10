@@ -1,0 +1,41 @@
+.section {
+  --section-space: clamp(1rem, 2.8vw, 2rem);
+  --section-accent: #173767;
+  display: grid;
+  gap: var(--section-space);
+  container-type: inline-size;
+  padding: var(--section-space);
+  overflow-wrap: anywhere;
+}
+.section[data-tone="muted"] { background: #eff3f8; color: #17253b; }
+.section[data-tone="accent"] { background: #173767; color: white; --section-accent: #e2efff; }
+.heading { margin: 0; line-height: 1.15; font-weight: 700; font-size: clamp(1.35rem, 3vw, 2rem); }
+.copy { line-height: 1.55; }
+.stack { display: grid; gap: 1rem; align-content: start; }
+.grid, .gallery { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--section-space); align-items: start; }
+.section > div[role="group"], .stack > div[role="group"], .card > div[role="group"] { display: grid; gap: inherit; }
+.grid > div[role="group"] { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; gap: inherit; }
+.grid > div[role="group"] > :not([data-unsteady-drop-item]) { grid-column: 1 / -1; }
+@container (min-width: 36rem) {
+  .grid[data-variant="equal"] { grid-template-columns: repeat(var(--section-columns), minmax(0, 1fr)); }
+  .grid[data-variant="wide-left"] { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .grid[data-variant="wide-right"] { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+  .grid[data-variant="two"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .grid[data-variant="three"], .gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .grid[data-variant="four"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.card, .callout, .stat { border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: .65rem; padding: 1rem; }
+.card { display: grid; gap: 1rem; }
+.stat { display: grid; gap: .2rem; }
+.stat strong { font-size: 1.9rem; line-height: 1.2; }
+.quote { margin: 0; padding-inline-start: 1rem; border-inline-start: .2rem solid currentColor; }
+.quote blockquote, .figure { margin: 0; }
+.figure img, .gallery img, .figure video { display: block; max-width: 100%; border-radius: .4rem; }
+.figure figcaption, .quote figcaption { margin-top: .4rem; font-size: .9rem; }
+.list { margin: 0; padding-inline-start: 1.5rem; list-style: disc; }
+.divider { margin: 0; border: 0; border-top: 1px solid currentColor; opacity: .35; }
+.icon { display: inline-flex; align-items: center; gap: .35rem; }
+.link { color: var(--section-accent); text-decoration: underline; }
+.button { display: inline-block; width: fit-content; border-radius: .35rem; background: var(--section-accent); color: white; padding: .55rem .9rem; }
+.section[data-tone="accent"] .button { color: #173767; }
+.placeholder { display: inline-block; padding: .65rem; border: 1px dashed currentColor; opacity: .75; }

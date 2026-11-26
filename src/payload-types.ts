@@ -69,6 +69,7 @@ export interface Config {
   collections: {
     posts: Post;
     pages: Page;
+    'page-section-templates': PageSectionTemplate;
     'bad-bills': BadBill;
     media: Media;
     'graphic-templates': GraphicTemplate;
@@ -114,6 +115,7 @@ export interface Config {
   collectionsSelect: {
     posts: PostsSelect<false> | PostsSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
+    'page-section-templates': PageSectionTemplatesSelect<false> | PageSectionTemplatesSelect<true>;
     'bad-bills': BadBillsSelect<false> | BadBillsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'graphic-templates': GraphicTemplatesSelect<false> | GraphicTemplatesSelect<true>;
@@ -856,6 +858,7 @@ export interface Page {
     | TaxReliefHighlightGraphicBlock
     | PropertyTaxCreditTableBlock
     | BudgetPlanFeatureBlock
+    | PageComposableSection
   )[];
   meta?: {
     title?: string | null;
@@ -2600,6 +2603,367 @@ export interface BudgetPlanFeatureBlock {
   blockType: 'budgetPlanFeature';
 }
 /**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageComposableSection".
+ */
+export interface PageComposableSection {
+  title?: string | null;
+  tone?: ('plain' | 'muted' | 'accent') | null;
+  children?:
+    | (
+        | PageSectionHeading
+        | PageSectionText
+        | PageSectionImage
+        | PageSectionLink
+        | PageSectionButton
+        | PageSectionDocument
+        | PageSectionVideo
+        | PageSectionGallery
+        | PageSectionIcon
+        | PageSectionQuote
+        | PageSectionStatistic
+        | PageSectionCallout
+        | PageSectionList
+        | PageSectionDivider
+        | PageSectionForm
+        | PageSectionCard
+        | PageSectionStack
+        | PageSectionColumns
+        | PageSectionGrid
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'composableSection';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionHeading".
+ */
+export interface PageSectionHeading {
+  text?: string | null;
+  level?: ('h2' | 'h3' | 'h4') | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionHeading';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionText".
+ */
+export interface PageSectionText {
+  body?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionText';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionImage".
+ */
+export interface PageSectionImage {
+  image?: (string | null) | Media;
+  caption?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionImage';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionLink".
+ */
+export interface PageSectionLink {
+  text?: string | null;
+  url?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionLink';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionButton".
+ */
+export interface PageSectionButton {
+  text?: string | null;
+  url?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionButton';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionDocument".
+ */
+export interface PageSectionDocument {
+  text?: string | null;
+  file?: (string | null) | Media;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionDocument';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionVideo".
+ */
+export interface PageSectionVideo {
+  file?: (string | null) | Media;
+  caption?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionVideo';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionGallery".
+ */
+export interface PageSectionGallery {
+  images?: (string | Media)[] | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionGallery';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionIcon".
+ */
+export interface PageSectionIcon {
+  symbol?: ('check' | 'info' | 'star' | 'arrow') | null;
+  text?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionIcon';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionQuote".
+ */
+export interface PageSectionQuote {
+  text?: string | null;
+  attribution?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionQuote';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionStatistic".
+ */
+export interface PageSectionStatistic {
+  value?: string | null;
+  text?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionStatistic';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionCallout".
+ */
+export interface PageSectionCallout {
+  text?: string | null;
+  body?: {
+    root: {
+      type: string;
+      children: {
+        type: any;
+        version: number;
+        [k: string]: unknown;
+      }[];
+      direction: ('ltr' | 'rtl') | null;
+      format: 'left' | 'start' | 'center' | 'right' | 'end' | 'justify' | '';
+      indent: number;
+      version: number;
+    };
+    [k: string]: unknown;
+  } | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionCallout';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionList".
+ */
+export interface PageSectionList {
+  text?: string | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionList';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionDivider".
+ */
+export interface PageSectionDivider {
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionDivider';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionForm".
+ */
+export interface PageSectionForm {
+  form?: (string | null) | Form;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionForm';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionCard".
+ */
+export interface PageSectionCard {
+  children?:
+    | (
+        | PageSectionHeading
+        | PageSectionText
+        | PageSectionImage
+        | PageSectionLink
+        | PageSectionButton
+        | PageSectionDocument
+        | PageSectionVideo
+        | PageSectionGallery
+        | PageSectionIcon
+        | PageSectionQuote
+        | PageSectionStatistic
+        | PageSectionCallout
+        | PageSectionList
+        | PageSectionDivider
+        | PageSectionForm
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionCard';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionStack".
+ */
+export interface PageSectionStack {
+  children?:
+    | (
+        | PageSectionHeading
+        | PageSectionText
+        | PageSectionImage
+        | PageSectionLink
+        | PageSectionButton
+        | PageSectionDocument
+        | PageSectionVideo
+        | PageSectionGallery
+        | PageSectionIcon
+        | PageSectionQuote
+        | PageSectionStatistic
+        | PageSectionCallout
+        | PageSectionList
+        | PageSectionDivider
+        | PageSectionForm
+        | PageSectionCard
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionStack';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionColumns".
+ */
+export interface PageSectionColumns {
+  variant?: ('equal' | 'wide-left' | 'wide-right' | 'stacked') | null;
+  children?: PageSectionColumn[] | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionColumns';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionColumn".
+ */
+export interface PageSectionColumn {
+  children?:
+    | (
+        | PageSectionHeading
+        | PageSectionText
+        | PageSectionImage
+        | PageSectionLink
+        | PageSectionButton
+        | PageSectionDocument
+        | PageSectionVideo
+        | PageSectionGallery
+        | PageSectionIcon
+        | PageSectionQuote
+        | PageSectionStatistic
+        | PageSectionCallout
+        | PageSectionList
+        | PageSectionDivider
+        | PageSectionForm
+        | PageSectionCard
+        | PageSectionStack
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionColumn';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionGrid".
+ */
+export interface PageSectionGrid {
+  variant?: ('two' | 'three' | 'four') | null;
+  children?:
+    | (
+        | PageSectionHeading
+        | PageSectionText
+        | PageSectionImage
+        | PageSectionLink
+        | PageSectionButton
+        | PageSectionDocument
+        | PageSectionVideo
+        | PageSectionGallery
+        | PageSectionIcon
+        | PageSectionQuote
+        | PageSectionStatistic
+        | PageSectionCallout
+        | PageSectionList
+        | PageSectionDivider
+        | PageSectionForm
+        | PageSectionCard
+      )[]
+    | null;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'sectionGrid';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "page-section-templates".
+ */
+export interface PageSectionTemplate {
+  id: string;
+  tenant?: (string | null) | Tenant;
+  name: string;
+  layout: PageComposableSection[];
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * Campaign landing pages for the root /bad-bills route. This collection is reserved for the main site.
  *
  * This interface was referenced by `Config`'s JSON-Schema
@@ -4069,6 +4433,10 @@ export interface PayloadLockedDocument {
         value: string | Page;
       } | null)
     | ({
+        relationTo: 'page-section-templates';
+        value: string | PageSectionTemplate;
+      } | null)
+    | ({
         relationTo: 'bad-bills';
         value: string | BadBill;
       } | null)
@@ -4577,6 +4945,7 @@ export interface PagesSelect<T extends boolean = true> {
         taxReliefHighlightGraphic?: T | TaxReliefHighlightGraphicBlockSelect<T>;
         propertyTaxCreditTable?: T | PropertyTaxCreditTableBlockSelect<T>;
         budgetPlanFeature?: T | BudgetPlanFeatureBlockSelect<T>;
+        composableSection?: T | PageComposableSectionSelect<T>;
       };
   meta?:
     | T
@@ -5168,6 +5537,325 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
   supportSubmitLabel?: T;
   id?: T;
   blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageComposableSection_select".
+ */
+export interface PageComposableSectionSelect<T extends boolean = true> {
+  title?: T;
+  tone?: T;
+  children?:
+    | T
+    | {
+        sectionHeading?: T | PageSectionHeadingSelect<T>;
+        sectionText?: T | PageSectionTextSelect<T>;
+        sectionImage?: T | PageSectionImageSelect<T>;
+        sectionLink?: T | PageSectionLinkSelect<T>;
+        sectionButton?: T | PageSectionButtonSelect<T>;
+        sectionDocument?: T | PageSectionDocumentSelect<T>;
+        sectionVideo?: T | PageSectionVideoSelect<T>;
+        sectionGallery?: T | PageSectionGallerySelect<T>;
+        sectionIcon?: T | PageSectionIconSelect<T>;
+        sectionQuote?: T | PageSectionQuoteSelect<T>;
+        sectionStatistic?: T | PageSectionStatisticSelect<T>;
+        sectionCallout?: T | PageSectionCalloutSelect<T>;
+        sectionList?: T | PageSectionListSelect<T>;
+        sectionDivider?: T | PageSectionDividerSelect<T>;
+        sectionForm?: T | PageSectionFormSelect<T>;
+        sectionCard?: T | PageSectionCardSelect<T>;
+        sectionStack?: T | PageSectionStackSelect<T>;
+        sectionColumns?: T | PageSectionColumnsSelect<T>;
+        sectionGrid?: T | PageSectionGridSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionHeading_select".
+ */
+export interface PageSectionHeadingSelect<T extends boolean = true> {
+  text?: T;
+  level?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionText_select".
+ */
+export interface PageSectionTextSelect<T extends boolean = true> {
+  body?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionImage_select".
+ */
+export interface PageSectionImageSelect<T extends boolean = true> {
+  image?: T;
+  caption?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionLink_select".
+ */
+export interface PageSectionLinkSelect<T extends boolean = true> {
+  text?: T;
+  url?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionButton_select".
+ */
+export interface PageSectionButtonSelect<T extends boolean = true> {
+  text?: T;
+  url?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionDocument_select".
+ */
+export interface PageSectionDocumentSelect<T extends boolean = true> {
+  text?: T;
+  file?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionVideo_select".
+ */
+export interface PageSectionVideoSelect<T extends boolean = true> {
+  file?: T;
+  caption?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionGallery_select".
+ */
+export interface PageSectionGallerySelect<T extends boolean = true> {
+  images?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionIcon_select".
+ */
+export interface PageSectionIconSelect<T extends boolean = true> {
+  symbol?: T;
+  text?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionQuote_select".
+ */
+export interface PageSectionQuoteSelect<T extends boolean = true> {
+  text?: T;
+  attribution?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionStatistic_select".
+ */
+export interface PageSectionStatisticSelect<T extends boolean = true> {
+  value?: T;
+  text?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionCallout_select".
+ */
+export interface PageSectionCalloutSelect<T extends boolean = true> {
+  text?: T;
+  body?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionList_select".
+ */
+export interface PageSectionListSelect<T extends boolean = true> {
+  text?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionDivider_select".
+ */
+export interface PageSectionDividerSelect<T extends boolean = true> {
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionForm_select".
+ */
+export interface PageSectionFormSelect<T extends boolean = true> {
+  form?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionCard_select".
+ */
+export interface PageSectionCardSelect<T extends boolean = true> {
+  children?:
+    | T
+    | {
+        sectionHeading?: T | PageSectionHeadingSelect<T>;
+        sectionText?: T | PageSectionTextSelect<T>;
+        sectionImage?: T | PageSectionImageSelect<T>;
+        sectionLink?: T | PageSectionLinkSelect<T>;
+        sectionButton?: T | PageSectionButtonSelect<T>;
+        sectionDocument?: T | PageSectionDocumentSelect<T>;
+        sectionVideo?: T | PageSectionVideoSelect<T>;
+        sectionGallery?: T | PageSectionGallerySelect<T>;
+        sectionIcon?: T | PageSectionIconSelect<T>;
+        sectionQuote?: T | PageSectionQuoteSelect<T>;
+        sectionStatistic?: T | PageSectionStatisticSelect<T>;
+        sectionCallout?: T | PageSectionCalloutSelect<T>;
+        sectionList?: T | PageSectionListSelect<T>;
+        sectionDivider?: T | PageSectionDividerSelect<T>;
+        sectionForm?: T | PageSectionFormSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionStack_select".
+ */
+export interface PageSectionStackSelect<T extends boolean = true> {
+  children?:
+    | T
+    | {
+        sectionHeading?: T | PageSectionHeadingSelect<T>;
+        sectionText?: T | PageSectionTextSelect<T>;
+        sectionImage?: T | PageSectionImageSelect<T>;
+        sectionLink?: T | PageSectionLinkSelect<T>;
+        sectionButton?: T | PageSectionButtonSelect<T>;
+        sectionDocument?: T | PageSectionDocumentSelect<T>;
+        sectionVideo?: T | PageSectionVideoSelect<T>;
+        sectionGallery?: T | PageSectionGallerySelect<T>;
+        sectionIcon?: T | PageSectionIconSelect<T>;
+        sectionQuote?: T | PageSectionQuoteSelect<T>;
+        sectionStatistic?: T | PageSectionStatisticSelect<T>;
+        sectionCallout?: T | PageSectionCalloutSelect<T>;
+        sectionList?: T | PageSectionListSelect<T>;
+        sectionDivider?: T | PageSectionDividerSelect<T>;
+        sectionForm?: T | PageSectionFormSelect<T>;
+        sectionCard?: T | PageSectionCardSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionColumns_select".
+ */
+export interface PageSectionColumnsSelect<T extends boolean = true> {
+  variant?: T;
+  children?:
+    | T
+    | {
+        sectionColumn?: T | PageSectionColumnSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionColumn_select".
+ */
+export interface PageSectionColumnSelect<T extends boolean = true> {
+  children?:
+    | T
+    | {
+        sectionHeading?: T | PageSectionHeadingSelect<T>;
+        sectionText?: T | PageSectionTextSelect<T>;
+        sectionImage?: T | PageSectionImageSelect<T>;
+        sectionLink?: T | PageSectionLinkSelect<T>;
+        sectionButton?: T | PageSectionButtonSelect<T>;
+        sectionDocument?: T | PageSectionDocumentSelect<T>;
+        sectionVideo?: T | PageSectionVideoSelect<T>;
+        sectionGallery?: T | PageSectionGallerySelect<T>;
+        sectionIcon?: T | PageSectionIconSelect<T>;
+        sectionQuote?: T | PageSectionQuoteSelect<T>;
+        sectionStatistic?: T | PageSectionStatisticSelect<T>;
+        sectionCallout?: T | PageSectionCalloutSelect<T>;
+        sectionList?: T | PageSectionListSelect<T>;
+        sectionDivider?: T | PageSectionDividerSelect<T>;
+        sectionForm?: T | PageSectionFormSelect<T>;
+        sectionCard?: T | PageSectionCardSelect<T>;
+        sectionStack?: T | PageSectionStackSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "PageSectionGrid_select".
+ */
+export interface PageSectionGridSelect<T extends boolean = true> {
+  variant?: T;
+  children?:
+    | T
+    | {
+        sectionHeading?: T | PageSectionHeadingSelect<T>;
+        sectionText?: T | PageSectionTextSelect<T>;
+        sectionImage?: T | PageSectionImageSelect<T>;
+        sectionLink?: T | PageSectionLinkSelect<T>;
+        sectionButton?: T | PageSectionButtonSelect<T>;
+        sectionDocument?: T | PageSectionDocumentSelect<T>;
+        sectionVideo?: T | PageSectionVideoSelect<T>;
+        sectionGallery?: T | PageSectionGallerySelect<T>;
+        sectionIcon?: T | PageSectionIconSelect<T>;
+        sectionQuote?: T | PageSectionQuoteSelect<T>;
+        sectionStatistic?: T | PageSectionStatisticSelect<T>;
+        sectionCallout?: T | PageSectionCalloutSelect<T>;
+        sectionList?: T | PageSectionListSelect<T>;
+        sectionDivider?: T | PageSectionDividerSelect<T>;
+        sectionForm?: T | PageSectionFormSelect<T>;
+        sectionCard?: T | PageSectionCardSelect<T>;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "page-section-templates_select".
+ */
+export interface PageSectionTemplatesSelect<T extends boolean = true> {
+  tenant?: T;
+  name?: T;
+  layout?:
+    | T
+    | {
+        composableSection?: T | PageComposableSectionSelect<T>;
+      };
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

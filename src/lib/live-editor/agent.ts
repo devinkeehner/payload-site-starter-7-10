@@ -1,10 +1,11 @@
+import { buildPageSection } from './pageSections'
 /** Local editor commands shared by browser tools and a future embedded agent. */
 import type { PuckBlockSchema, PuckFieldSchema } from '../puck/types'
 import { applyTextAction, canEditRichText, readAddress, readTextField, type TextAction } from './textFields'
 import { buildUnsteadyDefaults, createUnsteadyBlock, flattenUnsteadyFields, getUnsteadyBlockGroups, isUnsteadyInternalField } from './catalog'
 import { isUnsteadyCompanionTextField } from './textCapabilities'
 import { createLexicalValueFromText } from './lexical'
-import { duplicateBlock, editOwnedArray, getBlock, getSlots, insertBlock, moveBlock, removeBlock, updateBlock,
+import { duplicateBlock, editOwnedArray, getBlock, getSlots, ROOT_SLOT, insertBlock, moveBlock, removeBlock, updateBlock,
   findBlockSchema, type DocumentResult, type Id, type OwnedArrayAction, type PageDocument, type SlotAddress } from './document'
 
 type RecordValue = Record<string, unknown>
@@ -12,6 +13,7 @@ type Path = Array<string | number>
 export type EditorCommand =
   | { type: 'set_field'; blockId: Id; path: Path; value: unknown }
   | { type: 'edit_text'; blockId: Id; path: Path; action: TextAction }
+  | { type: 'insert_section'; section: unknown; beforeId?: Id | null }
   | { type: 'insert_block'; blockType: string; destination: SlotAddress; beforeId?: Id | null }
   | { type: 'move_block'; blockId: Id; destination: SlotAddress; beforeId?: Id | null }
   | { type: 'duplicate_block' | 'remove_block'; blockId: Id }
@@ -217,9 +219,14 @@ export function applyEditorCommand(page: PageDocument, command: unknown, options
   const type = input.type
   const documentOptions = { schemas: options.schemas }
   let result: DocumentResult
-  if (type === 'insert_block') {
+  if (type === 'insert_section') {
+    exactKeys(input, ['type', 'section', 'beforeId'], 'command')
+    if (page.collection !== 'pages') throw new Error('Open a page layout to insert a section.')
+    result = insertBlock(page, ROOT_SLOT, buildPageSection(input.section, options.schemas),
+      input.beforeId == null ? null : id(input.beforeId, 'Before block'), documentOptions)
+  } else if (type === 'insert_block') {
     exactKeys(input, ['type', 'blockType', 'destination', 'beforeId'], 'command')
-    const schema = options.schemas.find(item => item.slug === input.blockType)
+    const schema = findBlockSchema(input.blockType, options.schemas)
     if (!schema || !getUnsteadyBlockGroups([schema]).length) throw new Error('This block is not available for new content.')
     result = insertBlock(page, destinationValue(input.destination), createUnsteadyBlock(schema), input.beforeId == null ? null : id(input.beforeId, 'Before block'), documentOptions)
   } else {

@@ -92,7 +92,7 @@ export async function assertDraftReferences(
   current: unknown,
   fields: DraftField[],
   tenant: string | null,
-  kind: 'email' | 'post' | 'form' = 'email',
+  kind: 'email' | 'post' | 'form' | 'page' = 'email',
 ) {
   const previous = referenceKeys(current, fields)
   for (const [key, reference] of referenceKeys(patch, fields)) {
@@ -129,9 +129,9 @@ export async function getEditorOptions(req: PayloadRequest, id: string, url: URL
   return getDraftResourceOptions(req, relationshipID(email.tenant), url)
 }
 
-export async function getDraftResourceOptions(req: PayloadRequest, tenant: string | null, url: URL) {
+export async function getDraftResourceOptions(req: PayloadRequest, tenant: string | null, url: URL, additionalCollections: readonly string[] = []) {
   const collection = url.searchParams.get('collection') || 'media'
-  if (!['media', 'pages', 'posts'].includes(collection)) throw new NativeDraftError('Unsupported collection.')
+  if (!['media', 'pages', 'posts', ...additionalCollections].includes(collection)) throw new NativeDraftError('Unsupported collection.')
   if (!tenant) return { options: [] }
   const query = (url.searchParams.get('query') || '').trim().slice(0, 200)
   const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 100)
