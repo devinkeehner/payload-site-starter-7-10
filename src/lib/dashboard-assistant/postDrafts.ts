@@ -19,7 +19,7 @@ export const postDraftChanges = z.array(z.union([
     action: z.literal('replace_body'),
     paragraphs: z.array(z.string().trim().min(1).max(4_000)).min(1).max(40),
   }).strict(),
-])).min(1).max(20)
+])).max(20)
 
 const summaryFields = { title: true, slug: true, tenant: true, _status: true, updatedAt: true } as const
 const detailFields = { ...summaryFields, content: true, layout: true, meta: true, keyTakeaways: true } as const
@@ -31,22 +31,22 @@ function summary(req: PayloadRequest, post: Pick<Post, 'id' | 'title' | 'slug' |
   }
 }
 
-async function loadPostDraft(req: PayloadRequest, siteId: string, postId: string) {
+async function loadPostRevision(req: PayloadRequest, siteId: string, postId: string) {
   const post = await req.payload.findByID({
     ...local(req), collection: 'posts', id: postId, draft: true, disableErrors: true, select: detailFields,
   })
-  if (!post || relationshipID(post.tenant) !== siteId || post._status !== 'draft') {
-    throw new DashboardInputError('No editable draft with that ID was found on the selected site.')
+  if (!post || relationshipID(post.tenant) !== siteId || (post._status !== 'draft' && post._status !== 'published')) {
+    throw new DashboardInputError('No editable post with that ID was found on the selected site.')
   }
   return post
 }
 
 export async function findPostDrafts(req: PayloadRequest, siteId: string, { postId, query }: { postId: string | null; query: string }) {
   if (postId) {
-    const post = await loadPostDraft(req, siteId, postId)
+    const post = await loadPostRevision(req, siteId, postId)
     const body = getPlainTextFromLexical(post.content)
     return {
-      ...summary(req, post), body: body.slice(0, 24_000), bodyTruncated: body.length > 24_000,
+      ...summary(req, post), status: post._status, body: body.slice(0, 24_000), bodyTruncated: body.length > 24_000,
       hasLayout: Boolean(post.layout?.length),
       searchTitle: post.meta?.title, searchDescription: post.meta?.description,
       takeaways: post.keyTakeaways?.map(row => row.point),
@@ -91,8 +91,11 @@ export async function updatePostDraft(req: PayloadRequest, siteId: string, input
   postId: string; expectedUpdatedAt: string; changes: z.infer<typeof postDraftChanges>
 }, signal?: AbortSignal) {
   return dashboardTransaction(req, async () => {
-    const post = await loadPostDraft(req, siteId, input.postId)
-    if (post.updatedAt !== input.expectedUpdatedAt) throw new DashboardInputError('The draft changed. Read it again before editing.')
+    const post = await loadPostRevision(req, siteId, input.postId)
+    if (post.updatedAt !== input.expectedUpdatedAt) throw new DashboardInputError('The post or its draft changed. Read the latest revision before editing.')
+    if (!input.changes.length && post._status === 'draft') {
+      return { ...summary(req, post), status: post._status, startedRevision: false }
+    }
     const data: Partial<Post> = { _status: 'draft' }
     for (const edit of input.changes) {
       switch (edit.action) {
@@ -124,6 +127,6 @@ export async function updatePostDraft(req: PayloadRequest, siteId: string, input
     const updated = await req.payload.update({
       ...local(req), collection: 'posts', id: post.id, overrideLock: false, draft: true, data, select: summaryFields,
     })
-    return { ...summary(req, updated), status: updated._status }
+    return { ...summary(req, updated), status: updated._status, startedRevision: post._status === 'published' }
   })
 }

@@ -165,7 +165,7 @@ describe('existing post drafts', () => {
       title: 'Town update', body: 'The meeting starts at noon.Event info', updatedAt: revision,
     })
     expect(await invoke('edit_post_draft', update)).toMatchObject({
-      id: post.id, title: 'Updated town news', status: 'draft', editUrl: '/admin/collections/posts/post-one',
+      id: post.id, title: 'Updated town news', status: 'draft', startedRevision: false, editUrl: '/admin/collections/posts/post-one',
     })
     expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({
       req, collection: 'posts', id: post.id, draft: true, overrideAccess: false, overrideLock: false,
@@ -180,14 +180,43 @@ describe('existing post drafts', () => {
     expect(payload.db.commitTransaction).toHaveBeenCalledWith('transaction')
   })
 
+  it.each([{ changes: update.changes }, { changes: [] }])('starts an unpublished revision on the original published post', async ({ changes }) => {
+    const { invoke, payload, req } = harness()
+    const published = { ...post, _status: 'published' }
+    payload.findByID.mockImplementation(async ({ collection }) => collection === 'posts' ? published : { id: 'one' })
+    payload.update.mockImplementation(async ({ data }) => ({ ...published, ...data }))
+
+    expect(await invoke('find_post_drafts', { postId: post.id, query: '' })).toMatchObject({
+      id: post.id, status: 'published', updatedAt: revision,
+    })
+    expect(await invoke('edit_post_draft', { ...update, changes })).toMatchObject({
+      id: post.id, status: 'draft', startedRevision: true,
+    })
+    expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      req, collection: 'posts', id: post.id, draft: true, overrideAccess: false, overrideLock: false,
+      data: expect.objectContaining({ _status: 'draft' }),
+    }))
+    expect(payload.create).not.toHaveBeenCalled()
+  })
+
+  it('reuses an existing draft when asked to start a revision with no edits', async () => {
+    const { invoke, payload } = harness()
+    payload.findByID.mockImplementation(async ({ collection }) => collection === 'posts' ? post : { id: 'one' })
+    expect(await invoke('edit_post_draft', { ...update, changes: [] })).toMatchObject({
+      id: post.id, status: 'draft', startedRevision: false,
+    })
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
   it.each([
-    { ...post, _status: 'published' },
+    { ...post, _status: undefined },
     { ...post, tenant: { id: 'two' } },
     { ...post, updatedAt: oldRevision },
-  ])('rejects a published, foreign-site, or changed draft before saving', async attempted => {
+    { ...post, _status: 'published', updatedAt: oldRevision },
+  ])('rejects an unsupported status, foreign site, or stale revision before saving', async attempted => {
     const { invoke, payload } = harness()
     payload.findByID.mockImplementation(async ({ collection }) => collection === 'posts' ? attempted : { id: 'one' })
-    expect(await invoke('edit_post_draft', update)).toMatch(/editable draft|draft changed/)
+    expect(await invoke('edit_post_draft', update)).toMatch(/editable post|draft changed/)
     expect(payload.update).not.toHaveBeenCalled()
   })
 })
