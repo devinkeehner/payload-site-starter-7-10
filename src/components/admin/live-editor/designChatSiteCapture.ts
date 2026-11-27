@@ -23,16 +23,20 @@ export async function captureDesignSite({ apiURL, binding, call, signal }: {
   frame.title = 'Design assistant website preview'
   frame.setAttribute('aria-hidden', 'true')
   frame.setAttribute('sandbox', 'allow-scripts allow-same-origin')
+  frame.inert = true
   frame.tabIndex = -1
   frame.referrerPolicy = 'no-referrer'
-  frame.style.cssText = `position:fixed;left:-1600px;top:0;width:${mobile ? 390 : 1440}px;height:900px;border:0;pointer-events:none;`
+  // Chromium pauses animation frames in offscreen cross-origin frames. The preview's JPEG renderer needs one to finish.
+  frame.style.cssText = `position:fixed;left:0;top:0;width:${mobile ? 390 : 1440}px;height:900px;border:0;opacity:0;z-index:-1;pointer-events:none;`
   const captureSignal = AbortSignal.any([signal, AbortSignal.timeout(24_000)])
   try {
     const preview = await new Promise<{ screenshot: string; info: unknown }>((resolve, reject) => {
       captureSignal.throwIfAborted()
+      let ready = false
       const receive = (event: MessageEvent) => {
         if (event.origin !== url.origin || event.source !== frame.contentWindow) return
         if (event.data?.type === 'design-preview-ready') {
+          ready = true
           frame.contentWindow?.postMessage({
             type: 'design-preview-capture',
             heading: typeof args?.heading === 'string' ? args.heading.slice(0, 180) : undefined,
@@ -48,7 +52,9 @@ export async function captureDesignSite({ apiURL, binding, call, signal }: {
       }
       const stop = () => {
         dispose()
-        reject(new Error('The website preview did not respond. Use the editor canvas and report that the site preview was unavailable.'))
+        reject(signal.aborted ? signal.reason : new Error(ready
+          ? 'The website preview loaded but timed out while drawing its screenshot.'
+          : 'The website preview timed out before it was ready to capture.'))
       }
       const dispose = () => {
         window.removeEventListener('message', receive)
