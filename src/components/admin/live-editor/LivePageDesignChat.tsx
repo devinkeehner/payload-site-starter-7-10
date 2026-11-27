@@ -5,6 +5,7 @@ import { ArrowUp, Check, Paperclip, Square, X } from 'lucide-react'
 import { MAX_CHAT_MESSAGE } from '@/lib/live-editor/designChatProtocol'
 import { designChatFileAccept } from './designChatAttachments'
 import type { usePageDesignChat } from './usePageDesignChat'
+import { ChatMessageContent } from '../ChatMessageContent'
 import styles from './live-editor-chat.module.css'
 
 export function LivePageDesignChat({ chat }: { chat: ReturnType<typeof usePageDesignChat> }) {
@@ -25,10 +26,10 @@ export function LivePageDesignChat({ chat }: { chat: ReturnType<typeof usePageDe
       {!chat.messages.length && !chat.loading && !chat.error && <p className={styles.intro}>Describe a section, ask for a form, or have me pick a photo from your site gallery.</p>}
       {chat.messages.map(message => <article key={message.id} data-role={message.role}>
         <strong>{message.role === 'user' ? 'You' : 'Design assistant'}</strong>
-        {message.content && <p>{message.content}</p>}
+        {message.content && <ChatMessageContent content={message.content} plain={message.role === 'user'} />}
         {message.attachments?.length ? <small>{[...new Set(message.attachments.map(file => file.name))].join(' · ')}</small> : null}
       </article>)}
-      {chat.reply && <article data-role="assistant"><strong>Design assistant</strong><p>{chat.reply}</p></article>}
+      {chat.reply && <article data-role="assistant"><strong>Design assistant</strong><ChatMessageContent content={chat.reply} /></article>}
       {chat.edits.length > 0 && <ol className={styles.edits} aria-label="Draft changes" aria-live="polite">
         {chat.edits.map((edit, index) => <li key={index}><Check size={14} aria-hidden="true" />{edit}</li>)}
       </ol>}

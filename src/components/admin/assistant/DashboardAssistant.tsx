@@ -6,6 +6,7 @@ import { useConfig } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
 import { assistantEndpoint, MAX_ASSISTANT_MESSAGE, type DashboardChatEvent } from '@/lib/dashboard-assistant/protocol'
 import type { DesignChatThread } from '@/lib/live-editor/designChatProtocol'
+import { ChatMessageContent } from '../ChatMessageContent'
 import styles from './dashboard-assistant.module.css'
 
 const imageTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']
@@ -14,21 +15,6 @@ const examples = [
   'Help me change the homepage banner.',
   'Draft a press release for my assigned representatives.',
 ]
-
-function MessageContent({ content, adminRoute }: { content: string; adminRoute: string }) {
-  // Only link to local admin records. Everything else is rendered as ordinary text.
-  const links = /\[([^\]\n]+)\]\((\/[^\s)]+)\)/g
-  const parts = []
-  let offset = 0
-  for (const match of content.matchAll(links)) {
-    const href = match[2]!
-    if (!href.startsWith(`${adminRoute}/`) || href.includes('\\') || href.includes('..')) continue
-    parts.push(content.slice(offset, match.index), <a key={match.index} href={href}>{match[1]}</a>)
-    offset = match.index! + match[0].length
-  }
-  parts.push(content.slice(offset))
-  return <p>{parts}</p>
-}
 
 async function request(url: string, signal: AbortSignal, init?: RequestInit) {
   const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store', signal, ...init })
@@ -189,10 +175,10 @@ function Conversation() {
         }}>{example}</button>)}</div></div>}
       {thread?.messages.map(message => <article key={message.id} data-role={message.role}>
         <strong>{message.role === 'user' ? 'You' : 'Website assistant'}</strong>
-        <MessageContent content={message.content} adminRoute={config.routes.admin} />
+        <ChatMessageContent content={message.content} plain={message.role === 'user'} adminRoute={config.routes.admin} />
         {message.attachments?.map((file, index) => <small key={index}><ImagePlus size={14} />{file.name}</small>)}
       </article>)}
-      {reply && <article data-role="assistant"><strong>Website assistant</strong><MessageContent content={reply} adminRoute={config.routes.admin} /></article>}
+      {reply && <article data-role="assistant"><strong>Website assistant</strong><ChatMessageContent content={reply} adminRoute={config.routes.admin} /></article>}
     </div>
     {(activity || thread?.busy) && <p className={styles.status} role="status">{activity || 'A response is in progress…'}</p>}
     {error && <p role="alert" className={styles.error}>{error} <button type="button" onClick={() => { setError(''); load() }}>Reload conversation</button></p>}

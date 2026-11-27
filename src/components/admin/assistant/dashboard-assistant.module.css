@@ -23,7 +23,7 @@
 .transcript { flex: 1; overflow-y: auto; min-height: 8rem; padding: 1rem 0; scrollbar-gutter: stable; }
 .transcript article { padding: 1rem .9rem; max-width: 98%; }
 .transcript article[data-role='user'] { background: var(--theme-elevation-50); border-radius: .35rem; }
-.transcript article strong, .transcript article small { font-size: .83rem; }
+.transcript article > strong, .transcript article small { font-size: .83rem; }
 .transcript article p { line-height: 1.6; margin: .25rem 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .welcome { padding: clamp(.4rem, 3vw, 2rem) 0; }
 .welcome h2 { font-size: 1.35rem; }
