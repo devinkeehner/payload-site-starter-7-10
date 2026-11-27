@@ -25,10 +25,13 @@ function toDraft(page: Awaited<ReturnType<typeof loadEditorPage>>) {
   }
 }
 
-function pageFields(req: PayloadRequest) {
-  const fields = req.payload.config.collections.find(collection => collection.slug === 'pages')?.fields as unknown as DraftField[]
-  if (!fields) throw new Error('Page schema is unavailable.')
-  return fields
+export async function prepareEditorPagePatch(req: PayloadRequest, current: Awaited<ReturnType<typeof loadEditorPage>>, incoming: unknown) {
+  const collection = req.payload.config.collections.find(item => item.slug === 'pages')
+  if (!collection) throw new Error('Page schema is unavailable.')
+  const fields = collection.fields as unknown as DraftField[]
+  const patch = buildNativeEmailDraftPatch(incoming, fields, [], 'page')
+  await assertDraftReferences(req, patch, current, fields, relationshipID(current.tenant), 'page')
+  return { patch, collection }
 }
 
 export async function getEditorPage(req: PayloadRequest, id: string) {
@@ -43,9 +46,7 @@ export async function saveEditorPage(req: PayloadRequest, id: string, body: unkn
   const expected = readExpectedUpdatedAt('expectedUpdatedAt' in body ? body.expectedUpdatedAt : undefined)
   const current = await loadEditorPage(req, id)
   assertCurrentDraftRevision(current, expected, 'page')
-  const fields = pageFields(req)
-  const patch = buildNativeEmailDraftPatch(body.page, fields, [], 'page')
-  await assertDraftReferences(req, patch, current, fields, relationshipID(current.tenant), 'page')
+  const { patch } = await prepareEditorPagePatch(req, current, body.page)
   const page = await req.payload.update({ collection: 'pages', id, data: patch, draft: true, depth: 0, overrideAccess: false, overrideLock: false, req })
   return { page: toDraft(page) }
 }
@@ -70,7 +71,8 @@ export async function savePageSection(req: PayloadRequest, tenant: string | null
   if (!('children' in section) || !Array.isArray(section.children) || !section.children.length) {
     throw new NativeDraftError('Add an element before saving this section for reuse.')
   }
-  const fields = pageFields(req)
+  const fields = req.payload.config.collections.find(collection => collection.slug === 'pages')?.fields as unknown as DraftField[]
+  if (!fields) throw new Error('Page schema is unavailable.')
   const patch = buildNativeEmailDraftPatch({ layout: [section] }, fields, [], 'page')
   await assertDraftReferences(req, patch, {}, fields, tenant, 'page')
   const layout = patch.layout as PageSectionTemplate['layout']

@@ -3,15 +3,16 @@ import { setTimeout as delay } from 'node:timers/promises'
 import type { PayloadRequest } from 'payload'
 import { NativeDraftError } from './emailDraft'
 import {
-  DESIGN_CHAT_RUN_MS, type DesignChatRequest, type DesignChatThread, type DesignToolCall,
+  DESIGN_CHAT_RUN_MS, MAX_SAVED_REFERENCE_IMAGES, type DesignReferenceImage, type DesignChatRequest, type DesignChatThread, type DesignToolCall,
   type DesignToolResult, type StoredDesignChatMessage,
 } from './designChatProtocol'
-import { captureCanvasTool } from './designChatTools'
+import { captureCanvasTool, captureSitePreviewTool } from './designChatTools'
 
 type Thread = {
   _id: string
   id: string
   messages: StoredDesignChatMessage[]
+  references?: DesignReferenceImage[]
   active?: { id: string; expiresAt: Date }
 }
 
@@ -47,7 +48,7 @@ export function designChatStore(req: PayloadRequest, scope: string) {
       const current = await threads.findOneAndUpdate({
         _id: scope, id: chatId,
         $or: [{ active: { $exists: false } }, { 'active.expiresAt': { $lte: new Date() } }],
-      }, { $set: { id: randomUUID(), messages: [] }, $unset: { active: '' } }, { returnDocument: 'after' })
+      }, { $set: { id: randomUUID(), messages: [] }, $unset: { active: '', references: '' } }, { returnDocument: 'after' })
       if (!current) throw new NativeDraftError('This chat is busy or changed in another tab. Reload the conversation and try again.', 409)
       return view(current)
     },
@@ -58,16 +59,20 @@ export function designChatStore(req: PayloadRequest, scope: string) {
         id: runId, role: 'user', content: input.message.content,
         attachments: input.message.attachments.map(file => file.kind === 'media' ? file : { kind: file.kind, name: file.name }),
       }
+      const references = input.message.attachments.filter((file): file is DesignReferenceImage => file.kind === 'image')
       const before = await threads.findOneAndUpdate({
         _id: scope, id: input.chatId,
         $or: [{ active: { $exists: false } }, { 'active.expiresAt': { $lte: new Date() } }],
       }, {
         $set: { active: { id: runId, expiresAt: new Date(Date.now() + DESIGN_CHAT_RUN_MS + 30_000) } },
-        $push: { messages: { $each: [message], $slice: -retainedMessages } },
+        $push: {
+          messages: { $each: [message], $slice: -retainedMessages },
+          ...(references.length ? { references: { $each: references, $slice: -MAX_SAVED_REFERENCE_IMAGES } } : {}),
+        },
       }, { returnDocument: 'before' })
       if (!before) throw new NativeDraftError('This chat is busy or changed in another tab. Reload the conversation and try again.', 409)
       return {
-        history: before.messages,
+        history: before.messages, references: before.references ?? [],
         finish: async (content: string) => {
           const current = await threads.findOneAndUpdate({ _id: scope, id: input.chatId, 'active.id': runId }, {
             $unset: { active: '' },
@@ -107,10 +112,16 @@ export function designChatStore(req: PayloadRequest, scope: string) {
       }
     },
 
+    async assertPreviewCall(id: string) {
+      const pending = await exchanges.findOne({ _id: id, scope, name: captureSitePreviewTool.name,
+        expiresAt: { $gt: new Date() }, result: { $exists: false } }, { projection: { _id: 1 } })
+      if (!pending) throw new NativeDraftError('This preview request is no longer active.', 409)
+    },
+
     async finishTool(result: DesignToolResult) {
       const update = await exchanges.updateOne({
         _id: result.id, scope, expiresAt: { $gt: new Date() }, result: { $exists: false },
-        ...(result.screenshot ? { name: captureCanvasTool.name } : {}),
+        ...(result.screenshot ? { name: { $in: [captureCanvasTool.name, captureSitePreviewTool.name] } } : {}),
       }, { $set: { result } })
       if (!update.modifiedCount) throw new NativeDraftError('This editor action is no longer waiting for a result.', 409)
     },

@@ -6,6 +6,7 @@ import { editorFailure } from '@/lib/live-editor/emailHttp'
 import { getDraftResourceOptions, uploadDraftMedia } from '@/lib/live-editor/emailService'
 import { getEditorPage, loadEditorPage, saveEditorPage, listPageSections, savePageSection } from '@/lib/live-editor/pageService'
 import { allowDesignChatRun, readDesignChatRequest, readDesignChatReset, readDesignToolResult, streamDesignChat } from '@/lib/live-editor/designChatService'
+import { readDesignSitePreview, stageDesignSitePreview } from '@/lib/live-editor/designSitePreview'
 import { designChatScope, designChatStore } from '@/lib/live-editor/designChatStore'
 import { generatePreviewPath } from '@/lib/utilities/generatePreviewPath'
 
@@ -58,12 +59,17 @@ export async function POST(request: Request, { params }: Context) {
   try {
     const { id, action } = await params
     const operation = action?.join('/')
-    if (operation !== 'media' && operation !== 'sections' && operation !== 'design-chat' && operation !== 'design-chat/tool' && operation !== 'design-chat/reset') return new Response(null, { status: 404, headers })
+    if (operation !== 'media' && operation !== 'sections' && operation !== 'design-chat' && operation !== 'design-chat/tool' && operation !== 'design-chat/reset' && operation !== 'design-chat/preview') return new Response(null, { status: 404, headers })
     const req = await payloadRequest(request)
-    const page = await loadEditorPage(req, id, 0)
+    const page = await loadEditorPage(req, id, operation === 'design-chat/preview' ? 1 : 0)
     if (operation.startsWith('design-chat')) {
       const userId = String(req.user!.id)
       const store = designChatStore(req, designChatScope(userId, relationshipID(page.tenant), String(page.id)))
+      if (operation === 'design-chat/preview') {
+        const input = await readDesignSitePreview(request)
+        await store.assertPreviewCall(input.callId)
+        return Response.json(await stageDesignSitePreview(req, page, input), { headers })
+      }
       if (operation === 'design-chat/tool') {
         await store.finishTool(await readDesignToolResult(request))
         return new Response(null, { status: 204, headers })

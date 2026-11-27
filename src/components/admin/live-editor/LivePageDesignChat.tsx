@@ -70,7 +70,7 @@ export function LivePageDesignChat({ chat }: { chat: ReturnType<typeof usePageDe
           : <button type="submit" className={styles.send} aria-label="Send message" title="Send message"
             disabled={!chat.available || (!chat.draft.trim() && !chat.files.length)}><ArrowUp size={17} /></button>}
       </div>
-      <small className={styles.notice}>Relevant draft content, canvas images, and references go to OpenAI when you chat.</small>
+      <small className={styles.notice}>Draft content and references may be sent to OpenAI. This chat keeps up to eight reference images for follow-up turns.</small>
     </form>
   </section>
 }

@@ -49,6 +49,7 @@ describe('design chat', () => {
       ] },
     }
     const stream = streamDesignChat(request, 'server-secret', 'user-1', new AbortController().signal, {
+      references: [],
       history: [{ id: 'earlier', role: 'assistant', content: 'There is one gallery on this page.' }], finish,
     }, runTool)
     const reader = stream.getReader()
@@ -86,6 +87,36 @@ describe('design chat', () => {
       expect.objectContaining({ type: 'function_call_output', call_id: 'call_1', output: [
         { type: 'input_text', text: '{"revision":2}' },
         { type: 'input_image', image_url: screenshot, detail: 'high' },
+      ] }),
+    ]))
+  })
+
+  it('retrieves an earlier image from private chat history without a browser callback', async () => {
+    const saved = { kind: 'image' as const, name: 'home.jpg', data: 'data:image/jpeg;base64,YWJj' }
+    const fetch = vi.fn()
+      .mockResolvedValueOnce(providerStream([{
+        type: 'function_call', id: 'fc_reference', status: 'completed', call_id: 'ref_1',
+        name: 'live_editor_read_reference_image', arguments: '{"image":1}',
+      }]))
+      .mockResolvedValueOnce(providerStream([{
+        type: 'message', id: 'msg_2', role: 'assistant', status: 'completed',
+        content: [{ type: 'output_text', text: 'I found the original image.', annotations: [] }],
+      }], 'I found the original image.'))
+    vi.stubGlobal('fetch', fetch)
+    const finish = vi.fn().mockResolvedValue({ id: chatId, messages: [], busy: false })
+    const runTool = vi.fn()
+    const events = await new Response(streamDesignChat(base, 'server-secret', 'user-1', new AbortController().signal, {
+      history: [], references: [saved], finish,
+    }, runTool)).text()
+    expect(events).toContain('I found the original image.')
+    expect(runTool).not.toHaveBeenCalled()
+    expect(JSON.parse(fetch.mock.calls[0]![1].body).input.at(-1).content).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: expect.stringContaining('"name":"home.jpg"') }),
+    ]))
+    expect(JSON.parse(fetch.mock.calls[1]![1].body).input).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'function_call_output', call_id: 'ref_1', output: [
+        { type: 'input_text', text: saved.name },
+        { type: 'input_image', image_url: saved.data, detail: 'high' },
       ] }),
     ]))
   })

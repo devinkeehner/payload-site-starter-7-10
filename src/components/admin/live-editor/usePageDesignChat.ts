@@ -1,12 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { createDesignChatTools, captureCanvasTool } from '@/lib/live-editor/designChatTools'
+import { createDesignChatTools, captureCanvasTool, captureSitePreviewTool } from '@/lib/live-editor/designChatTools'
 import type { UnsteadyAgentBinding } from '@/lib/live-editor/siteTools'
 import {
   MAX_CHAT_ATTACHMENTS, MAX_CHAT_BODY, MAX_CHAT_IMAGE, MAX_CHAT_MESSAGE,
   type ChatAttachment, type DesignChatEvent, type DesignChatRequest, type DesignChatThread, type DesignToolCall,
 } from '@/lib/live-editor/designChatProtocol'
+import { captureDesignSite } from './designChatSiteCapture'
 import { prepareDesignChatFile, readDesignChatReference, uploadDesignChatFile, type PendingChatFile } from './designChatAttachments'
 
 async function chatFetch(url: string, signal: AbortSignal, input?: unknown) {
@@ -155,15 +156,17 @@ export function usePageDesignChat({ apiURL, enabled, binding, selectedId, captur
       const next = await readChatEvents(response, delta => setReply(text => text + delta), async call => {
         signal.throwIfAborted()
         const tool = tools.get(call.name)
-        setActivity(tool?.title ?? captureCanvasTool.title)
+        setActivity(tool?.title ?? (call.name === captureSitePreviewTool.name ? captureSitePreviewTool.title : captureCanvasTool.title))
         let output: string
         let screenshot: string | undefined
         let changed: { id: string | null; operation: string } | undefined
         try {
-          if (call.name === captureCanvasTool.name) {
-            const result = await currentCapture.current(call.arguments, signal)
+          if (call.name === captureCanvasTool.name || call.name === captureSitePreviewTool.name) {
+            const result = call.name === captureSitePreviewTool.name
+              ? await captureDesignSite({ apiURL, binding, call, signal })
+              : await currentCapture.current(call.arguments, signal)
             imageBytes += result.screenshot.length
-            if (imageBytes <= MAX_CHAT_IMAGE * 4) {
+            if (imageBytes <= MAX_CHAT_IMAGE * 8) {
               screenshot = result.screenshot
               output = JSON.stringify(result.info)
             } else {

@@ -11,6 +11,26 @@ export const captureCanvasTool = {
   },
 }
 
+export const captureSitePreviewTool = {
+  name: 'live_editor_capture_site_preview',
+  title: 'Check the actual site preview',
+  description: 'Inspect the current unsaved draft in the real website template including its navigation, type, spacing, media and actual form fields. Choose desktop or mobile and a section by heading or a scroll position. This is the final check for visual edits.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      viewport: { type: 'string', enum: ['desktop', 'mobile'] },
+      heading: { type: 'string', maxLength: 180, description: 'Visible heading text for the section to inspect.' },
+      position: { type: 'string', enum: ['top', 'middle', 'bottom'] },
+    },
+    additionalProperties: false,
+  },
+}
+
+export const readReferenceImageTool = {
+  name: 'live_editor_read_reference_image',
+  description: 'Look at an image attached in an earlier turn of this chat. Use its numbered image ID from the available references listed in the current request.',
+}
+
 export function createDesignChatTools(binding: UnsteadyAgentBinding) {
   return createUnsteadyAgentTools(binding).filter(tool => !tool.annotations.consequentialHint)
 }
@@ -27,5 +47,5 @@ export const designChatToolDefinitions = [
     redo: unavailable,
     preview: { read: unavailable, scroll: unavailable },
   }),
-  captureCanvasTool,
+  captureCanvasTool, captureSitePreviewTool,
 ].map(({ name, description, inputSchema }) => ({ name, description, parameters: inputSchema }))

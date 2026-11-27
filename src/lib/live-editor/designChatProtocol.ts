@@ -1,6 +1,7 @@
-export const MAX_DESIGN_STEPS = 14
+export const MAX_DESIGN_STEPS = 24
 export const MAX_CHAT_MESSAGES = 18
 export const MAX_CHAT_ATTACHMENTS = 4
+export const MAX_SAVED_REFERENCE_IMAGES = 8
 export const MAX_CHAT_MESSAGE = 8_000
 export const MAX_CHAT_IMAGE = 500_000
 export const MAX_CHAT_PDF = 2_850_000
@@ -10,6 +11,8 @@ export const DESIGN_CHAT_RUN_MS = 240_000
 export type ChatAttachment =
   | { kind: 'image' | 'pdf' | 'text'; name: string; data: string }
   | { kind: 'media'; name: string; mediaId: string; mediaType: 'image' | 'video' | 'pdf' }
+
+export type DesignReferenceImage = { kind: 'image'; name: string; data: string }
 
 export type StoredChatAttachment = Exclude<ChatAttachment, { data: string }> |
   Pick<Extract<ChatAttachment, { data: string }>, 'kind' | 'name'>
