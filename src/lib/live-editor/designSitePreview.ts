@@ -33,14 +33,22 @@ const store = (payload: Payload) => {
 }
 let ttlIndex: Promise<string> | undefined
 
+export function designPreviewFrontend(editorOrigin: string) {
+  const configured = process.env.PREVIEW_FRONTEND_ORIGIN || process.env.FRONTEND_SERVER_URL || process.env.NEXT_PUBLIC_SITE_URL
+  // The production CMS and representative site have separate canonical hosts.
+  const frontend = configured || (editorOrigin === 'https://admin.cthousegop.com' ? 'https://www.cthousegop.com' : undefined)
+  if (!frontend) throw new NativeDraftError('This site has no website preview configured.')
+  const url = new URL('/api/live-editor-design-preview', frontend)
+  if (url.origin === editorOrigin) throw new NativeDraftError('The website preview requires a separate frontend origin.')
+  return url
+}
+
 export async function stageDesignSitePreview(
   req: PayloadRequest, page: Awaited<ReturnType<typeof loadEditorPage>>, input: PreviewInput,
 ) {
-  const frontend = process.env.PREVIEW_FRONTEND_ORIGIN
-  if (!frontend) throw new NativeDraftError('This site has no website preview configured.')
-  const url = new URL('/api/live-editor-design-preview', frontend)
-  const editorOrigin = new URL(getServerSideURL()).origin
-  if (url.origin === editorOrigin) throw new NativeDraftError('The website preview requires a separate frontend origin.')
+  // The staging route has already matched the browser Origin to the incoming CMS request.
+  const editorOrigin = new URL(req.headers.get('origin') || getServerSideURL()).origin
+  const url = designPreviewFrontend(editorOrigin)
   const tenantId = relationshipID(page.tenant)
   if (!tenantId) throw new NativeDraftError('Assign this page to a site before previewing it.')
   const tenant = await req.payload.findByID({ collection: 'tenants', id: tenantId, req, depth: 0, overrideAccess: true })
