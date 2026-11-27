@@ -184,6 +184,7 @@ test('designed card and field reorders share undo and persist without changing f
   const { errors } = await mockPageEditor(page)
   await page.goto('/live-editor/pages/budget-detail', { waitUntil: 'domcontentloaded' })
   await expect(page.locator('[data-live-editor-site-tools]')).toHaveAttribute('data-live-editor-site-tools', 'ready', { timeout: 30_000 })
+  await expect(page.frameLocator('iframe[data-unsteady-viewport]').getByRole('group', { name: 'Page layout' })).toBeVisible({ timeout: 35_000 })
   const names = ['Mail-in voting', 'Election Day', 'Early voting']
   const fields = names.flatMap((name, index) => [
     { name: `${name} icon`, element: { blockType: 'sectionIcon', symbol: 'check', size: '32', color: '#FF4650' } },
@@ -266,5 +267,175 @@ test('designed card and field reorders share undo and persist without changing f
   await page.reload({ waitUntil: 'domcontentloaded' })
   await expect(heads).toHaveText(['Early voting', 'Election Day', 'Mail-in voting'], { timeout: 30_000 })
   await expect(icon.locator('svg.lucide-calendar-days')).toHaveCount(1)
+  expect(errors).toEqual([])
+})
+
+test('Design chat places a pasted image in a gallery and inspects the rendered phone canvas', async ({ page }, testInfo) => {
+  test.setTimeout(150_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { errors, photo, layouts } = await mockPageEditor(page)
+  const { default: sharp } = await import('sharp')
+  const galleryPhoto = await sharp({ create: { width: 640, height: 320, channels: 3, background: '#a71e22' } }).jpeg().toBuffer()
+  await page.route('**/media/Capitol%20photo.jpg', route => route.fulfill({ contentType: 'image/jpeg', body: galleryPhoto }))
+  let uploads = 0
+  let sawScreenshot = false
+  let sawFollowUp = false
+  await page.route('**/api/live-editor/pages/budget-detail/media', async route => {
+    uploads++
+    expect(route.request().postData()).toContain('clipboard.png')
+    await route.fulfill({ status: 201, json: { resource: photo } })
+  })
+  let thread: import('../../src/lib/live-editor/designChatProtocol').DesignChatThread = {
+    id: 'chat-1', messages: [], busy: false,
+  }
+  let createdId = ''
+  let latestRevision = 0
+  const changes = page.getByRole('list', { name: 'Draft changes' }).getByRole('listitem')
+  const tool = (id: string, name: string, args: unknown) => ({ type: 'tool', call: { id, name, arguments: args } })
+  const say = (delta: string) => {
+    thread = { ...thread, messages: [...thread.messages, { id: `message-${thread.messages.length}`, role: 'assistant', content: delta }] }
+    return [{ type: 'text', delta }, { type: 'done', thread }]
+  }
+  await page.exposeFunction('advanceDesignChat', async (action: string, input?: unknown) => {
+    if (action === 'load') return thread
+    if (action === 'reset') {
+      expect(input).toEqual({ chatId: thread.id })
+      thread = { id: 'chat-2', messages: [], busy: false }
+      return thread
+    }
+    if (action === 'start') {
+      const { chatId, message } = input as import('../../src/lib/live-editor/designChatProtocol').DesignChatRequest
+      expect(chatId).toBe(thread.id)
+      thread = { ...thread, messages: [...thread.messages, { id: `message-${thread.messages.length}`, role: 'user', content: message.content,
+        attachments: message.attachments.map(file => file.kind === 'media' ? file : { kind: file.kind, name: file.name }),
+      }] }
+      if (message.content === 'What did you add?') {
+        sawFollowUp = thread.messages.some(message => message.role === 'assistant' && message.content.includes('The gallery is ready'))
+        return say('I added the uploaded photo to your gallery.')
+      }
+      expect(message.attachments).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'clipboard.png', kind: 'image', data: expect.stringMatching(/^data:image\/jpeg;base64,/) }),
+        expect.objectContaining({ name: 'outline.txt', kind: 'text', data: 'Capitol gallery reference' }),
+        expect.objectContaining({ name: 'clipboard.png', kind: 'media', mediaId: photo.id }),
+      ]))
+      return [tool('read', 'live_editor_read_document', {})]
+    }
+    const result = input as import('../../src/lib/live-editor/designChatProtocol').DesignToolResult
+    const output = JSON.parse(result.output)
+    if (result.id === 'read') {
+      await expect(changes).toHaveCount(0)
+      return [tool('gallery', 'live_editor_design_section', {
+        expectedRevision: output.data.revision, section: {
+          title: 'Capitol photographs',
+          layout: { style: { backgroundColor: '#153455', color: '#FFFFFF', padding: '22px' }, children: [
+            { field: 'Title' }, { field: 'Photo gallery' },
+          ] },
+          fields: [
+            { name: 'Title', element: { blockType: 'sectionHeading', text: 'Capitol photographs' } },
+            { name: 'Photo gallery', element: { blockType: 'sectionGallery', images: [photo.id] } },
+          ],
+        },
+      })]
+    }
+    if (result.id === 'gallery') {
+      await expect(changes).toHaveCount(1)
+      await expect(changes.first()).toContainText('Designed')
+      createdId = output.data.sectionId
+      latestRevision = output.data.revision
+      return [tool('caption', 'live_editor_design_section', {
+        expectedRevision: latestRevision, section: {
+          title: 'Photo credits', layout: { children: [{ field: 'Title' }] },
+          fields: [{ name: 'Title', element: { blockType: 'sectionHeading', text: 'Photo credits' } }],
+        },
+      })]
+    }
+    if (result.id === 'caption') {
+      await expect(changes).toHaveCount(2)
+      await expect(changes.last()).toContainText('Designed')
+      expect(output.data.revision).toBeGreaterThan(latestRevision)
+      return [tool('capture', 'live_editor_capture_canvas', { blockId: createdId, viewport: 'mobile' })]
+    }
+    expect(output, result.output).toHaveProperty('viewport')
+    expect(output.viewport.width).toBeLessThanOrEqual(390)
+    expect(result.screenshot).toMatch(/^data:image\/jpeg;base64,/)
+    const pixels = await sharp(Buffer.from(result.screenshot!.split(',')[1]!, 'base64')).raw().toBuffer()
+    let redPixels = 0
+    for (let index = 0; index < pixels.length; index += 3) {
+      if (pixels[index]! > 140 && pixels[index + 1]! < 55 && pixels[index + 2]! < 65) redPixels++
+    }
+    expect(redPixels).toBeGreaterThan(1_000)
+    sawScreenshot = true
+    return say('The gallery is ready.')
+  })
+  await page.addInitScript(() => {
+    const advance = (window as unknown as {
+      advanceDesignChat: (action: string, body?: unknown) => Promise<unknown>
+    }).advanceDesignChat
+    const realFetch = window.fetch.bind(window)
+    const encoder = new TextEncoder()
+    let writer: ReadableStreamDefaultController<Uint8Array>
+    const send = (events: unknown) => {
+      for (const event of events as Array<{ type: string }>) {
+        writer.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
+        if (event.type === 'done') writer.close()
+      }
+    }
+    window.fetch = async (input, init) => {
+      if (typeof input !== 'string' || !input.includes('/budget-detail/design-chat')) return realFetch(input, init)
+      const body = init?.body && JSON.parse(String(init.body))
+      if (input.endsWith('/reset')) return Response.json(await advance('reset', body))
+      if (input.endsWith('/tool')) {
+        send(await advance('tool', body))
+        return new Response(null, { status: 204 })
+      }
+      if (init?.method !== 'POST') return Response.json(await advance('load'))
+      const events = await advance('start', body)
+      return new Response(new ReadableStream<Uint8Array>({ start(controller) { writer = controller; send(events) } }))
+    }
+  })
+  await page.goto('/live-editor/pages/budget-detail', { waitUntil: 'domcontentloaded' })
+  await expect(page.frameLocator('iframe[data-unsteady-viewport]').getByRole('group', { name: 'Page layout' })).toBeVisible({ timeout: 35_000 })
+  await page.getByRole('button', { name: 'Design', exact: true }).click()
+  const composer = page.getByRole('textbox', { name: 'Message the design assistant' })
+  await composer.evaluate(async element => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 32
+    canvas.height = 32
+    const context = canvas.getContext('2d')!
+    context.fillStyle = '#a71e22'
+    context.fillRect(0, 0, 32, 32)
+    const blob = await new Promise<Blob>(resolve => canvas.toBlob(value => resolve(value!)))
+    const clipboard = new DataTransfer()
+    clipboard.items.add(new File([blob], 'clipboard.png', { type: 'image/png' }))
+    element.dispatchEvent(new ClipboardEvent('paste', { clipboardData: clipboard, bubbles: true, cancelable: true }))
+  })
+  await page.getByRole('checkbox', { name: 'Add to site media library' }).check()
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'outline.txt', mimeType: 'text/plain', buffer: Buffer.from('Capitol gallery reference'),
+  })
+  await composer.fill('Add this photo to a new gallery.')
+  await composer.press('Enter')
+  await expect(page.getByText('The gallery is ready.')).toBeVisible({ timeout: 40_000 })
+  expect(uploads).toBe(1)
+  expect(sawScreenshot).toBe(true)
+  await expect(page.frameLocator('iframe[title="Desktop page canvas"]').getByRole('img', { name: photo.alt })).toBeVisible()
+  expect(layouts.get('budget-detail')).toEqual([])
+  await page.screenshot({ path: testInfo.outputPath('design-chat-gallery.jpg') })
+  await page.getByRole('button', { name: 'Outline', exact: true }).click()
+  await page.getByRole('button', { name: 'Design', exact: true }).click()
+  await expect(page.getByText('The gallery is ready.')).toBeVisible()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: 'Design', exact: true }).click()
+  await expect(page.getByText('The gallery is ready.')).toBeVisible()
+  await composer.fill('What did you add?')
+  await page.getByRole('button', { name: 'Send message' }).click()
+  await expect(page.getByText('I added the uploaded photo to your gallery.')).toBeVisible()
+  expect(sawFollowUp).toBe(true)
+  await page.getByRole('button', { name: 'New chat' }).click()
+  await expect(page.getByText('I added the uploaded photo to your gallery.')).toHaveCount(0)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await page.getByRole('button', { name: 'Design', exact: true }).click()
+  await expect(page.getByText('Describe a section, ask for an edit, or attach a reference.', { exact: false })).toBeVisible()
+  await expect(page.getByText('The gallery is ready.')).toHaveCount(0)
   expect(errors).toEqual([])
 })

@@ -16,9 +16,12 @@ import { getFormSettingsSchema, liveEditorVariants, type LiveEditorKind } from '
 import { LiveEmailBlockRenderer } from './LiveEmailBlockRenderer'
 import { LiveEmailInlineText } from './LiveEmailInlineText'
 import { LiveEmailFields } from './LiveEmailFields'
-import { designSlotId, useUnsteadyDrag, type DesignPosition, type DragItem, type DropTarget } from './useUnsteadyDrag'
+import { designSlotId, findUnsteadyCanvasElement, useUnsteadyDrag, type DesignPosition, type DragItem, type DropTarget } from './useUnsteadyDrag'
 import { useUnsteadyHistory } from './useUnsteadyHistory'
-import { useUnsteadyAgentTools } from './useUnsteadyAgentTools'
+import { useUnsteadyAgentTools, type UnsteadyAgentBinding } from './useUnsteadyAgentTools'
+import { LivePageDesignChat } from './LivePageDesignChat'
+import { usePageDesignChat } from './usePageDesignChat'
+import { captureDesignCanvas } from './designChatCanvas'
 import { useLiveEmailMedia } from './useLiveEmailMedia'
 import { LiveEmailViewport } from './LiveEmailViewport'
 import { readUnsteadyPreview, scrollUnsteadyPreview } from './previewNavigation'
@@ -216,7 +219,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     }), onCancel: () => announce('Move cancelled.'), scroller, revision: history.revision,
   })
 
-  const agentTools = useUnsteadyAgentTools({
+  const agentBinding: UnsteadyAgentBinding = {
     ...(kind === 'page' ? {
       sections: { save: pageLibrary.save },
       searchMedia: async (mediaKind, query) => {
@@ -241,6 +244,30 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     undo: () => { setActiveText(null); measure(); undo() },
     redo: () => { setActiveText(null); measure(); redo() },
     preview: { read: () => readUnsteadyPreview(scroller.current), scroll: target => scrollUnsteadyPreview(scroller.current, target) },
+  }
+  const agentTools = useUnsteadyAgentTools(agentBinding)
+  const designChat = usePageDesignChat({
+    apiURL, enabled: kind === 'page' && panel === 'design' && panelOpen, binding: agentBinding, selectedId: selected,
+    showEdit: async (id, signal) => {
+      if (!id) return
+      await new Promise<void>(resolve => {
+        const fallback = setTimeout(resolve, 180)
+        requestAnimationFrame(() => requestAnimationFrame(() => { clearTimeout(fallback); resolve() }))
+      })
+      if (signal.aborted) return
+      const block = findUnsteadyCanvasElement(scroller.current, `[data-unsteady-block="${CSS.escape(id)}"]`)
+      if (!block) return
+      try { scrollUnsteadyPreview(scroller.current, { blockId: id }) } catch { /* Still highlight a visible block. */ }
+      const border = 'inset 0 0 0 3px #8b5cf6'
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      block.animate(reducedMotion ? [{ boxShadow: border }, { boxShadow: border }] : [
+        { boxShadow: 'inset 0 0 0 0 transparent' },
+        { boxShadow: border, offset: 0.25 }, { boxShadow: border, offset: 0.8 },
+        { boxShadow: 'inset 0 0 0 0 transparent' },
+      ], { duration: 410, easing: 'ease-out' })
+      return block.getAttribute('aria-label')?.split(': ').at(-1) || undefined
+    },
+    capture: (input, signal) => captureDesignCanvas({ container: scroller.current, input, setWidth, readRevision: () => getCurrent().revision, signal }),
   })
 
   const save = useCallback(async () => {
@@ -313,7 +340,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     if (!slot) return null
     const targeted = drag?.target?.slotId === slot.id
     return <div className={styles.zone} data-unsteady-zone={slot.id} data-unsteady-grid={grid || undefined} role="group" aria-label={slot.label} data-root={address.path === 'layout' || undefined} data-drop-active={targeted || undefined} key={slot.id}>
-      {address.path !== 'layout' && <div className={styles.zoneCaption}>{slot.label}</div>}
+      {address.path !== 'layout' && <div className={styles.zoneCaption} data-design-chat-chrome>{slot.label}</div>}
       {kind === 'post' && address.path === 'layout' && !slot.items.length &&
         <p className={styles.emptyState}>This post uses its rich-text body while the layout is empty. Add a Post Body block to include it in a custom layout.</p>}
       {slot.items.map((block, index) => <div key={String(block.id)} data-unsteady-drop-item>
@@ -321,7 +348,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
         {renderBlock(block)}
       </div>)}
       {targeted && drag.target?.index === slot.items.length && <div className={styles.dropIndicator}>Drop here</div>}
-      {(slot.capacity == null || slot.items.length < slot.capacity) && <button type="button" className={styles.addToZone} onClick={event => { event.stopPropagation(); chooseInsertion(slot.address) }} aria-label={`Add to ${slot.label}`}><Plus size={14} />{slot.items.length ? 'Add' : address.path === 'layout' ? kind === 'form' ? 'Add your first field' : `Add your first ${kind} block` : kind === 'form' ? 'Add or drop a field' : `Add or drop a ${kind} block`}</button>}
+      {(slot.capacity == null || slot.items.length < slot.capacity) && <button type="button" data-design-chat-chrome className={styles.addToZone} onClick={event => { event.stopPropagation(); chooseInsertion(slot.address) }} aria-label={`Add to ${slot.label}`}><Plus size={14} />{slot.items.length ? 'Add' : address.path === 'layout' ? kind === 'form' ? 'Add your first field' : `Add your first ${kind} block` : kind === 'form' ? 'Add or drop a field' : `Add or drop a ${kind} block`}</button>}
     </div>
   }
   const renderBlock = (block: Record<string, unknown>, designPosition?: DesignPosition): ReactNode => {
@@ -336,9 +363,9 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
       onPointerDown={event => {
         if (event.button !== 0 || (event.target as Element).closest('button, [role="dialog"]')) return
         event.stopPropagation()
-        selectBlock(id)
+        selectBlock(id, panel !== 'design')
       }}>
-      <div className={styles.blockTools} onClick={event => event.stopPropagation()}>
+      <div className={styles.blockTools} data-design-chat-chrome onClick={event => event.stopPropagation()}>
         {designItem ? designItem.siblingCount > 1 && <button type="button" className={styles.moveHandle} aria-label={`Move ${label}`} aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" title="Drag or use arrow keys to reorder within this container"
           onPointerDown={event => start(event, designItem)} onKeyDown={event => handleDesignKey(event, designItem)}><Move size={14} /><span>{schema?.label}</span></button>
         : <button type="button" className={styles.moveHandle} aria-label={`Move ${label}`} title="Drag to move; use arrow keys to reorder" onPointerDown={event => start(event, { kind: 'block', id, label })}
@@ -383,7 +410,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
               'data-design-drop': index === undefined ? undefined : target === index ? 'before' : index === siblingCount - 1 && target === siblingCount ? 'after' : undefined,
               'data-design-group': item ? item.label : undefined,
             },
-            handle: item && <button type="button" className={`${styles.moveHandle} ${styles.designGroupHandle}`} aria-label={`Move group: ${item.label}`} aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" title="Drag or use arrow keys to reorder this group"
+            handle: item && <button type="button" className={`${styles.moveHandle} ${styles.designGroupHandle}`} data-design-chat-chrome aria-label={`Move group: ${item.label}`} aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" title="Drag or use arrow keys to reorder this group"
               onPointerDown={event => start(event, item)} onKeyDown={event => handleDesignKey(event, item)}><GripHorizontal size={16} /></button>,
           }
         }}
@@ -491,16 +518,8 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
         ))}
       </nav>
       {panelOpen && <aside className={styles.sidebar} id="unsteady-builder-panel" aria-label="Builder panel">
-        <div className={styles.panelContent}>
-          {panel === 'design' && <div className={styles.panelTitle}>
-            <div>
-              <h2>Design a section</h2>
-              <p>{agentTools.available
-                ? 'Ask your connected assistant to design a section. Its text and media fields will be editable on the canvas.'
-                : 'Open this editor in a browser with WebMCP to design a section with a connected assistant.'}</p>
-              {agentTools.available && <p>Describe the layout and the content you want to edit. Include a YouTube link or ask the assistant to find media in this site’s library.</p>}
-            </div>
-          </div>}
+        <div className={styles.panelContent} data-design-chat={panel === 'design' || undefined}>
+          {panel === 'design' && <LivePageDesignChat chat={designChat} />}
           {panel === 'blocks' && <>
             <div className={styles.panelTitle}><h2>Add to your {kind}</h2></div>
             <label className={styles.search}><Search size={16} /><input aria-label="Search blocks" placeholder="Search blocks…" value={query} onChange={event => setQuery(event.target.value)} /></label>

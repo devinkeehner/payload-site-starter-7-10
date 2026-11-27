@@ -44,6 +44,7 @@
 .layerRow button:not(:first-child) { flex: 0 0 28px; justify-content: center; padding-inline: 0; }
 .layerRow button:disabled { opacity: .35; }
 .panelContent { flex: 1; overflow: auto; padding: 18px 15px 40px; }
+.panelContent[data-design-chat] { display: flex; flex-direction: column; min-height: 0; padding-bottom: 14px; }
 .panelTitle { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; }
 .panelTitle h2 { font-size: 16px; margin: 0; font-weight: 750; }
 .panelTitle p { font-size: 11px; color: var(--ue-muted); margin: 5px 0 0; line-height: 1.5; }

@@ -276,8 +276,8 @@ describe('Live Editor native media upload route', () => {
     await expect(uploadDraftMedia(req, 'site-a', upload)).rejects.toThrow(/Choose a JPEG/)
     await expect(uploadDraftMedia(req, 'site-a', imageRequest({
       file: new File(['not an mp4'], 'sample.mp4', { type: 'video/mp4' }),
-    }), true)).rejects.toThrow(/not a supported MP4/)
-    await uploadDraftMedia(req, 'site-a', upload, true)
+    }), { video: true })).rejects.toThrow(/not a supported MP4/)
+    await uploadDraftMedia(req, 'site-a', upload, { video: true })
     expect(payload.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       collection: 'media', data: { tenant: 'site-a', alt: 'Campaign image' },
       file: expect.objectContaining({ name: 'sample.mp4', mimetype: 'video/mp4' }),

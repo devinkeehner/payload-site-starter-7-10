@@ -139,6 +139,8 @@ export async function getDraftResourceOptions(req: PayloadRequest, tenant: strin
   const mediaKind = url.searchParams.get('kind')
   if (collection === 'media' && (mediaKind === 'image' || mediaKind === 'video')) {
     and.push({ mimeType: { contains: `${mediaKind}/` } })
+  } else if (collection === 'media' && mediaKind === 'document') {
+    and.push({ mimeType: { equals: 'application/pdf' } })
   }
   if (ids.length) and.push({ id: { in: ids } })
   else if (query) and.push({ or: (collection === 'media' ? ['filename', 'alt'] : ['title', 'slug']).map(field => ({ [field]: { like: query } })) })
@@ -149,18 +151,21 @@ export async function getDraftResourceOptions(req: PayloadRequest, tenant: strin
   return { options: docs.map(doc => ({ value: String(doc.id), label: String(('alt' in doc && doc.alt) || ('filename' in doc && doc.filename) || ('title' in doc && doc.title) || doc.id), resource: doc, thumbnailURL: 'url' in doc ? doc.url : null })) }
 }
 
-export async function uploadDraftMedia(req: PayloadRequest, tenant: string | null, request: Request, allowVideo = false) {
+export async function uploadDraftMedia(req: PayloadRequest, tenant: string | null, request: Request, accepted: { video?: boolean; pdf?: boolean } = {}) {
   if (!tenant) throw new NativeDraftError('Assign this draft to a site before uploading media.')
   const form = await request.formData()
   const file = form.get('file')
-  const isVideo = allowVideo && file instanceof File && ['video/mp4', 'video/webm'].includes(file.type)
+  const isVideo = accepted.video && file instanceof File && ['video/mp4', 'video/webm'].includes(file.type)
+  const isPdf = accepted.pdf && file instanceof File && file.type === 'application/pdf'
   const maxSize = isVideo ? 25 : 10
+  const kind = isVideo ? 'video' : isPdf ? 'PDF' : 'image'
   if (!(file instanceof File) || !file.size || file.size > maxSize * 1024 * 1024) {
-    throw new NativeDraftError(isVideo ? 'Choose a video up to 25 MB.' : 'Choose an image up to 10 MB.')
+    throw new NativeDraftError(`Choose a ${kind} file up to ${maxSize} MB.`)
   }
-  if (!isVideo && !['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(file.type)) {
-    throw new NativeDraftError(allowVideo ? 'Choose an image, MP4 or WebM file.' : 'Choose a JPEG, PNG, GIF, WebP or AVIF image.')
+  if (!isVideo && !isPdf && !['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(file.type)) {
+    throw new NativeDraftError(accepted.pdf ? 'Choose an image, PDF, MP4 or WebM file.' : accepted.video ? 'Choose an image, MP4 or WebM file.' : 'Choose a JPEG, PNG, GIF, WebP or AVIF image.')
   }
+  if (isPdf && await file.slice(0, 5).text() !== '%PDF-') throw new NativeDraftError('This file is not a valid PDF.')
   if (isVideo) {
     const header = Buffer.from(await file.slice(0, 12).arrayBuffer())
     const valid = file.type === 'video/mp4' ? header.toString('ascii', 4, 8) === 'ftyp'
