@@ -190,7 +190,8 @@ describe('existing post drafts', () => {
       id: post.id, status: 'published', updatedAt: revision,
     })
     expect(await invoke('edit_post_draft', { ...update, changes })).toMatchObject({
-      id: post.id, status: 'draft', startedRevision: true,
+      id: post.id, status: 'draft', startedRevision: true, previewUrl: '/api/admin/assistant/preview/post-one',
+      editUrl: '/admin/collections/posts/post-one',
     })
     expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({
       req, collection: 'posts', id: post.id, draft: true, overrideAccess: false, overrideLock: false,

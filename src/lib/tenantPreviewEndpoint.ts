@@ -7,12 +7,17 @@ export const tenantPreviewEndpoint: PayloadHandler = async (req) => {
   if (!req.user) return new Response('Log in to the CMS to preview this site.', { status: 401 })
   const id = String(req.routeParams?.id || '')
   const tenant = await req.payload.findByID({ collection: 'tenants', id, depth: 0, req, overrideAccess: false })
+  return redirectToTenantPreview(tenant)
+}
+
+export async function redirectToTenantPreview(tenant: { id: string; slug: string }, postSlug?: string) {
   if (!process.env.PREVIEW_SECRET) return new Response('Preview unavailable', { status: 503 })
   const grant = await createTenantPreview(tenant, process.env.PREVIEW_SECRET)
   const origin = process.env.PREVIEW_FRONTEND_ORIGIN || process.env.FRONTEND_SERVER_URL ||
     process.env.NEXT_PUBLIC_SITE_URL || 'https://www.cthousegop.com'
   const destination = new URL('/api/tenant-preview', origin)
   destination.searchParams.set('grant', grant)
+  if (postSlug) destination.searchParams.set('post', postSlug)
   return new Response(null, {
     status: 303, headers: {
       Location: destination.toString(), 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer',

@@ -5,7 +5,8 @@ import { z } from 'zod'
 import configPromise from '@payload-config'
 import { assistantSiteHeader, dashboardPostIdPattern, MAX_ASSISTANT_MESSAGE } from '@/lib/dashboard-assistant/protocol'
 import { streamDashboardChat } from '@/lib/dashboard-assistant/runner'
-import { assertDashboardSite } from '@/lib/dashboard-assistant/access'
+import { assertDashboardSite, local } from '@/lib/dashboard-assistant/access'
+import { redirectToTenantPreview } from '@/lib/tenantPreviewEndpoint'
 import { designChatScope, designChatStore } from '@/lib/live-editor/designChatStore'
 import { allowDesignChatRun, readDesignChatJSON, readDesignChatReset } from '@/lib/live-editor/designChatService'
 import type { DesignChatRequest } from '@/lib/live-editor/designChatProtocol'
@@ -26,10 +27,14 @@ const schema = z.object({
 
 type Context = { params: Promise<{ action?: string[] }> }
 
-async function authorize(request: Request) {
+async function dashboardRequest(request: Request) {
   const req = await createPayloadRequest({ config: configPromise, request, canSetHeaders: false })
   if (!req.user?.id || req.user.collection !== 'users') throw new LiveEditorAccessError('Sign in to the dashboard to use the assistant.', 401)
-  const userId = String(req.user.id)
+  return { req, userId: String(req.user.id) }
+}
+
+async function authorize(request: Request) {
+  const { req, userId } = await dashboardRequest(request)
   const selection = getTenantFromCookie(req.headers, 'text')
   const selectedId = selection == null ? null : String(selection)
   const expectedSite = request.headers.get(assistantSiteHeader)
@@ -43,8 +48,24 @@ async function authorize(request: Request) {
 }
 
 export async function GET(request: Request, { params }: Context) {
-  if ((await params).action?.length) return new Response(null, { status: 404, headers })
+  const { action } = await params
   try {
+    if (action?.length) {
+      const [operation, postId] = action
+      if (action.length !== 2 || operation !== 'preview' || !postId || !dashboardPostIdPattern.test(postId)) {
+        return new Response(null, { status: 404, headers })
+      }
+      const { req } = await dashboardRequest(request)
+      const post = await req.payload.findByID({
+        ...local(req), collection: 'posts', id: postId, draft: true, disableErrors: true,
+        select: { slug: true, tenant: true, _status: true },
+      })
+      if (post?._status !== 'draft' || !post.slug) {
+        return Response.json({ error: 'This post has no draft to preview.' }, { status: 404, headers })
+      }
+      const tenant = await assertDashboardSite(req, relationshipID(post.tenant))
+      return await redirectToTenantPreview(tenant, post.slug)
+    }
     const { store, tenant } = await authorize(request)
     return Response.json({ ...await store.load(), site: tenant ? { id: tenant.id, name: tenant.name || tenant.slug } : null }, { headers })
   } catch (error) { return editorFailure(error, 'Unable to open this conversation.') }

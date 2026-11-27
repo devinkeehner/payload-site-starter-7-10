@@ -1,10 +1,16 @@
 import React, { type ReactNode } from 'react'
+import { assistantPreviewPrefix, dashboardPostIdPattern } from '@/lib/dashboard-assistant/protocol'
 
 type LinkOptions = { adminRoute?: string; publicSiteBase?: string }
+
+function isDraftPreviewLink(href: string) {
+  return href.startsWith(assistantPreviewPrefix) && dashboardPostIdPattern.test(href.slice(assistantPreviewPrefix.length))
+}
 
 function allowedLink(href: string, { adminRoute, publicSiteBase }: LinkOptions) {
   if (/[\\\x00-\x1f\x7f]/.test(href)) return false
   try {
+    if (adminRoute && isDraftPreviewLink(href)) return true
     if (adminRoute && href.startsWith(`${adminRoute}/`) && !href.includes('..')) {
       return new URL(href, 'https://dashboard.invalid').pathname.startsWith(`${adminRoute}/`)
     }
@@ -27,7 +33,7 @@ function inlineContent(text: string, linkOptions: LinkOptions = {}): ReactNode[]
     if (code) parts.push(<code key={index}>{code}</code>)
     else if (strong) parts.push(<strong key={index}>{inlineContent(strong, linkOptions)}</strong>)
     else if (href && allowedLink(href, linkOptions)) {
-      parts.push(<a key={index} href={href}>{inlineContent(label!)}</a>)
+      parts.push(<a key={index} href={href} {...(isDraftPreviewLink(href) && { target: '_blank', rel: 'noreferrer' })}>{inlineContent(label!)}</a>)
     } else parts.push(literal)
     offset = index + literal.length
   }

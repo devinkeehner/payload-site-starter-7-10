@@ -35,3 +35,10 @@ it('allows published post links on the configured public site only', () => {
   expect(render(`[Published post](${url})`)).not.toContain('<a ')
   expect(render('[Other site](https://www.cthousegop.com.example.org/ackert/update)', props)).not.toContain('<a ')
 })
+
+it('renders only exact assistant draft preview paths as new-tab links', () => {
+  const path = '/api/admin/assistant/preview/69f3f0f6fce03301395ef0aa'
+  expect(render(`[Preview draft](${path})`, { adminRoute: '/admin' })).toContain(`href="${path}" target="_blank"`)
+  expect(render(`[Preview draft](${path}?redirect=/example)`, { adminRoute: '/admin' })).not.toContain('<a ')
+  expect(render(`[Preview draft](${path})`)).not.toContain('<a ')
+})

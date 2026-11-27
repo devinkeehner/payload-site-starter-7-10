@@ -4,6 +4,7 @@ import type { Post } from '@/payload-types'
 import { relationshipID } from '@/lib/live-editor/emailAccess'
 import { createLexicalValueFromText, getPlainTextFromLexical } from '@/lib/live-editor/lexical'
 import { dashboardTransaction, DashboardInputError, local } from './access'
+import { assistantPreviewPrefix } from './protocol'
 
 export const postDraftChanges = z.array(z.union([
   z.object({ action: z.literal('set_title'), value: z.string().trim().min(1).max(280) }).strict(),
@@ -24,10 +25,11 @@ export const postDraftChanges = z.array(z.union([
 const summaryFields = { title: true, slug: true, tenant: true, _status: true, updatedAt: true } as const
 const detailFields = { ...summaryFields, content: true, layout: true, meta: true, keyTakeaways: true } as const
 
-function summary(req: PayloadRequest, post: Pick<Post, 'id' | 'title' | 'slug' | 'updatedAt'>) {
+function summary(req: PayloadRequest, post: Pick<Post, 'id' | 'title' | 'slug' | 'updatedAt' | '_status'>) {
   return {
     id: post.id, title: post.title, slug: post.slug, updatedAt: post.updatedAt,
     editUrl: `${req.payload.config.routes.admin}/collections/posts/${encodeURIComponent(post.id)}`,
+    previewUrl: post._status === 'draft' && post.slug ? `${assistantPreviewPrefix}${encodeURIComponent(post.id)}` : null,
   }
 }
 

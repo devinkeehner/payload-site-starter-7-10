@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('@payload-config', () => ({ default: {} }))
 vi.mock('payload', () => ({ createPayloadRequest: mocks.create }))
-vi.mock('@/lib/dashboard-assistant/access', () => ({ assertDashboardSite: mocks.assertSite }))
+vi.mock('@/lib/dashboard-assistant/access', async (original) => ({
+  ...await original<typeof import('./access')>(), assertDashboardSite: mocks.assertSite,
+}))
 vi.mock('@/lib/dashboard-assistant/runner', () => ({ streamDashboardChat: mocks.run }))
 vi.mock('@/lib/live-editor/emailService', () => ({ uploadDraftMedia: mocks.upload }))
 vi.mock('@payloadcms/plugin-multi-tenant/utilities', () => ({ getTenantFromCookie: mocks.getTenant }))
@@ -45,6 +47,33 @@ beforeEach(() => {
 afterEach(() => { vi.resetAllMocks(); vi.unstubAllEnvs() })
 
 describe('dashboard assistant', () => {
+  it('opens a post draft preview only for a signed-in user and uses the post’s site', async () => {
+    const id = '69f3f0f6fce03301395ef0aa'
+    const request = new Request(`${base}/preview/${id}`)
+    const context = { params: Promise.resolve({ action: ['preview', id] }) }
+    vi.stubEnv('PREVIEW_SECRET', 'test-preview-signing-key')
+    vi.stubEnv('PREVIEW_FRONTEND_ORIGIN', 'https://site.example.test')
+    mocks.create.mockResolvedValueOnce({ ...req, user: null })
+    expect((await GET(request, context)).status).toBe(401)
+    expect(mocks.find).not.toHaveBeenCalled()
+
+    mocks.find.mockResolvedValueOnce({ id, _status: 'published', slug: 'announcement', tenant: 'site-b' })
+    expect((await GET(request, context)).status).toBe(404)
+
+    mocks.find.mockResolvedValueOnce({ id, _status: 'draft', slug: 'announcement', tenant: 'site-b' })
+    mocks.assertSite.mockResolvedValueOnce({ id: 'site-b', slug: 'representative' })
+    const response = await GET(request, context)
+    expect(response.status).toBe(303)
+    expect(response.headers.get('Cache-Control')).toBe('private, no-store')
+    const location = new URL(response.headers.get('Location')!)
+    expect(location.origin + location.pathname).toBe('https://site.example.test/api/tenant-preview')
+    expect(location.searchParams.get('post')).toBe('announcement')
+    expect(location.searchParams.get('grant')).toBeTruthy()
+    expect(location.searchParams.has('secret')).toBe(false)
+    expect(mocks.find).toHaveBeenCalledWith(expect.objectContaining({ req, collection: 'posts', id, draft: true, overrideAccess: false }))
+    expect(mocks.assertSite).toHaveBeenCalledWith(req, 'site-b')
+  })
+
   it('requires a Payload user session and rejects foreign browser origins before opening a chat', async () => {
     expect((await POST(post(body, 'https://other.test'), ctx())).status).toBe(403)
     expect(mocks.create).not.toHaveBeenCalled()

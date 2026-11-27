@@ -4,6 +4,7 @@ export const MAX_ASSISTANT_MESSAGE = 32_000
 export const assistantEndpoint = '/api/admin/assistant'
 export const assistantSiteHeader = 'X-Assistant-Site'
 export const dashboardPostIdPattern = /^[a-f\d]{24}$/i
+export const assistantPreviewPrefix = `${assistantEndpoint}/preview/`
 
 export type DashboardChatEvent =
   | { type: 'activity'; name: string }
