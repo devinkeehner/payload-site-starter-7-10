@@ -50,8 +50,8 @@ export function personalize(value: string, profile: Profile) {
   })
 }
 
-export async function createReleaseDraft(req: PayloadRequest, siteId: string, runId: string, copy: z.infer<typeof draftCopy>) {
-  await assertDashboardSite(req, siteId, true)
+export async function createReleaseDraft(req: PayloadRequest, siteId: string, runId: string, copy: z.infer<typeof draftCopy>, scope: 'assigned' | 'selected' = 'assigned') {
+  await assertDashboardSite(req, siteId, scope === 'assigned')
   const key = createHash('sha256').update(JSON.stringify([req.user!.id, runId, siteId])).digest('hex')
   const existing = async () => {
     const result = await req.payload.find({
@@ -69,11 +69,13 @@ export async function createReleaseDraft(req: PayloadRequest, siteId: string, ru
   if (prior) return response(prior, false)
 
   const common = { ...local(req), where: { tenant: { equals: siteId } } }
-  const { docs: profiles } = await req.payload.find({ ...common, collection: 'rep-info', select: profileFields, limit: 2 })
-  if (profiles.length !== 1 || relationshipID(profiles[0]?.tenant) !== siteId) throw new DashboardInputError('A single representative profile is required for a personalized draft.')
-  const profile = profiles[0]!
-  const render = (text: string) => personalize(text, profile)
-
+  let profile: Profile | undefined
+  if (scope === 'assigned') {
+    const { docs: profiles } = await req.payload.find({ ...common, collection: 'rep-info', select: profileFields, limit: 2 })
+    if (profiles.length !== 1 || relationshipID(profiles[0]?.tenant) !== siteId) throw new DashboardInputError('A single representative profile is required for a personalized draft.')
+    profile = profiles[0]
+  }
+  const render = (text: string) => profile ? personalize(text, profile) : text
   const category = await req.payload.findByID({ ...local(req), collection: 'categories', id: copy.categoryId, select: { title: true } })
   const articleType = await req.payload.findByID({ ...local(req), collection: 'article-types', id: copy.articleTypeId, select: { title: true } })
   if (!category || !articleType) throw new DashboardInputError('Choose existing category and article type IDs from the post options.')

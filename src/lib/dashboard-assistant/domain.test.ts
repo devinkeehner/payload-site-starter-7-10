@@ -216,6 +216,19 @@ it('lists published posts for a named active site by publication date without re
 })
 
 describe('representative press releases', () => {
+  it('creates a single draft on the selected site without a shortcut or a representative profile', async () => {
+    const { invoke, payload, req } = harness(['two'])
+    payload.find.mockResolvedValue({ docs: [] })
+    payload.create.mockImplementation(async ({ data }) => ({ id: 'post-one', ...data }))
+    const copy = { ...draft, title: 'District update', paragraphs: ['The meeting starts at 1 p.m.'] }
+    expect(await invoke('create_post_draft', { copy })).toMatchObject({ id: 'post-one', status: 'draft', siteId: 'one' })
+    expect(payload.create).toHaveBeenCalledWith(expect.objectContaining({
+      req, collection: 'posts', draft: true, overrideAccess: false,
+      data: expect.objectContaining({ title: copy.title, tenant: 'one', _status: 'draft' }),
+    }))
+    expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'rep-info' }))
+  })
+
   it('reads the assigned active roster and exposes ambiguous representatives for editorial review', async () => {
     const { invoke, payload, req } = harness()
     const sites = [{ id: 'one', name: 'Site One', slug: 'one' }, { id: 'two', name: 'Site Two', slug: 'two' }]
