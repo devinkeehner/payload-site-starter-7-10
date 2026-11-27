@@ -1,5 +1,6 @@
 /** Shared editing model. Each collection adapter owns the native storage format. */
 import type { PuckBlockSchema, PuckFieldSchema } from '@/lib/puck/types'
+import { parseDesignLayout, type DesignNode } from '@/components/blocks/composable-section/DesignedSection'
 import { flattenUnsteadyFields } from './catalog'
 
 export type Id = string | number
@@ -251,6 +252,9 @@ export function moveBlock(page: PageDocument, id: Id, to: SlotAddress, beforeId:
   const document = structuredClone(page)
   const index = inspect(document, options)
   const source = requireBlock(index, id)
+  if (isBoundDesignField(index.blocks.get(String(source.slot.ownerId))?.block, source.block)) {
+    throw new Error('Reorder this field inside its design container.')
+  }
   const target = resolveSlot(index, to)
   allowed(target, source.block)
   const same = source.slot.id === target.id
@@ -264,6 +268,13 @@ export function moveBlock(page: PageDocument, id: Id, to: SlotAddress, beforeId:
   if (!same) source.slot.write(remaining)
   target.write(destination)
   return finish(document, id, options)
+}
+
+export function isBoundDesignField(section: BlockRecord | null | undefined, block: BlockRecord): boolean {
+  if (section?.blockType !== 'composableSection' || !section.design || typeof block.blockName !== 'string' || !Array.isArray(section.children) ||
+    !sameId(section.children.find(child => isRecord(child) && child.blockName === block.blockName)?.id, block.id)) return false
+  const matches = (node: DesignNode): boolean => node.field === block.blockName || Boolean(node.children?.some(matches))
+  try { return matches(parseDesignLayout(section.design)) } catch { return false }
 }
 export function duplicateBlock(page: PageDocument, id: Id, options: DocumentOptions = {}): DocumentResult {
   const document = structuredClone(page)

@@ -177,3 +177,94 @@ test('Design Mode creates editable fields and reconnects media after saving', as
   await expect(page.frameLocator('iframe[data-unsteady-viewport]').getByText('A closer look at the Capitol')).toBeVisible({ timeout: 30_000 })
   expect(errors).toEqual([])
 })
+
+test('designed card and field reorders share undo and persist without changing field bindings', async ({ page }, testInfo) => {
+  test.setTimeout(100_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { errors } = await mockPageEditor(page)
+  await page.goto('/live-editor/pages/budget-detail', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('[data-live-editor-site-tools]')).toHaveAttribute('data-live-editor-site-tools', 'ready', { timeout: 30_000 })
+  const names = ['Mail-in voting', 'Election Day', 'Early voting']
+  const fields = names.flatMap((name, index) => [
+    { name: `${name} icon`, element: { blockType: 'sectionIcon', symbol: 'check', size: '32', color: '#FF4650' } },
+    { name: `${name} heading`, element: { blockType: 'sectionHeading', text: name } },
+    { name: `${name} link`, element: { blockType: 'sectionLink', text: `Resource ${index + 1}`, url: `/vote-${index + 1}` } },
+  ])
+  const draft = await command(page, 'live_editor_read_document')
+  const result = await command(page, 'live_editor_design_section', {
+    expectedRevision: draft.structuredContent.revision,
+    section: { title: 'Voting options', fields, layout: {
+      style: { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '16px' },
+      children: names.map(name => ({ style: { padding: '28px', backgroundColor: '#eff3f8' }, children: fields
+        .filter(field => field.name.startsWith(`${name} `)).map(field => ({ field: field.name })) })),
+    } },
+  })
+  expect(result.isError).toBeFalsy()
+  const sectionId = result.structuredContent.sectionId!
+  const iframe = page.locator('iframe[data-unsteady-viewport]')
+  const canvas = page.frameLocator('iframe[data-unsteady-viewport]')
+  const section = canvas.getByTestId(`block-${sectionId}`)
+  const heads = section.getByRole('heading')
+  await expect(heads).toHaveText(names, { timeout: 30_000 })
+  expect((await iframe.boundingBox())!.width).toBeGreaterThan(1000)
+  const finish = section.locator('[data-design-group="Early voting"]')
+  const start = section.locator('[data-design-group="Mail-in voting"]')
+  await finish.hover()
+  const source = await finish.getByRole('button', { name: 'Move group: Early voting' }).boundingBox()
+  const target = await start.boundingBox()
+  if (!source || !target) throw new Error('Missing design drag handles.')
+  await page.mouse.move(source.x + source.width / 2, source.y + source.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(target.x + target.width / 4, target.y + target.height / 2, { steps: 12 })
+  await expect(start).toHaveAttribute('data-design-drop', 'before')
+  await page.mouse.up()
+  await expect(heads).toHaveText(['Early voting', 'Mail-in voting', 'Election Day'])
+
+  const link = finish.getByTestId(/block-/).filter({ hasText: 'Resource 3' }).last()
+  await link.hover()
+  const linkGrip = await finish.getByRole('button', { name: 'Move Early voting link', exact: true }).boundingBox()
+  const headingBox = await finish.getByRole('heading').boundingBox()
+  if (!linkGrip || !headingBox) throw new Error('Missing designed field drag handles.')
+  await page.mouse.move(linkGrip.x + linkGrip.width / 2, linkGrip.y + linkGrip.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(headingBox.x + headingBox.width / 3, headingBox.y + headingBox.height / 4, { steps: 10 })
+  await page.mouse.up()
+  await expect(finish.locator('[data-designed-field]')).toHaveText([/./, /Resource 3/, /Early voting/])
+  await finish.getByRole('button', { name: 'Move Early voting link', exact: true }).press('ArrowDown')
+  await expect(finish.locator('[data-designed-field]').last()).toContainText('Resource 3')
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(finish.locator('[data-designed-field]').nth(1)).toContainText('Resource 3')
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(finish.locator('[data-designed-field]').last()).toContainText('Resource 3')
+  const latest = await command(page, 'live_editor_read_document')
+  const updated = await command(page, 'live_editor_edit_draft', { expectedRevision: latest.structuredContent.revision,
+    command: { type: 'reorder_design', blockId: sectionId, parentPath: [], from: 2, to: 1 } })
+  expect(updated.isError).toBeFalsy()
+  await expect(heads).toHaveText(['Early voting', 'Election Day', 'Mail-in voting'])
+
+  const icon = finish.locator('[data-unsteady-block-type="sectionIcon"]')
+  await icon.getByRole('button', { name: 'Edit Early voting icon' }).focus()
+  await icon.getByRole('button', { name: 'Edit Early voting icon' }).click()
+  await page.locator('details').filter({ has: page.getByPlaceholder('Search icons') }).locator('summary').click()
+  await page.getByPlaceholder('Search icons').fill('calendar')
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click()
+  await expect(icon.locator('svg.lucide-calendar-days')).toHaveAttribute('width', '32')
+  await expect(icon.locator('svg.lucide-calendar-days')).toHaveAttribute('stroke', '#FF4650')
+  await page.screenshot({ path: testInfo.outputPath('design-reorder-desktop.jpg') })
+  await page.getByRole('button', { name: 'Mobile preview' }).click()
+  expect((await iframe.boundingBox())!.width).toBe(390)
+  await expect(heads).toHaveText(['Early voting', 'Election Day', 'Mail-in voting'])
+  const mobileBoxes = await section.locator('[data-design-group]').evaluateAll(cards => cards.map(card => {
+    const { x, y } = card.getBoundingClientRect()
+    return { x, y }
+  }))
+  expect(new Set(mobileBoxes.map(card => card.x)).size).toBe(1)
+  expect(mobileBoxes[0]!.y).toBeLessThan(mobileBoxes[1]!.y)
+  await page.screenshot({ path: testInfo.outputPath('design-reorder-mobile.jpg') })
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(heads).toHaveText(['Early voting', 'Election Day', 'Mail-in voting'], { timeout: 30_000 })
+  await expect(icon.locator('svg.lucide-calendar-days')).toHaveCount(1)
+  expect(errors).toEqual([])
+})

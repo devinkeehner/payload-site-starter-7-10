@@ -97,3 +97,9 @@
 .inspector :global([contenteditable]) { overflow-wrap: anywhere; }
 
 @media (prefers-reduced-motion: reduce) { .arrayRow > summary::before { transition: none; } }
+.iconPicker summary { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 7px 0; }
+.iconPicker summary::after { content: '▾'; margin-inline-start: auto; }
+.iconPicker > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; max-height: 12rem; overflow-y: auto; margin-block: 6px; }
+.iconPicker button { display: flex; align-items: center; gap: 6px; text-align: start; }
+.iconPicker svg { flex: none; }
+.iconPicker button[aria-pressed='true'] { background: var(--ue-tint); border-color: var(--ue-muted); }

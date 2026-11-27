@@ -1,4 +1,4 @@
-import { buildDesignedSection, buildPageSection } from './pageSections'
+import { buildDesignedSection, buildPageSection, reorderDesignNode } from './pageSections'
 import { parseDesignLayout } from '@/components/blocks/composable-section/DesignedSection'
 import { sectionYouTubeEmbed } from '@/components/blocks/composable-section/media'
 /** Local editor commands shared by browser tools and a future embedded agent. */
@@ -18,6 +18,7 @@ export type EditorCommand =
   | { type: 'insert_section' | 'design_section'; section: unknown; beforeId?: Id | null }
   | { type: 'insert_block'; blockType: string; destination: SlotAddress; beforeId?: Id | null }
   | { type: 'move_block'; blockId: Id; destination: SlotAddress; beforeId?: Id | null }
+  | { type: 'reorder_design'; blockId: Id; parentPath: number[]; from: number; to: number }
   | { type: 'duplicate_block' | 'remove_block'; blockId: Id }
   | { type: 'edit_array'; blockId: Id; path: Path; action: OwnedArrayAction }
 export type EditorCommandOptions = { schemas: readonly PuckBlockSchema[]; revision: number; expectedRevision: number }
@@ -227,6 +228,11 @@ export function applyEditorCommand(page: PageDocument, command: unknown, options
     const section = type === 'design_section' ? buildDesignedSection(input.section, options.schemas) : buildPageSection(input.section, options.schemas)
     result = insertBlock(page, ROOT_SLOT, section,
       input.beforeId == null ? null : id(input.beforeId, 'Before block'), documentOptions)
+  } else if (type === 'reorder_design') {
+    exactKeys(input, ['type', 'blockId', 'parentPath', 'from', 'to'], 'command')
+    if (!Array.isArray(input.parentPath) || input.parentPath.length > 7 || !input.parentPath.every(index => Number.isInteger(index) && index >= 0) ||
+      typeof input.from !== 'number' || typeof input.to !== 'number') throw new Error('Provide a design container path and two sibling positions.')
+    result = reorderDesignNode(page, id(input.blockId, 'Section'), input.parentPath, input.from, input.to, options.schemas)
   } else if (type === 'insert_block') {
     exactKeys(input, ['type', 'blockType', 'destination', 'beforeId'], 'command')
     const schema = findBlockSchema(input.blockType, options.schemas)

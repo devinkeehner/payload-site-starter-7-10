@@ -79,13 +79,24 @@ describe('composable pages', () => {
       { blockName: 'Photo', image: 'report' },
       { blockName: 'Video', youtubeUrl: 'https://youtu.be/2Ex83c49EJ8' },
     ] })
+    const reorder = { type: 'reorder_design', blockId: result.selectedId, parentPath: [], from: 0, to: 2 }
+    const reordered = applyEditorCommand(result.document, reorder, { schemas, revision: 1, expectedRevision: 1 })
+    expect(reordered.revision).toBe(2)
+    expect(reordered.document.layout?.[1]?.design).toEqual({ ...section.layout, children: [
+      section.layout.children[1], section.layout.children[2], section.layout.children[0],
+    ] })
+    expect(reordered.document.layout?.[1]?.children).toEqual(designed?.children)
+    expect(() => applyEditorCommand(result.document, { ...reorder, parentPath: [0] }, { schemas, revision: 1, expectedRevision: 1 })).toThrow(/same design container/)
+    expect(() => applyEditorCommand(reordered.document, reorder, { schemas, revision: 2, expectedRevision: 1 })).toThrow(/draft changed/)
     const heading = (designed?.children as Array<{ id: string }>)[0]!
-    const revised = applyEditorCommand(result.document, {
+    expect(() => applyEditorCommand(result.document, { type: 'move_block', blockId: heading.id, destination: { ownerId: 'root', path: 'layout' } },
+      { schemas, revision: 1, expectedRevision: 1 })).toThrow(/inside its design container/)
+    const revised = applyEditorCommand(reordered.document, {
       type: 'set_field', blockId: heading.id, path: ['text'], value: 'Budget overview',
-    }, { schemas, revision: 1, expectedRevision: 1 })
+    }, { schemas, revision: 2, expectedRevision: 2 })
     await saveEditorPage(req, 'page', { expectedUpdatedAt: updatedAt, page: revised.document })
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ draft: true, data: expect.objectContaining({
-      layout: [legacy, expect.objectContaining({ design: section.layout, children: expect.arrayContaining([
+      layout: [legacy, expect.objectContaining({ design: reordered.document.layout?.[1]?.design, children: expect.arrayContaining([
         expect.objectContaining({ blockName: 'Headline', text: 'Budget overview' }),
         expect.objectContaining({ blockName: 'Photo', image: 'report' }),
       ]) })],

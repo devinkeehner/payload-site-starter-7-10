@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 
+export type DesignPosition = { sectionId: string; path: number[]; siblingCount: number }
+export const designSlotId = (sectionId: string, path: number[]) => `design:${JSON.stringify([sectionId, path])}`
 export type DragItem = { kind: 'block'; id: string; label: string } | { kind: 'palette'; type: string; label: string; layout?: string }
+  | ({ kind: 'design'; label: string; revision: number; fieldId?: string } & DesignPosition)
 export type DropTarget = { slotId: string; index: number }
 export type DragState = { item: DragItem; x: number; y: number; target: DropTarget | null }
 type Point = { x: number; y: number }
@@ -164,22 +167,22 @@ export function useUnsteadyDrag({ canDrop, onDrop, onCancel, scroller, revision 
     const hitTarget = (): DropTarget | null => {
       const seen = new Set<string>()
       for (const { element, point: local } of hitElements(root, point)) {
-        const zone = element.closest<HTMLElement>('[data-unsteady-zone]')
-        if (!zone) continue
-        const slotId = zone.dataset.unsteadyZone!
-        if (seen.has(slotId)) continue
-        seen.add(slotId)
-        const items = Array.from(zone.children).filter(child => child.hasAttribute('data-unsteady-drop-item'))
-        const grid = zone.hasAttribute('data-unsteady-grid') && items.length > 1
-          && items.some(child => child.getBoundingClientRect().left !== items[0]!.getBoundingClientRect().left)
-        const index = items.findIndex(child => {
-          const rect = child.getBoundingClientRect()
-          return grid
-            ? local.y < rect.top || (local.y <= rect.bottom && local.x < rect.left + rect.width / 2)
-            : local.y < rect.top + rect.height / 2
-        })
-        const target = { slotId, index: index < 0 ? items.length : index }
-        try { if (latest.current.canDrop(item, target)) return target } catch { /* A concurrent edit invalidated this destination. */ }
+        for (let zone = element.closest<HTMLElement>('[data-unsteady-zone]'); zone; zone = zone.parentElement?.closest<HTMLElement>('[data-unsteady-zone]') ?? null) {
+          const slotId = zone.dataset.unsteadyZone!
+          if (seen.has(slotId) || (item.kind === 'design') !== slotId.startsWith('design:')) continue
+          seen.add(slotId)
+          const items = Array.from(zone.children).filter((child): child is HTMLElement => child.hasAttribute('data-unsteady-drop-item'))
+          const grid = zone.hasAttribute('data-unsteady-grid') && items.length > 1
+            && items.some(child => child.getBoundingClientRect().left !== items[0]!.getBoundingClientRect().left)
+          const index = items.findIndex(child => {
+            const rect = child.getBoundingClientRect()
+            return grid
+              ? local.y < rect.top || (local.y <= rect.bottom && local.x < rect.left + rect.width / 2)
+              : local.y < rect.top + rect.height / 2
+          })
+          const target = { slotId, index: Number(index < 0 ? zone.dataset.designDropLength ?? items.length : items[index]!.dataset.designDropIndex ?? index) }
+          try { if (latest.current.canDrop(item, target)) return target } catch { /* A concurrent edit invalidated this destination. */ }
+        }
       }
       return null
     }

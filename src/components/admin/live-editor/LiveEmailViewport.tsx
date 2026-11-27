@@ -106,7 +106,7 @@ export function LiveEmailViewport({ children, kind, mobile, theme }: {
         setFailed(!doc?.querySelector('[data-live-editor-canvas-mount]'))
       }}
       onError={() => setFailed(true)}
-      style={{ display: failed ? 'none' : 'block', width: mobile ? 390 : 640, maxWidth: '100%', height: '100%', minHeight: 0, flex: '1 1 0', margin: '0 auto', border: 0, background: 'transparent' }}
+      style={{ display: failed ? 'none' : 'block', width: mobile ? 390 : kind === 'page' ? '100%' : 640, maxWidth: '100%', height: '100%', minHeight: 0, flex: '1 1 0', margin: '0 auto', border: 0, background: 'transparent' }}
     />
     {readyMount && createPortal(
       <div className={styles.editor} data-unsteady-frame-root data-unsteady-theme={theme} data-theme={theme}

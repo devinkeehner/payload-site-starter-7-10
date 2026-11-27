@@ -256,6 +256,7 @@ test.describe('standalone native email Live Editor (mock APIs)', () => {
 
     await expect(page).toHaveURL(new RegExp(`/live-editor/emails/${emailId}$`))
     await expect(page).toHaveTitle(/email|live editor/i)
+    expect((await page.locator('iframe[title="Desktop email canvas"]').boundingBox())!.width).toBe(640)
     await expect(page.getByRole('button', { name: 'Save draft', exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: 'Back to Payload' })).toHaveAttribute('href', `/admin/collections/emails/${emailId}`)
     await expect(page.getByRole('navigation', { name: 'Campaign workflow' })).toHaveCount(0)

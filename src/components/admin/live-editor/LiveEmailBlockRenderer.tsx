@@ -67,7 +67,7 @@ export function projectLiveEmailText(block: BlockRecord, schema: PuckBlockSchema
   })
 }
 
-export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, renderSlot, renderText, resolveMedia, postContent, renderDesignField }: {
+export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, renderSlot, renderText, resolveMedia, postContent, renderDesignField, designNodeControls }: {
   block: BlockRecord
   schemas: PuckBlockSchema[]
   kind: LiveEditorKind
@@ -76,7 +76,8 @@ export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, render
   renderText: LiveEmailTextRenderer
   resolveMedia: (value: unknown) => unknown
   postContent?: unknown
-  renderDesignField: (block: BlockRecord) => ReactNode
+  renderDesignField: React.ComponentProps<typeof DesignedSection>['renderField']
+  designNodeControls?: React.ComponentProps<typeof DesignedSection>['nodeControls']
 }) {
   const blockType = String(block.blockType || '')
   const schema = findBlockSchema(blockType, schemas)
@@ -88,7 +89,7 @@ export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, render
         richText={schema.fields.some(field => field.name === 'body') ? renderText(block, 'body', ['body'], 'native', 'Body') : undefined}
         form={blockType === 'sectionForm' && block.form ? <span>{typeof block.form === 'object' && 'title' in block.form ? String(block.form.title) : 'Linked form'}</span> : undefined}>
         {block.blockType === PAGE_SECTION && block.design != null && Array.isArray(block.children)
-          ? <DesignedSection layout={block.design} blocks={block.children} renderField={renderDesignField}
+          ? <DesignedSection layout={block.design} blocks={block.children} renderField={renderDesignField} nodeControls={designNodeControls}
               className={sectionStyles.designNode} gridClassName={sectionStyles.designGrid} />
           : schema.fields.some(field => field.name === 'children') ? renderSlot(String(block.id), 'children') : undefined}
       </SectionElement>

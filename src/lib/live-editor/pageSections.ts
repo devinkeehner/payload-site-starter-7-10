@@ -1,12 +1,32 @@
 import type { PuckBlockSchema } from '@/lib/puck/types'
 import { buildUnsteadyDefaults } from './catalog'
-import type { BlockRecord } from './document'
+import { getBlock, updateBlock, type BlockRecord, type Id, type PageDocument } from './document'
 import { createLexicalValueFromText } from './lexical'
 import { parseDesignLayout, type DesignNode } from '@/components/blocks/composable-section/DesignedSection'
 import { sectionYouTubeEmbed } from '@/components/blocks/composable-section/media'
 
 export const PAGE_SECTION = 'composableSection'
 export type SectionTemplate = { id: string; name: string; section: BlockRecord }
+
+export function reorderDesignNode(page: PageDocument, sectionId: Id, parentPath: readonly number[], from: number, to: number, schemas: readonly PuckBlockSchema[]) {
+  if (page.collection !== 'pages') throw new Error('Open a page layout to reorder a design.')
+  const section = getBlock(page, sectionId, { schemas })
+  if (section.blockType !== PAGE_SECTION || section.design == null) throw new Error('Choose a designed section.')
+  const design = parseDesignLayout(section.design)
+  let parent = design
+  for (const index of parentPath) {
+    if (!Number.isInteger(index) || index < 0 || !parent.children?.[index]) throw new Error('The design container no longer exists.')
+    parent = parent.children[index]!
+  }
+  const siblings = parent.children
+  if (!siblings || [from, to].some(index => !Number.isInteger(index) || index < 0 || index >= siblings.length)) {
+    throw new Error('Choose two positions within the same design container.')
+  }
+  if (from === to) return { document: page, selectedId: sectionId }
+  const [node] = siblings.splice(from, 1)
+  siblings.splice(to, 0, node!)
+  return updateBlock(page, sectionId, { design }, { schemas })
+}
 
 export function collectSectionSchemas(schemas: readonly PuckBlockSchema[]): PuckBlockSchema[] {
   const section = schemas.find(schema => schema.slug === PAGE_SECTION)

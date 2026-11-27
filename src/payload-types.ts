@@ -2751,7 +2751,40 @@ export interface PageSectionGallery {
  * via the `definition` "PageSectionIcon".
  */
 export interface PageSectionIcon {
-  symbol?: ('check' | 'info' | 'star' | 'arrow') | null;
+  symbol?:
+    | (
+        | 'check'
+        | 'info'
+        | 'star'
+        | 'arrow'
+        | 'badge-check'
+        | 'banknote'
+        | 'book-open'
+        | 'building'
+        | 'bus'
+        | 'calendar'
+        | 'clipboard'
+        | 'clock'
+        | 'download'
+        | 'file-text'
+        | 'heart'
+        | 'house'
+        | 'landmark'
+        | 'link'
+        | 'mail'
+        | 'map-pin'
+        | 'megaphone'
+        | 'message'
+        | 'phone'
+        | 'question'
+        | 'shield'
+        | 'users'
+        | 'video'
+        | 'vote'
+      )
+    | null;
+  size?: ('16' | '20' | '24' | '32' | '40' | '48' | '64') | null;
+  color?: ('inherit' | '#000042' | '#A71E22' | '#FF4650' | '#334155' | '#FFFFFF' | '#F6C64D') | null;
   text?: string | null;
   id?: string | null;
   blockName?: string | null;
@@ -5667,6 +5700,8 @@ export interface PageSectionGallerySelect<T extends boolean = true> {
  */
 export interface PageSectionIconSelect<T extends boolean = true> {
   symbol?: T;
+  size?: T;
+  color?: T;
   text?: T;
   id?: T;
   blockName?: T;

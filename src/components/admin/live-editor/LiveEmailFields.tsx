@@ -9,6 +9,7 @@ import { canEditRichText, defaultTextBlock, hasRichFormatting, readTextField, up
 import { createLexicalValueFromText, getPlainTextFromLexical } from '@/lib/live-editor/lexical'
 import { buildUnsteadyDefaults, cloneUnsteadyRow, createUnsteadyBlock, flattenUnsteadyFields, isUnsteadyInternalField, unsteadyID } from '@/lib/live-editor/catalog'
 import { isUnsteadyCompanionTextField } from '@/lib/live-editor/textCapabilities'
+import { SectionIcon } from '@/components/blocks/composable-section/SectionIcon'
 import { LiveEmailLexicalTextEditor } from './LiveEmailLexicalTextEditor'
 import { LiveEmailMediaField } from './LiveEmailMediaField'
 import { LiveEmailRelationshipField } from './LiveEmailRelationshipField'
@@ -113,7 +114,9 @@ function Field({ field, owner, onOwnerChange, path, context }: {
   }
 
   let input: ReactNode
-  if (field.type === 'checkbox') {
+  if (context.blockType === 'sectionIcon' && field.name === 'symbol' && field.options?.length) {
+    input = <IconPicker id={id} options={field.options} value={value ?? field.defaultValue} onChange={change} readOnly={context.readOnly} />
+  } else if (field.type === 'checkbox') {
     const checked = booleanFieldValue(value, field.defaultValue)
     input = <div className={styles.choices} role="radiogroup" aria-labelledby={`${id}-label`}>
       {[true, false].map(option => <label className={styles.choice} data-selected={checked === option} key={String(option)}>
@@ -163,6 +166,23 @@ function Field({ field, owner, onOwnerChange, path, context }: {
       readOnly={context.readOnly} onChange={event => change(event.target.value)} />
   }
   return <div className={styles.field} data-live-editor-field-path={JSON.stringify(path)}><label className={styles.label} id={`${id}-label`} htmlFor={id}>{label}{field.required ? <span title="Required"> *</span> : null}</label>{input}</div>
+}
+
+function IconPicker({ id, options, value, onChange, readOnly }: {
+  id: string; options: NonNullable<PuckFieldSchema['options']>; value: unknown; onChange: (value: unknown) => void; readOnly?: boolean
+}) {
+  const [query, setQuery] = useState('')
+  const selected = options.find(option => option.value === value)
+  const matches = options.filter(option => `${option.label} ${option.value}`.toLowerCase().includes(query.trim().toLowerCase()))
+  return <details className={styles.iconPicker}>
+    <summary><SectionIcon symbol={value} preview /> {selected?.label ?? 'Choose an icon'}</summary>
+    <input id={id} type="search" placeholder="Search icons" value={query} onChange={event => setQuery(event.target.value)} />
+    <div role="group" aria-label="Matching icons">
+      {matches.map(option => <button key={String(option.value)} type="button" aria-pressed={option.value === value} disabled={readOnly}
+        onClick={() => onChange(option.value)}><SectionIcon symbol={option.value} preview />{option.label}</button>)}
+      {!matches.length && <p>No matching icons</p>}
+    </div>
+  </details>
 }
 
 function TextField({ owner, field, path, storage, readOnly, onAction, context }: LiveEmailTextRenderProps & { context: FieldContext }) {

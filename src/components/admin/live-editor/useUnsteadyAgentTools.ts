@@ -55,9 +55,16 @@ const commandSchema = {
     inputSchema({ type: { const: 'edit_array' }, blockId: idSchema, path: pathSchema, action: { type: 'object', description: 'Array action: {type:"add",item?,toIndex?}, {type:"duplicate",index}, {type:"remove",index}, or {type:"move",index,toIndex}. New nested blocks use item:{blockType:slug}; field edits are separate commands.' } }, ['type', 'blockId', 'path', 'action']),
   ],
 }
+const designIndex = { type: 'integer', minimum: 0 }
+const reorderDesignSchema = inputSchema({
+  type: { const: 'reorder_design' }, blockId: idSchema,
+  parentPath: { type: 'array', maxItems: 7, items: designIndex, description: 'Zero-based indexes through layout children to the parent. An empty array selects the design root.' },
+  from: designIndex, to: { ...designIndex, description: 'Final zero-based index inside the same parent.' },
+}, ['type', 'blockId', 'parentPath', 'from', 'to'])
 
 /** No browser globals: usable directly by a future in-editor assistant. */
 export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime?: AbortSignal): UnsteadySiteTool[] {
+  const isPage = binding.getState().document.collection === 'pages'
   let minimumRevision = -1
   const stateNow = () => {
     const state = binding.getState()
@@ -95,8 +102,8 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
     },
     {
       name: 'live_editor_edit_draft', title: 'Edit the local layout draft',
-      description: 'Make one reversible change in the open editor using its normal document operations and undo history. Requires the latest expectedRevision. Schema, IDs, list limits and supported rich-text storage are validated. Does not save, publish, navigate, upload, or send data. Read the draft afterward to inspect the result.',
-      inputSchema: inputSchema({ expectedRevision: revisionSchema, command: commandSchema }, ['expectedRevision', 'command']),
+      description: 'Make one reversible change in the open editor using its normal document operations and undo history. Requires the latest expectedRevision. Schema, IDs, list limits and supported rich-text storage are validated. Does not save, publish, navigate, upload, or send data. Read the draft afterward to inspect the result.' + (isPage ? ' Use reorder_design to move a card or field to a new position in its existing parent. Use move_block for ordinary blocks and whole sections.' : ''),
+      inputSchema: inputSchema({ expectedRevision: revisionSchema, command: isPage ? { oneOf: [...commandSchema.oneOf, reorderDesignSchema] } : commandSchema }, ['expectedRevision', 'command']),
       annotations: { readOnlyHint: false, untrustedContentHint: true, consequentialHint: false },
       execute: execute(value => {
         const input = inputObject(value, ['expectedRevision', 'command'])
@@ -108,7 +115,7 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
       }),
     },
   ]
-  if (binding.getState().document.collection === 'pages') {
+  if (isPage) {
     tools.push({
       name: 'live_editor_read_section_elements', title: 'Read page section and element schemas',
       description: 'Read the allowed children, fields, and options for composing a page section. Pass a blockType for one exact schema. The summary includes the allowed nesting structure.',
@@ -140,7 +147,7 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
     })
     tools.push({
       name: 'live_editor_design_section', title: 'Design a section and its editable fields',
-      description: 'Create a custom section as one local undo step. Send title, a layout container tree, and fields. Layout nodes are {tag?,style?,children} or {field,style?}. Use div, header, aside, section or footer. Use CSS properties such as display, gridTemplateColumns, gap, padding, color, backgroundColor and fontSize in camelCase. Grid columns stack on narrow screens. Fields are {name,element}, where name matches a unique layout field label and element is a native leaf with blockType and initial values. For example {name:"Headline",element:{blockType:"sectionHeading",text:"Budget overview"}}. Use sectionImage with a library image ID, or sectionVideo with a library file ID or youtubeUrl. Read the element schemas for field types. Changes the local draft only.',
+      description: 'Create a custom section as one local undo step. Send title, layout and fields. Layout nodes are {tag?,style?,children} or {field,style?}. Use div, header, aside, section or footer and supported camelCase CSS. Bind every unique {field} to a {name,element} with a native leaf blockType and its editable values. Use sectionIcon for icons. Read its schema for supported symbols, sizes and colors. Use sectionImage with a library image ID and sectionVideo with a library file ID or YouTube URL. Put the contents of each card in its own container so editors can reorder it as a group. Grids stack on narrow screens in tree order. Match the tenant’s typography, color and spacing. For CT House GOP, start with Work Sans, navy headings, slate body copy and restrained red accents. Choose the background width separately from the content width. Use aligned gutters, cap reading and media widths, and consider a centered inner wrapper around 68rem for editorial bands. After authorized draft edits, use the editor’s site Preview at desktop and phone widths. Check heading wraps, reading width, media scale and space beneath the real navigation. This tool changes the local draft only.',
       inputSchema: inputSchema({
         expectedRevision: revisionSchema, beforeId: idSchema,
         section: inputSchema({
@@ -195,8 +202,8 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
   if (binding.preview) {
     const preview = binding.preview
     tools.push({
-      name: 'live_editor_read_preview', title: 'Read the visible layout canvas',
-      description: 'Read the iframe preview viewport, scroll position, boundaries and visible block IDs. Use live_editor_scroll_preview to bring an edited block into view before taking a browser screenshot. Does not change content, focus or selection.',
+      name: 'live_editor_read_preview', title: isPage ? 'Read the visible editor canvas' : 'Read the visible layout canvas',
+      description: 'Read the editor iframe viewport, scroll position, boundaries and visible block IDs. Use live_editor_scroll_preview to bring an edited block into view. Does not change content, focus or selection.' + (isPage ? ' This inspects the editing canvas. For final page layout review, use the site Preview with the real navigation and site styles.' : ''),
       inputSchema: inputSchema({}),
       annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: false },
       execute: execute(value => { inputObject(value, []); return { revision: stateNow().revision, ...preview.read() } }),

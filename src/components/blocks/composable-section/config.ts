@@ -4,6 +4,7 @@ import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { PAGE_SECTION } from '@/lib/live-editor/pageSections'
 import { parseDesignLayout } from './DesignedSection'
 import { sectionYouTubeEmbed } from './media'
+import { sectionIconColors, sectionIconOptions, sectionIconSizes } from './SectionIcon'
 
 const name = (slug: string, label: string, fields: Field[]): Block => ({
   slug, interfaceName: `Page${slug[0]!.toUpperCase()}${slug.slice(1)}`, labels: { singular: label, plural: label }, fields,
@@ -31,7 +32,12 @@ const leaves = [
     text('caption', 'Caption'),
   ]),
   name('sectionGallery', 'Gallery', [{ name: 'images', type: 'upload', relationTo: 'media', hasMany: true }]),
-  name('sectionIcon', 'Icon', [select('symbol', 'Symbol', ['check', 'info', 'star', 'arrow']), text('text', 'Label')]),
+  name('sectionIcon', 'Icon', [
+    { name: 'symbol', label: 'Symbol', type: 'select', defaultValue: 'check', options: sectionIconOptions },
+    { name: 'size', label: 'Icon size', type: 'select', options: sectionIconSizes.map(value => ({ value, label: `${value} px` })) },
+    { name: 'color', label: 'Icon color', type: 'select', options: Object.entries(sectionIconColors).map(([value, label]) => ({ value, label })) },
+    text('text', 'Label'),
+  ]),
   name('sectionQuote', 'Quote', [text('text', 'Quote', 1000), text('attribution', 'Attribution')]),
   name('sectionStatistic', 'Statistic', [text('value', 'Value', 60), text('text', 'Label')]),
   name('sectionCallout', 'Callout', [text('text', 'Heading'), richText()]),

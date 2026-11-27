@@ -1,21 +1,22 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import { ArrowLeft, Check, ChevronDown, ChevronRight, ChevronUp, Copy, ExternalLink, GripHorizontal, Layers, LayoutTemplate, LocateFixed, Monitor, Moon, Move, PanelLeft, Plus, Redo2, Search, Settings2, Smartphone, Sparkles, Sun, Trash2, Undo2, X } from 'lucide-react'
 import type { PuckBlockSchema } from '@/lib/puck/types'
 import { applyTextAction, captureTextAddress, type FieldAddress, type TextAction } from '@/lib/live-editor/textFields'
 import { applyUnsteadyTextAction } from '@/lib/live-editor/text'
 import { getPlainTextFromLexical } from '@/lib/live-editor/lexical'
-import { buildPageSection, collectSectionSchemas, PAGE_SECTION, PAGE_SECTION_STARTERS } from '@/lib/live-editor/pageSections'
+import { buildPageSection, collectSectionSchemas, PAGE_SECTION, PAGE_SECTION_STARTERS, reorderDesignNode } from '@/lib/live-editor/pageSections'
+import type { DesignNode } from '@/components/blocks/composable-section/DesignedSection'
 import { usePageSectionLibrary } from './usePageSectionLibrary'
 import { cloneUnsteadyRow, createUnsteadyBlock } from '@/lib/live-editor/catalog'
 import { getEditorPaletteGroups } from './emailBlockPalette'
-import { duplicateBlock, editOwnedArray, ensureDocumentIds, findBlock, findBlockSchema, getBlock, getSlot, getSlots, insertBlock, moveBlock, removeBlock, ROOT_SLOT, updateBlock, type BlockRecord, type PageDocument, type SlotAddress } from '@/lib/live-editor/document'
+import { duplicateBlock, editOwnedArray, ensureDocumentIds, findBlock, findBlockSchema, getBlock, getSlot, getSlots, insertBlock, isBoundDesignField, moveBlock, removeBlock, ROOT_SLOT, updateBlock, type BlockRecord, type PageDocument, type SlotAddress } from '@/lib/live-editor/document'
 import { getFormSettingsSchema, liveEditorVariants, type LiveEditorKind } from './editorVariants'
 import { LiveEmailBlockRenderer } from './LiveEmailBlockRenderer'
 import { LiveEmailInlineText } from './LiveEmailInlineText'
 import { LiveEmailFields } from './LiveEmailFields'
-import { useUnsteadyDrag, type DragItem, type DropTarget } from './useUnsteadyDrag'
+import { designSlotId, useUnsteadyDrag, type DesignPosition, type DragItem, type DropTarget } from './useUnsteadyDrag'
 import { useUnsteadyHistory } from './useUnsteadyHistory'
 import { useUnsteadyAgentTools } from './useUnsteadyAgentTools'
 import { useLiveEmailMedia } from './useLiveEmailMedia'
@@ -46,6 +47,17 @@ type LiveDocumentEditorProps = {
 function textLabel(block: Record<string, unknown>, schema?: PuckBlockSchema) {
   const detail = [block.heading, block.title, block.blockName, block.label, typeof block.text === 'string' ? block.text : '', getPlainTextFromLexical(block.text), getPlainTextFromLexical(block.richText)].find(value => typeof value === 'string' && value.trim())
   return typeof detail === 'string' ? detail.length > 72 ? `${detail.slice(0, 69)}…` : detail : schema?.label || String(block.blockType || 'Block')
+}
+
+function designGroupLabel(node: DesignNode, fields: BlockRecord[]): string | undefined {
+  if (node.field) {
+    const heading = fields.find(field => field.blockName === node.field && field.blockType === 'sectionHeading')
+    return heading && (typeof heading.text === 'string' && heading.text.trim() ? heading.text : textLabel(heading))
+  }
+  for (const child of node.children ?? []) {
+    const label = designGroupLabel(child, fields)
+    if (label) return label
+  }
 }
 
 export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, previewURL, backToPayloadURL, nextStage, apiURL, kind = 'email', advancedURL, onCreatePost, tenantName, focusBlock, focusField }: LiveDocumentEditorProps) {
@@ -135,6 +147,25 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
     setSelected(String(result.selectedId || id)); setActiveText(null); setMoveMenu(null)
     announce(`Moved to ${slot.label}.`)
   }, [schemas, commit, announce, getCurrent])
+  const moveDesign = (item: Extract<DragItem, { kind: 'design' }>, to: number) => {
+    const current = getCurrent()
+    if (item.revision !== current.revision) throw new Error('The design changed. Start the move again.')
+    const result = reorderDesignNode(current.document, item.sectionId, item.path.slice(0, -1), item.path.at(-1)!, to, schemas)
+    if (result.document === current.document) return
+    commit(result.document)
+    setActiveText(null)
+    setMoveMenu(null)
+    setSelected(item.fieldId ?? item.sectionId)
+    announce(`Moved ${item.label}. Undo restores the previous order.`)
+  }
+  const handleDesignKey = (event: ReactKeyboardEvent<HTMLButtonElement>, item: Extract<DragItem, { kind: 'design' }>) => {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
+    event.preventDefault()
+    event.stopPropagation()
+    const from = item.path.at(-1)!
+    const to = from + (['ArrowUp', 'ArrowLeft'].includes(event.key) ? -1 : 1)
+    if (to >= 0 && to < item.siblingCount) attempt(() => { measure(); moveDesign(item, to) })
+  }
   const add = useCallback((type: string, address: SlotAddress, index?: number, layout?: string) => {
     const schema = findBlockSchema(type, schemas)
     if (!schema) return
@@ -159,6 +190,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   })
 
   const canDrop = useCallback((item: DragItem, target: DropTarget) => {
+    if (item.kind === 'design') return item.revision === getCurrent().revision && target.slotId === designSlotId(item.sectionId, item.path.slice(0, -1))
     const cacheKey = JSON.stringify([item, target])
     if (dropCache.has(cacheKey)) return dropCache.get(cacheKey)!
     const slot = slots.find(candidate => candidate.id === target.slotId)
@@ -175,7 +207,8 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   }, [schemas, slots, dropCache, getCurrent])
   const { drag, start, measure, skipClick } = useUnsteadyDrag({
     canDrop, onDrop: (item, target) => attempt(() => {
-      if (item.kind === 'block') move(item.id, target)
+      if (item.kind === 'design') moveDesign(item, target.index > item.path.at(-1)! ? target.index - 1 : target.index)
+      else if (item.kind === 'block') move(item.id, target)
       else {
         const slot = slots.find(candidate => candidate.id === target.slotId)
         if (slot) add(item.type, slot.address, target.index, item.layout)
@@ -291,13 +324,14 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
       {(slot.capacity == null || slot.items.length < slot.capacity) && <button type="button" className={styles.addToZone} onClick={event => { event.stopPropagation(); chooseInsertion(slot.address) }} aria-label={`Add to ${slot.label}`}><Plus size={14} />{slot.items.length ? 'Add' : address.path === 'layout' ? kind === 'form' ? 'Add your first field' : `Add your first ${kind} block` : kind === 'form' ? 'Add or drop a field' : `Add or drop a ${kind} block`}</button>}
     </div>
   }
-  const renderBlock = (block: Record<string, unknown>): ReactNode => {
+  const renderBlock = (block: Record<string, unknown>, designPosition?: DesignPosition): ReactNode => {
     const id = String(block.id)
     const schema = findBlockSchema(block.blockType, schemas)
     const label = textLabel(block, schema)
     const source = slots.find(slot => slot.items.some(item => String(item.id) === id))
     const sourceIndex = source?.items.findIndex(item => String(item.id) === id) ?? -1
-    return <article className={styles.block} data-unsteady-block={id} data-unsteady-block-type={String(block.blockType)} data-testid={`block-${id}`} aria-label={`${schema?.label || block.blockType}: ${label}`} tabIndex={0} data-selected={selected === id || undefined} data-drag-source={drag?.item.kind === 'block' && drag.item.id === id || undefined}
+    const designItem = designPosition && { kind: 'design' as const, ...designPosition, label, revision: history.revision, fieldId: id }
+    return <article className={styles.block} data-unsteady-block={id} data-unsteady-block-type={String(block.blockType)} data-testid={`block-${id}`} aria-label={`${schema?.label || block.blockType}: ${label}`} tabIndex={0} data-selected={selected === id || undefined} data-drag-source={(drag?.item.kind === 'block' && drag.item.id === id || drag?.item.kind === 'design' && drag.item.fieldId === id) || undefined}
       onKeyDown={event => { if (event.target === event.currentTarget && event.key === 'Enter') { event.preventDefault(); selectBlock(id) } }}
       onPointerDown={event => {
         if (event.button !== 0 || (event.target as Element).closest('button, [role="dialog"]')) return
@@ -305,7 +339,9 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
         selectBlock(id)
       }}>
       <div className={styles.blockTools} onClick={event => event.stopPropagation()}>
-        <button type="button" className={styles.moveHandle} aria-label={`Move ${label}`} title="Drag to move; use arrow keys to reorder" onPointerDown={event => start(event, { kind: 'block', id, label })}
+        {designItem ? designItem.siblingCount > 1 && <button type="button" className={styles.moveHandle} aria-label={`Move ${label}`} aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" title="Drag or use arrow keys to reorder within this container"
+          onPointerDown={event => start(event, designItem)} onKeyDown={event => handleDesignKey(event, designItem)}><Move size={14} /><span>{schema?.label}</span></button>
+        : <button type="button" className={styles.moveHandle} aria-label={`Move ${label}`} title="Drag to move; use arrow keys to reorder" onPointerDown={event => start(event, { kind: 'block', id, label })}
           aria-expanded={moveMenu === id} aria-controls={moveMenu === id ? `move-menu-${id}` : undefined} aria-haspopup="dialog" data-unsteady-move={id}
           onClick={() => { if (!skipClick()) { setActiveText(null); setSelected(id); setMoveMenu(moveMenu === id ? null : id) } }}
           onKeyDown={event => {
@@ -314,7 +350,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
             event.preventDefault(); measure()
             const index = ['ArrowUp', 'ArrowLeft'].includes(event.key) ? Math.max(0, sourceIndex - 1) : Math.min(source.items.length, sourceIndex + 2)
             attempt(() => move(id, { slotId: source.id, index }))
-          }}><Move size={14} /><span>{schema?.label || block.blockType as string}</span></button>
+          }}><Move size={14} /><span>{schema?.label || block.blockType as string}</span></button>}
         <button type="button" aria-label={`Edit ${label}`} title="Edit block" onClick={() => selectBlock(id)}><Settings2 size={14} /></button>
         <button type="button" aria-label={`Duplicate ${label}`} title="Duplicate" disabled={source?.capacity != null && source.items.length >= source.capacity} onClick={() => attempt(() => {
           measure(); const result = duplicateBlock(getCurrent().document, id, { schemas }); history.commit(result.document); setSelected(String(result.selectedId)); announce('Block duplicated.')
@@ -326,7 +362,31 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
       {moveMenu === id && <LiveEmailMoveMenu id={id} label={label} onClose={() => setMoveMenu(null)}>
         {slots.filter(slot => canDrop({ kind: 'block', id, label }, { slotId: slot.id, index: slot.items.length })).map(slot => <button key={slot.id} type="button" onClick={() => attempt(() => { measure(); move(id, { slotId: slot.id, index: slot.items.length }) })}><Move size={13} />{slot.label}</button>)}
       </LiveEmailMoveMenu>}
-      <LiveEmailBlockRenderer block={block} schemas={schemas} kind={kind} insideRow={source?.path !== ROOT_SLOT.path} resolveMedia={resolveMedia} postContent={page.content} renderDesignField={renderBlock}
+      <LiveEmailBlockRenderer block={block} schemas={schemas} kind={kind} insideRow={source?.path !== ROOT_SLOT.path} resolveMedia={resolveMedia} postContent={page.content}
+        renderDesignField={(field, _, path, siblingCount) => renderBlock(field, path && { sectionId: id, path, siblingCount: siblingCount ?? 1 })}
+        designNodeControls={(node, path, siblingCount) => {
+          const index = path.at(-1)
+          const slotId = designSlotId(id, path)
+          const parentId = designSlotId(id, path.slice(0, -1))
+          const target = drag?.target?.slotId === parentId ? drag.target.index : null
+          const item = !node.field && index !== undefined && siblingCount > 1 ? {
+            kind: 'design' as const, sectionId: id, path, siblingCount, revision: history.revision,
+            label: designGroupLabel(node, block.children as BlockRecord[]) ?? `Group ${index + 1}`,
+          } : null
+          return {
+            attributes: {
+              'data-unsteady-zone': node.children && slotId,
+              'data-unsteady-grid': Boolean(node.style?.gridTemplateColumns || (node.style?.display === 'flex' && (!node.style.flexDirection || node.style.flexDirection === 'row'))) || undefined,
+              'data-design-drop-length': node.children?.length,
+              'data-unsteady-drop-item': index !== undefined || undefined,
+              'data-design-drop-index': index,
+              'data-design-drop': index === undefined ? undefined : target === index ? 'before' : index === siblingCount - 1 && target === siblingCount ? 'after' : undefined,
+              'data-design-group': item ? item.label : undefined,
+            },
+            handle: item && <button type="button" className={`${styles.moveHandle} ${styles.designGroupHandle}`} aria-label={`Move group: ${item.label}`} aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight" title="Drag or use arrow keys to reorder this group"
+              onPointerDown={event => start(event, item)} onKeyDown={event => handleDesignKey(event, item)}><GripHorizontal size={16} /></button>,
+          }
+        }}
         renderSlot={(ownerId, slotName) => renderSlot({ ownerId, path: slotName },
           kind === 'page' && (block.blockType === 'sectionGrid' || block.blockType === 'sectionColumns') && block.variant !== 'stacked')}
         renderText={(owner, field, path, storage, fieldLabel) => {
@@ -510,15 +570,16 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
                 {slot.items.map((block, index) => {
                   const id = String(block.id)
                   const label = textLabel(block, findBlockSchema(block.blockType, schemas))
+                  const bound = kind === 'page' && isBoundDesignField(findBlock(page, slot.ownerId, { schemas }), block)
                   return <div className={styles.layerRow} key={id}>
                     <button type="button" aria-pressed={id === selected}
                       onClick={() => attempt(() => { selectBlock(id); scrollUnsteadyPreview(scroller.current, { blockId: id }) })}>
                       <ChevronRight size={14} aria-hidden /><span>{label}</span>
                     </button>
-                    <button type="button" aria-label={'Move ' + label + ' up'} disabled={index === 0}
+                    {!bound && <><button type="button" aria-label={'Move ' + label + ' up'} disabled={index === 0}
                       onClick={() => attempt(() => move(id, { slotId: slot.id, index: index - 1 }))}><ChevronUp size={14} aria-hidden /></button>
                     <button type="button" aria-label={'Move ' + label + ' down'} disabled={index === slot.items.length - 1}
-                      onClick={() => attempt(() => move(id, { slotId: slot.id, index: index + 2 }))}><ChevronDown size={14} aria-hidden /></button>
+                      onClick={() => attempt(() => move(id, { slotId: slot.id, index: index + 2 }))}><ChevronDown size={14} aria-hidden /></button></>}
                   </div>
                 })}
               </section>

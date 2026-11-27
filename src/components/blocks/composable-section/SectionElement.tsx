@@ -1,11 +1,11 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { safeSectionURL } from '@/lib/live-editor/pageSections'
 import styles from './section.module.css'
+import { SectionIcon } from './SectionIcon'
 import { sectionMediaURL, sectionYouTubeEmbed } from './media'
 
 type Block = Record<string, unknown>
 const asText = (value: unknown) => typeof value === 'string' ? value : ''
-const iconSymbols: Record<string, string> = { check: '✓', info: 'ⓘ', star: '★', arrow: '→' }
 
 function resource(value: unknown) {
   const object = value && typeof value === 'object' ? value as Block : {}
@@ -80,7 +80,7 @@ export function SectionElement({ block, children, resolveMedia = value => value,
       return url ? <a className={className} href={url}>{label || (block.blockType === 'sectionDocument' ? 'Open document' : url)}</a> : null
     }
     case 'sectionIcon':
-      return <span className={styles.icon}><span aria-hidden="true">{iconSymbols[asText(block.symbol)] ?? iconSymbols.info}</span> {text('text')}</span>
+      return <span className={styles.icon}><SectionIcon symbol={block.symbol} size={block.size} color={block.color} /> {text('text')}</span>
     case 'sectionDivider':
       return <hr className={styles.divider} />
     case 'sectionForm':

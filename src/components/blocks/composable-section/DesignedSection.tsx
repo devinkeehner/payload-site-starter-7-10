@@ -66,10 +66,18 @@ export function parseDesignLayout(input: unknown): DesignNode {
   return layout
 }
 
-export function DesignedSection({ layout, blocks, renderField, className = '', gridClassName = '' }: {
+type DesignNodeControls = { attributes?: Record<`data-${string}`, string | number | boolean | undefined>; handle?: ReactNode }
+
+function designNodeKey(node: DesignNode): string {
+  if (node.field) return node.field
+  return node.children!.map(designNodeKey).reduce((first, name) => name < first ? name : first)
+}
+
+export function DesignedSection({ layout, blocks, renderField, nodeControls, className = '', gridClassName = '' }: {
   layout: unknown
   blocks: Record<string, unknown>[]
-  renderField: (block: Record<string, unknown>, index: number) => ReactNode
+  renderField: (block: Record<string, unknown>, index: number, path?: number[], siblingCount?: number) => ReactNode
+  nodeControls?: (node: DesignNode, path: number[], siblingCount: number) => DesignNodeControls
   className?: string
   gridClassName?: string
 }) {
@@ -80,20 +88,24 @@ export function DesignedSection({ layout, blocks, renderField, className = '', g
     )}</>
   }
   const unused = new Set(blocks.keys())
-  function render(node: DesignNode, index: number): ReactNode {
+  function render(node: DesignNode, path: number[], siblingCount: number): ReactNode {
     const { gridTemplateColumns, ...style } = node.style ?? {}
     const css = { ...style, '--design-columns': gridTemplateColumns } as CSSProperties
     const classNames = gridTemplateColumns ? `${className} ${gridClassName}` : className
+    const controls = nodeControls?.(node, path, siblingCount)
     if (node.field) {
       const match = blocks.findIndex((block, i) => unused.has(i) && block.blockName === node.field)
       if (match < 0) return null
       unused.delete(match)
-      return <div key={index} className={classNames} data-designed-field style={css}>{renderField(blocks[match]!, match)}</div>
+      return <div key={node.field} className={classNames} data-designed-field style={css} {...controls?.attributes}>{renderField(blocks[match]!, match, path, siblingCount)}</div>
     }
     const Tag = node.tag ?? 'div'
-    return <Tag key={index} className={classNames} style={css}>{node.children?.map(render)}</Tag>
+    return <Tag key={designNodeKey(node)} className={classNames} style={css} {...controls?.attributes}>
+      {controls?.handle}
+      {node.children?.map((child, index, siblings) => render(child, [...path, index], siblings.length))}
+    </Tag>
   }
-  const rendered = render(design, 0)
+  const rendered = render(design, [], 1)
   return <>{rendered}{[...unused].map(index =>
     <Fragment key={String(blocks[index]!.id ?? index)}>{renderField(blocks[index]!, index)}</Fragment>
   )}</>
