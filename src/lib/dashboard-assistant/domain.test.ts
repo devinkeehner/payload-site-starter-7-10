@@ -32,7 +32,9 @@ function harness(assigned = ['one', 'two'], selected = 'one', roles: string[] = 
     create: vi.fn(),
     update: vi.fn(),
   }
-  const req = { user: { collection: 'users', id: account.id }, payload } as unknown as PayloadRequest
+  const req = { user: { collection: 'users', id: account.id },
+    payload: { ...payload, config: { routes: { admin: '/admin' } } },
+  } as unknown as PayloadRequest
   const tools = buildDashboardAssistantTools({ req, runId: 'release-turn', selectedTenantId: selected })
   const invoke = (name: string, args: unknown) => {
     const action = tools.find(tool => tool.name === name)
@@ -102,7 +104,26 @@ describe('dashboard settings and shortcuts', () => {
     }))
   })
 
-  it('preserves unrelated shortcuts and prevents a shortcut addition from expanding editing access mid-turn', async () => {
+  it('lets an editor update the selected site without adding a shortcut', async () => {
+    const { invoke, payload, req } = harness(['two'])
+    payload.find.mockImplementation(async ({ collection }) => ({ docs: collection === 'navbars' ? [navbar] : [] }))
+    payload.update.mockImplementation(async ({ data }) => ({ ...navbar, ...data }))
+
+    expect(await invoke('edit_site_navbar', { expectedUpdatedAt: revision, changes: [move] })).toMatchObject({
+      siteId: 'one', navbarId: 'menu',
+    })
+    expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({ req, collection: 'navbars', id: 'menu', overrideAccess: false }))
+    expect(payload.findByID).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'users' }))
+  })
+
+  it('rejects edits when the selected site is archived', async () => {
+    const { invoke, payload } = harness()
+    payload.findByID.mockImplementationOnce(async () => ({ id: 'one', archived: true }))
+    expect(await invoke('edit_site_navbar', { expectedUpdatedAt: revision, changes: [move] })).toMatch(/archived/)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('preserves unrelated shortcuts and keeps the bulk draft roster fixed for the current turn', async () => {
     const { invoke, payload, account, req } = harness(['one', 'two'], 'three')
     payload.find.mockResolvedValue({ docs: [{ id: 'three' }] })
     payload.update.mockImplementation(async ({ data }) => Object.assign(account, data))
@@ -113,10 +134,85 @@ describe('dashboard settings and shortcuts', () => {
       req, overrideAccess: false, collection: 'users', id: 'editor',
       data: { tenants: [{ tenant: 'one', id: 'row-one' }, { tenant: 'three' }] },
     }))
-    expect(await invoke('read_site_settings', {})).toMatch(/assigned sites/)
     expect(await invoke('create_representative_drafts', { siteIds: ['three'], copy: draft })).toMatch(/assigned/)
     expect(payload.create).not.toHaveBeenCalled()
   })
+})
+
+describe('existing post drafts', () => {
+  const post = {
+    id: 'post-one', title: 'Town update', slug: 'original-slug', tenant: { id: 'one' }, updatedAt: revision,
+    _status: 'draft', meta: { title: 'SEO title', description: 'Old summary', image: 'social', descriptionApproved: true },
+    content: { root: { children: [{ type: 'paragraph', children: [
+      { type: 'text', text: 'The meeting starts at noon.', format: 1 },
+      { type: 'link', fields: { url: '/events' }, children: [{ type: 'text', text: 'Event info' }] },
+    ] }] } },
+  }
+  const update = {
+    postId: post.id, expectedUpdatedAt: revision,
+    changes: [
+      { action: 'set_title', value: 'Updated town news' },
+      { action: 'replace_text', from: 'at noon.', to: 'at 1 p.m.' },
+      { action: 'set_search_description', value: 'New summary' },
+    ],
+  }
+
+  it('reads and updates an existing draft on the selected site while preserving its slug, formatting and social image', async () => {
+    const { invoke, payload, req } = harness(['two'])
+    payload.findByID.mockImplementation(async ({ collection }) => collection === 'posts' ? post : { id: 'one' })
+    payload.update.mockImplementation(async ({ data }) => ({ ...post, ...data }))
+    expect(await invoke('find_post_drafts', { postId: post.id, query: '' })).toMatchObject({
+      title: 'Town update', body: 'The meeting starts at noon.Event info', updatedAt: revision,
+    })
+    expect(await invoke('edit_post_draft', update)).toMatchObject({
+      id: post.id, title: 'Updated town news', status: 'draft', editUrl: '/admin/collections/posts/post-one',
+    })
+    expect(payload.update).toHaveBeenCalledWith(expect.objectContaining({
+      req, collection: 'posts', id: post.id, draft: true, overrideAccess: false, overrideLock: false,
+      data: { _status: 'draft', title: 'Updated town news', slug: post.slug,
+        content: { root: { children: [{ type: 'paragraph', children: [
+          { type: 'text', text: 'The meeting starts at 1 p.m.', format: 1 },
+          post.content.root.children[0]!.children[1],
+        ] }] } },
+        meta: { ...post.meta, description: 'New summary', descriptionApproved: false },
+      },
+    }))
+    expect(payload.db.commitTransaction).toHaveBeenCalledWith('transaction')
+  })
+
+  it.each([
+    { ...post, _status: 'published' },
+    { ...post, tenant: { id: 'two' } },
+    { ...post, updatedAt: oldRevision },
+  ])('rejects a published, foreign-site, or changed draft before saving', async attempted => {
+    const { invoke, payload } = harness()
+    payload.findByID.mockImplementation(async ({ collection }) => collection === 'posts' ? attempted : { id: 'one' })
+    expect(await invoke('edit_post_draft', update)).toMatch(/editable draft|draft changed/)
+    expect(payload.update).not.toHaveBeenCalled()
+  })
+})
+
+it('lists published posts for a named active site by publication date without reading draft revisions', async () => {
+  const { invoke, payload, req } = harness(['one'])
+  payload.findByID.mockImplementation(async ({ id }) => ({ id, name: 'Ackert, Tim', slug: 'ackert' }))
+  const published = { id: 'first', tenant: 'two', title: 'District update', slug: 'district-update',
+    _status: 'published', publishedAt: revision }
+  payload.find.mockResolvedValue({
+    docs: [published, { ...published, id: 'hidden', _status: 'draft' }, { ...published, id: 'other', tenant: 'one' }],
+  })
+  vi.stubEnv('NEXT_PUBLIC_SITE_URL', 'https://www.cthousegop.com')
+  try {
+    expect(await invoke('list_published_posts', { siteId: 'two', query: '', limit: 5 })).toMatchObject({
+      site: { id: 'two', name: 'Ackert, Tim' },
+      posts: [{ id: 'first', title: 'District update', publishedAt: revision, url: 'https://www.cthousegop.com/ackert/district-update' }],
+    })
+  } finally { vi.unstubAllEnvs() }
+  expect(payload.find).toHaveBeenCalledWith(expect.objectContaining({
+    req, collection: 'posts', draft: false, overrideAccess: false,
+    where: { and: [{ tenant: { equals: 'two' } }, { _status: { equals: 'published' } }] },
+    sort: ['-publishedAt', '-createdAt', 'id'], limit: 5,
+  }))
+  expect(payload.update).not.toHaveBeenCalled()
 })
 
 describe('representative press releases', () => {

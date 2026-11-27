@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GET, POST } from '@/app/api/admin/assistant/[[...action]]/route'
+import { assistantSiteHeader } from './protocol'
 import { designChatScope } from '@/lib/live-editor/designChatStore'
 import { LiveEditorAccessError } from '@/lib/live-editor/emailAccess'
 
@@ -12,7 +13,7 @@ vi.mock('payload', () => ({ createPayloadRequest: mocks.create }))
 vi.mock('@/lib/dashboard-assistant/access', () => ({ assertDashboardSite: mocks.assertSite }))
 vi.mock('@/lib/dashboard-assistant/runner', () => ({ streamDashboardChat: mocks.run }))
 vi.mock('@/lib/live-editor/emailService', () => ({ uploadDraftMedia: mocks.upload }))
-vi.mock('@/components/admin/dashboard/adminDashboardMeta', () => ({ getSelectedTenantID: mocks.getTenant }))
+vi.mock('@payloadcms/plugin-multi-tenant/utilities', () => ({ getTenantFromCookie: mocks.getTenant }))
 vi.mock('@/lib/live-editor/designChatStore', async (original) => ({
   ...await original<typeof import('@/lib/live-editor/designChatStore')>(), designChatStore: mocks.store,
 }))
@@ -25,8 +26,10 @@ const thread = { id: chatId, busy: false, messages: [] }
 const body = { chatId, turnId, content: 'Create a release draft', imageId: null as string | null }
 const base = 'https://cms.example.test/api/admin/assistant'
 const ctx = (action?: string) => ({ params: Promise.resolve({ action: action ? [action] : undefined }) })
-const post = (data: unknown = body, origin = 'https://cms.example.test') => new Request(base, {
-  method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(data),
+const post = (data: unknown = body, origin = 'https://cms.example.test', expectedSite?: string) => new Request(base, {
+  method: 'POST', headers: {
+    Origin: origin, 'Content-Type': 'application/json', ...(expectedSite !== undefined && { [assistantSiteHeader]: expectedSite }),
+  }, body: JSON.stringify(data),
 })
 
 beforeEach(() => {
@@ -65,11 +68,30 @@ describe('dashboard assistant', () => {
     expect(mocks.reset).toHaveBeenCalledWith(chatId)
   })
   it('checks current site access before loading its transcript or starting another turn', async () => {
-    mocks.assertSite.mockRejectedValue(new LiveEditorAccessError('This site is outside your assigned sites.', 403))
+    mocks.assertSite.mockRejectedValue(new LiveEditorAccessError('This site is unavailable.', 403))
     expect((await GET(new Request(base), ctx())).status).toBe(403)
     expect((await POST(post(), ctx())).status).toBe(403)
     expect(mocks.store).not.toHaveBeenCalled()
     expect(mocks.run).not.toHaveBeenCalled()
+  })
+  it('rejects a different site in the current tab before loading a chat, starting a turn or uploading an image', async () => {
+    const headers = { [assistantSiteHeader]: 'site-b', 'X-Assistant-Chat': chatId }
+    expect((await GET(new Request(base, { headers }), ctx())).status).toBe(409)
+    expect((await POST(post(body, 'https://cms.example.test', 'site-b'), ctx())).status).toBe(409)
+    expect((await POST(new Request(base + '/media', { method: 'POST', headers }), ctx('media'))).status).toBe(409)
+    expect(mocks.assertSite).not.toHaveBeenCalled()
+    expect(mocks.store).not.toHaveBeenCalled()
+    expect(mocks.run).not.toHaveBeenCalled()
+    expect(mocks.upload).not.toHaveBeenCalled()
+  })
+
+  it('keeps the conversation for All Sites separate, even for a user with one saved site', async () => {
+    mocks.getTenant.mockReturnValue(null)
+    mocks.create.mockResolvedValue({ ...req, user: { ...creator, tenants: [{ tenant: 'site-a' }] } })
+    const result = await GET(new Request(base, { headers: { [assistantSiteHeader]: '' } }), ctx())
+    expect(await result.json()).toMatchObject({ site: null })
+    expect(mocks.assertSite).not.toHaveBeenCalled()
+    expect(mocks.store).toHaveBeenCalledWith(expect.anything(), designChatScope('creator', null, 'payload-dashboard-assistant'))
   })
   it('rejects client-supplied authority and validates the actual owner and type of gallery images', async () => {
     expect((await POST(post({ ...body, tenantId: 'site-b' }), ctx())).status).toBe(400)

@@ -37,17 +37,21 @@ it('runs a scoped dashboard tool through the Agents SDK and saves its final resp
     req: req as unknown as PayloadRequest, tenantId: 'site-a', request: new Request('https://cms.example.test/admin/assistant'),
     runId: 'test-turn', apiKey: 'test-only', turn: { history: [], references: [], finish },
     input: { chatId: thread.id, message: { content: 'Which sites are assigned to me?', attachments: [] } },
+    openedPostId: '6b098df6ad269b817ea9952c',
   })
   const events = (await new Response(stream).text()).trim().split('\n').map(line => JSON.parse(line))
   expect(events).toEqual([{ type: 'activity', name: 'list_dashboard_sites' }, { type: 'text', delta: final }, { type: 'done', thread }])
   expect(req.payload.findByID).toHaveBeenCalledWith(expect.objectContaining({ req, collection: 'users', id: 'account-a', overrideAccess: false }))
   expect(req.payload.find).toHaveBeenCalledWith(expect.objectContaining({ req, collection: 'tenants', where: { and: [{ id: { in: ['site-a'] } }] } }))
   expect(finish).toHaveBeenCalledWith(final)
-  const definition = JSON.parse(provider.mock.calls[0]![1].body).tools.find(
+  const initialRequest = JSON.parse(provider.mock.calls[0]![1].body)
+  const definition = initialRequest.tools.find(
     (tool: { name: string }) => tool.name === 'edit_site_navbar',
   )
   expect(definition.strict).toBe(true)
   expect(definition.parameters.properties.changes.items.anyOf).toHaveLength(4)
+  expect(initialRequest.tools.find((tool: { name: string }) => tool.name === 'edit_post_draft')).toMatchObject({ strict: true })
+  expect(JSON.stringify(initialRequest.input)).toContain('Opened from post 6b098df6ad269b817ea9952c')
   const submitted = JSON.parse(provider.mock.calls[1]![1].body)
   expect(submitted.input).toContainEqual(expect.objectContaining({ type: 'function_call_output', output: expect.stringContaining('Site A') }))
 })

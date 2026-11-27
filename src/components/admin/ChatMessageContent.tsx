@@ -1,7 +1,23 @@
 import React, { type ReactNode } from 'react'
 
-function inlineContent(text: string, adminRoute?: string): ReactNode[] {
-  const tokens = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|\[([^\[\]\n]+)\]\((\/[^\s)]+)\)/g
+type LinkOptions = { adminRoute?: string; publicSiteBase?: string }
+
+function allowedLink(href: string, { adminRoute, publicSiteBase }: LinkOptions) {
+  if (/[\\\x00-\x1f\x7f]/.test(href)) return false
+  try {
+    if (adminRoute && href.startsWith(`${adminRoute}/`) && !href.includes('..')) {
+      return new URL(href, 'https://dashboard.invalid').pathname.startsWith(`${adminRoute}/`)
+    }
+    if (publicSiteBase && /^https?:\/\//i.test(href)) {
+      const destination = new URL(href)
+      return destination.origin === new URL(publicSiteBase).origin && !destination.username && !destination.password
+    }
+  } catch { return false }
+  return false
+}
+
+function inlineContent(text: string, linkOptions: LinkOptions = {}): ReactNode[] {
+  const tokens = /`([^`\n]+)`|\*\*([^*\n]+)\*\*|\[([^\[\]\n]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/g
   const parts: ReactNode[] = []
   let offset = 0
   for (const match of text.matchAll(tokens)) {
@@ -9,9 +25,8 @@ function inlineContent(text: string, adminRoute?: string): ReactNode[] {
     const index = match.index!
     parts.push(text.slice(offset, index))
     if (code) parts.push(<code key={index}>{code}</code>)
-    else if (strong) parts.push(<strong key={index}>{inlineContent(strong, adminRoute)}</strong>)
-    else if (adminRoute && href?.startsWith(`${adminRoute}/`) && !/[\\\x00-\x1f\x7f]/.test(href) && !href.includes('..') &&
-      new URL(href, 'https://dashboard.invalid').pathname.startsWith(`${adminRoute}/`)) {
+    else if (strong) parts.push(<strong key={index}>{inlineContent(strong, linkOptions)}</strong>)
+    else if (href && allowedLink(href, linkOptions)) {
       parts.push(<a key={index} href={href}>{inlineContent(label!)}</a>)
     } else parts.push(literal)
     offset = index + literal.length
@@ -20,6 +35,6 @@ function inlineContent(text: string, adminRoute?: string): ReactNode[] {
   return parts
 }
 
-export function ChatMessageContent({ content, adminRoute, plain }: { content: string; adminRoute?: string; plain?: boolean }) {
-  return <p>{plain ? content : inlineContent(content, adminRoute)}</p>
+export function ChatMessageContent({ content, plain, ...linkOptions }: LinkOptions & { content: string; plain?: boolean }) {
+  return <p>{plain ? content : inlineContent(content, linkOptions)}</p>
 }

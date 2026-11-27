@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto'
+import { getTenantFromCookie } from '@payloadcms/plugin-multi-tenant/utilities'
 import { createPayloadRequest } from 'payload'
 import { z } from 'zod'
 import configPromise from '@payload-config'
-import { getSelectedTenantID } from '@/components/admin/dashboard/adminDashboardMeta'
-import { MAX_ASSISTANT_MESSAGE } from '@/lib/dashboard-assistant/protocol'
+import { assistantSiteHeader, dashboardPostIdPattern, MAX_ASSISTANT_MESSAGE } from '@/lib/dashboard-assistant/protocol'
 import { streamDashboardChat } from '@/lib/dashboard-assistant/runner'
 import { assertDashboardSite } from '@/lib/dashboard-assistant/access'
 import { designChatScope, designChatStore } from '@/lib/live-editor/designChatStore'
@@ -21,6 +21,7 @@ const schema = z.object({
   chatId: z.string().uuid(), turnId: z.string().uuid(),
   content: z.string().max(MAX_ASSISTANT_MESSAGE),
   imageId: z.string().min(1).max(100).nullable(),
+  openedPostId: z.string().regex(dashboardPostIdPattern).optional(),
 }).strict().refine(message => message.content.trim() || message.imageId)
 
 type Context = { params: Promise<{ action?: string[] }> }
@@ -29,8 +30,13 @@ async function authorize(request: Request) {
   const req = await createPayloadRequest({ config: configPromise, request, canSetHeaders: false })
   if (!req.user?.id || req.user.collection !== 'users') throw new LiveEditorAccessError('Sign in to the dashboard to use the assistant.', 401)
   const userId = String(req.user.id)
-  const selection = getSelectedTenantID(req)
-  const tenant = selection ? await assertDashboardSite(req, selection) : null
+  const selection = getTenantFromCookie(req.headers, 'text')
+  const selectedId = selection == null ? null : String(selection)
+  const expectedSite = request.headers.get(assistantSiteHeader)
+  if (expectedSite !== null && expectedSite !== (selectedId ?? '')) {
+    throw new NativeDraftError('The dashboard site changed. Refresh the dashboard or reselect your site before using the assistant.', 409)
+  }
+  const tenant = selectedId ? await assertDashboardSite(req, selectedId) : null
   const tenantId = tenant ? String(tenant.id) : null
   const scope = designChatScope(userId, tenantId, scopeName)
   return { req, userId, tenant, tenantId, scope, store: designChatStore(req, scope) }
@@ -63,7 +69,7 @@ export async function POST(request: Request, { params }: Context) {
     }
     const apiKey = process.env.OPENAI_API_KEY?.trim()
     if (!apiKey) return Response.json({ error: 'The website assistant is not configured on this server.' }, { headers, status: 503 })
-    const { chatId, turnId, content, imageId } = await readDesignChatJSON(request, schema, MAX_ASSISTANT_MESSAGE * 6 + 1200)
+    const { chatId, turnId, content, imageId, openedPostId } = await readDesignChatJSON(request, schema, MAX_ASSISTANT_MESSAGE * 6 + 1200)
     if (!allowDesignChatRun(userId)) return Response.json({ error: 'Please wait a moment before sending another message.' }, { headers, status: 429 })
     const input: DesignChatRequest = { chatId, message: { content, attachments: [] } }
     if (imageId) {
@@ -77,7 +83,7 @@ export async function POST(request: Request, { params }: Context) {
     }
     const turn = await store.begin(input)
     const runId = createHash('sha256').update(JSON.stringify([scope, chatId, turnId])).digest('hex')
-    return new Response(streamDashboardChat({ req, tenantId, request, runId, input, turn, apiKey }), {
+    return new Response(streamDashboardChat({ req, tenantId, request, runId, input, turn, apiKey, openedPostId }), {
       headers: { ...headers, 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'private, no-store, no-transform', 'X-Accel-Buffering': 'no' },
     })
   } catch (error) { return editorFailure(error, 'Unable to complete this dashboard request.') }

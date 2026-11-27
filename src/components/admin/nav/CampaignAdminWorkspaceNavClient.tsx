@@ -18,6 +18,7 @@ import {
   getAdminWorkspaceLabel,
 } from '@/components/admin/adminWorkspace'
 import { type AdminTask } from '@/components/admin/dashboard/adminDashboardShared'
+import { dashboardPostIdPattern } from '@/lib/dashboard-assistant/protocol'
 import './campaign-admin-nav.scss'
 
 type AdminNavArea = {
@@ -275,7 +276,10 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
   const navTasks = Array.isArray(tasks) ? tasks : []
   const adminRoute = config.routes.admin
   const homeHref = formatAdminURL({ adminRoute, path: '/' })
-  const assistantHref = formatAdminURL({ adminRoute, path: '/assistant' })
+  const assistantPath = formatAdminURL({ adminRoute, path: '/assistant' })
+  const postsPath = formatAdminURL({ adminRoute, path: '/collections/posts' })
+  const postId = pathname.startsWith(`${postsPath}/`) ? pathname.slice(postsPath.length + 1) : ''
+  const assistantHref = dashboardPostIdPattern.test(postId) ? `${assistantPath}?post=${postId}` : assistantPath
   const navClasses = [
     baseClass,
     'campaign-admin-nav',
@@ -415,7 +419,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
               </Link>
               <Link
                 className="campaign-admin-nav__rail-item"
-                data-active={pathname === assistantHref ? 'true' : 'false'}
+                data-active={pathname === assistantPath ? 'true' : 'false'}
                 href={assistantHref}
                 onClick={() => closePanel()}
                 prefetch={false}

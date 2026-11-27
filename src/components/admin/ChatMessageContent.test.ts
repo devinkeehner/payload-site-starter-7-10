@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it } from 'vitest'
 import { ChatMessageContent } from './ChatMessageContent'
 
-const render = (content: string, props: { plain?: boolean; adminRoute?: string } = {}) =>
+const render = (content: string, props: { plain?: boolean; adminRoute?: string; publicSiteBase?: string } = {}) =>
   renderToStaticMarkup(createElement(ChatMessageContent, { content, ...props }))
 
 it('formats assistant replies, keeps code literal, and leaves unfinished markup readable', () => {
@@ -26,4 +26,12 @@ it('renders pasted user messages literally and escapes markup in both roles', ()
   const message = '**About** `name` [Review](/cms/example) <b>text</b>'
   expect(render(message, { adminRoute: '/cms', plain: true })).toBe('<p>**About** `name` [Review](/cms/example) &lt;b&gt;text&lt;/b&gt;</p>')
   expect(render('**<b>text</b>**')).toBe('<p><strong>&lt;b&gt;text&lt;/b&gt;</strong></p>')
+})
+
+it('allows published post links on the configured public site only', () => {
+  const props = { publicSiteBase: 'https://www.cthousegop.com' }
+  const url = 'https://www.cthousegop.com/ackert/update'
+  expect(render(`[Published post](${url})`, props)).toContain(`<a href="${url}">Published post</a>`)
+  expect(render(`[Published post](${url})`)).not.toContain('<a ')
+  expect(render('[Other site](https://www.cthousegop.com.example.org/ackert/update)', props)).not.toContain('<a ')
 })

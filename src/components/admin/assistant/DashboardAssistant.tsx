@@ -4,7 +4,7 @@ import { ArrowUp, ImagePlus, MessageSquarePlus, Paperclip, Square, X } from 'luc
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useConfig } from '@payloadcms/ui'
 import { useTenantSelection } from '@payloadcms/plugin-multi-tenant/client'
-import { assistantEndpoint, MAX_ASSISTANT_MESSAGE, type DashboardChatEvent } from '@/lib/dashboard-assistant/protocol'
+import { assistantEndpoint, assistantSiteHeader, MAX_ASSISTANT_MESSAGE, type DashboardChatEvent } from '@/lib/dashboard-assistant/protocol'
 import type { DesignChatThread } from '@/lib/live-editor/designChatProtocol'
 import { ChatMessageContent } from '../ChatMessageContent'
 import styles from './dashboard-assistant.module.css'
@@ -47,12 +47,13 @@ async function readReply(response: Response, onEvent: (event: DashboardChatEvent
   } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
 }
 
-export function DashboardAssistant() {
+export function DashboardAssistant({ openedPostId, publicSiteBase }: { openedPostId?: string; publicSiteBase?: string } = {}) {
   const { selectedTenantID } = useTenantSelection()
-  return <Conversation key={selectedTenantID ?? 'all'} />
+  const siteId = selectedTenantID == null ? '' : String(selectedTenantID)
+  return <Conversation key={siteId} siteId={siteId} openedPostId={openedPostId} publicSiteBase={publicSiteBase} />
 }
 
-function Conversation() {
+function Conversation({ siteId, openedPostId, publicSiteBase }: { siteId: string; openedPostId?: string; publicSiteBase?: string }) {
   const { config } = useConfig()
   const [siteLabel, setSiteLabel] = useState('')
   const [thread, setThread] = useState<DesignChatThread | null>(null)
@@ -75,7 +76,7 @@ function Conversation() {
     let timer: ReturnType<typeof setTimeout>
     const sync = async () => {
       try {
-        const response = await request(assistantEndpoint, controller.signal)
+        const response = await request(assistantEndpoint, controller.signal, { headers: { [assistantSiteHeader]: siteId } })
         const current = await response.json() as DesignChatThread & { site: { id: string; name: string } | null }
         if (controller.signal.aborted || active.current) return
         setSiteLabel(current.site?.name || 'My assigned sites')
@@ -87,7 +88,7 @@ function Conversation() {
     }
     void sync()
     return () => { controller.abort(); clearTimeout(timer) }
-  }, [reload])
+  }, [reload, siteId])
   useEffect(() => () => active.current?.abort(), [])
   useEffect(() => {
     const pane = transcript.current
@@ -124,13 +125,15 @@ function Conversation() {
         const data = new FormData()
         data.set('file', image.file)
         data.set('alt', image.file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '))
-        const response = await request(`${assistantEndpoint}/media`, signal, { method: 'POST', headers: { 'X-Assistant-Chat': thread.id }, body: data })
+        const response = await request(`${assistantEndpoint}/media`, signal, {
+          method: 'POST', headers: { 'X-Assistant-Chat': thread.id, [assistantSiteHeader]: siteId }, body: data,
+        })
         const media = await response.json() as { id: string }
         imageId = media.id
         setImage({ ...image, mediaId: media.id })
       }
-      const response = await request(assistantEndpoint, signal, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: thread.id, turnId: submittedTurn, content, imageId }) })
+      const response = await request(assistantEndpoint, signal, { method: 'POST', headers: { 'Content-Type': 'application/json', [assistantSiteHeader]: siteId },
+        body: JSON.stringify({ chatId: thread.id, turnId: submittedTurn, content, imageId, openedPostId }) })
       setThread({ ...thread, messages: [...thread.messages, { id: submittedTurn, role: 'user', content,
         attachments: image && imageId ? [{ kind: 'media', mediaType: 'image', mediaId: imageId, name: image.file.name }] : [] }] })
       setDraft(''); setImage(null); turnId.current = null
@@ -156,7 +159,7 @@ function Conversation() {
     setError(''); setActivity('Starting a new chat…')
     try {
       const response = await request(`${assistantEndpoint}/reset`, controller.signal, { method: 'POST',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: thread.id }) })
+        headers: { 'Content-Type': 'application/json', [assistantSiteHeader]: siteId }, body: JSON.stringify({ chatId: thread.id }) })
       setThread(await response.json()); setReply(''); setImage(null); changeDraft('')
     } catch (cause) { if (!controller.signal.aborted) setError((cause as Error).message) }
     finally { active.current = null; setActivity(''); load() }
@@ -175,10 +178,10 @@ function Conversation() {
         }}>{example}</button>)}</div></div>}
       {thread?.messages.map(message => <article key={message.id} data-role={message.role}>
         <strong>{message.role === 'user' ? 'You' : 'Website assistant'}</strong>
-        <ChatMessageContent content={message.content} plain={message.role === 'user'} adminRoute={config.routes.admin} />
+        <ChatMessageContent content={message.content} plain={message.role === 'user'} adminRoute={config.routes.admin} publicSiteBase={publicSiteBase} />
         {message.attachments?.map((file, index) => <small key={index}><ImagePlus size={14} />{file.name}</small>)}
       </article>)}
-      {reply && <article data-role="assistant"><strong>Website assistant</strong><ChatMessageContent content={reply} adminRoute={config.routes.admin} /></article>}
+      {reply && <article data-role="assistant"><strong>Website assistant</strong><ChatMessageContent content={reply} adminRoute={config.routes.admin} publicSiteBase={publicSiteBase} /></article>}
     </div>
     {(activity || thread?.busy) && <p className={styles.status} role="status">{activity || 'A response is in progress…'}</p>}
     {error && <p role="alert" className={styles.error}>{error} <button type="button" onClick={() => { setError(''); load() }}>Reload conversation</button></p>}
@@ -198,6 +201,6 @@ function Conversation() {
           : <button type="submit" disabled={!thread || busy || (!draft.trim() && !image)}><ArrowUp size={16} /> Send</button>}
       </div>
     </form>
-    <small className={styles.privacy}>Messages and requested site content are processed by OpenAI. Site settings changes take effect when applied. Posts are created as drafts.</small>
+    <small className={styles.privacy}>Messages and requested site content are processed by OpenAI. Navbar and banner edits go live when saved. Post edits are saved as drafts.</small>
   </main>
 }
