@@ -4,6 +4,7 @@ import type { NavGroupType } from '@payloadcms/ui/shared'
 
 import { Link, useConfig, useTranslation } from '@payloadcms/ui'
 import { EntityType } from '@payloadcms/ui/shared'
+import { MessageSquare } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { formatAdminURL } from 'payload/shared'
 import React from 'react'
@@ -274,6 +275,7 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
   const navTasks = Array.isArray(tasks) ? tasks : []
   const adminRoute = config.routes.admin
   const homeHref = formatAdminURL({ adminRoute, path: '/' })
+  const assistantHref = formatAdminURL({ adminRoute, path: '/assistant' })
   const navClasses = [
     baseClass,
     'campaign-admin-nav',
@@ -410,6 +412,16 @@ export function CampaignAdminNavClient({ afterNav, afterNavLinks, areas = [], ta
               >
                 <NavGlyph name="home" size={25} />
                 <span>Home</span>
+              </Link>
+              <Link
+                className="campaign-admin-nav__rail-item"
+                data-active={pathname === assistantHref ? 'true' : 'false'}
+                href={assistantHref}
+                onClick={() => closePanel()}
+                prefetch={false}
+              >
+                <MessageSquare size={25} aria-hidden="true" />
+                <span>Assistant</span>
               </Link>
 
               {Array.from(navAreas, (area) => {

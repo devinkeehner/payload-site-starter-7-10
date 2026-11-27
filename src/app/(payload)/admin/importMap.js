@@ -83,6 +83,7 @@ import { default as default_599c1b72b7cec43f5abe1b2ad62dbd85 } from '@/component
 import { default as default_03d18d5b1bbb31219221c8c0e6fd3737 } from '@/components/admin/TenantHeaderIndicator'
 import { TenantSelectionProvider as TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62 } from '@payloadcms/plugin-multi-tenant/rsc'
 import { S3ClientUploadHandler as S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24 } from '@payloadcms/storage-s3/client'
+import { default as default_1a2ee696ff8e6d040562f3fdf69b1fc5 } from '@/components/admin/assistant/DashboardAssistantView'
 import { default as default_aa691302439d4695591f698acb157d3b } from '@/components/admin/site-settings/SiteSettingsView'
 import { default as default_3cda562e46cb983ee8837a8b588c188c } from '@/components/admin/mail-tool/MailToolView'
 import { default as default_1a60547ff0383fa586cb898a7f7ad4a3 } from '@/components/admin/email-start/EmailStartView'
@@ -182,6 +183,7 @@ export const importMap = {
   "@/components/admin/TenantHeaderIndicator#default": default_03d18d5b1bbb31219221c8c0e6fd3737,
   "@payloadcms/plugin-multi-tenant/rsc#TenantSelectionProvider": TenantSelectionProvider_d6d5f193a167989e2ee7d14202901e62,
   "@payloadcms/storage-s3/client#S3ClientUploadHandler": S3ClientUploadHandler_f97aa6c64367fa259c5bc0567239ef24,
+  "@/components/admin/assistant/DashboardAssistantView#default": default_1a2ee696ff8e6d040562f3fdf69b1fc5,
   "@/components/admin/site-settings/SiteSettingsView#default": default_aa691302439d4695591f698acb157d3b,
   "@/components/admin/mail-tool/MailToolView#default": default_3cda562e46cb983ee8837a8b588c188c,
   "@/components/admin/email-start/EmailStartView#default": default_1a60547ff0383fa586cb898a7f7ad4a3,

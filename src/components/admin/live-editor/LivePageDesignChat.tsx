@@ -22,7 +22,7 @@ export function LivePageDesignChat({ chat }: { chat: ReturnType<typeof usePageDe
       <button type="button" onClick={chat.clear} disabled={!chat.available || !chat.messages.length}>New chat</button>
     </header>
     <div className={styles.transcript} ref={transcript} aria-label="Conversation">
-      {!chat.messages.length && !chat.loading && !chat.error && <p className={styles.intro}>Describe a section, ask for an edit, or attach a reference. Changes appear on the draft canvas.</p>}
+      {!chat.messages.length && !chat.loading && !chat.error && <p className={styles.intro}>Describe a section, ask for a form, or have me pick a photo from your site gallery.</p>}
       {chat.messages.map(message => <article key={message.id} data-role={message.role}>
         <strong>{message.role === 'user' ? 'You' : 'Design assistant'}</strong>
         {message.content && <p>{message.content}</p>}
@@ -70,7 +70,7 @@ export function LivePageDesignChat({ chat }: { chat: ReturnType<typeof usePageDe
           : <button type="submit" className={styles.send} aria-label="Send message" title="Send message"
             disabled={!chat.available || (!chat.draft.trim() && !chat.files.length)}><ArrowUp size={17} /></button>}
       </div>
-      <small className={styles.notice}>Draft content and references may be sent to OpenAI. This chat keeps up to eight reference images for follow-up turns.</small>
+      <small className={styles.notice}>Draft content, gallery thumbnails and references may be sent to OpenAI. Created forms are saved in Forms. This chat keeps up to eight reference images.</small>
     </form>
   </section>
 }

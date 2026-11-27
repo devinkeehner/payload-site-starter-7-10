@@ -83,7 +83,7 @@ export async function POST(request: Request, { params }: Context) {
       const input = await readDesignChatRequest(request)
       if (!allowDesignChatRun(userId)) return Response.json({ error: 'Design chat is busy. Try again shortly.' }, { status: 429, headers })
       const run = await store.begin(input)
-      return new Response(streamDesignChat(input, apiKey, userId, request.signal, run, store.runTool), {
+      return new Response(streamDesignChat(input, apiKey, userId, request.signal, run, store.runTool, { req, tenantId: relationshipID(page.tenant) }), {
         headers: { 'Cache-Control': 'private, no-store, no-transform', 'Content-Type': 'application/x-ndjson; charset=utf-8', 'X-Accel-Buffering': 'no' },
       })
     }

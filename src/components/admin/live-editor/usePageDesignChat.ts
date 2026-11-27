@@ -22,7 +22,7 @@ async function chatFetch(url: string, signal: AbortSignal, input?: unknown) {
   return response
 }
 
-async function readChatEvents(response: Response, onText: (delta: string) => void, onTool: (call: DesignToolCall) => Promise<void>) {
+async function readChatEvents(response: Response, onText: (delta: string) => void, onTool: (call: DesignToolCall) => Promise<void>, onActivity: (text: string, completed?: string) => void) {
   if (!response.body) throw new Error('The design chat did not send a response.')
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -39,6 +39,7 @@ async function readChatEvents(response: Response, onText: (delta: string) => voi
         if (event.type === 'error') throw new Error(event.message)
         if (event.type === 'done') return event.thread
         if (event.type === 'text') onText(event.delta)
+        if (event.type === 'activity') onActivity(event.text, event.completed)
         if (event.type === 'tool') await onTool(event.call)
         delimiter = buffer.indexOf('\n')
       }
@@ -200,6 +201,10 @@ export function usePageDesignChat({ apiURL, enabled, binding, selectedId, captur
         })
         await chatFetch(`${url}/tool`, signal, { id: call.id, output, screenshot })
         if (!signal.aborted) setActivity('Thinking')
+      }, (text, completed) => {
+        if (signal.aborted) return
+        setActivity(text)
+        if (completed) setEdits(current => [...current, completed])
       })
       if (!signal.aborted) setThread(next)
     } catch (cause) {

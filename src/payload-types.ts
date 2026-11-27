@@ -321,6 +321,7 @@ export interface Post {
    */
   articleType: string | ArticleType;
   publishedAt?: string | null;
+  dashboardDraftKey?: string | null;
   draftShareToken?: string | null;
   /**
    * Save/publish content before syncing the short link. The Short Links collection shows all existing aliases and sync errors.
@@ -1415,6 +1416,7 @@ export interface Form {
         id?: string | null;
       }[]
     | null;
+  designChatFormKey?: string | null;
   enableHoneypot?: boolean | null;
   enableTurnstile?: boolean | null;
   enableIContactSync?: boolean | null;
@@ -4730,6 +4732,7 @@ export interface PostsSelect<T extends boolean = true> {
   categories?: T;
   articleType?: T;
   publishedAt?: T;
+  dashboardDraftKey?: T;
   draftShareToken?: T;
   shortLinkAlias?: T;
   slug?: T;
@@ -6467,6 +6470,7 @@ export interface FormsSelect<T extends boolean = true> {
         message?: T;
         id?: T;
       };
+  designChatFormKey?: T;
   enableHoneypot?: T;
   enableTurnstile?: T;
   enableIContactSync?: T;

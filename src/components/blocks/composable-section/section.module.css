@@ -35,12 +35,13 @@
 .list { margin: 0; padding-inline-start: 1.5rem; list-style: disc; }
 .divider { margin: 0; border: 0; border-top: 1px solid currentColor; opacity: .35; }
 .icon { display: inline-flex; align-items: center; gap: .35rem; }
-.link { color: var(--section-accent); text-decoration: underline; }
+.link { color: var(--design-link-color, var(--section-accent)); text-decoration: underline; }
 .button { display: inline-block; width: fit-content; border-radius: .35rem; background: var(--section-accent); color: white; padding: .55rem .9rem; }
 .section[data-tone="accent"] .button { color: #173767; }
 .placeholder { display: inline-block; padding: .65rem; border: 1px dashed currentColor; opacity: .75; }
 
 .designNode { min-width: 0; }
+.designNode[id] { scroll-margin-top: 6rem; }
 .designGrid { grid-template-columns: minmax(0, 1fr); }
 @container (min-width: 36rem) {
   .designGrid { grid-template-columns: var(--design-columns, minmax(0, 1fr)); }

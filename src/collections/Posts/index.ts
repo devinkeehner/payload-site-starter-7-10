@@ -926,6 +926,17 @@ export const Posts: CollectionConfig<'posts'> = {
       },
     },
     {
+      name: 'dashboardDraftKey',
+      type: 'text',
+      unique: true,
+      admin: { hidden: true },
+      access: {
+        read: ({ req }) => Boolean(req.user),
+        create: ({ req, data }) => Boolean(req.context.dashboardDraftKey && req.context.dashboardDraftKey === data?.dashboardDraftKey),
+        update: () => false,
+      },
+    },
+    {
       name: 'draftShareToken',
       type: 'text',
       admin: {

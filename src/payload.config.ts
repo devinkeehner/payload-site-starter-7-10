@@ -201,6 +201,10 @@ export default buildConfig({
         Logo: '@/components/admin/brand/Logo#default',
       },
       views: {
+        websiteAssistant: {
+          path: '/assistant',
+          Component: '@/components/admin/assistant/DashboardAssistantView#default',
+        },
         siteSettings: {
           path: '/site-settings',
           Component: '@/components/admin/site-settings/SiteSettingsView#default',

@@ -14,6 +14,7 @@ const properties = [
 
 type DesignStyle = Partial<Record<typeof properties[number], string>>
 export type DesignNode = {
+  anchor?: string
   tag?: DesignTag
   field?: string
   style?: DesignStyle
@@ -28,12 +29,20 @@ const record = (value: unknown): value is Record<string, unknown> =>
 export function parseDesignLayout(input: unknown): DesignNode {
   let count = 0
   const fields = new Set<string>()
+  const anchors = new Set<string>()
   function visit(value: unknown, depth: number): DesignNode {
     if (!record(value) || depth > 8 || ++count > 64) throw new Error('Use a design tree with at most 64 nodes and 8 levels.')
-    if (Object.keys(value).some(key => !['tag', 'field', 'style', 'children'].includes(key))) {
-      throw new Error('Design nodes accept tag, field, style and children only.')
+    if (Object.keys(value).some(key => !['tag', 'field', 'style', 'children', 'anchor'].includes(key))) {
+      throw new Error('Use tag, field, style, children or anchor on a design node.')
     }
     const node: DesignNode = {}
+    if (value.anchor !== undefined) {
+      if (typeof value.anchor !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,79}$/.test(value.anchor) || anchors.has(value.anchor)) {
+        throw new Error('Give each anchor a unique name beginning with a letter, using letters, numbers, dashes or underscores.')
+      }
+      anchors.add(value.anchor)
+      node.anchor = value.anchor
+    }
     if (value.style !== undefined) {
       if (!record(value.style)) throw new Error('Use a style object on each design node.')
       const style: DesignStyle = {}
@@ -90,17 +99,20 @@ export function DesignedSection({ layout, blocks, renderField, nodeControls, cla
   const unused = new Set(blocks.keys())
   function render(node: DesignNode, path: number[], siblingCount: number): ReactNode {
     const { gridTemplateColumns, ...style } = node.style ?? {}
-    const css = { ...style, '--design-columns': gridTemplateColumns } as CSSProperties
+    const css = { ...style, '--design-columns': gridTemplateColumns, '--design-link-color': style.color } as CSSProperties
     const classNames = gridTemplateColumns ? `${className} ${gridClassName}` : className
     const controls = nodeControls?.(node, path, siblingCount)
     if (node.field) {
       const match = blocks.findIndex((block, i) => unused.has(i) && block.blockName === node.field)
       if (match < 0) return null
       unused.delete(match)
-      return <div key={node.field} className={classNames} data-designed-field style={css} {...controls?.attributes}>{renderField(blocks[match]!, match, path, siblingCount)}</div>
+      // Saved compositions may already link to the stable ID of a heading or form.
+      const blockId = blocks[match]!.id
+      const anchor = node.anchor ?? (typeof blockId === 'string' ? blockId : undefined)
+      return <div key={node.field} id={anchor} className={classNames} data-designed-field style={css} {...controls?.attributes}>{renderField(blocks[match]!, match, path, siblingCount)}</div>
     }
     const Tag = node.tag ?? 'div'
-    return <Tag key={designNodeKey(node)} className={classNames} style={css} {...controls?.attributes}>
+    return <Tag key={designNodeKey(node)} id={node.anchor} className={classNames} style={css} {...controls?.attributes}>
       {controls?.handle}
       {node.children?.map((child, index, siblings) => render(child, [...path, index], siblings.length))}
     </Tag>

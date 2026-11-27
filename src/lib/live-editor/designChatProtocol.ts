@@ -35,6 +35,7 @@ export type DesignToolCall = { id: string; name: string; arguments: unknown }
 export type DesignToolResult = { id: string; output: string; screenshot?: string }
 export type DesignChatEvent =
   | { type: 'text'; delta: string }
+  | { type: 'activity'; text: string; completed?: string }
   | { type: 'tool'; call: DesignToolCall }
   | { type: 'done'; thread: DesignChatThread }
   | { type: 'error'; message: string }

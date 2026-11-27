@@ -61,7 +61,7 @@ describe('page design chat route', () => {
     expect(result.headers.get('content-type')).toContain('application/x-ndjson')
     expect(await result.text()).toBe('{"type":"done"}\n')
     expect(begin).toHaveBeenCalledWith(wireBody)
-    expect(streamChat).toHaveBeenCalledWith(wireBody, 'seo-key-mock', 'session-user', source.signal, run, runTool)
+    expect(streamChat).toHaveBeenCalledWith(wireBody, 'seo-key-mock', 'session-user', source.signal, run, runTool, { req, tenantId: 'site-a' })
     const tool = { id: chatId, output: 'done' }
     expect((await POST(request('design-chat/tool', tool), context('design-chat/tool'))).status).toBe(204)
     expect(finishTool).toHaveBeenCalledWith(tool)

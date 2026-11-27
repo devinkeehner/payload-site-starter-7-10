@@ -748,6 +748,18 @@ export const plugins: Plugin[] = [
         const fields = Array.isArray(defaultFields) ? [...defaultFields] : []
 
         fields.push({
+          name: 'designChatFormKey',
+          type: 'text',
+          unique: true,
+          admin: { hidden: true },
+          access: {
+            read: () => false,
+            create: ({ req, data }) => Boolean(req.context.designChatFormKey && req.context.designChatFormKey === data?.designChatFormKey),
+            update: () => false,
+          },
+        })
+
+        fields.push({
           name: 'enableHoneypot',
           label: 'Enable Honeypot',
           type: 'checkbox',

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { PayloadRequest } from 'payload'
 import { readDesignChatRequest, readDesignToolResult, streamDesignChat } from './designChatService'
 import type { DesignChatRequest, DesignToolResult } from './designChatProtocol'
 
@@ -21,6 +22,69 @@ function providerStream(output: unknown[], text?: string) {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('design chat', () => {
+  it('sends strict resource schemas, gallery pixels and the reusable form ID through the real SDK', async () => {
+    const gallery = 'live_editor_browse_gallery'
+    const createForm = 'live_editor_create_form'
+    const tenant = 'site-1'
+    const form = {
+      title: 'Request an appointment', submitButtonLabel: 'Request appointment', confirmationMessage: 'Request received.',
+      fields: [{ type: 'email', label: 'Email', required: true, width: null, options: null }],
+    }
+    const functionResponse = (id: string, name: string, args: unknown) => providerStream([{
+      type: 'function_call', id: 'fc_' + id, status: 'completed', call_id: id, name, arguments: JSON.stringify(args),
+    }])
+    const done = 'The appointment form is ready.'
+    const provider = vi.fn()
+      .mockResolvedValueOnce(functionResponse('gallery', gallery, { mediaId: 'picture', query: null, page: null }))
+      .mockResolvedValueOnce(functionResponse('form', createForm, form))
+      .mockResolvedValueOnce(functionResponse('retry', createForm, form))
+      .mockResolvedValueOnce(providerStream([{
+        type: 'message', id: 'msg_2', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: done, annotations: [] }],
+      }], done))
+    const imageURL = 'https://media.cthousegop.com/office.svg'
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect width="30" height="20" fill="green"/></svg>'
+    vi.stubGlobal('fetch', (url: URL | string, init: RequestInit) => String(url) === imageURL ? new Response(svg) : provider(url, init))
+    const photo = { id: 'picture', filename: 'office.svg', url: imageURL, mimeType: 'image/svg+xml', tenant }
+    let savedForm: unknown
+    const create = vi.fn(async ({ data }) => (savedForm = { ...data, id: 'appointment' }))
+    const req = {
+      user: { id: 'editor', collection: 'users', roles: ['alphaTester'], tenants: [{ tenant }] }, context: {},
+      payload: { create, find: vi.fn(async ({ collection }) => ({ docs: collection === 'media' ? [photo] : savedForm ? [savedForm] : [] })) },
+    } as unknown as PayloadRequest
+    const events = await new Response(streamDesignChat(base, 'server-secret', 'user-1', new AbortController().signal, {
+      history: [], references: [], finish: vi.fn().mockResolvedValue({ id: chatId, messages: [], busy: false }),
+    }, vi.fn(), { req, tenantId: tenant })).text()
+    expect(events).toContain(done)
+    expect(events).toContain('Created form · Request an appointment')
+    expect(events).toContain('Reused form · Request an appointment')
+    const requests = provider.mock.calls.map(([, init]) => JSON.parse(init.body))
+    expect(requests[0].tools).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: gallery, strict: true, parameters: expect.objectContaining({
+        additionalProperties: false, required: ['query', 'page', 'mediaId'],
+      }) }),
+      expect.objectContaining({ name: 'live_editor_find_forms', strict: true }),
+      expect.objectContaining({ name: createForm, strict: true, parameters: expect.objectContaining({
+        properties: expect.objectContaining({ fields: expect.objectContaining({ items: expect.objectContaining({
+          additionalProperties: false, required: ['type', 'label', 'required', 'width', 'options'],
+        }) }) }),
+      }) }),
+    ]))
+    expect(requests[1].input).toContainEqual(expect.objectContaining({ call_id: 'gallery', output: expect.arrayContaining([
+      { type: 'input_text', text: expect.stringContaining('"mediaId":"picture"') },
+      { type: 'input_image', image_url: expect.stringMatching(/^data:image\/jpeg;base64,/), detail: 'high' },
+    ]) }))
+    expect(create).toHaveBeenCalledTimes(1)
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      collection: 'forms', req, overrideAccess: false, data: expect.objectContaining({
+        fields: [{ blockType: 'email', name: 'email', label: 'Email', width: 100, required: true }],
+      }),
+    }))
+    for (const [index, id, created] of [[2, 'form', true], [3, 'retry', false]] as const) {
+      const call = requests[index].input.find((item: { type: string; call_id?: string }) => item.type === 'function_call_output' && item.call_id === id)
+      expect(JSON.parse(call.output)).toMatchObject({ formId: 'appointment', created })
+    }
+  })
+
   it('runs the real SDK tool loop and returns a screenshot to the model', async () => {
     const screenshot = 'data:image/jpeg;base64,YWJj'
     const call = { id: chatId, name: 'live_editor_capture_canvas', arguments: { viewport: 'mobile' } }
