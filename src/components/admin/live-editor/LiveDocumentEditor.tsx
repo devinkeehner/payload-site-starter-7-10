@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ArrowLeft, Check, ChevronDown, ChevronRight, ChevronUp, Copy, ExternalLink, GripHorizontal, Layers, LayoutTemplate, LocateFixed, Monitor, Moon, Move, PanelLeft, Plus, Redo2, Search, Settings2, Smartphone, Sun, Trash2, Undo2, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, ChevronRight, ChevronUp, Copy, ExternalLink, GripHorizontal, Layers, LayoutTemplate, LocateFixed, Monitor, Moon, Move, PanelLeft, Plus, Redo2, Search, Settings2, Smartphone, Sparkles, Sun, Trash2, Undo2, X } from 'lucide-react'
 import type { PuckBlockSchema } from '@/lib/puck/types'
 import { applyTextAction, captureTextAddress, type FieldAddress, type TextAction } from '@/lib/live-editor/textFields'
 import { applyUnsteadyTextAction } from '@/lib/live-editor/text'
@@ -22,7 +22,7 @@ import { useLiveEmailMedia } from './useLiveEmailMedia'
 import { LiveEmailViewport } from './LiveEmailViewport'
 import { readUnsteadyPreview, scrollUnsteadyPreview } from './previewNavigation'
 import { LiveEmailPanelResize } from './LiveEmailPanelResize'
-import { LiveEmailResourceContext } from './LiveEmailResourceContext'
+import { LiveEmailResourceContext, liveEmailOptionsURL } from './LiveEmailResourceContext'
 import { LiveEmailMoveMenu } from './LiveEmailMoveMenu'
 import styles from './live-editor.module.css'
 
@@ -59,7 +59,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   const serialized = useMemo(() => JSON.stringify(page), [page])
   const [selected, setSelected] = useState<string | null>(() => focusBlock && findBlock(initialized, focusBlock, { schemas }) ? focusBlock : null)
   const [activeText, setActiveText] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'blocks' | 'rows' | 'layers' | 'fields' | 'page'>(() => selected ? 'fields' : 'blocks')
+  const [panel, setPanel] = useState<'blocks' | 'rows' | 'layers' | 'fields' | 'page' | 'design'>(() => selected ? 'fields' : 'blocks')
   const [panelOpen, setPanelOpen] = useState(() => Boolean(selected) || !window.matchMedia('(max-width: 650px)').matches)
   const [query, setQuery] = useState('')
   const [library, setLibrary] = useState(kind === 'page' ? 'Sections' : 'All')
@@ -86,9 +86,15 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   const currentBlock = selected ? findBlock(page, selected, { schemas }) : undefined
   const currentSchema = findBlockSchema(currentBlock?.blockType, schemas)
   const currentSlot = selected ? slots.find(slot => slot.items.some(item => String(item.id) === selected)) : undefined
+  const currentSlotOwner = currentSlot && currentSlot.ownerId !== ROOT_SLOT.ownerId
+    ? findBlock(page, currentSlot.ownerId, { schemas })
+    : undefined
+  const designedFieldLabel = currentSlotOwner?.design != null && typeof currentBlock?.blockName === 'string' ? currentBlock.blockName : undefined
   const inspectorSchema = kind === 'form' && currentSchema ? {
     ...currentSchema,
     fields: currentSchema.fields.filter(field => field.type !== 'blocks' && (field.name !== 'width' || currentSlot?.path === 'layout')),
+  } : currentSchema?.slug === PAGE_SECTION ? {
+    ...currentSchema, fields: currentSchema.fields.filter(field => field.name !== 'design'),
   } : currentSchema
   const dirty = serialized !== saved
   const gridSchema = schemas.find(schema => schema.slug === 'emailGrid')
@@ -178,7 +184,21 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
   })
 
   const agentTools = useUnsteadyAgentTools({
-    ...(kind === 'page' ? { sections: { save: pageLibrary.save } } : {}),
+    ...(kind === 'page' ? {
+      sections: { save: pageLibrary.save },
+      searchMedia: async (mediaKind, query) => {
+        const params = new URLSearchParams({ collection: 'media', kind: mediaKind, query })
+        const response = await fetch(liveEmailOptionsURL(apiURL, params), { credentials: 'same-origin' })
+        if (!response.ok) throw new Error('Unable to read this site’s media library.')
+        const { options } = await response.json() as { options: Array<{
+          value: string; label: string; resource: { filename?: string; mimeType?: string; width?: number; height?: number }
+        }> }
+        return { items: options.slice(0, 20).map(({ value, label, resource }) => ({
+          id: value, label, filename: resource.filename, mimeType: resource.mimeType,
+          width: resource.width, height: resource.height,
+        })) }
+      },
+    } : {}),
     getState: () => ({ ...getCurrent(), schemas }),
     commit: result => {
       setActiveText(null); measure(); commit(result.document)
@@ -306,7 +326,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
       {moveMenu === id && <LiveEmailMoveMenu id={id} label={label} onClose={() => setMoveMenu(null)}>
         {slots.filter(slot => canDrop({ kind: 'block', id, label }, { slotId: slot.id, index: slot.items.length })).map(slot => <button key={slot.id} type="button" onClick={() => attempt(() => { measure(); move(id, { slotId: slot.id, index: slot.items.length }) })}><Move size={13} />{slot.label}</button>)}
       </LiveEmailMoveMenu>}
-      <LiveEmailBlockRenderer block={block} schemas={schemas} kind={kind} insideRow={source?.path !== ROOT_SLOT.path} resolveMedia={resolveMedia} postContent={page.content}
+      <LiveEmailBlockRenderer block={block} schemas={schemas} kind={kind} insideRow={source?.path !== ROOT_SLOT.path} resolveMedia={resolveMedia} postContent={page.content} renderDesignField={renderBlock}
         renderSlot={(ownerId, slotName) => renderSlot({ ownerId, path: slotName },
           kind === 'page' && (block.blockType === 'sectionGrid' || block.blockType === 'sectionColumns') && block.variant !== 'stacked')}
         renderText={(owner, field, path, storage, fieldLabel) => {
@@ -398,11 +418,12 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
       <nav className={styles.panelTabs} aria-label="Builder tools">
         {([
           ['blocks', Plus, 'Add'],
+          ['design', Sparkles, 'Design'],
           ['rows', LayoutTemplate, 'Rows'],
           ['layers', Layers, 'Outline'],
           ['fields', Settings2, 'Edit'],
           ['page', Settings2, 'Settings'],
-        ] as const).filter(([key]) => key !== 'rows' || rowLayouts.length > 0).map(([key, Icon, label]) => (
+        ] as const).filter(([key]) => (key !== 'rows' || rowLayouts.length > 0) && (key !== 'design' || kind === 'page')).map(([key, Icon, label]) => (
           <button key={key} type="button" aria-pressed={panelOpen && panel === key}
             onClick={() => { setPanel(key); setActiveText(null); setPanelOpen(true) }}>
             <Icon size={16} aria-hidden />{label}
@@ -411,6 +432,15 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
       </nav>
       {panelOpen && <aside className={styles.sidebar} id="unsteady-builder-panel" aria-label="Builder panel">
         <div className={styles.panelContent}>
+          {panel === 'design' && <div className={styles.panelTitle}>
+            <div>
+              <h2>Design a section</h2>
+              <p>{agentTools.available
+                ? 'Ask your connected assistant to design a section. Its text and media fields will be editable on the canvas.'
+                : 'Open this editor in a browser with WebMCP to design a section with a connected assistant.'}</p>
+              {agentTools.available && <p>Describe the layout and the content you want to edit. Include a YouTube link or ask the assistant to find media in this site’s library.</p>}
+            </div>
+          </div>}
           {panel === 'blocks' && <>
             <div className={styles.panelTitle}><h2>Add to your {kind}</h2></div>
             <label className={styles.search}><Search size={16} /><input aria-label="Search blocks" placeholder="Search blocks…" value={query} onChange={event => setQuery(event.target.value)} /></label>
@@ -452,7 +482,7 @@ export function LiveDocumentEditor({ initialPage, schemas, onSave, onPreview, pr
           </>}
           {panel === 'fields' && currentBlock && currentSchema && inspectorSchema ? <>
             <button type="button" className={styles.backButton} onClick={() => setPanel('blocks')}><ArrowLeft size={15} />Block library</button>
-            <div className={styles.panelTitle}><div><h2>{currentSchema.label}</h2>
+            <div className={styles.panelTitle}><div><h2>{designedFieldLabel || currentSchema.label}</h2>
               {currentSchema.slug === 'postBody'
                 ? <p>Uses the rich text from the post’s Editor tab.</p>
                 : <p>{kind === 'form' || currentSchema.slug.startsWith('post') ? 'Edit the block fields here.' : 'Edit text on the canvas or adjust details here.'}</p>}

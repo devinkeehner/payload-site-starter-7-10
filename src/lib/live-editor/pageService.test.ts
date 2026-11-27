@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { PAGE_LAYOUT_BLOCKS } from '@/lib/blocks/pageLayoutBlocks'
 import { getPageBuilderSchema } from '@/lib/puck/schema'
 import { applyEditorCommand } from './agent'
-import { buildPageSection, PAGE_SECTION } from './pageSections'
+import { buildDesignedSection, buildPageSection, PAGE_SECTION } from './pageSections'
 import { loadEditorPage, saveEditorPage, savePageSection } from './pageService'
 
 const updatedAt = '2026-11-26T20:00:00Z'
@@ -54,6 +54,49 @@ describe('composable pages', () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       collection: 'page-section-templates', data: { tenant: 'site-a', name: 'Report', layout: [stored] },
     }))
+  })
+
+  it('inserts a designed layout and editable media in one revision and preserves them on draft save', async () => {
+    const { req, update } = request()
+    const page = { collection: 'pages', layout: [legacy] }
+    const options = { schemas, revision: 0, expectedRevision: 0 }
+    const section = {
+      title: 'Budget feature',
+      layout: { tag: 'header', style: { display: 'grid', gridTemplateColumns: '2fr 1fr' }, children: [
+        { field: 'Headline', style: { fontSize: '4rem' } }, { field: 'Photo' }, { field: 'Video' },
+      ] },
+      fields: [
+        { name: 'Photo', element: { blockType: 'sectionImage', image: 'report' } },
+        { name: 'Headline', element: { blockType: 'sectionHeading', text: 'Budget highlights' } },
+        { name: 'Video', element: { blockType: 'sectionVideo', youtubeUrl: 'https://youtu.be/2Ex83c49EJ8' } },
+      ],
+    }
+    const result = applyEditorCommand(page, { type: 'design_section', section }, options)
+    expect(result.revision).toBe(1)
+    const designed = result.document.layout?.[1]
+    expect(designed).toMatchObject({ design: section.layout, children: [
+      { blockName: 'Headline', text: 'Budget highlights' },
+      { blockName: 'Photo', image: 'report' },
+      { blockName: 'Video', youtubeUrl: 'https://youtu.be/2Ex83c49EJ8' },
+    ] })
+    const heading = (designed?.children as Array<{ id: string }>)[0]!
+    const revised = applyEditorCommand(result.document, {
+      type: 'set_field', blockId: heading.id, path: ['text'], value: 'Budget overview',
+    }, { schemas, revision: 1, expectedRevision: 1 })
+    await saveEditorPage(req, 'page', { expectedUpdatedAt: updatedAt, page: revised.document })
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ draft: true, data: expect.objectContaining({
+      layout: [legacy, expect.objectContaining({ design: section.layout, children: expect.arrayContaining([
+        expect.objectContaining({ blockName: 'Headline', text: 'Budget overview' }),
+        expect.objectContaining({ blockName: 'Photo', image: 'report' }),
+      ]) })],
+    }) }))
+    expect(() => buildDesignedSection({ ...section, fields: [] }, schemas)).toThrow(/every label/)
+    expect(() => buildDesignedSection({ ...section, layout: {
+      ...section.layout, style: { color: 'red;position:fixed' },
+    } }, schemas)).toThrow(/Unsupported design style/)
+    expect(() => buildPageSection({ blockType: PAGE_SECTION, children: [
+      { blockType: 'sectionVideo', youtubeUrl: 'https://youtube.com.example.org/watch?v=2Ex83c49EJ8' },
+    ] }, schemas)).toThrow(/valid YouTube/)
   })
 
   it('rejects another site’s page, file, and draft revision', async () => {

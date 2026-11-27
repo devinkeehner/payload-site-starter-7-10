@@ -122,6 +122,7 @@ async function getUploadError(res: Response): Promise<string> {
 
 export function LiveEmailMediaField({
   chooseLabel,
+  allowVideoUpload = false,
   display = 'default',
   uploadAccept = 'image/*',
   uploadLabel,
@@ -130,6 +131,7 @@ export function LiveEmailMediaField({
   readOnly,
 }: {
   chooseLabel?: string
+  allowVideoUpload?: boolean
   display?: 'compact' | 'default' | 'gallery'
   uploadAccept?: string
   uploadLabel?: string
@@ -157,6 +159,8 @@ export function LiveEmailMediaField({
   const currentURL = getMediaURL(currentMedia)
   const currentId = getMediaId(value)
   const uploadKind = getUploadKind(uploadAccept)
+  const uploadTypes = allowVideoUpload ? ['video/mp4', 'video/webm'] : ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif']
+  const maxUploadSize = allowVideoUpload ? 25 : 10
   const mediaLabel = uploadKind === 'video' ? 'video' : uploadKind === 'image' ? 'image' : 'file'
 
   useEffect(() => {
@@ -217,6 +221,7 @@ export function LiveEmailMediaField({
       try {
         const params = new URLSearchParams({
           collection: 'media',
+          ...(uploadKind !== 'file' ? { kind: uploadKind } : {}),
           query,
         })
         const res = await fetch(liveEmailOptionsURL(apiURL, params), {
@@ -252,13 +257,13 @@ export function LiveEmailMediaField({
 
   async function uploadFile(file: File) {
     if (readOnly || isUploading) return
-    if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(file.type) || !isAcceptedFile(file, uploadAccept)) {
+    if (!uploadTypes.includes(file.type) || !isAcceptedFile(file, uploadAccept)) {
       setError(`Choose a ${mediaLabel} file to upload.`)
       return
     }
 
     if (apiURL == null) { setError('Save this draft before uploading media.'); return }
-    if (file.size > 10 * 1024 * 1024) { setError('Choose a file smaller than 10 MB.'); return }
+    if (file.size > maxUploadSize * 1024 * 1024) { setError(`Choose a file up to ${maxUploadSize} MB.`); return }
     const lifetime = uploadLifetime.current
     const alt = getDefaultAlt(file)
     const formData = new FormData()
@@ -281,7 +286,7 @@ export function LiveEmailMediaField({
       const created = body.doc || body
       const resource = getMediaResource(created)
       const selectedValue = resource || getMediaId(created)
-      if (!selectedValue) throw new Error('Upload succeeded, but the new image could not be selected.')
+      if (!selectedValue) throw new Error('Upload succeeded, but the new media could not be selected.')
 
       const option: OptionItem = {
         label: getMediaLabel(resource || created),
@@ -348,7 +353,7 @@ export function LiveEmailMediaField({
               : chooseLabel || `Choose ${mediaLabel}`}
         </button>
 
-        {uploadKind === 'image' && <><button
+        {(uploadKind === 'image' || allowVideoUpload) && <><button
           className={styles.mediaUploadButton}
           disabled={readOnly || isUploading}
           onClick={() => fileInputRef.current?.click()}
@@ -358,7 +363,7 @@ export function LiveEmailMediaField({
         </button>
         <input
           ref={fileInputRef}
-          accept="image/jpeg,image/png,image/gif,image/webp,image/avif"
+          accept={uploadTypes.join(',')}
           className={styles.mediaUploadInput}
           disabled={readOnly || isUploading}
           type="file"
@@ -377,7 +382,7 @@ export function LiveEmailMediaField({
             type="search"
             value={query}
             disabled={readOnly || isUploading}
-            placeholder="Search images"
+            placeholder={`Search ${mediaLabel}s`}
             onChange={(event) => setQuery(event.target.value)}
           />
 

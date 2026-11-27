@@ -2609,6 +2609,15 @@ export interface BudgetPlanFeatureBlock {
 export interface PageComposableSection {
   title?: string | null;
   tone?: ('plain' | 'muted' | 'accent') | null;
+  design?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   children?:
     | (
         | PageSectionHeading
@@ -2721,6 +2730,7 @@ export interface PageSectionDocument {
  */
 export interface PageSectionVideo {
   file?: (string | null) | Media;
+  youtubeUrl?: string | null;
   caption?: string | null;
   id?: string | null;
   blockName?: string | null;
@@ -5545,6 +5555,7 @@ export interface BudgetPlanFeatureBlockSelect<T extends boolean = true> {
 export interface PageComposableSectionSelect<T extends boolean = true> {
   title?: T;
   tone?: T;
+  design?: T;
   children?:
     | T
     | {
@@ -5636,6 +5647,7 @@ export interface PageSectionDocumentSelect<T extends boolean = true> {
  */
 export interface PageSectionVideoSelect<T extends boolean = true> {
   file?: T;
+  youtubeUrl?: T;
   caption?: T;
   id?: T;
   blockName?: T;

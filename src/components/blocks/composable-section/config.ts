@@ -2,6 +2,8 @@ import type { Block, Field } from 'payload'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 
 import { PAGE_SECTION } from '@/lib/live-editor/pageSections'
+import { parseDesignLayout } from './DesignedSection'
+import { sectionYouTubeEmbed } from './media'
 
 const name = (slug: string, label: string, fields: Field[]): Block => ({
   slug, interfaceName: `Page${slug[0]!.toUpperCase()}${slug.slice(1)}`, labels: { singular: label, plural: label }, fields,
@@ -22,7 +24,12 @@ const leaves = [
   name('sectionLink', 'Link', [text('text', 'Label'), url()]),
   name('sectionButton', 'Button', [text('text', 'Label'), url()]),
   name('sectionDocument', 'Document link', [text('text', 'Label'), { name: 'file', type: 'upload', relationTo: 'media' }]),
-  name('sectionVideo', 'Video', [{ name: 'file', type: 'upload', relationTo: 'media' }, text('caption', 'Caption')]),
+  name('sectionVideo', 'Video', [
+    { name: 'file', label: 'Video file', type: 'upload', relationTo: 'media' },
+    { name: 'youtubeUrl', label: 'YouTube URL', type: 'text', maxLength: 2048,
+      validate: (value: string | null | undefined) => !value?.trim() || Boolean(sectionYouTubeEmbed(value)) || 'Enter a valid YouTube video URL.' },
+    text('caption', 'Caption'),
+  ]),
   name('sectionGallery', 'Gallery', [{ name: 'images', type: 'upload', relationTo: 'media', hasMany: true }]),
   name('sectionIcon', 'Icon', [select('symbol', 'Symbol', ['check', 'info', 'star', 'arrow']), text('text', 'Label')]),
   name('sectionQuote', 'Quote', [text('text', 'Quote', 1000), text('attribution', 'Attribution')]),
@@ -46,5 +53,11 @@ const grid = name('sectionGrid', 'Grid', [select('variant', 'Layout', ['two', 't
 export const ComposableSectionConfig = name(PAGE_SECTION, 'Section', [
   text('title', 'Editor label'),
   select('tone', 'Background', ['plain', 'muted', 'accent']),
+  { name: 'design', type: 'json', admin: { hidden: true }, validate: value => {
+    if (value == null) return true
+    try { parseDesignLayout(value); return true } catch (error) {
+      return error instanceof Error ? error.message : 'Invalid section design.'
+    }
+  } },
   children([...leaves, cards, stacks, columns, grid]),
 ])

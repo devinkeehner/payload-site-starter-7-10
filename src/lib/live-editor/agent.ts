@@ -1,4 +1,6 @@
-import { buildPageSection } from './pageSections'
+import { buildDesignedSection, buildPageSection } from './pageSections'
+import { parseDesignLayout } from '@/components/blocks/composable-section/DesignedSection'
+import { sectionYouTubeEmbed } from '@/components/blocks/composable-section/media'
 /** Local editor commands shared by browser tools and a future embedded agent. */
 import type { PuckBlockSchema, PuckFieldSchema } from '../puck/types'
 import { applyTextAction, canEditRichText, readAddress, readTextField, type TextAction } from './textFields'
@@ -13,7 +15,7 @@ type Path = Array<string | number>
 export type EditorCommand =
   | { type: 'set_field'; blockId: Id; path: Path; value: unknown }
   | { type: 'edit_text'; blockId: Id; path: Path; action: TextAction }
-  | { type: 'insert_section'; section: unknown; beforeId?: Id | null }
+  | { type: 'insert_section' | 'design_section'; section: unknown; beforeId?: Id | null }
   | { type: 'insert_block'; blockType: string; destination: SlotAddress; beforeId?: Id | null }
   | { type: 'move_block'; blockId: Id; destination: SlotAddress; beforeId?: Id | null }
   | { type: 'duplicate_block' | 'remove_block'; blockId: Id }
@@ -219,10 +221,11 @@ export function applyEditorCommand(page: PageDocument, command: unknown, options
   const type = input.type
   const documentOptions = { schemas: options.schemas }
   let result: DocumentResult
-  if (type === 'insert_section') {
+  if (type === 'insert_section' || type === 'design_section') {
     exactKeys(input, ['type', 'section', 'beforeId'], 'command')
     if (page.collection !== 'pages') throw new Error('Open a page layout to insert a section.')
-    result = insertBlock(page, ROOT_SLOT, buildPageSection(input.section, options.schemas),
+    const section = type === 'design_section' ? buildDesignedSection(input.section, options.schemas) : buildPageSection(input.section, options.schemas)
+    result = insertBlock(page, ROOT_SLOT, section,
       input.beforeId == null ? null : id(input.beforeId, 'Before block'), documentOptions)
   } else if (type === 'insert_block') {
     exactKeys(input, ['type', 'blockType', 'destination', 'beforeId'], 'command')
@@ -245,6 +248,10 @@ export function applyEditorCommand(page: PageDocument, command: unknown, options
       if (type === 'set_field') {
         if (!Object.hasOwn(input, 'value')) throw new Error('A field value is required.')
         validateFieldValue(resolved.field, input.value)
+        if (resolved.field.name === 'design' && input.value != null) parseDesignLayout(input.value)
+        if (resolved.field.name === 'youtubeUrl' && input.value && !sectionYouTubeEmbed(input.value)) {
+          throw new Error('Use a valid YouTube video URL.')
+        }
         // Prose edits go through the same storage action as the human inspector.
         const next = isUnsteadyCompanionTextField(resolved.textBlockType, resolved.textPath) && typeof input.value === 'string'
           ? editVisibleText(block, path, resolved, { type: 'plain', value: input.value }) : replaceField(block, path, input.value)

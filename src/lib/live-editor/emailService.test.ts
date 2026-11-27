@@ -268,6 +268,22 @@ describe('Live Editor native media upload route', () => {
     expect(createPayloadRequest).toHaveBeenCalledExactlyOnceWith({ config: {}, request, canSetHeaders: false })
   })
 
+  it('accepts a video only for the page upload path and checks its media header', async () => {
+    const { uploadDraftMedia } = await import('./emailService')
+    const { req, payload } = mockRequest()
+    const mp4 = new File([Buffer.from([0, 0, 0, 12, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d])], 'sample.mp4', { type: 'video/mp4' })
+    const upload = imageRequest({ file: mp4 })
+    await expect(uploadDraftMedia(req, 'site-a', upload)).rejects.toThrow(/Choose a JPEG/)
+    await expect(uploadDraftMedia(req, 'site-a', imageRequest({
+      file: new File(['not an mp4'], 'sample.mp4', { type: 'video/mp4' }),
+    }), true)).rejects.toThrow(/not a supported MP4/)
+    await uploadDraftMedia(req, 'site-a', upload, true)
+    expect(payload.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      collection: 'media', data: { tenant: 'site-a', alt: 'Campaign image' },
+      file: expect.objectContaining({ name: 'sample.mp4', mimetype: 'video/mp4' }),
+    }))
+  })
+
   it('rejects a foreign browser origin before accessing Payload or parsing the file', async () => {
     const request = imageRequest({ origin: 'https://attacker.example' })
     const response = await uploadMedia(request, context())

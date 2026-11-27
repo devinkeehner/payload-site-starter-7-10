@@ -63,7 +63,7 @@ export async function POST(request: Request, { params }: Context) {
       try { body = JSON.parse(raw) } catch { throw new NativeDraftError('Invalid section JSON.') }
       return Response.json(await savePageSection(req, relationshipID(page.tenant), body), { headers, status: 201 })
     }
-    const resource = await uploadDraftMedia(req, relationshipID(page.tenant), request)
+    const resource = await uploadDraftMedia(req, relationshipID(page.tenant), request, true)
     return Response.json({ resource, doc: resource }, { headers })
   } catch (error) {
     return editorFailure(error, 'Unable to upload media to this page.')

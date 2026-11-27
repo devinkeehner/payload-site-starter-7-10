@@ -136,6 +136,10 @@ export async function getDraftResourceOptions(req: PayloadRequest, tenant: strin
   const query = (url.searchParams.get('query') || '').trim().slice(0, 200)
   const ids = (url.searchParams.get('ids') || '').split(',').filter(Boolean).slice(0, 100)
   const and: Where[] = [{ tenant: { equals: tenant } }]
+  const mediaKind = url.searchParams.get('kind')
+  if (collection === 'media' && (mediaKind === 'image' || mediaKind === 'video')) {
+    and.push({ mimeType: { contains: `${mediaKind}/` } })
+  }
   if (ids.length) and.push({ id: { in: ids } })
   else if (query) and.push({ or: (collection === 'media' ? ['filename', 'alt'] : ['title', 'slug']).map(field => ({ [field]: { like: query } })) })
   const result = await req.payload.find({ collection: collection as 'media', where: { and }, limit: ids.length || 60, depth: 1, overrideAccess: false, req })
@@ -145,12 +149,24 @@ export async function getDraftResourceOptions(req: PayloadRequest, tenant: strin
   return { options: docs.map(doc => ({ value: String(doc.id), label: String(('alt' in doc && doc.alt) || ('filename' in doc && doc.filename) || ('title' in doc && doc.title) || doc.id), resource: doc, thumbnailURL: 'url' in doc ? doc.url : null })) }
 }
 
-export async function uploadDraftMedia(req: PayloadRequest, tenant: string | null, request: Request) {
+export async function uploadDraftMedia(req: PayloadRequest, tenant: string | null, request: Request, allowVideo = false) {
   if (!tenant) throw new NativeDraftError('Assign this draft to a site before uploading media.')
   const form = await request.formData()
   const file = form.get('file')
-  if (!(file instanceof File) || !file.size || file.size > 10 * 1024 * 1024) throw new NativeDraftError('Choose an image up to 10 MB.')
-  if (!['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(file.type)) throw new NativeDraftError('Choose a JPEG, PNG, GIF, WebP or AVIF image.')
+  const isVideo = allowVideo && file instanceof File && ['video/mp4', 'video/webm'].includes(file.type)
+  const maxSize = isVideo ? 25 : 10
+  if (!(file instanceof File) || !file.size || file.size > maxSize * 1024 * 1024) {
+    throw new NativeDraftError(isVideo ? 'Choose a video up to 25 MB.' : 'Choose an image up to 10 MB.')
+  }
+  if (!isVideo && !['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'].includes(file.type)) {
+    throw new NativeDraftError(allowVideo ? 'Choose an image, MP4 or WebM file.' : 'Choose a JPEG, PNG, GIF, WebP or AVIF image.')
+  }
+  if (isVideo) {
+    const header = Buffer.from(await file.slice(0, 12).arrayBuffer())
+    const valid = file.type === 'video/mp4' ? header.toString('ascii', 4, 8) === 'ftyp'
+      : header.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+    if (!valid) throw new NativeDraftError('This file is not a supported MP4 or WebM video.')
+  }
   return req.payload.create({ collection: 'media', data: { tenant, alt: String(form.get('alt') || file.name).slice(0, 500) },
     file: { data: Buffer.from(await file.arrayBuffer()), mimetype: file.type, name: file.name, size: file.size }, overrideAccess: false, req })
 }

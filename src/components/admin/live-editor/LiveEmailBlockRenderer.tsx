@@ -8,6 +8,8 @@ import { getFormRowWidths } from '@/lib/live-editor/formRowWidths'
 import { FormBlockPreview } from '../form/FormBlockPreview'
 import { LiveEmailBlockPreview } from './LiveEmailBlockPreview'
 import { SectionElement } from '@/components/blocks/composable-section/SectionElement'
+import { DesignedSection } from '@/components/blocks/composable-section/DesignedSection'
+import sectionStyles from '@/components/blocks/composable-section/section.module.css'
 import { PAGE_SECTION } from '@/lib/live-editor/pageSections'
 import { findBlockSchema } from '@/lib/live-editor/document'
 import type { LiveEditorKind } from './editorVariants'
@@ -65,7 +67,7 @@ export function projectLiveEmailText(block: BlockRecord, schema: PuckBlockSchema
   })
 }
 
-export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, renderSlot, renderText, resolveMedia, postContent }: {
+export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, renderSlot, renderText, resolveMedia, postContent, renderDesignField }: {
   block: BlockRecord
   schemas: PuckBlockSchema[]
   kind: LiveEditorKind
@@ -74,6 +76,7 @@ export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, render
   renderText: LiveEmailTextRenderer
   resolveMedia: (value: unknown) => unknown
   postContent?: unknown
+  renderDesignField: (block: BlockRecord) => ReactNode
 }) {
   const blockType = String(block.blockType || '')
   const schema = findBlockSchema(blockType, schemas)
@@ -84,7 +87,10 @@ export function LiveEmailBlockRenderer({ block, schemas, kind, insideRow, render
         text={name => renderText(block, name, [name], 'plain', name === 'text' ? schema.label : name)}
         richText={schema.fields.some(field => field.name === 'body') ? renderText(block, 'body', ['body'], 'native', 'Body') : undefined}
         form={blockType === 'sectionForm' && block.form ? <span>{typeof block.form === 'object' && 'title' in block.form ? String(block.form.title) : 'Linked form'}</span> : undefined}>
-        {schema.fields.some(field => field.name === 'children') ? renderSlot(String(block.id), 'children') : undefined}
+        {block.blockType === PAGE_SECTION && block.design != null && Array.isArray(block.children)
+          ? <DesignedSection layout={block.design} blocks={block.children} renderField={renderDesignField}
+              className={sectionStyles.designNode} gridClassName={sectionStyles.designGrid} />
+          : schema.fields.some(field => field.name === 'children') ? renderSlot(String(block.id), 'children') : undefined}
       </SectionElement>
     }
     const headline = [block.heading, block.title, block.blockName].find(value => typeof value === 'string')

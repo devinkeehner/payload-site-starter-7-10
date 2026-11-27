@@ -2,13 +2,12 @@ import { expect, test, type Page } from '@playwright/test'
 import { getPageBuilderSchema } from '../../src/lib/puck/schema'
 
 type Node = { blockType: string; id?: string; text?: string; children?: Node[]; [key: string]: unknown }
-type ToolResult = { isError?: boolean; structuredContent: { revision?: number; sectionId?: string; error?: string } }
+type ToolResult = { isError?: boolean; structuredContent: { revision?: number; sectionId?: string; error?: string; items?: Array<{ id: string }> } }
 type TestWindow = Window & { pageEditorTools: Record<string, { execute(input: unknown): Promise<ToolResult> }> }
 const command = (page: Page, name: string, input: unknown = {}) =>
   page.evaluate(([name, input]) => (window as unknown as TestWindow).pageEditorTools[name]!.execute(input), [name, input] as const)
 
-test('agent-built sections share the draft and can be reused alongside existing blocks', async ({ page }, testInfo) => {
-  test.setTimeout(130_000)
+async function mockPageEditor(page: Page) {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   const updatedAt = '2026-11-26T20:00:00Z'
@@ -16,6 +15,12 @@ test('agent-built sections share the draft and can be reused alongside existing 
   const layouts = new Map<string, Node[]>([['annual-budget', [legacy]], ['budget-detail', []]])
   const templates: Array<{ id: string; name: string; section: Node }> = []
   const schemas = getPageBuilderSchema()
+  const photo = { id: 'capitol', alt: 'Capitol photo', filename: 'Capitol photo.jpg', mimeType: 'image/jpeg',
+    url: '/media/Capitol photo.jpg' }
+  await page.route('**/media/Capitol%20photo.jpg', route => route.fulfill({
+    contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="320"><rect width="640" height="320" fill="#183752"/></svg>',
+  }))
+  await page.route('https://www.youtube-nocookie.com/**', route => route.fulfill({ contentType: 'text/html', body: 'YouTube player' }))
 
   await page.route('**/api/live-editor/pages/**', async route => {
     const request = route.request()
@@ -28,7 +33,13 @@ test('agent-built sections share the draft and can be reused alongside existing 
       return route.fulfill({ status: 201, json: { template } })
     }
     if (action === 'sections') return route.fulfill({ json: { sections: templates } })
-    if (action === 'options') return route.fulfill({ json: { options: [] } })
+    if (action === 'options') {
+      const { searchParams } = new URL(request.url())
+      const options = searchParams.get('collection') === 'media' &&
+        (searchParams.get('kind') === 'image' || searchParams.get('ids') === photo.id)
+        ? [{ label: photo.alt, value: photo.id, resource: photo }] : []
+      return route.fulfill({ json: { options } })
+    }
     if (request.method() === 'PATCH') {
       const body = request.postDataJSON()
       expect(body.expectedUpdatedAt).toBe(updatedAt)
@@ -46,7 +57,13 @@ test('agent-built sections share the draft and can be reused alongside existing 
     } })
   })
 
-  await page.goto('/live-editor/pages/annual-budget')
+  return { errors, layouts, legacy, templates, photo }
+}
+
+test('agent-built sections share the draft and can be reused alongside existing blocks', async ({ page }, testInfo) => {
+  test.setTimeout(130_000)
+  const { errors, layouts, legacy, templates } = await mockPageEditor(page)
+  await page.goto('/live-editor/pages/annual-budget', { waitUntil: 'domcontentloaded' })
   await expect(page).toHaveTitle('Live Editor')
   await expect(page.locator('[data-live-editor-site-tools]')).toHaveAttribute('data-live-editor-site-tools', 'ready', { timeout: 30_000 })
   const desktop = page.frameLocator('iframe[title="Desktop page canvas"]')
@@ -107,13 +124,56 @@ test('agent-built sections share the draft and can be reused alongside existing 
   await page.getByRole('button', { name: 'Save draft', exact: true }).click()
   await expect.poll(() => layouts.get('annual-budget')?.length).toBe(2)
   expect(layouts.get('annual-budget')?.[0]).toEqual(legacy)
-  await page.reload()
-  await expect(page.frameLocator('iframe[data-unsteady-viewport]').getByText('Budget at a glance')).toBeVisible()
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.frameLocator('iframe[data-unsteady-viewport]').getByText('Budget at a glance')).toBeVisible({ timeout: 30_000 })
 
-  await page.goto('/live-editor/pages/budget-detail')
+  await page.goto('/live-editor/pages/budget-detail', { waitUntil: 'domcontentloaded' })
   await page.getByRole('button', { name: 'Annual budget stats', exact: true }).click()
   const reused = page.frameLocator('iframe[data-unsteady-viewport]').locator('[data-unsteady-block-type="composableSection"]')
   await expect(reused.getByText('Budget at a glance')).toBeVisible()
   expect(await reused.getAttribute('data-unsteady-block')).not.toBe(sectionId)
+  expect(errors).toEqual([])
+})
+
+test('Design Mode creates editable fields and reconnects media after saving', async ({ page }) => {
+  test.setTimeout(100_000)
+  const { errors, layouts, photo } = await mockPageEditor(page)
+  await page.goto('/live-editor/pages/budget-detail', { waitUntil: 'domcontentloaded' })
+  await expect(page.locator('[data-live-editor-site-tools]')).toHaveAttribute('data-live-editor-site-tools', 'ready', { timeout: 30_000 })
+  await page.getByRole('button', { name: 'Design', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Design a section' })).toBeVisible()
+  const library = await command(page, 'live_editor_find_media', { kind: 'image', query: 'Capitol' })
+  expect(library.structuredContent.items).toEqual([expect.objectContaining({ id: 'capitol' })])
+  const latest = await command(page, 'live_editor_read_document')
+  const designed = await command(page, 'live_editor_design_section', {
+    expectedRevision: latest.structuredContent.revision,
+    section: {
+      title: 'Capitol feature',
+      layout: { tag: 'header', style: { display: 'grid', gridTemplateColumns: '2fr 1fr', backgroundColor: '#eff3f8' }, children: [
+        { field: 'Headline', style: { fontSize: '48px' } }, { field: 'Capitol photo' }, { field: 'Tour video' },
+      ] },
+      fields: [
+        { name: 'Headline', element: { blockType: 'sectionHeading', text: 'Inside the Capitol' } },
+        { name: 'Capitol photo', element: { blockType: 'sectionImage', image: photo.id } },
+        { name: 'Tour video', element: { blockType: 'sectionVideo', youtubeUrl: 'https://youtu.be/2Ex83c49EJ8', caption: 'Capitol tour' } },
+      ],
+    },
+  })
+  expect(designed.isError).toBeFalsy()
+  const featureId = designed.structuredContent.sectionId!
+  const feature = page.frameLocator('iframe[data-unsteady-viewport]').getByTestId(`block-${featureId}`)
+  await expect(feature.getByRole('heading')).toHaveCSS('font-size', '48px')
+  const loadedPhoto = feature.getByRole('img', { name: 'Capitol photo' })
+  await expect(loadedPhoto).toBeVisible()
+  await expect.poll(() => loadedPhoto.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true)
+  await expect(feature.locator('iframe[title="Capitol tour"]')).toHaveAttribute('src', 'https://www.youtube-nocookie.com/embed/2Ex83c49EJ8')
+  await feature.getByRole('button', { name: 'Edit Heading', exact: true }).click()
+  const headingInput = feature.getByRole('textbox')
+  await headingInput.fill('A closer look at the Capitol')
+  await headingInput.press('Tab')
+  await page.getByRole('button', { name: 'Save draft', exact: true }).click()
+  await expect.poll(() => layouts.get('budget-detail')?.[0]?.children?.[0]?.text).toBe('A closer look at the Capitol')
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await expect(page.frameLocator('iframe[data-unsteady-viewport]').getByText('A closer look at the Capitol')).toBeVisible({ timeout: 30_000 })
   expect(errors).toEqual([])
 })

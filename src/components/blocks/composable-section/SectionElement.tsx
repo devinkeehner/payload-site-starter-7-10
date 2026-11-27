@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { safeSectionURL } from '@/lib/live-editor/pageSections'
 import styles from './section.module.css'
+import { sectionMediaURL, sectionYouTubeEmbed } from './media'
 
 type Block = Record<string, unknown>
 const asText = (value: unknown) => typeof value === 'string' ? value : ''
@@ -8,7 +9,7 @@ const iconSymbols: Record<string, string> = { check: '✓', info: 'ⓘ', star: '
 
 function resource(value: unknown) {
   const object = value && typeof value === 'object' ? value as Block : {}
-  return { url: safeSectionURL(object.url), alt: asText(object.alt) }
+  return { url: sectionMediaURL(object.url), alt: asText(object.alt) }
 }
 
 export function SectionElement({ block, children, resolveMedia = value => value, text = name => asText(block[name]), richText, form, editing = false }: {
@@ -25,7 +26,7 @@ export function SectionElement({ block, children, resolveMedia = value => value,
   const placeholder = (label: string) => editing ? <span className={styles.placeholder}>{label}</span> : null
   switch (block.blockType) {
     case 'composableSection':
-      return <section className={styles.section} data-tone={asText(block.tone)}>{children}</section>
+      return <section className={styles.section} data-designed-section={block.design != null || undefined} data-tone={asText(block.tone)}>{children}</section>
     case 'sectionColumns':
     case 'sectionGrid':
       return <div className={styles.grid} data-variant={asText(block.variant)} style={{ '--section-columns': columnCount } as CSSProperties}>{children}</div>
@@ -43,7 +44,7 @@ export function SectionElement({ block, children, resolveMedia = value => value,
     case 'sectionCallout':
       return <aside className={styles.callout}><strong>{text('text')}</strong><div className={styles.copy}>{richText}</div></aside>
     case 'sectionStatistic':
-      return <div className={styles.stat}><strong>{asText(block.value)}</strong><span>{text('text')}</span></div>
+      return <div className={styles.stat}><strong>{text('value')}</strong><span>{text('text')}</span></div>
     case 'sectionQuote':
       return <figure className={styles.quote}><blockquote>{text('text')}</blockquote>{block.attribution ? <figcaption>{asText(block.attribution)}</figcaption> : null}</figure>
     case 'sectionList':
@@ -58,8 +59,16 @@ export function SectionElement({ block, children, resolveMedia = value => value,
         return image.url ? <img key={index} src={image.url} alt={image.alt} loading="lazy" /> : null
       }) : placeholder('Choose gallery images')}</div>
     case 'sectionVideo': {
+      const embed = sectionYouTubeEmbed(block.youtubeUrl)
       const video = resource(resolveMedia(block.file))
-      return video.url ? <figure className={styles.figure}><video src={video.url} controls={!editing} preload="metadata" aria-label={caption || 'Video'} />{caption && <figcaption>{caption}</figcaption>}</figure> : placeholder('Choose a video')
+      if (!embed && !video.url) return placeholder('Choose a video or enter a YouTube URL')
+      return <figure className={styles.figure}>
+        {embed
+          ? <iframe className={styles.videoEmbed} src={embed} title={caption || 'YouTube video'} loading="lazy"
+              referrerPolicy="strict-origin-when-cross-origin" allow="encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
+          : <video src={video.url} controls preload="metadata" aria-label={caption || 'Video'} />}
+        {caption && <figcaption>{caption}</figcaption>}
+      </figure>
     }
     case 'sectionLink':
     case 'sectionButton':

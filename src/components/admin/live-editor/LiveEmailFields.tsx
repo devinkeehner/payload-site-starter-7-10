@@ -122,8 +122,10 @@ function Field({ field, owner, onOwnerChange, path, context }: {
       </label>)}
     </div>
   } else if (field.type === 'relationship' || field.type === 'upload') {
-    input = field.relationTo === 'media' && !field.hasMany && field.name !== 'file'
-      ? <LiveEmailMediaField value={value} onChange={change} readOnly={context.readOnly} uploadAccept={field.mimeTypes?.join(',') || 'image/*'} />
+    const video = context.blockType === 'sectionVideo' && field.name === 'file'
+    input = field.relationTo === 'media' && !field.hasMany && (field.name !== 'file' || video)
+      ? <LiveEmailMediaField value={value} onChange={change} readOnly={context.readOnly}
+          uploadAccept={video ? 'video/mp4,video/webm' : field.mimeTypes?.join(',') || 'image/*'} allowVideoUpload={video} />
       : <LiveEmailRelationshipField field={field} value={value} onChange={change} readOnly={context.readOnly} />
   } else if (field.options?.length) {
     const options = field.options
@@ -247,7 +249,7 @@ function ArrayField({ field, value, onChange, path, context }: {
     {rows.map((item, index) => {
       const row = record(item)
       const schema = field.type === 'blocks' ? field.blocks?.find(block => block.slug === row.blockType) : undefined
-      const title = row.label || row.heading || row.title || row.name || schema?.label || `Item ${index + 1}`
+      const title = row.label || row.heading || row.title || row.name || row.blockName || schema?.label || `Item ${index + 1}`
       return <details className={styles.arrayRow} key={typeof row.id === 'string' || typeof row.id === 'number' ? row.id : index} open={rows.length === 1 || undefined}>
         <summary><span>{String(title).slice(0, 80)}</span><small>{index + 1}</small></summary>
         <div className={styles.rowActions}>

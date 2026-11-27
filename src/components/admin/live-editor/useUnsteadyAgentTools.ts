@@ -10,6 +10,7 @@ export type UnsteadyAgentBinding = {
   getState: () => EditorAgentState
   /** Apply through the editor's normal undo history and synchronously update its state ref. */
   commit: (result: EditorCommandResult) => void
+  searchMedia?: (kind: 'image' | 'video', query: string) => Promise<unknown>
   sections?: { save: (name: string, section: SectionTemplate['section']) => Promise<SectionTemplate> }
   undo?: () => void
   redo?: () => void
@@ -137,6 +138,42 @@ export function createUnsteadyAgentTools(binding: UnsteadyAgentBinding, lifetime
         return { revision: result.revision, sectionId: result.selectedId }
       }),
     })
+    tools.push({
+      name: 'live_editor_design_section', title: 'Design a section and its editable fields',
+      description: 'Create a custom section as one local undo step. Send title, a layout container tree, and fields. Layout nodes are {tag?,style?,children} or {field,style?}. Use div, header, aside, section or footer. Use CSS properties such as display, gridTemplateColumns, gap, padding, color, backgroundColor and fontSize in camelCase. Grid columns stack on narrow screens. Fields are {name,element}, where name matches a unique layout field label and element is a native leaf with blockType and initial values. For example {name:"Headline",element:{blockType:"sectionHeading",text:"Budget overview"}}. Use sectionImage with a library image ID, or sectionVideo with a library file ID or youtubeUrl. Read the element schemas for field types. Changes the local draft only.',
+      inputSchema: inputSchema({
+        expectedRevision: revisionSchema, beforeId: idSchema,
+        section: inputSchema({
+          title: { type: 'string' }, layout: { type: 'object' },
+          fields: { type: 'array', maxItems: 16, items: inputSchema({ name: { type: 'string' }, element: { type: 'object' } }, ['name', 'element']) },
+        }, ['title', 'layout', 'fields']),
+      }, ['expectedRevision', 'section']),
+      annotations: { readOnlyHint: false, untrustedContentHint: true, consequentialHint: false },
+      execute: execute(value => {
+        const input = inputObject(value, ['expectedRevision', 'section', 'beforeId'])
+        const current = stateNow()
+        const result = applyEditorCommand(current.document, {
+          type: 'design_section', section: input.section, ...(input.beforeId == null ? {} : { beforeId: input.beforeId }),
+        }, { ...current, expectedRevision: input.expectedRevision as number })
+        binding.commit(result)
+        minimumRevision = result.revision
+        return { revision: result.revision, sectionId: result.selectedId }
+      }),
+    })
+    const searchMedia = binding.searchMedia
+    if (searchMedia) tools.push({
+      name: 'live_editor_find_media', title: 'Find images or videos on this site',
+      description: 'Search the open page’s media library by filename or alt text. Returns media IDs for the Image and Video elements in assembled or designed sections. Makes no changes.',
+      inputSchema: inputSchema({ kind: { type: 'string', enum: ['image', 'video'] }, query: { type: 'string', maxLength: 200 } }, ['kind']),
+      annotations: { readOnlyHint: true, untrustedContentHint: true, consequentialHint: false },
+      execute: execute(value => {
+        const { kind, query = '' } = inputObject(value, ['kind', 'query'])
+        if ((kind !== 'image' && kind !== 'video') || typeof query !== 'string' || query.length > 200) {
+          throw new Error('Choose image or video and provide up to 200 characters of search text.')
+        }
+        return searchMedia(kind, query.trim())
+      }),
+    })
     if (binding.sections) tools.push({
       name: 'live_editor_save_section', title: 'Save a reusable section to this site',
       description: 'When the user requests reuse, save an editable copy of one section to this site’s library. Does not save or publish the page.',
@@ -233,6 +270,7 @@ export function useUnsteadyAgentTools(binding: UnsteadyAgentBinding & { enabled?
   const hasRedo = Boolean(binding.redo)
   const hasPreview = Boolean(binding.preview)
   const hasSections = Boolean(binding.sections)
+  const hasMedia = Boolean(binding.searchMedia)
   useEffect(() => {
     if (!enabled) { setStatus('unavailable'); return }
     // Current draft: document.modelContext + abortable registration.
@@ -247,6 +285,7 @@ export function useUnsteadyAgentTools(binding: UnsteadyAgentBinding & { enabled?
     let cleanup: (() => void) | undefined
     const tools = createUnsteadyAgentTools({ getState: () => latest.current.getState(), commit: result => latest.current.commit(result),
       ...(hasUndo ? { undo: () => latest.current.undo?.() } : {}), ...(hasRedo ? { redo: () => latest.current.redo?.() } : {}),
+      ...(hasMedia ? { searchMedia: (kind, query) => latest.current.searchMedia!(kind, query) } : {}),
       ...(hasSections ? { sections: { save: (name, section) => latest.current.sections!.save(name, section) } } : {}),
       ...(hasPreview ? { preview: { read: () => latest.current.preview!.read(), scroll: (target: PreviewScrollTarget) => latest.current.preview!.scroll(target) } } : {}),
     }, controller.signal)
@@ -256,6 +295,6 @@ export function useUnsteadyAgentTools(binding: UnsteadyAgentBinding & { enabled?
       else setStatus('ready')
     }).catch(() => { if (!disposed) setStatus('error') })
     return () => { disposed = true; controller.abort(); cleanup?.() }
-  }, [enabled, hasUndo, hasRedo, hasPreview, hasSections])
+  }, [enabled, hasUndo, hasRedo, hasPreview, hasSections, hasMedia])
   return { available: status === 'ready', status }
 }

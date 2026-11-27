@@ -105,6 +105,10 @@
 .block:hover > .blockTools, .block[data-selected] > .blockTools, .block:focus-within > .blockTools { opacity: 1; pointer-events: auto; }
 .blockTools button { display: flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 5px; min-width: 24px; min-height: 25px; border-radius: 3px; color: inherit; }
 .blockTools button:hover { background: #faedf0; }
+[data-designed-field] > .block { padding: 0; }
+[data-designed-field] > .block > .blockTools { opacity: 0; pointer-events: none; }
+[data-designed-field] > .block:is(:hover, :focus-within, [data-selected]) > .blockTools { opacity: 1; pointer-events: auto; }
+
 .moveHandle { cursor: grab !important; touch-action: none; max-width: 170px; }
 .moveHandle span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @container email-block (max-width: 210px) {

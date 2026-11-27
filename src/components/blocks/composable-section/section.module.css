@@ -39,3 +39,16 @@
 .button { display: inline-block; width: fit-content; border-radius: .35rem; background: var(--section-accent); color: white; padding: .55rem .9rem; }
 .section[data-tone="accent"] .button { color: #173767; }
 .placeholder { display: inline-block; padding: .65rem; border: 1px dashed currentColor; opacity: .75; }
+
+.designNode { min-width: 0; }
+.designGrid { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 36rem) {
+  .designGrid { grid-template-columns: var(--design-columns, minmax(0, 1fr)); }
+}
+.designNode[style*="font-size"] :is(.heading, .copy, .stat strong) { font-size: inherit; }
+.designNode[style*="font-weight"] :is(.heading, .stat strong) { font-weight: inherit; }
+.designNode[style*="line-height"] :is(.heading, .copy, .stat strong) { line-height: inherit; }
+.designNode[data-designed-field] .stat { padding: 0; border: 0; }
+.videoEmbed { display: block; width: 100%; min-height: 200px; aspect-ratio: 16 / 9; border: 0; }
+
+.section[data-designed-section] { padding: 0; }
